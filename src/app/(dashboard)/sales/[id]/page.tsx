@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import { format } from 'date-fns';
+import { toZonedTime } from 'date-fns-tz';
 import { th } from 'date-fns/locale';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
@@ -26,6 +27,8 @@ async function SaleDetails({ id }: { id: string }) {
     notFound();
   }
 
+  const zonedDate = toZonedTime(sale.date, 'Asia/Bangkok');
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between print:hidden">
@@ -50,8 +53,12 @@ async function SaleDetails({ id }: { id: string }) {
               </p>
             </div>
             <div className="text-right">
-              <p className="font-medium">วันที่: {format(sale.date, 'dd MMMM yyyy', { locale: th })}</p>
-              <p className="text-sm text-muted-foreground">เวลา: {format(sale.date, 'HH:mm', { locale: th })}</p>
+              <p className="font-medium">
+                วันที่: {format(zonedDate, 'dd MMMM yyyy', { locale: th })}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                เวลา: {format(zonedDate, 'HH:mm', { locale: th })} น.
+              </p>
             </div>
           </div>
         </CardHeader>
