@@ -25,24 +25,24 @@ const navItems = [
     icon: LayoutDashboard,
   },
   {
-    title: 'สินค้า',
-    href: '/products',
-    icon: Package,
-  },
-  {
-    title: 'ลูกค้า',
-    href: '/customers',
-    icon: Users,
-  },
-  {
     title: 'ขายสินค้า',
     href: '/sales',
     icon: ShoppingCart,
   },
   {
+    title: 'สินค้า',
+    href: '/products',
+    icon: Package,
+  },
+  {
     title: 'ซื้อสินค้า',
     href: '/purchases',
     icon: Receipt,
+  },
+  {
+    title: 'ลูกค้า',
+    href: '/customers',
+    icon: Users,
   },
   {
     title: 'ค่าใช้จ่าย',
