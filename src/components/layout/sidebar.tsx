@@ -13,6 +13,7 @@ import {
   LogOut,
   ChevronLeft,
   Users,
+  HelpCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -61,6 +62,11 @@ const secondaryNavItems = [
     title: 'ตั้งค่า',
     href: '/settings',
     icon: Settings,
+  },
+  {
+    title: 'คู่มือ',
+    href: '/help',
+    icon: HelpCircle,
   },
 ];
 
