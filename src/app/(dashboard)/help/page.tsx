@@ -336,7 +336,7 @@ export default function HelpPage() {
 
       {/* Detailed Feature Guides */}
       <section>
-        <h2 className="text-xl font-semibold mb-4">📖 คู่มือแต่ละฟีเจอร์</h2>
+        <h2 className="text-xl font-semibold mb-4">คู่มือแต่ละฟีเจอร์</h2>
         <p className="text-muted-foreground mb-6">รายละเอียดการใช้งานแต่ละส่วนของระบบ</p>
         
         <div className="space-y-6">
