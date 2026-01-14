@@ -58,8 +58,8 @@ export async function createCustomer(input: CustomerInput) {
     const customer = await db.customer.create({
       data: {
         ...validated.data,
+        name: validated.data.name,
         phone: validated.data.phone || null,
-        email: validated.data.email || null,
         address: validated.data.address || null,
         notes: validated.data.notes || null,
         userId,
@@ -95,8 +95,8 @@ export async function updateCustomer(id: string, input: CustomerInput) {
       where: { id },
       data: {
         ...validated.data,
+        name: validated.data.name,
         phone: validated.data.phone || null,
-        email: validated.data.email || null,
         address: validated.data.address || null,
         notes: validated.data.notes || null,
       },
