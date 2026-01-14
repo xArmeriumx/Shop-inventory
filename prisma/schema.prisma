@@ -1,0 +1,209 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== Auth ====================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  password      String?
+  image         String?
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  products      Product[]
+  purchases     Purchase[]
+  sales         Sale[]
+  expenses      Expense[]
+  suppliers     Supplier[]
+  customers     Customer[]
+}
+
+// ==================== Core Models ====================
+
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  sku         String?  @unique
+  category    String
+
+  costPrice   Decimal  @db.Decimal(10, 2)
+  salePrice   Decimal  @db.Decimal(10, 2)
+  stock       Int      @default(0)
+  minStock    Int      @default(5)
+
+  images      String[]
+  isActive    Boolean  @default(true)
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  purchaseItems PurchaseItem[]
+  saleItems     SaleItem[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([category])
+  @@index([name])
+  @@index([isActive])
+}
+
+model Supplier {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String?
+  address   String?
+  notes     String?
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  purchases Purchase[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([name])
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String?
+  address   String?
+  notes     String?
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  sales     Sale[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([name])
+}
+
+// ==================== Transactions ====================
+
+model Purchase {
+  id          String   @id @default(cuid())
+  date        DateTime @default(now())
+
+  supplierId  String?
+  supplier    Supplier? @relation(fields: [supplierId], references: [id])
+
+  totalCost   Decimal  @db.Decimal(10, 2)
+  receiptUrl  String?
+  notes       String?
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  items       PurchaseItem[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([date])
+  @@index([supplierId])
+}
+
+model PurchaseItem {
+  id          String   @id @default(cuid())
+
+  purchaseId  String
+  purchase    Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+
+  quantity    Int
+  costPrice   Decimal  @db.Decimal(10, 2)
+  subtotal    Decimal  @db.Decimal(10, 2)
+
+  @@index([purchaseId])
+  @@index([productId])
+}
+
+model Sale {
+  id            String   @id @default(cuid())
+  invoiceNumber String   @unique
+  date          DateTime @default(now())
+
+  customerId    String?
+  customer      Customer? @relation(fields: [customerId], references: [id])
+  customerName  String?
+
+  totalAmount   Decimal  @db.Decimal(10, 2)
+  totalCost     Decimal  @db.Decimal(10, 2)
+  profit        Decimal  @db.Decimal(10, 2)
+
+  paymentMethod String
+  notes         String?
+
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  items         SaleItem[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
+  @@index([date])
+  @@index([invoiceNumber])
+  @@index([customerId])
+}
+
+model SaleItem {
+  id          String   @id @default(cuid())
+
+  saleId      String
+  sale        Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+
+  quantity    Int
+  salePrice   Decimal  @db.Decimal(10, 2)
+  costPrice   Decimal  @db.Decimal(10, 2)
+  subtotal    Decimal  @db.Decimal(10, 2)
+  profit      Decimal  @db.Decimal(10, 2)
+
+  @@index([saleId])
+  @@index([productId])
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  category    String
+  amount      Decimal  @db.Decimal(10, 2)
+  description String?
+  date        DateTime @default(now())
+  receiptUrl  String?
+
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([date])
+  @@index([category])
+}
