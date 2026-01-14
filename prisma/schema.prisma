@@ -20,6 +20,8 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  // Relations
+  shop          Shop?
   products      Product[]
   purchases     Purchase[]
   sales         Sale[]
@@ -28,13 +30,30 @@ model User {
   customers     Customer[]
 }
 
+// ==================== Shop (Multi-tenancy) ====================
+
+model Shop {
+  id          String   @id @default(cuid())
+  name        String   // ชื่อร้าน
+  address     String?  // ที่อยู่ (สำหรับใบเสร็จ)
+  phone       String?  // เบอร์ติดต่อ
+  logo        String?  // URL โลโก้
+  taxId       String?  // เลขประจำตัวผู้เสียภาษี
+
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
 // ==================== Core Models ====================
 
 model Product {
   id          String   @id @default(cuid())
   name        String
   description String?
-  sku         String?  @unique
+  sku         String?  // Compound unique below
   category    String
 
   costPrice   Decimal  @db.Decimal(10, 2)
@@ -51,10 +70,15 @@ model Product {
   purchaseItems PurchaseItem[]
   saleItems     SaleItem[]
 
+  // Soft Delete
+  deletedAt   DateTime?
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  @@unique([userId, sku])
   @@index([userId])
+  @@index([userId, deletedAt])
   @@index([category])
   @@index([name])
   @@index([isActive])
@@ -72,10 +96,14 @@ model Supplier {
 
   purchases Purchase[]
 
+  // Soft Delete
+  deletedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+  @@index([userId, deletedAt])
   @@index([name])
 }
 
@@ -91,10 +119,14 @@ model Customer {
 
   sales     Sale[]
 
+  // Soft Delete
+  deletedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+  @@index([userId, deletedAt])
   @@index([name])
 }
 
@@ -116,10 +148,15 @@ model Purchase {
 
   items       PurchaseItem[]
 
+  // Soft Delete
+  deletedAt   DateTime?
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@index([userId])
+  @@index([userId, deletedAt])
+  @@index([userId, date])
   @@index([date])
   @@index([supplierId])
 }
@@ -143,7 +180,7 @@ model PurchaseItem {
 
 model Sale {
   id            String   @id @default(cuid())
-  invoiceNumber String   @unique
+  invoiceNumber String   // Compound unique below
   date          DateTime @default(now())
 
   customerId    String?
@@ -162,12 +199,17 @@ model Sale {
 
   items         SaleItem[]
 
+  // Soft Delete
+  deletedAt     DateTime?
+
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
+  @@unique([userId, invoiceNumber])
   @@index([userId])
+  @@index([userId, deletedAt])
+  @@index([userId, date])
   @@index([date])
-  @@index([invoiceNumber])
   @@index([customerId])
 }
 
@@ -201,10 +243,15 @@ model Expense {
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // Soft Delete
+  deletedAt   DateTime?
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@index([userId])
+  @@index([userId, deletedAt])
+  @@index([userId, date])
   @@index([date])
   @@index([category])
 }

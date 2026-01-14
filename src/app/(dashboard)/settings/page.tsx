@@ -1,15 +1,18 @@
 import { Suspense } from 'react';
-import { Settings } from 'lucide-react';
 
 import { getUserProfile } from '@/actions/settings';
+import { getShop, createShopIfNotExists } from '@/actions/shop';
 import { SettingsForm } from '@/components/features/settings/settings-form';
 import Loading from '@/app/(dashboard)/loading';
 
 async function SettingsContent() {
-  const user = await getUserProfile();
+  const [user, shop] = await Promise.all([
+    getUserProfile(),
+    createShopIfNotExists(), // Auto-create shop if not exists
+  ]);
 
   return (
-    <SettingsForm initialData={user} />
+    <SettingsForm initialData={user} shopData={shop} />
   );
 }
 

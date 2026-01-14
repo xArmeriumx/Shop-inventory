@@ -3,13 +3,14 @@ import { notFound } from 'next/navigation';
 import { format } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 import { th } from 'date-fns/locale';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Store } from 'lucide-react';
 import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { getSale } from '@/actions/sales';
+import { getShop } from '@/actions/shop';
 import { formatCurrency } from '@/lib/utils';
 import Loading from '@/app/(dashboard)/loading';
 import { PrintButton } from '@/components/features/sales/print-button';
@@ -21,7 +22,10 @@ interface SaleDetailsPageProps {
 }
 
 async function SaleDetails({ id }: { id: string }) {
-  const sale = await getSale(id);
+  const [sale, shop] = await Promise.all([
+    getSale(id),
+    getShop(),
+  ]);
 
   if (!sale) {
     notFound();
@@ -45,6 +49,22 @@ async function SaleDetails({ id }: { id: string }) {
 
       <Card className="print:shadow-none print:border-none">
         <CardHeader className="border-b print:border-none">
+          {/* Shop Header */}
+          <div className="text-center mb-4 print:mb-6">
+            <h2 className="text-2xl font-bold">{shop?.name || 'ร้านค้า'}</h2>
+            {shop?.address && (
+              <p className="text-sm text-muted-foreground mt-1">{shop.address}</p>
+            )}
+            {shop?.phone && (
+              <p className="text-sm text-muted-foreground">โทร: {shop.phone}</p>
+            )}
+            {shop?.taxId && (
+              <p className="text-sm text-muted-foreground">เลขประจำตัวผู้เสียภาษี: {shop.taxId}</p>
+            )}
+          </div>
+
+          <Separator className="my-4" />
+
           <div className="flex justify-between items-start">
             <div>
               <CardTitle className="text-xl">ใบเสร็จรับเงิน / Receipt</CardTitle>
@@ -125,6 +145,12 @@ async function SaleDetails({ id }: { id: string }) {
               <p className="text-sm text-muted-foreground">{sale.notes}</p>
             </div>
           )}
+
+          {/* Footer */}
+          <div className="mt-8 pt-4 border-t text-center text-sm text-muted-foreground print:mt-12">
+            <p>ขอบคุณที่ใช้บริการ</p>
+            {shop?.name && <p className="font-medium">{shop.name}</p>}
+          </div>
         </CardContent>
       </Card>
       
