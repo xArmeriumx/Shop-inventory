@@ -5,7 +5,7 @@ import { db } from '@/lib/db';
 import { getCurrentUserId } from '@/lib/auth-guard';
 import { paginatedQuery, buildSearchFilter } from '@/lib/pagination';
 import { productSchema, type ProductInput, type ProductUpdateInput } from '@/schemas/product';
-import type { Product } from '@prisma/client';
+import { Product } from '@prisma/client';
 
 interface GetProductsParams {
   page?: number;
@@ -227,7 +227,7 @@ export async function getLowStockProducts(limit: number = 5) {
 
   // Filter in JS since Prisma doesn't support comparing two columns directly
   const lowStock = products
-    .filter((p) => p.stock <= p.minStock)
+    .filter((p: Product) => p.stock <= p.minStock)
     .slice(0, limit);
 
   return lowStock;

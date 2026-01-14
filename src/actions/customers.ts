@@ -17,7 +17,7 @@ export async function getCustomers(params: GetCustomersParams = {}) {
   const userId = await getCurrentUserId();
   const { page = 1, limit = 20, search } = params;
 
-  const searchFilter = buildSearchFilter(search, ['name', 'phone', 'email']);
+  const searchFilter = buildSearchFilter(search, ['name', 'phone']);
 
   const where = {
     userId,

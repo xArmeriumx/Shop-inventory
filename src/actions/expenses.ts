@@ -19,7 +19,7 @@ export async function getExpenses(params: GetExpensesParams = {}) {
   const userId = await getCurrentUserId();
   const { page = 1, limit = 20, search, category, startDate, endDate } = params;
 
-  const searchFilter = buildSearchFilter(search, ['description', 'notes']);
+  const searchFilter = buildSearchFilter(search, ['description']);
   const dateFilter = buildDateRangeFilter(startDate, endDate);
 
   const where = {
@@ -63,7 +63,6 @@ export async function createExpense(input: ExpenseInput) {
     const expense = await db.expense.create({
       data: {
         ...validated.data,
-        notes: validated.data.notes || null,
         userId,
       },
     });
@@ -98,7 +97,6 @@ export async function updateExpense(id: string, input: ExpenseInput) {
       where: { id },
       data: {
         ...validated.data,
-        notes: validated.data.notes || null,
       },
     });
 

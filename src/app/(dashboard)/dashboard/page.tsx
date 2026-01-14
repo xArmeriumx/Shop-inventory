@@ -114,7 +114,7 @@ async function DashboardContent() {
               </div>
             ) : (
               <div className="space-y-4">
-                {stats.recentSales.map((sale) => (
+                {stats.recentSales.map((sale: any) => (
                   <div
                     key={sale.id}
                     className="flex items-center justify-between border-b pb-3 last:border-0"
@@ -165,7 +165,7 @@ async function DashboardContent() {
               </div>
             ) : (
               <div className="space-y-3">
-                {stats.lowStockProducts.map((product) => (
+                {stats.lowStockProducts.map((product: any) => (
                   <div
                     key={product.id}
                     className="flex items-center justify-between rounded-lg border border-red-200 bg-red-50 p-3"
