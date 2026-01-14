@@ -2,7 +2,7 @@ import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
-import { ArrowLeft, Printer } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import { getSale } from '@/actions/sales';
 import { formatCurrency } from '@/lib/utils';
 import Loading from '@/app/(dashboard)/loading';
+import { PrintButton } from '@/components/features/sales/print-button';
 
 interface SaleDetailsPageProps {
   params: {
@@ -36,10 +37,7 @@ async function SaleDetails({ id }: { id: string }) {
           </Button>
           <h1 className="text-2xl font-bold tracking-tight">รายละเอียดการขาย</h1>
         </div>
-        <Button onClick={() => window.print()}>
-          <Printer className="mr-2 h-4 w-4" />
-          พิมพ์ใบเสร็จ
-        </Button>
+        <PrintButton />
       </div>
 
       <Card className="print:shadow-none print:border-none">
