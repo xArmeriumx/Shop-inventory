@@ -26,7 +26,7 @@ export async function getPurchases(params: GetPurchasesParams = {}) {
     paymentMethod,
   } = params;
 
-  const searchFilter = buildSearchFilter(search, ['referenceNumber', 'supplierName', 'notes']);
+  const searchFilter = buildSearchFilter(search, ['notes']);
   const dateFilter = buildDateRangeFilter(startDate, endDate);
 
   const where = {
@@ -91,21 +91,9 @@ export async function createPurchase(input: PurchaseInput) {
   const { items, ...purchaseData } = validated.data;
 
   try {
-    const purchase = await db.$transaction(async (tx) => {
-      // Generate reference number
-      const lastPurchase = await tx.purchase.findFirst({
-        where: { userId },
-        orderBy: { createdAt: 'desc' },
-        select: { referenceNumber: true },
-      });
-
-      const lastNumber = lastPurchase
-        ? parseInt(lastPurchase.referenceNumber.split('-')[1] || '0')
-        : 0;
-      const referenceNumber = `PO-${String(lastNumber + 1).padStart(5, '0')}`;
-
+    const purchase = await db.$transaction(async (tx: any) => {
       // Calculate total
-      const totalAmount = items.reduce(
+      const totalCost = items.reduce(
         (sum, item) => sum + item.quantity * item.costPrice,
         0
       );
@@ -113,13 +101,12 @@ export async function createPurchase(input: PurchaseInput) {
       // Create purchase
       const newPurchase = await tx.purchase.create({
         data: {
-          referenceNumber,
           userId,
           supplierId: purchaseData.supplierId || null,
-          supplierName: purchaseData.supplierName || null,
-          paymentMethod: purchaseData.paymentMethod,
-          notes: purchaseData.notes || null,
-          totalAmount,
+          // Removed supplierName and paymentMethod as they are not in schema
+          // Removed referenceNumber generation
+          notes: purchaseData.notes || (purchaseData.paymentMethod ? `Payment: ${purchaseData.paymentMethod}` : null),
+          totalCost: totalCost, // Schema uses totalCost, not totalAmount
           items: {
             create: items.map((item) => ({
               productId: item.productId,
@@ -162,7 +149,7 @@ export async function deletePurchase(id: string) {
   const userId = await getCurrentUserId();
 
   try {
-    await db.$transaction(async (tx) => {
+    await db.$transaction(async (tx: any) => {
       const purchase = await tx.purchase.findFirst({
         where: { id, userId },
         include: { items: true },
