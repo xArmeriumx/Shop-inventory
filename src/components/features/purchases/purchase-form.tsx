@@ -37,7 +37,13 @@ export function PurchaseForm() {
   ]);
 
   useEffect(() => {
-    getProductsForSelect().then(setProducts);
+    getProductsForSelect().then((data) => {
+      const mappedProducts = data.map((p: any) => ({
+        ...p,
+        costPrice: Number(p.costPrice),
+      }));
+      setProducts(mappedProducts);
+    });
   }, []);
 
   const handleAddItem = () => {

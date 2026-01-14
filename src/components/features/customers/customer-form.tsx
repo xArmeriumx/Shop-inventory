@@ -12,7 +12,6 @@ interface Customer {
   id: string;
   name: string;
   phone: string | null;
-  email: string | null;
   address: string | null;
   notes: string | null;
 }
@@ -36,7 +35,6 @@ export function CustomerForm({ customer }: CustomerFormProps) {
     const data = {
       name: formData.get('name') as string,
       phone: (formData.get('phone') as string) || null,
-      email: (formData.get('email') as string) || null,
       address: (formData.get('address') as string) || null,
       notes: (formData.get('notes') as string) || null,
     };
@@ -90,20 +88,6 @@ export function CustomerForm({ customer }: CustomerFormProps) {
               />
               {errors.phone && (
                 <p className="text-sm text-destructive">{errors.phone[0]}</p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="email">อีเมล</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                defaultValue={customer?.email || ''}
-                placeholder="example@email.com"
-              />
-              {errors.email && (
-                <p className="text-sm text-destructive">{errors.email[0]}</p>
               )}
             </div>
 

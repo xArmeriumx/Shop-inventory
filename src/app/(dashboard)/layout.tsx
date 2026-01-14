@@ -1,25 +1,16 @@
-import { Sidebar } from '@/components/layout/sidebar';
-import { Header } from '@/components/layout/header';
+import { auth } from '@/lib/auth';
+import { DashboardLayoutClient } from '@/components/layout/dashboard-layout-client';
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <div className="flex h-screen overflow-hidden">
-      {/* Sidebar - Hidden on mobile, visible on lg+ */}
-      <div className="hidden lg:block">
-        <Sidebar />
-      </div>
+  const session = await auth();
 
-      {/* Main content */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <Header />
-        <main className="flex-1 overflow-y-auto bg-muted/30 p-4 lg:p-6">
-          {children}
-        </main>
-      </div>
-    </div>
+  return (
+    <DashboardLayoutClient user={session?.user}>
+      {children}
+    </DashboardLayoutClient>
   );
 }

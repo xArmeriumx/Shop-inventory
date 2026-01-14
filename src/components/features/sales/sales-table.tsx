@@ -135,7 +135,7 @@ export function SalesTable({ sales, pagination }: SalesTableProps) {
                   {formatCurrency(sale.totalAmount.toString())}
                 </TableCell>
                 <TableCell className="text-right">
-                  <span className={sale.profit >= 0 ? 'text-green-600' : 'text-destructive'}>
+                  <span className={Number(sale.profit) >= 0 ? 'text-green-600' : 'text-destructive'}>
                     {formatCurrency(sale.profit.toString())}
                   </span>
                 </TableCell>

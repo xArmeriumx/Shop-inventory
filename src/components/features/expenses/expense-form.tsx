@@ -11,11 +11,10 @@ import { createExpense, updateExpense } from '@/actions/expenses';
 
 interface Expense {
   id: string;
-  description: string;
+  description: string | null;
   amount: number | { toString: () => string };
   category: string;
   date: Date;
-  notes: string | null;
 }
 
 interface ExpenseFormProps {
@@ -43,7 +42,6 @@ export function ExpenseForm({ expense }: ExpenseFormProps) {
       amount: parseFloat(formData.get('amount') as string) || 0,
       category: formData.get('category') as any,
       date: new Date(formData.get('date') as string),
-      notes: (formData.get('notes') as string) || null,
     };
 
     startTransition(async () => {
@@ -76,7 +74,7 @@ export function ExpenseForm({ expense }: ExpenseFormProps) {
               <Input
                 id="description"
                 name="description"
-                defaultValue={expense?.description}
+                defaultValue={expense?.description || ''}
                 placeholder="เช่น ค่าไฟฟ้าประจำเดือน"
                 required
               />
@@ -135,18 +133,6 @@ export function ExpenseForm({ expense }: ExpenseFormProps) {
               {errors.date && (
                 <p className="text-sm text-destructive">{errors.date[0]}</p>
               )}
-            </div>
-
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="notes">หมายเหตุ</Label>
-              <textarea
-                id="notes"
-                name="notes"
-                defaultValue={expense?.notes || ''}
-                placeholder="บันทึกเพิ่มเติม"
-                rows={3}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              />
             </div>
           </div>
 

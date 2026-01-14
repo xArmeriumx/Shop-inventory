@@ -33,7 +33,6 @@ export async function getPurchases(params: GetPurchasesParams = {}) {
     userId,
     ...(searchFilter && searchFilter),
     ...(dateFilter && { date: dateFilter }),
-    ...(paymentMethod && { paymentMethod }),
   };
 
   return paginatedQuery(db.purchase, {

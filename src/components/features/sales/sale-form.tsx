@@ -39,7 +39,14 @@ export function SaleForm() {
 
   // Load products
   useEffect(() => {
-    getProductsForSelect().then(setProducts);
+    getProductsForSelect().then((data) => {
+      const mappedProducts = data.map((p: any) => ({
+        ...p,
+        salePrice: Number(p.salePrice),
+        costPrice: Number(p.costPrice),
+      }));
+      setProducts(mappedProducts);
+    });
   }, []);
 
   const handleAddItem = () => {

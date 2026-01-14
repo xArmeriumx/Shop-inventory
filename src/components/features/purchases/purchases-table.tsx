@@ -20,12 +20,10 @@ import { useState, useTransition } from 'react';
 
 interface Purchase {
   id: string;
-  referenceNumber: string;
   date: Date;
-  supplierName: string | null;
-  paymentMethod: string;
-  totalAmount: number | { toString: () => string };
+  totalCost: number | { toString: () => string };
   supplier?: { name: string } | null;
+  notes: string | null;
 }
 
 interface PurchasesTableProps {
@@ -47,10 +45,6 @@ export function PurchasesTable({ purchases, pagination }: PurchasesTableProps) {
   const [isPending, startTransition] = useTransition();
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const getPaymentMethodLabel = (value: string) => {
-    return PAYMENT_METHODS.find((m) => m.value === value)?.label || value;
-  };
-
   const handlePageChange = (newPage: number) => {
     const params = new URLSearchParams(searchParams);
     params.set('page', String(newPage));
@@ -59,8 +53,8 @@ export function PurchasesTable({ purchases, pagination }: PurchasesTableProps) {
     });
   };
 
-  const handleDelete = async (id: string, refNumber: string) => {
-    if (!confirm(`ต้องการลบ "${refNumber}" หรือไม่?\n\n⚠️ สต็อกสินค้าจะถูกหักออก`)) {
+  const handleDelete = async (id: string) => {
+    if (!confirm(`ต้องการลบรายการนี้หรือไม่?\n\n⚠️ สต็อกสินค้าจะถูกหักออก`)) {
       return;
     }
 
@@ -95,10 +89,9 @@ export function PurchasesTable({ purchases, pagination }: PurchasesTableProps) {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>เลขที่ใบสั่งซื้อ</TableHead>
               <TableHead>วันที่</TableHead>
               <TableHead>ผู้จัดจำหน่าย</TableHead>
-              <TableHead>วิธีชำระ</TableHead>
+              <TableHead>หมายเหตุ</TableHead>
               <TableHead className="text-right">ยอดรวม</TableHead>
               <TableHead className="w-[100px]"></TableHead>
             </TableRow>
@@ -107,23 +100,22 @@ export function PurchasesTable({ purchases, pagination }: PurchasesTableProps) {
             {purchases.map((purchase) => (
               <TableRow key={purchase.id}>
                 <TableCell>
-                  <div className="font-medium">{purchase.referenceNumber}</div>
-                </TableCell>
-                <TableCell>
                   <div className="text-sm">{formatDate(purchase.date)}</div>
                 </TableCell>
                 <TableCell>
-                  {purchase.supplier?.name || purchase.supplierName || (
+                  {purchase.supplier?.name || (
                     <span className="text-muted-foreground">-</span>
                   )}
                 </TableCell>
                 <TableCell>
-                  <Badge variant="secondary">
-                    {getPaymentMethodLabel(purchase.paymentMethod)}
-                  </Badge>
+                  {purchase.notes ? (
+                    <span className="text-sm">{purchase.notes}</span>
+                  ) : (
+                    <span className="text-muted-foreground text-sm">-</span>
+                  )}
                 </TableCell>
                 <TableCell className="text-right font-medium">
-                  {formatCurrency(purchase.totalAmount.toString())}
+                  {formatCurrency(purchase.totalCost.toString())}
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center justify-end gap-1">
@@ -135,7 +127,7 @@ export function PurchasesTable({ purchases, pagination }: PurchasesTableProps) {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => handleDelete(purchase.id, purchase.referenceNumber)}
+                      onClick={() => handleDelete(purchase.id)}
                       disabled={deletingId === purchase.id}
                     >
                       <Trash2 className="h-4 w-4" />

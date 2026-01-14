@@ -11,7 +11,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Edit, Trash2, ChevronLeft, ChevronRight, Phone, Mail } from 'lucide-react';
+import { Edit, Trash2, ChevronLeft, ChevronRight, Phone } from 'lucide-react';
 import { deleteCustomer } from '@/actions/customers';
 import { useState, useTransition } from 'react';
 
@@ -19,7 +19,6 @@ interface Customer {
   id: string;
   name: string;
   phone: string | null;
-  email: string | null;
   address: string | null;
 }
 
@@ -104,12 +103,6 @@ export function CustomersTable({ customers, pagination }: CustomersTableProps) {
                       <div className="flex items-center gap-1 text-muted-foreground">
                         <Phone className="h-3 w-3" />
                         {customer.phone}
-                      </div>
-                    )}
-                    {customer.email && (
-                      <div className="flex items-center gap-1 text-muted-foreground">
-                        <Mail className="h-3 w-3" />
-                        {customer.email}
                       </div>
                     )}
                   </div>

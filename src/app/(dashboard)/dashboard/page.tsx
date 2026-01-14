@@ -161,7 +161,7 @@ async function DashboardContent() {
           <CardContent>
             {stats.lowStockProducts.length === 0 ? (
               <div className="py-8 text-center text-sm text-muted-foreground">
-                สินค้าทุกรายการมีสต็อกเพียงพอ ✅
+                สินค้าทุกรายการมีสต็อกเพียงพอ
               </div>
             ) : (
               <div className="space-y-3">

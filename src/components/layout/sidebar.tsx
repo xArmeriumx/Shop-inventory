@@ -75,7 +75,7 @@ export function Sidebar({ isCollapsed = false, onToggle }: SidebarProps) {
   return (
     <aside
       className={cn(
-        'flex h-screen flex-col border-r bg-background transition-all duration-300',
+        'flex h-full flex-col border-r bg-background transition-all duration-300',
         isCollapsed ? 'w-16' : 'w-64'
       )}
     >
@@ -145,19 +145,17 @@ export function Sidebar({ isCollapsed = false, onToggle }: SidebarProps) {
 
       {/* Footer */}
       <div className="border-t p-2">
-        <form action="/api/auth/signout" method="POST">
-          <Button
-            type="submit"
-            variant="ghost"
-            className={cn(
-              'w-full justify-start gap-3 text-muted-foreground hover:text-foreground',
-              isCollapsed && 'justify-center px-2'
-            )}
-          >
-            <LogOut className="h-5 w-5 shrink-0" />
-            {!isCollapsed && <span>ออกจากระบบ</span>}
-          </Button>
-        </form>
+        <Button
+          variant="ghost"
+          className={cn(
+            'w-full justify-start gap-3 text-muted-foreground hover:text-foreground',
+            isCollapsed && 'justify-center px-2'
+          )}
+          onClick={() => import('next-auth/react').then(({ signOut }) => signOut())}
+        >
+          <LogOut className="h-5 w-5 shrink-0" />
+          {!isCollapsed && <span>ออกจากระบบ</span>}
+        </Button>
       </div>
 
       {/* Collapse Toggle */}

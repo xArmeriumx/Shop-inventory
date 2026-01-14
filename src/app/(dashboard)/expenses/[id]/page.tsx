@@ -18,7 +18,7 @@ export default async function EditExpensePage({ params }: EditExpensePageProps) 
 
   return (
     <div>
-      <PageHeader title="แก้ไขค่าใช้จ่าย" description={expense.description} />
+      <PageHeader title="แก้ไขค่าใช้จ่าย" description={expense.description || undefined} />
       <div className="max-w-2xl">
         <ExpenseForm expense={expense} />
       </div>

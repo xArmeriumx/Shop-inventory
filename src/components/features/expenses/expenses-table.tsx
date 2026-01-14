@@ -20,11 +20,10 @@ import { useState, useTransition } from 'react';
 
 interface Expense {
   id: string;
-  description: string;
+  description: string | null;
   amount: number | { toString: () => string };
   category: string;
   date: Date;
-  notes: string | null;
 }
 
 interface ExpensesTableProps {
@@ -58,8 +57,8 @@ export function ExpensesTable({ expenses, pagination }: ExpensesTableProps) {
     });
   };
 
-  const handleDelete = async (id: string, description: string) => {
-    if (!confirm(`ต้องการลบ "${description}" หรือไม่?`)) {
+  const handleDelete = async (id: string, description: string | null) => {
+    if (!confirm(`ต้องการลบ "${description || 'รายการนี้'}" หรือไม่?`)) {
       return;
     }
 
@@ -109,11 +108,6 @@ export function ExpensesTable({ expenses, pagination }: ExpensesTableProps) {
                 </TableCell>
                 <TableCell>
                   <p className="font-medium">{expense.description}</p>
-                  {expense.notes && (
-                    <p className="text-xs text-muted-foreground truncate max-w-[200px]">
-                      {expense.notes}
-                    </p>
-                  )}
                 </TableCell>
                 <TableCell>
                   <Badge variant="secondary">

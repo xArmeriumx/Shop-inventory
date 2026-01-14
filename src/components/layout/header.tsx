@@ -1,14 +1,17 @@
-import { auth } from '@/lib/auth';
+'use client';
 import { Button } from '@/components/ui/button';
 import { Menu } from 'lucide-react';
 
 interface HeaderProps {
+  user?: {
+    name?: string | null;
+    email?: string | null;
+    image?: string | null;
+  };
   onMenuClick?: () => void;
 }
 
-export async function Header({ onMenuClick }: HeaderProps) {
-  const session = await auth();
-
+export function Header({ user, onMenuClick }: HeaderProps) {
   return (
     <header className="flex h-14 items-center gap-4 border-b bg-background px-4 lg:px-6">
       {/* Mobile menu button */}
@@ -26,14 +29,14 @@ export async function Header({ onMenuClick }: HeaderProps) {
       <div className="flex-1" />
 
       {/* User info */}
-      {session?.user && (
+      {user && (
         <div className="flex items-center gap-3">
           <div className="text-right hidden sm:block">
-            <p className="text-sm font-medium">{session.user.name || 'User'}</p>
-            <p className="text-xs text-muted-foreground">{session.user.email}</p>
+            <p className="text-sm font-medium">{user.name || 'User'}</p>
+            <p className="text-xs text-muted-foreground">{user.email}</p>
           </div>
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground text-sm font-medium">
-            {(session.user.name?.[0] || session.user.email?.[0] || 'U').toUpperCase()}
+            {(user.name?.[0] || user.email?.[0] || 'U').toUpperCase()}
           </div>
         </div>
       )}
