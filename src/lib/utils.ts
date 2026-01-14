@@ -5,6 +5,14 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+
 export function generateId(): string {
   return Math.random().toString(36).substring(2, 9);
+}
+
+export function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat('th-TH', {
+    style: 'currency',
+    currency: 'THB',
+  }).format(amount);
 }
