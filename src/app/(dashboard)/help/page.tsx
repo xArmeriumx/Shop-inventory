@@ -294,7 +294,7 @@ export default function HelpPage() {
 
       {/* User Journey Section */}
       <section>
-        <h2 className="text-xl font-semibold mb-4">🚀 เริ่มต้นใช้งาน (User Journey)</h2>
+        <h2 className="text-xl font-semibold mb-4">เริ่มต้นใช้งาน (User Manual)</h2>
         <p className="text-muted-foreground mb-6">ขั้นตอนการเริ่มต้นใช้งานระบบสำหรับผู้ใช้ใหม่</p>
         
         <div className="relative">
