@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useFormState, useFormStatus } from 'react-dom';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -59,11 +59,13 @@ function AddCategoryDialog({ typeCode, onSuccess }: { typeCode: LookupTypeCode; 
   const createWithType = createLookupValue.bind(null, typeCode);
   const [state, formAction] = useFormState(createWithType, initialState);
 
-  // Close on success
-  if (state.success) {
-    setOpen(false);
-    onSuccess();
-  }
+  // Handle success with useEffect to avoid setState during render
+  useEffect(() => {
+    if (state.success) {
+      setOpen(false);
+      onSuccess();
+    }
+  }, [state.success, onSuccess]);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -90,7 +92,6 @@ function AddCategoryDialog({ typeCode, onSuccess }: { typeCode: LookupTypeCode; 
             <Label htmlFor="color">สี (optional)</Label>
             <div className="flex gap-2">
               <Input id="color" name="color" type="color" className="w-16 h-10 p-1" defaultValue="#6b7280" />
-              <Input name="color" placeholder="#6b7280" className="flex-1" />
             </div>
           </div>
           {state.error && (
@@ -107,6 +108,7 @@ function AddCategoryDialog({ typeCode, onSuccess }: { typeCode: LookupTypeCode; 
     </Dialog>
   );
 }
+
 
 function DeleteCategoryDialog({ 
   item, 
