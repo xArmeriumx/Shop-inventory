@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { PageHeader } from '@/components/layout/page-header';
 import { ProductForm } from '@/components/features/products/product-form';
 import { getProduct } from '@/actions/products';
+import { getLookupValues, seedDefaultLookupValues } from '@/actions/lookups';
 
 interface EditProductPageProps {
   params: {
@@ -18,6 +19,12 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
     notFound();
   }
 
+  // Seed default categories if needed
+  await seedDefaultLookupValues();
+  
+  // Fetch categories from DB
+  const categories = await getLookupValues('PRODUCT_CATEGORY');
+
   return (
     <div>
       <PageHeader
@@ -26,7 +33,7 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
       />
 
       <div className="max-w-2xl">
-        <ProductForm product={product} />
+        <ProductForm product={product} categories={categories} />
       </div>
     </div>
   );

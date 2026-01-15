@@ -1,7 +1,14 @@
 import { PageHeader } from '@/components/layout/page-header';
 import { ProductForm } from '@/components/features/products/product-form';
+import { getLookupValues, seedDefaultLookupValues } from '@/actions/lookups';
 
-export default function NewProductPage() {
+export default async function NewProductPage() {
+  // Seed default categories if needed
+  await seedDefaultLookupValues();
+  
+  // Fetch categories from DB
+  const categories = await getLookupValues('PRODUCT_CATEGORY');
+
   return (
     <div>
       <PageHeader
@@ -10,7 +17,7 @@ export default function NewProductPage() {
       />
 
       <div className="max-w-2xl">
-        <ProductForm />
+        <ProductForm categories={categories} />
       </div>
     </div>
   );

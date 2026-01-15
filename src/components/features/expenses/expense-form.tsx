@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
-import { EXPENSE_CATEGORIES } from '@/schemas/expense';
 import { createExpense, updateExpense } from '@/actions/expenses';
 
 interface Expense {
@@ -17,11 +16,18 @@ interface Expense {
   date: Date;
 }
 
-interface ExpenseFormProps {
-  expense?: Expense;
+interface Category {
+  id: string;
+  name: string;
+  color?: string | null;
 }
 
-export function ExpenseForm({ expense }: ExpenseFormProps) {
+interface ExpenseFormProps {
+  expense?: Expense;
+  categories: Category[];
+}
+
+export function ExpenseForm({ expense, categories }: ExpenseFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [errors, setErrors] = useState<Record<string, string[]>>({});
@@ -110,9 +116,9 @@ export function ExpenseForm({ expense }: ExpenseFormProps) {
                 className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
               >
                 <option value="">เลือกหมวดหมู่</option>
-                {EXPENSE_CATEGORIES.map((cat) => (
-                  <option key={cat.value} value={cat.value}>
-                    {cat.label}
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.name}>
+                    {cat.name}
                   </option>
                 ))}
               </select>

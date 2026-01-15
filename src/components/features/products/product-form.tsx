@@ -7,14 +7,20 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
-import { PRODUCT_CATEGORIES } from '@/lib/constants';
 import { createProduct, updateProduct } from '@/actions/products';
+
+interface Category {
+  id: string;
+  name: string;
+  color?: string | null;
+}
 
 interface ProductFormProps {
   product?: Product;
+  categories: Category[];
 }
 
-export function ProductForm({ product }: ProductFormProps) {
+export function ProductForm({ product, categories }: ProductFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [errors, setErrors] = useState<Record<string, string[]>>({});
@@ -100,9 +106,9 @@ export function ProductForm({ product }: ProductFormProps) {
                 className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
               >
                 <option value="">เลือกหมวดหมู่</option>
-                {PRODUCT_CATEGORIES.map((cat) => (
-                  <option key={cat.value} value={cat.value}>
-                    {cat.label}
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.name}>
+                    {cat.name}
                   </option>
                 ))}
               </select>

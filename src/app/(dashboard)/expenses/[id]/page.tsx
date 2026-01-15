@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { PageHeader } from '@/components/layout/page-header';
 import { ExpenseForm } from '@/components/features/expenses/expense-form';
 import { getExpense } from '@/actions/expenses';
+import { getLookupValues, seedDefaultLookupValues } from '@/actions/lookups';
 
 interface EditExpensePageProps {
   params: { id: string };
@@ -16,11 +17,17 @@ export default async function EditExpensePage({ params }: EditExpensePageProps) 
     notFound();
   }
 
+  // Seed default categories if needed
+  await seedDefaultLookupValues();
+  
+  // Fetch categories from DB
+  const categories = await getLookupValues('EXPENSE_CATEGORY');
+
   return (
     <div>
       <PageHeader title="แก้ไขค่าใช้จ่าย" description={expense.description || undefined} />
       <div className="max-w-2xl">
-        <ExpenseForm expense={expense} />
+        <ExpenseForm expense={expense} categories={categories} />
       </div>
     </div>
   );

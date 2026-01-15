@@ -1,7 +1,14 @@
 import { PageHeader } from '@/components/layout/page-header';
 import { ExpenseForm } from '@/components/features/expenses/expense-form';
+import { getLookupValues, seedDefaultLookupValues } from '@/actions/lookups';
 
-export default function NewExpensePage() {
+export default async function NewExpensePage() {
+  // Seed default categories if needed
+  await seedDefaultLookupValues();
+  
+  // Fetch categories from DB
+  const categories = await getLookupValues('EXPENSE_CATEGORY');
+
   return (
     <div>
       <PageHeader
@@ -9,7 +16,7 @@ export default function NewExpensePage() {
         description="เพิ่มรายการค่าใช้จ่ายใหม่"
       />
       <div className="max-w-2xl">
-        <ExpenseForm />
+        <ExpenseForm categories={categories} />
       </div>
     </div>
   );
