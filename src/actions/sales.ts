@@ -181,13 +181,30 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>
 
       // 4. Handle Customer
       let finalCustomerId = saleData.customerId;
-      if (!finalCustomerId && saleData.customerName) {
+
+      // Case 1: Existing Customer -> Check if address update is needed
+      if (finalCustomerId && customerAddress) {
+         await tx.customer.update({
+            where: { id: finalCustomerId },
+            data: { address: customerAddress }
+         });
+      }
+      
+      // Case 2: New Customer Name provided (and no existing ID matched in frontend)
+      else if (!finalCustomerId && saleData.customerName) {
          const existing = await tx.customer.findFirst({
             where: { userId, name: saleData.customerName, deletedAt: null }
          });
          
          if (existing) {
             finalCustomerId = existing.id;
+            // Also update address if provided for this matched customer
+            if (customerAddress) {
+               await tx.customer.update({
+                  where: { id: existing.id },
+                  data: { address: customerAddress }
+               });
+            }
          } else {
             const newC = await tx.customer.create({
                data: {
@@ -230,7 +247,7 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>
         await StockService.recordMovement({
             productId: item.productId,
             type: 'SALE',
-            quantity: item.quantity,
+            quantity: -item.quantity, // Negative to decrease stock
             referenceId: sale.id,
             referenceType: 'SALE',
             note: `ขาย: ${sale.invoiceNumber}`,
