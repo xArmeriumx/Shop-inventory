@@ -162,8 +162,8 @@ export function ProductForm({ product, categories }: ProductFormProps) {
               <Input
                 id="stock"
                 name="stock"
-                type="number"
-                min="0"
+                key={product?.stock} // Force re-render when stock changes
+                defaultValue={product?.stock || 0}
                 required
                 disabled={isEdit}
                 className={isEdit ? 'bg-muted' : ''}

@@ -33,14 +33,26 @@ export function StockAdjustmentDialog({ productId, currentStock }: StockAdjustme
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [type, setType] = useState('ADD');
+  const [quantity, setQuantity] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
+
+  const calculateNewStock = () => {
+    switch (type) {
+      case 'ADD': return currentStock + (quantity || 0);
+      case 'REMOVE': return currentStock - (quantity || 0);
+      case 'SET': return quantity || 0;
+      default: return currentStock;
+    }
+  };
+
+  const newStock = calculateNewStock();
+  const diff = newStock - currentStock;
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
 
     const formData = new FormData(e.currentTarget);
-    const quantity = parseInt(formData.get('quantity') as string);
     const reason = formData.get('reason') as string;
 
     if (!quantity || quantity <= 0) {
@@ -96,6 +108,24 @@ export function StockAdjustmentDialog({ productId, currentStock }: StockAdjustme
                 </SelectContent>
               </Select>
             </div>
+            
+            <div className="p-4 bg-muted rounded-lg space-y-2">
+                <div className="flex justify-between text-sm">
+                    <span>สต็อกปัจจุบัน:</span>
+                    <span className="font-medium">{currentStock}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                    <span>ยอดที่ปรับปรุง:</span>
+                    <span className={diff > 0 ? "text-green-600 font-medium" : diff < 0 ? "text-red-600 font-medium" : ""}>
+                        {diff > 0 ? "+" : ""}{diff}
+                    </span>
+                </div>
+                <div className="flex justify-between text-sm border-t pt-2 mt-2">
+                    <span className="font-semibold">สต็อกใหม่:</span>
+                    <span className="font-bold text-lg">{newStock}</span>
+                </div>
+            </div>
+
             <div className="space-y-2">
               <Label>จำนวน</Label>
               <Input
@@ -104,6 +134,8 @@ export function StockAdjustmentDialog({ productId, currentStock }: StockAdjustme
                 min="1"
                 placeholder="ระบุจำนวน"
                 required
+                value={quantity || ''}
+                onChange={(e) => setQuantity(parseInt(e.target.value) || 0)}
               />
             </div>
             <div className="space-y-2">
