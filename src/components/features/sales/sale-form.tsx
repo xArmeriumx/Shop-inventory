@@ -12,7 +12,7 @@ import { createSale } from '@/actions/sales';
 import { getProductsForSelect } from '@/actions/products';
 import { getCustomersForSelect } from '@/actions/customers';
 import { formatCurrency } from '@/lib/formatters';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, ScanBarcode } from 'lucide-react';
 import { CustomerCombobox } from '@/components/features/customers/customer-combobox';
 import { FileUpload } from '@/components/ui/file-upload';
 
@@ -48,6 +48,7 @@ export function SaleForm() {
   const [items, setItems] = useState<SaleItem[]>([
     { productId: '', quantity: 1, salePrice: 0 },
   ]);
+  const [scanInput, setScanInput] = useState('');
 
   // Load products and customers
   useEffect(() => {
@@ -149,6 +150,58 @@ export function SaleForm() {
       }
     });
   }
+
+  const handleScan = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const sku = scanInput.trim();
+      if (!sku) return;
+
+      const product = products.find((p) => p.sku === sku);
+      
+      if (product) {
+        // Check if item already exists
+        const existingIndex = items.findIndex((item) => item.productId === product.id);
+        
+        if (existingIndex >= 0) {
+          // Increment quantity
+          const newItems = [...items];
+          const currentQty = Number(newItems[existingIndex].quantity) || 0;
+          newItems[existingIndex] = {
+            ...newItems[existingIndex],
+            quantity: currentQty + 1,
+          };
+          setItems(newItems);
+        } else {
+          // Add new item
+          // If the first item is empty (default state), replace it
+          if (items.length === 1 && !items[0].productId) {
+            setItems([{
+              productId: product.id,
+              product,
+              quantity: 1,
+              salePrice: product.salePrice,
+            }]);
+          } else {
+            setItems([
+              ...items,
+              {
+                productId: product.id,
+                product,
+                quantity: 1,
+                salePrice: product.salePrice,
+              },
+            ]);
+          }
+        }
+        setScanInput(''); // Clear input for next scan
+      } else {
+        // You might want to show a toast here, for now just clear/keep focus allow retry
+        // setErrors({ ...errors, scan: ['ไม่พบสินค้า SKU: ' + sku] });
+        alert('ไม่พบสินค้า SKU: ' + sku); // Temporary feedback
+      }
+    }
+  };
 
   const { totalAmount, totalCost, profit } = calculateTotals();
 
@@ -303,6 +356,21 @@ export function SaleForm() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Quick Scan Input */}
+          <div className="flex items-center gap-2 p-4 bg-muted/50 rounded-lg border border-dashed">
+            <ScanBarcode className="h-5 w-5 text-muted-foreground" />
+            <div className="flex-1">
+              <Input
+                placeholder="สแกนบาร์โค้ด หรือพิมพ์ SKU แล้วกด Enter..."
+                value={scanInput}
+                onChange={(e) => setScanInput(e.target.value)}
+                onKeyDown={handleScan}
+                className="bg-background"
+                autoFocus
+              />
+            </div>
+          </div>
+
           {items.map((item, index) => (
             <div
               key={index}

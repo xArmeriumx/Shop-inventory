@@ -11,8 +11,14 @@ A modern, robust Inventory and Sales Management System built with Next.js 14, Ty
 ## Features
 
 - **Dashboard**: Real-time overview of sales, profit, and low stock alerts.
-- **Product Management**: Full CRUD, barcode/SKU support, stock tracking.
-- **Point of Sale (Sales)**: Easy-to-use sales interface, auto stock deduction, invoice generation.
+- **Product Management**:
+  - Full CRUD operations.
+  - **Barcode/SKU Support**: "Quick Scan" mode for rapid checkout.
+  - **Stock Management**: Real-time tracking, manual adjustment, and movement history.
+- **Point of Sale (Sales)**:
+  - Fast interface with Barcode Scanner support (Keyboard Mode).
+  - Auto-stock deduction & profit calculation.
+  - Invoice generation (Print-ready).
 - **Purchases**: Stock replenishment, supplier management, cost tracking.
 - **Receipt Upload**: Attach proof of purchase/sale images (Supabase Storage).
 - **Customers**: Customer database and history.
