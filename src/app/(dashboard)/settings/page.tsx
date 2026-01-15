@@ -2,17 +2,33 @@ import { Suspense } from 'react';
 
 import { getUserProfile } from '@/actions/settings';
 import { getShop, createShopIfNotExists } from '@/actions/shop';
+import { getLookupValuesForSettings, seedDefaultLookupValues } from '@/actions/lookups';
 import { SettingsForm } from '@/components/features/settings/settings-form';
 import Loading from '@/app/(dashboard)/loading';
 
 async function SettingsContent() {
+  // Fetch all data in parallel
   const [user, shop] = await Promise.all([
     getUserProfile(),
-    createShopIfNotExists(), // Auto-create shop if not exists
+    createShopIfNotExists(),
+  ]);
+
+  // Seed default categories if needed
+  await seedDefaultLookupValues();
+
+  // Fetch categories
+  const [productCategories, expenseCategories] = await Promise.all([
+    getLookupValuesForSettings('PRODUCT_CATEGORY'),
+    getLookupValuesForSettings('EXPENSE_CATEGORY'),
   ]);
 
   return (
-    <SettingsForm initialData={user} shopData={shop} />
+    <SettingsForm 
+      initialData={user} 
+      shopData={shop} 
+      productCategories={productCategories}
+      expenseCategories={expenseCategories}
+    />
   );
 }
 

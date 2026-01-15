@@ -28,7 +28,61 @@ model User {
   expenses      Expense[]
   suppliers     Supplier[]
   customers     Customer[]
+  lookupValues  LookupValue[]
 }
+
+// ==================== Lookup System (Custom Dropdowns) ====================
+
+enum LookupTypeCode {
+  PRODUCT_CATEGORY
+  EXPENSE_CATEGORY
+  PAYMENT_METHOD
+  UNIT
+}
+
+model LookupType {
+  id          String         @id @default(cuid())
+  code        LookupTypeCode @unique
+  name        String
+  description String?
+  isSystem    Boolean        @default(false)
+  
+  values      LookupValue[]
+  
+  createdAt   DateTime       @default(now())
+}
+
+model LookupValue {
+  id           String         @id @default(cuid())
+  lookupTypeId String
+  userId       String?
+  
+  code         String
+  name         String
+  color        String?
+  icon         String?
+  order        Int            @default(0)
+  isActive     Boolean        @default(true)
+  isDefault    Boolean        @default(false)
+  isSystem     Boolean        @default(false)
+  metadata     Json?
+  
+  deletedAt    DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  lookupType   LookupType     @relation(fields: [lookupTypeId], references: [id], onDelete: Cascade)
+  user         User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Reverse relations
+  products     Product[]
+  expenses     Expense[]
+
+  @@unique([lookupTypeId, userId, code])
+  @@index([lookupTypeId, userId, isActive])
+  @@index([userId, deletedAt])
+}
+
 
 // ==================== Shop (Multi-tenancy) ====================
 
@@ -54,7 +108,8 @@ model Product {
   name        String
   description String?
   sku         String?  // Compound unique below
-  category    String
+  category    String   // Legacy field for backward compatibility
+  categoryId  String?  // FK to LookupValue
 
   costPrice   Decimal  @db.Decimal(10, 2)
   salePrice   Decimal  @db.Decimal(10, 2)
@@ -66,6 +121,8 @@ model Product {
 
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  categoryRef LookupValue? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
   purchaseItems PurchaseItem[]
   saleItems     SaleItem[]
@@ -80,9 +137,11 @@ model Product {
   @@index([userId])
   @@index([userId, deletedAt])
   @@index([category])
+  @@index([categoryId])
   @@index([name])
   @@index([isActive])
 }
+
 
 model Supplier {
   id        String   @id @default(cuid())
@@ -234,7 +293,8 @@ model SaleItem {
 
 model Expense {
   id          String   @id @default(cuid())
-  category    String
+  category    String   // Legacy field for backward compatibility
+  categoryId  String?  // FK to LookupValue
   amount      Decimal  @db.Decimal(10, 2)
   description String?
   date        DateTime @default(now())
@@ -242,6 +302,8 @@ model Expense {
 
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  categoryRef LookupValue? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
   // Soft Delete
   deletedAt   DateTime?
@@ -254,4 +316,6 @@ model Expense {
   @@index([userId, date])
   @@index([date])
   @@index([category])
+  @@index([categoryId])
 }
+
