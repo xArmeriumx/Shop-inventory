@@ -107,7 +107,7 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>
     };
   }
 
-  const { items, ...saleData } = validated.data;
+  const { items, customerAddress, ...saleData } = validated.data;
 
   // Validate items
   if (items.length === 0) {
@@ -193,7 +193,7 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>
                data: {
                   userId,
                   name: saleData.customerName,
-                  address: saleData.customerAddress || null
+                  address: customerAddress || null
                }
             });
             finalCustomerId = newC.id;

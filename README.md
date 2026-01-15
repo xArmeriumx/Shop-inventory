@@ -42,6 +42,10 @@ A modern, robust Inventory and Sales Management System built with Next.js 14, Ty
 - **Reports**: Financial reports (Revenue/Expense/Profit), daily breakdowns, and Charts.
   - _Export to CSV supported._
   - _Print-ready reports._
+- **Development Standards**:
+  - **Standardized Server Actions**: Uniform `ActionResponse` pattern for predictable success/error handling.
+  - **Type Safety**: Full TypeScript support across frontend and backend.
+  - **Audit Logging**: Comprehensive tracking of stock movements and cancellations.
 
 ## Tech Stack
 
