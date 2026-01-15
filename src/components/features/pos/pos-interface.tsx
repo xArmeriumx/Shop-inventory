@@ -61,6 +61,9 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
   // Auto-refresh stock every 3 seconds for multi-terminal sync
   useEffect(() => {
     const refreshInterval = setInterval(async () => {
+      // Skip refresh if tab is not active (user switched to another tab/app)
+      if (!document.hasFocus()) return;
+      
       // Skip refresh if payment dialog is open (don't interrupt user)
       if (isPaymentOpen || isProcessing) return;
 
