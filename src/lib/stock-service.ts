@@ -81,19 +81,42 @@ export class StockService {
   /**
    * Get stock history for a product
    */
-  static async getProductHistory(productId: string) {
-    return db.stockLog.findMany({
-      where: { productId },
-      orderBy: [
-        { date: 'desc' },
-        { createdAt: 'desc' }
-      ],
-      include: {
-        user: {
-          select: { name: true },
+  /**
+   * Get stock history for a product with pagination
+   */
+  static async getProductHistory(productId: string, page: number = 1, limit: number = 20) {
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await Promise.all([
+      db.stockLog.findMany({
+        where: { productId },
+        orderBy: [
+          { date: 'desc' },
+          { createdAt: 'desc' }
+        ],
+        include: {
+          user: {
+            select: { name: true },
+          },
         },
+        skip,
+        take: limit,
+      }),
+      db.stockLog.count({ where: { productId } }),
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
+
+    return {
+      data,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
       },
-      take: 50, // Limit for performance
-    });
+    };
   }
 }
