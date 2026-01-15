@@ -116,3 +116,53 @@ export async function getMonthlyStats() {
     count: monthlySales._count,
   };
 }
+
+export async function getSalesChartData(days = 7) {
+  const userId = await getCurrentUserId();
+  const endDate = new Date();
+  endDate.setHours(23, 59, 59, 999);
+  
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days + 1);
+  startDate.setHours(0, 0, 0, 0);
+
+  const sales = await db.sale.findMany({
+    where: {
+      userId,
+      date: {
+        gte: startDate,
+        lte: endDate,
+      },
+    },
+    select: {
+      date: true,
+      totalAmount: true,
+    },
+    orderBy: { date: 'asc' },
+  });
+
+  // Aggregate by date
+  const salesByDate: Record<string, number> = {};
+  
+  // Initialize all days with 0
+  for (let i = 0; i < days; i++) {
+    const d = new Date(startDate);
+    d.setDate(d.getDate() + i);
+    // Format as DD/MM (Thai format expectation)
+    const dateStr = d.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit' });
+    salesByDate[dateStr] = 0;
+  }
+
+  // Sum up sales
+  sales.forEach(sale => {
+    const dateStr = sale.date.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit' });
+    if (salesByDate[dateStr] !== undefined) {
+      salesByDate[dateStr] += Number(sale.totalAmount);
+    }
+  });
+
+  return Object.entries(salesByDate).map(([date, revenue]) => ({
+    date,
+    revenue,
+  }));
+}

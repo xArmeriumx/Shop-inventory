@@ -21,6 +21,9 @@ export const metadata: Metadata = {
   formatDetection: {
     telephone: false,
   },
+  other: {
+    'mobile-web-app-capable': 'yes',
+  },
 };
 
 export const viewport: Viewport = {
