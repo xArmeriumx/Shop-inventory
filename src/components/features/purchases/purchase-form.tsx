@@ -35,6 +35,7 @@ export function PurchaseForm() {
   const [errors, setErrors] = useState<Record<string, string[]>>({});
   const [products, setProducts] = useState<Product[]>([]);
   const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
+  const [isBackdated, setIsBackdated] = useState(false);
   const [date, setDate] = useState<string>(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
   const [items, setItems] = useState<PurchaseItem[]>([
     { productId: '', quantity: 1, costPrice: 0 },
@@ -102,7 +103,7 @@ export function PurchaseForm() {
       paymentMethod: formData.get('paymentMethod') as any,
       notes: (formData.get('notes') as string) || null,
       receiptUrl: receiptUrl,
-      date: new Date(date).toISOString(),
+      date: isBackdated ? new Date(date).toISOString() : undefined,
       items: items.map((item) => ({
         productId: item.productId,
         quantity: item.quantity,
@@ -139,15 +140,31 @@ export function PurchaseForm() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="date">วันที่และเวลา (ย้อนหลังได้)</Label>
-            <Input
-              id="date"
-              type="datetime-local"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              required
-              max={format(new Date(), "yyyy-MM-dd'T'HH:mm")}
-            />
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="isBackdated"
+                checked={isBackdated}
+                onChange={(e) => setIsBackdated(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+              />
+              <Label htmlFor="isBackdated" className="font-normal cursor-pointer">
+                บันทึกย้อนหลัง (ระบุวันที่เอง)
+              </Label>
+            </div>
+
+            {isBackdated && (
+              <div className="animate-in fade-in slide-in-from-top-2 pt-2">
+                <Input
+                  id="date"
+                  type="datetime-local"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  required={isBackdated}
+                  max={format(new Date(), "yyyy-MM-dd'T'HH:mm")}
+                />
+              </div>
+            )}
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
