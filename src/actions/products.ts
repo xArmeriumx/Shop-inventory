@@ -6,6 +6,7 @@ import { getCurrentUserId } from '@/lib/auth-guard';
 import { paginatedQuery, buildSearchFilter } from '@/lib/pagination';
 import { productSchema, type ProductInput, type ProductUpdateInput } from '@/schemas/product';
 import { Product } from '@prisma/client';
+import { StockService } from '@/lib/stock-service';
 
 interface GetProductsParams {
   page?: number;
@@ -146,13 +147,33 @@ export async function updateProduct(id: string, input: ProductUpdateInput) {
   }
 
   try {
-    const product = await db.product.update({
-      where: { id },
-      data: {
-        ...validated.data,
-        description: validated.data.description || null,
-        sku: validated.data.sku || null,
-      },
+    const product = await db.$transaction(async (tx) => {
+      // 1. Handle Stock Adjustment if changed
+      if (validated.data.stock !== undefined && validated.data.stock !== existing.stock) {
+        const diff = validated.data.stock - existing.stock;
+        
+        // This helper records the movement AND updates the product stock
+        await StockService.recordMovement({
+          productId: id,
+          type: 'ADJUSTMENT',
+          quantity: diff,
+          userId,
+          note: 'ปรับปรุงสต็อก (แก้ไขสินค้า)',
+          tx,
+        });
+      }
+
+      // 2. Update other fields (excluding stock, as it's handled by StockService)
+      const { stock, ...otherData } = validated.data;
+      
+      return tx.product.update({
+        where: { id },
+        data: {
+          ...otherData,
+          description: otherData.description || null,
+          sku: otherData.sku || null,
+        },
+      });
     });
 
     revalidatePath('/products');
@@ -231,4 +252,60 @@ export async function getLowStockProducts(limit: number = 5) {
     .slice(0, limit);
 
   return lowStock;
+}
+
+interface AdjustStockInput {
+  type: 'ADD' | 'REMOVE' | 'SET';
+  quantity: number;
+  note: string;
+}
+
+export async function adjustStock(productId: string, input: AdjustStockInput) {
+  const userId = await getCurrentUserId();
+
+  try {
+    await db.$transaction(async (tx) => {
+      const product = await tx.product.findUnique({
+        where: { id: productId },
+        select: { stock: true },
+      });
+
+      if (!product) throw new Error('ไม่พบสินค้า');
+
+      let change = 0;
+      let notePrefix = '';
+
+      switch (input.type) {
+        case 'ADD':
+          change = input.quantity;
+          notePrefix = '[Manual Add]';
+          break;
+        case 'REMOVE':
+          change = -input.quantity;
+          notePrefix = '[Manual Remove]';
+          break;
+        case 'SET':
+          change = input.quantity - product.stock;
+          notePrefix = '[Manual Set]';
+          break;
+      }
+
+      if (change === 0) return; // No change
+
+      await StockService.recordMovement({
+        productId,
+        type: 'ADJUSTMENT',
+        quantity: change,
+        userId,
+        note: `${notePrefix} ${input.note}`,
+        tx,
+      });
+    });
+
+    revalidatePath(`/products/${productId}`);
+    return { success: true };
+  } catch (error: any) {
+    console.error('Adjust stock error:', error);
+    return { error: error.message || 'เกิดข้อผิดพลาด' };
+  }
 }

@@ -5,6 +5,7 @@ import { getProduct } from '@/actions/products';
 import { getLookupValues, seedDefaultLookupValues } from '@/actions/lookups';
 import { StockService } from '@/lib/stock-service';
 import { StockHistoryTable } from '@/components/features/products/stock-history-table';
+import { StockAdjustmentDialog } from '@/components/features/products/stock-adjustment-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface EditProductPageProps {
@@ -52,6 +53,13 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
           </TabsContent>
 
           <TabsContent value="history">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium">ประวัติการเคลื่อนไหว</h3>
+              <StockAdjustmentDialog 
+                productId={product.id} 
+                currentStock={product.stock}
+              />
+            </div>
             <StockHistoryTable logs={history} />
           </TabsContent>
         </Tabs>

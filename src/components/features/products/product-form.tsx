@@ -161,7 +161,14 @@ export function ProductForm({ product, categories }: ProductFormProps) {
                 defaultValue={product?.stock || 0}
                 placeholder="0"
                 required
+                disabled={isEdit}
+                className={isEdit ? 'bg-muted' : ''}
               />
+              {isEdit && (
+                <p className="text-[0.8rem] text-muted-foreground mt-1">
+                  * หากต้องการปรับสต็อก กรุณาไปที่แท็บ &quot;ประวัติสต็อก&quot;
+                </p>
+              )}
               {errors.stock && (
                 <p className="text-sm text-destructive">{errors.stock[0]}</p>
               )}

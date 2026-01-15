@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency } from '@/lib/formatters';
+import { ClientDate } from '@/components/ui/client-date';
 
 interface StockLog {
   id: string;
@@ -92,7 +93,8 @@ export function StockHistoryTable({ logs }: StockHistoryTableProps) {
           {logs.map((log) => (
             <TableRow key={log.id}>
               <TableCell className="whitespace-nowrap">
-                {format(new Date(log.date), 'dd/MM/yyyy HH:mm', { locale: th })}
+                {/* Display date using client-side formatting to match user timezone */}
+                <ClientDate date={log.date} />
               </TableCell>
               <TableCell>
                 <Badge variant={getBadgeColor(log.type) as any}>
