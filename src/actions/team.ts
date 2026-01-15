@@ -119,7 +119,12 @@ export async function updateMemberRole(memberId: string, roleId: string): Promis
   try {
     await db.shopMember.update({
       where: { id: memberId },
-      data: { roleId },
+      data: { 
+        roleId,
+        // Increment permission version to trigger client-side refresh
+        // This enables event-based real-time permission updates!
+        permissionVersion: { increment: 1 },
+      },
     });
 
     revalidatePath('/settings/team');

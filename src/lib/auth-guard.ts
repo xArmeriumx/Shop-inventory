@@ -1,6 +1,8 @@
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
+import { cache } from 'react';
 import type { Permission } from '@prisma/client';
+import { db } from '@/lib/db';
 
 /**
  * Session context with RBAC information
@@ -14,38 +16,65 @@ export interface SessionContext {
 }
 
 /**
- * Get current user session, redirect to login if not authenticated
+ * Cached session context fetcher - memoized per request
+ * This prevents duplicate DB queries when requireAuth() is called multiple times
+ * in the same request (e.g., in layout + page + components)
  */
-import { db } from '@/lib/db';
-
-/**
- * Get current user session, redirect to login if not authenticated
- * Enhanced for Real-time RBAC: Fetches fresh permissions from DB
- */
-export async function requireAuth(): Promise<SessionContext> {
+export const getSessionContext = cache(async (): Promise<SessionContext | null> => {
   const session = await auth();
-
+  
   if (!session?.user?.id) {
-    redirect('/login');
+    return null;
   }
 
-  // Real-time Permission Check: Fetch fresh data from DB
-  // This ensures that role changes (e.g., promoted/demoted) are reflected INSTANTLY
-  // without requiring the user to sign out/sign in.
+  // Optimized query: Use select instead of include to avoid unnecessary JOINs
+  // shopId is directly on ShopMember, no need to fetch shop.id
   const membership = await db.shopMember.findFirst({
     where: { userId: session.user.id },
-    include: {
-      role: { select: { permissions: true } }
+    select: {
+      shopId: true,
+      roleId: true,
+      isOwner: true,
+      role: { 
+        select: { 
+          permissions: true 
+        } 
+      }
     }
   });
 
+  if (!membership) {
+    // User exists but has no shop membership
+    return {
+      userId: session.user.id,
+      shopId: undefined,
+      roleId: undefined,
+      permissions: [],
+      isOwner: false,
+    };
+  }
+
   return {
     userId: session.user.id,
-    shopId: membership?.shopId ?? session.user.shopId,
-    roleId: membership?.roleId ?? session.user.roleId,
-    permissions: membership?.role?.permissions ?? session.user.permissions ?? [],
-    isOwner: membership?.isOwner ?? session.user.isOwner ?? false,
+    shopId: membership.shopId,
+    roleId: membership.roleId ?? undefined,
+    permissions: membership.role?.permissions ?? [],
+    isOwner: membership.isOwner,
   };
+});
+
+/**
+ * Get current user session, redirect to login if not authenticated
+ * Enhanced for Real-time RBAC with request-level caching
+ */
+export async function requireAuth(): Promise<SessionContext> {
+  const ctx = await getSessionContext();
+  
+  if (!ctx) {
+    redirect('/login');
+  }
+
+  return ctx;
 }
 
 /**
@@ -53,13 +82,13 @@ export async function requireAuth(): Promise<SessionContext> {
  * @deprecated Use requireAuth() for RBAC context
  */
 export async function getCurrentUserId(): Promise<string> {
-  const session = await auth();
+  const ctx = await getSessionContext();
 
-  if (!session?.user?.id) {
+  if (!ctx) {
     throw new Error('Unauthorized');
   }
 
-  return session.user.id;
+  return ctx.userId;
 }
 
 /**
@@ -110,6 +139,6 @@ export function hasAllPermissions(ctx: SessionContext, permissions: Permission[]
  * Check if user is authenticated without redirecting
  */
 export async function isAuthenticated(): Promise<boolean> {
-  const session = await auth();
-  return !!session?.user?.id;
+  const ctx = await getSessionContext();
+  return ctx !== null;
 }

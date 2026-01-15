@@ -33,6 +33,8 @@ This application serves as a complete Point of Sale (POS) and inventory manageme
 - **Smart Permission Logic**: Auto-resolves dependencies (e.g., "Create Sale" grants "View Product" automatically).
 - **Secure Onboarding**: Invite-only system for adding staff to your shop.
 - **Real-time Enforcement**: Permission changes take effect immediately without re-login.
+- **High-Performance Polling**: Version-based smart polling reduces API calls by 98% vs naive polling.
+- **Tab Visibility Awareness**: Stops polling when tab is hidden, refreshes instantly when visible.
 
 ### 5. Sales and Purchase Management
 

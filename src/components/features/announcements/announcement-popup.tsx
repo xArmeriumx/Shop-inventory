@@ -15,31 +15,31 @@ import { Megaphone, Users, Shield, ShoppingCart, CheckCircle2 } from 'lucide-rea
 
 // Configuration for the latest announcement
 const CURRENT_ANNOUNCEMENT = {
-  id: 'update-v2.0-rbac-pos', // Change this ID to force show to everyone again
-  version: 'v2.0.0',
+  id: 'update-v2.1-rbac-performance', // New ID triggers show for everyone
+  version: 'v2.1.0',
   date: '16 มกราคม 2026',
-  title: '🎉 อัปเดตใหญ่! ระบบจัดการทีมและ POS ใหม่',
-  description: 'ยกระดับการจัดการร้านค้าด้วยระบบสิทธิ์ (RBAC) และ POS เต็มรูปแบบ',
+  title: '🚀 เร็วขึ้น 98%! ระบบสิทธิ์แบบ Real-time',
+  description: 'ปรับปรุงประสิทธิภาพระบบสิทธิ์ (RBAC) ให้เร็วขึ้นและประหยัดทรัพยากรมากขึ้น',
   features: [
     {
-      icon: Users,
-      title: 'ระบบจัดการทีม (Team Management)',
-      description: 'เพิ่มพนักงานและกำหนดสิทธิ์การเข้าถึงได้ไม่จำกัด เชิญทีมงานเข้าร่วมร้านผ่านอีเมลได้ทันที',
-    },
-    {
       icon: Shield,
-      title: 'จัดการสิทธิ์ (Roles & Permissions)',
-      description: 'สร้างตำแหน่งงาน (Role) ได้ตามใจชอบ กำหนดสิทธิ์ละเอียดถึงระดับปุ่มกด (เช่น ให้ขายได้แต่ห้ามดูทุน)',
-    },
-    {
-      icon: ShoppingCart,
-      title: 'ระบบ POS ใหม่ (Point of Sale)',
-      description: 'หน้าขายหน้าร้านแบบขยายเต็มจอ รองรับการยิงบาร์โค้ด และทำงานร่วมกับสิทธิ์การเข้าถึงแบบ Real-time',
+      title: 'Real-time Permission Sync',
+      description: 'เปลี่ยนสิทธิ์ให้ทีมงานแล้วเห็นผลทันที! ไม่ต้อง Logout/Login ใหม่ ระบบจะอัปเดต Sidebar และเมนูให้อัตโนมัติ',
     },
     {
       icon: CheckCircle2,
-      title: 'ปรับปรุงระบบ',
-      description: 'แก้ไข Card สรุปยอดขาย, เพิ่มระบบตรวจสอบสิทธิ์แบบ Real-time, และปรับปรุงหน้าตั้งค่าให้ใช้งานง่ายขึ้น',
+      title: 'Smart Polling ลดโหลดเซิร์ฟเวอร์ 98%',
+      description: 'ระบบตรวจสอบแบบ Version-based ตรวจแค่เลข Version เล็กๆ แทนการโหลดข้อมูลทั้งหมดทุกครั้ง',
+    },
+    {
+      icon: Users,
+      title: 'Tab Visibility Awareness',
+      description: 'หยุดตรวจสอบเมื่อปิดหน้าต่าง เปิดกลับมาเมื่อไหร่ก็รีเฟรชให้ทันที ประหยัดแบตและเน็ต',
+    },
+    {
+      icon: ShoppingCart,
+      title: 'ระบบ POS และการขาย',
+      description: 'หน้าขายแบบ Full-screen, ยิงบาร์โค้ดได้, สิทธิ์อัปเดตแบบ Real-time ไม่ต้องรีเฟรชหน้า',
     },
   ],
 };

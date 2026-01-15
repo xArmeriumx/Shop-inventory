@@ -1,53 +1,130 @@
 'use server';
 
-import bcrypt from 'bcryptjs';
+import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { z } from 'zod';
+import { Permission } from '@prisma/client';
 
-const registerSchema = z.object({
-  name: z.string().min(1, 'กรุณากรอกชื่อ'),
-  email: z.string().email('อีเมลไม่ถูกต้อง'),
-  password: z.string().min(6, 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร'),
-});
+export type PermissionData = {
+  shopId: string;
+  roleId?: string;
+  permissions: Permission[];
+  isOwner: boolean;
+  version: number;  // Permission version for smart polling
+} | null;
 
-interface RegisterInput {
+export type PermissionVersionData = {
+  version: number;
+} | null;
+
+/**
+ * Lightweight version check - VERY fast, no JOINs
+ * Client uses this to check if permissions changed before fetching full data
+ * 
+ * Flow:
+ * 1. Client calls getPermissionVersion() every 30s
+ * 2. If version changed → call getMyPermissions() for full data
+ * 3. If version same → skip full fetch (save bandwidth + DB load)
+ */
+export async function getPermissionVersion(): Promise<PermissionVersionData> {
+  const session = await auth();
+  
+  if (!session?.user?.id) {
+    return null;
+  }
+
+  const membership = await db.shopMember.findFirst({
+    where: { userId: session.user.id },
+    select: { permissionVersion: true },
+  });
+
+  if (!membership) {
+    return null;
+  }
+
+  return { version: membership.permissionVersion };
+}
+
+/**
+ * Fetch the current user's fresh permissions directly from the database.
+ * This is used by the client-side `usePermissions` hook to keep UI in sync
+ * without requiring a session refresh.
+ * 
+ * Optimized: Uses select instead of include to minimize JOIN overhead
+ * Now includes version for client-side caching
+ */
+export async function getMyPermissions(): Promise<PermissionData> {
+  const session = await auth();
+  
+  if (!session?.user?.id) {
+    return null;
+  }
+
+  // Optimized query: select only needed fields, no unnecessary JOINs
+  const membership = await db.shopMember.findFirst({
+    where: { 
+      userId: session.user.id 
+    },
+    select: {
+      shopId: true,
+      roleId: true,
+      isOwner: true,
+      permissionVersion: true,
+      role: {
+        select: {
+          permissions: true,
+        },
+      },
+    },
+  });
+
+  if (!membership) {
+    return null;
+  }
+
+  return {
+    shopId: membership.shopId,
+    roleId: membership.roleId ?? undefined,
+    permissions: membership.role?.permissions ?? [],
+    isOwner: membership.isOwner,
+    version: membership.permissionVersion,
+  };
+}
+
+/**
+ * Register a new user
+ */
+export async function registerUser(data: {
   name: string;
   email: string;
   password: string;
-}
-
-export async function registerUser(input: RegisterInput) {
+}): Promise<{ error?: string; success?: boolean }> {
+  const bcrypt = await import('bcryptjs');
+  
   try {
-    // Validate input
-    const validated = registerSchema.safeParse(input);
-    if (!validated.success) {
-      return { error: validated.error.errors[0].message };
-    }
-
-    // Check if email already exists
+    // Check if user already exists
     const existingUser = await db.user.findUnique({
-      where: { email: input.email },
+      where: { email: data.email },
     });
 
     if (existingUser) {
       return { error: 'อีเมลนี้ถูกใช้งานแล้ว' };
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(input.password, 12);
+    // Hash the password
+    const hashedPassword = await bcrypt.hash(data.password, 12);
 
-    // Create user
-    const user = await db.user.create({
+    // Create the user
+    await db.user.create({
       data: {
-        name: input.name,
-        email: input.email,
+        name: data.name,
+        email: data.email,
         password: hashedPassword,
       },
     });
 
-    return { success: true, userId: user.id };
+    return { success: true };
   } catch (error) {
-    console.error('Register error:', error);
-    return { error: 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง' };
+    console.error('Registration error:', error);
+    return { error: 'เกิดข้อผิดพลาดในการสมัครสมาชิก' };
   }
 }

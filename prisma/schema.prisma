@@ -221,6 +221,10 @@ model ShopMember {
   role      Role     @relation(fields: [roleId], references: [id])
 
   isOwner   Boolean  @default(false)  // Shortcut flag for Owner
+  
+  // Permission version counter - increments when role changes
+  // Used for smart client-side polling (only fetch full data when version changes)
+  permissionVersion Int @default(0)
 
   joinedAt  DateTime @default(now())
   updatedAt DateTime @updatedAt
