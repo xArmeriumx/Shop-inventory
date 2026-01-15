@@ -14,6 +14,7 @@ import { getShop } from '@/actions/shop';
 import { formatCurrency } from '@/lib/utils';
 import Loading from '@/app/(dashboard)/loading';
 import { PrintButton } from '@/components/features/sales/print-button';
+import { ReceiptImage } from '@/components/features/receipts/receipt-image';
 
 interface PurchaseDetailsPageProps {
   params: {
@@ -162,22 +163,10 @@ async function PurchaseDetails({ id }: { id: string }) {
 
           {/* Receipt Image */}
           {purchase.receiptUrl && (
-            <div className="mt-8 border-t pt-4 print:hidden">
-              <h4 className="font-semibold mb-3 text-sm">หลักฐานการซื้อ:</h4>
-              <a 
-                href={purchase.receiptUrl} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="inline-block"
-              >
-                <img 
-                  src={purchase.receiptUrl} 
-                  alt="หลักฐานการซื้อ" 
-                  className="max-w-xs max-h-48 object-contain rounded-lg border hover:opacity-80 transition-opacity cursor-pointer"
-                />
-              </a>
-              <p className="text-xs text-muted-foreground mt-2">คลิกที่รูปเพื่อดูขนาดเต็ม</p>
-            </div>
+            <ReceiptImage 
+              receiptUrl={purchase.receiptUrl} 
+              alt="หลักฐานการซื้อ" 
+            />
           )}
 
           {/* Footer */}
