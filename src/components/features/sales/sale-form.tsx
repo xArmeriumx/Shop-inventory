@@ -9,8 +9,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PAYMENT_METHODS } from '@/lib/constants';
 import { createSale } from '@/actions/sales';
 import { getProductsForSelect } from '@/actions/products';
+import { getCustomersForSelect } from '@/actions/customers';
 import { formatCurrency } from '@/lib/formatters';
 import { Plus, Trash2 } from 'lucide-react';
+import { CustomerCombobox } from '@/components/features/customers/customer-combobox';
 
 interface Product {
   id: string;
@@ -33,19 +35,26 @@ export function SaleForm() {
   const [isPending, startTransition] = useTransition();
   const [errors, setErrors] = useState<Record<string, string[]>>({});
   const [products, setProducts] = useState<Product[]>([]);
+  const [customers, setCustomers] = useState<{id: string; name: string}[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
+  const [isNewCustomer, setIsNewCustomer] = useState(false);
   const [items, setItems] = useState<SaleItem[]>([
     { productId: '', quantity: 1, salePrice: 0 },
   ]);
 
-  // Load products
+  // Load products and customers
   useEffect(() => {
-    getProductsForSelect().then((data) => {
-      const mappedProducts = data.map((p: any) => ({
+    Promise.all([
+      getProductsForSelect(),
+      getCustomersForSelect(),
+    ]).then(([productsData, customersData]) => {
+      const mappedProducts = productsData.map((p: any) => ({
         ...p,
         salePrice: Number(p.salePrice),
         costPrice: Number(p.costPrice),
       }));
       setProducts(mappedProducts);
+      setCustomers(customersData);
     });
   }, []);
 
@@ -106,7 +115,8 @@ export function SaleForm() {
 
     const formData = new FormData(e.currentTarget);
     const data = {
-      customerName: (formData.get('customerName') as string) || null,
+      customerId: (!isNewCustomer && selectedCustomer) ? selectedCustomer : null,
+      customerName: isNewCustomer ? selectedCustomer : null,
       paymentMethod: formData.get('paymentMethod') as any,
       notes: (formData.get('notes') as string) || null,
       items: items.map((item) => ({
@@ -146,12 +156,19 @@ export function SaleForm() {
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="customerName">ชื่อลูกค้า (ถ้ามี)</Label>
-              <Input
-                id="customerName"
-                name="customerName"
-                placeholder="ไม่ระบุ = ลูกค้าทั่วไป"
+              <Label>ชื่อลูกค้า (ถ้ามี)</Label>
+              <CustomerCombobox
+                customers={customers}
+                value={selectedCustomer || undefined}
+                onValueChange={(value, isNew) => {
+                  setSelectedCustomer(value);
+                  setIsNewCustomer(isNew);
+                }}
+                placeholder="เลือกหรือพิมพ์ชื่อลูกค้า..."
               />
+              {isNewCustomer && selectedCustomer && (
+                <p className="text-xs text-muted-foreground">✨ จะสร้างลูกค้าใหม่: {selectedCustomer}</p>
+              )}
             </div>
 
             <div className="space-y-2">

@@ -164,12 +164,38 @@ export async function createSale(input: SaleInput) {
 
       const profit = totalAmount - totalCost;
 
+      // Handle customer: create if new name provided
+      let finalCustomerId = saleData.customerId;
+      if (!finalCustomerId && saleData.customerName) {
+        // Check if customer with this name already exists
+        const existingCustomer = await tx.customer.findFirst({
+          where: {
+            userId,
+            name: saleData.customerName,
+            deletedAt: null,
+          },
+        });
+
+        if (existingCustomer) {
+          finalCustomerId = existingCustomer.id;
+        } else {
+          // Create new customer
+          const newCustomer = await tx.customer.create({
+            data: {
+              userId,
+              name: saleData.customerName,
+            },
+          });
+          finalCustomerId = newCustomer.id;
+        }
+      }
+
       // Create sale
       const newSale = await tx.sale.create({
         data: {
           invoiceNumber,
           userId,
-          customerId: saleData.customerId || null,
+          customerId: finalCustomerId || null,
           customerName: saleData.customerName || null,
           paymentMethod: saleData.paymentMethod,
           notes: saleData.notes || null,
