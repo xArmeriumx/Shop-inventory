@@ -8,6 +8,7 @@ import { POSHeader } from './pos-header';
 import { POSProductGrid } from './pos-product-grid';
 import { POSCartPanel } from './pos-cart';
 import { POSPaymentDialog } from './pos-payment-dialog';
+import { POSSuccessDialog } from './pos-success-dialog';
 import { createPOSSale, getProductBySKU } from '@/lib/pos/pos-service';
 import type { POSProduct, POSCategory, POSCart, POSCartItem } from '@/lib/pos/types';
 
@@ -34,7 +35,7 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
   }, []);
 
   // State
-  const [products] = useState<POSProduct[]>(initialProducts);
+  const [products, setProducts] = useState<POSProduct[]>(initialProducts);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [scanInput, setScanInput] = useState('');
@@ -47,6 +48,8 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
   });
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isSuccessOpen, setIsSuccessOpen] = useState(false);
+  const [successInvoiceNumber, setSuccessInvoiceNumber] = useState<string>('');
 
   // Focus scan input on mount - only for non-touch devices (desktop with barcode scanner)
   useEffect(() => {
@@ -200,14 +203,29 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
       });
 
       if (result.success) {
+        // Optimistic Update: Immediately update local stock
+        setProducts((prevProducts) =>
+          prevProducts.map((product) => {
+            const soldItem = cart.items.find((item) => item.productId === product.id);
+            if (soldItem) {
+              return {
+                ...product,
+                stock: Math.max(0, product.stock - soldItem.quantity),
+              };
+            }
+            return product;
+          })
+        );
+
         // Success! Clear cart and close dialog
         clearCart();
         setIsPaymentOpen(false);
         
-        // Show success message
-        alert(`บันทึกการขายสำเร็จ!\nเลขที่: ${result.invoiceNumber}`);
+        // Show success dialog
+        setSuccessInvoiceNumber(result.invoiceNumber || '');
+        setIsSuccessOpen(true);
         
-        // Refresh to update stock
+        // Refresh to update stock (backup sync from server)
         router.refresh();
       } else {
         alert(result.error || 'เกิดข้อผิดพลาด');
@@ -300,6 +318,13 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
         cart={cart}
         onConfirm={handlePaymentConfirm}
         isProcessing={isProcessing}
+      />
+
+      {/* Success Dialog */}
+      <POSSuccessDialog
+        isOpen={isSuccessOpen}
+        onClose={() => setIsSuccessOpen(false)}
+        invoiceNumber={successInvoiceNumber}
       />
     </div>
   );
