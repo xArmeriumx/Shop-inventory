@@ -84,7 +84,10 @@ export class StockService {
   static async getProductHistory(productId: string) {
     return db.stockLog.findMany({
       where: { productId },
-      orderBy: { date: 'desc', createdAt: 'desc' },
+      orderBy: [
+        { date: 'desc' },
+        { createdAt: 'desc' }
+      ],
       include: {
         user: {
           select: { name: true },
