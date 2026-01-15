@@ -140,7 +140,7 @@ export async function getCustomersForSelect() {
 
   return db.customer.findMany({
     where: { userId },
-    select: { id: true, name: true, phone: true },
+    select: { id: true, name: true, phone: true, address: true },
     orderBy: { name: 'asc' },
   });
 }

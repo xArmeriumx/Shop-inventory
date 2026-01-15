@@ -36,7 +36,7 @@ export function SaleForm() {
   const [isPending, startTransition] = useTransition();
   const [errors, setErrors] = useState<Record<string, string[]>>({});
   const [products, setProducts] = useState<Product[]>([]);
-  const [customers, setCustomers] = useState<{id: string; name: string}[]>([]);
+  const [customers, setCustomers] = useState<{id: string; name: string; address?: string | null}[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
   const [isNewCustomer, setIsNewCustomer] = useState(false);
   const [customerAddress, setCustomerAddress] = useState<string>('');
@@ -121,7 +121,7 @@ export function SaleForm() {
     const data = {
       customerId: (!isNewCustomer && selectedCustomer) ? selectedCustomer : null,
       customerName: isNewCustomer ? selectedCustomer : null,
-      customerAddress: (isNewCustomer && showAddress) ? customerAddress : null,
+      customerAddress: showAddress ? customerAddress : null,
       paymentMethod: formData.get('paymentMethod') as any,
       notes: (formData.get('notes') as string) || null,
       receiptUrl,
@@ -169,12 +169,29 @@ export function SaleForm() {
                 onValueChange={(value, isNew) => {
                   setSelectedCustomer(value);
                   setIsNewCustomer(isNew);
+                  
+                  // Reset or auto-fill address
+                  if (value && !isNew) {
+                    const customer = customers.find(c => c.id === value);
+                    if (customer?.address) {
+                      setCustomerAddress(customer.address);
+                      setShowAddress(true);
+                    } else {
+                      setCustomerAddress('');
+                      setShowAddress(false);
+                    }
+                  } else {
+                    setCustomerAddress('');
+                    setShowAddress(false);
+                  }
                 }}
                 placeholder="เลือกหรือพิมพ์ชื่อลูกค้า..."
               />
-              {isNewCustomer && selectedCustomer && (
+              {selectedCustomer && (
                 <div className="space-y-2">
-                  <p className="text-xs text-muted-foreground">จะสร้างลูกค้าใหม่: {selectedCustomer}</p>
+                  {isNewCustomer && (
+                    <p className="text-xs text-muted-foreground">จะสร้างลูกค้าใหม่: {selectedCustomer}</p>
+                  )}
                   
                   <div className="flex items-center space-x-2">
                     <input
@@ -185,7 +202,7 @@ export function SaleForm() {
                       className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
                     />
                     <Label htmlFor="showAddress" className="font-normal cursor-pointer text-sm">
-                      ระบุที่อยู่
+                      ระบุที่อยู่ {(!isNewCustomer && showAddress) ? '(แก้ไขได้)' : ''}
                     </Label>
                   </div>
 
