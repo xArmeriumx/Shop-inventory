@@ -2,18 +2,16 @@ import { Suspense } from 'react';
 import { Package, TrendingUp, ShoppingCart, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { getDashboardStats, getMonthlyStats, getSalesChartData } from '@/actions/dashboard';
+import { getDashboardStats, getMonthlyStats } from '@/actions/dashboard';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { SalesChart } from '@/components/features/dashboard/sales-chart';
 
 async function DashboardContent() {
-  const [stats, monthlyStats, salesChartData] = await Promise.all([
+  const [stats, monthlyStats] = await Promise.all([
     getDashboardStats(),
     getMonthlyStats(),
-    getSalesChartData(7),
   ]);
 
   const statsCards = [
@@ -67,42 +65,32 @@ async function DashboardContent() {
         ))}
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
-        <SalesChart data={salesChartData} />
-        
-        {/* Monthly Summary moved to side */}
-        <Card className="col-span-3">
-          <CardHeader>
-            <CardTitle>สรุปเดือนนี้</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-8">
-              <div className="flex items-center">
-                <div className="ml-4 space-y-1">
-                  <p className="text-sm font-medium leading-none">ยอดขายรวม</p>
-                  <p className="text-2xl font-bold">
-                    {formatCurrency(monthlyStats.revenue.toString())}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center">
-                <div className="ml-4 space-y-1">
-                  <p className="text-sm font-medium leading-none">กำไรรวม</p>
-                  <p className="text-2xl font-bold text-green-600">
-                    {formatCurrency(monthlyStats.profit.toString())}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center">
-                <div className="ml-4 space-y-1">
-                  <p className="text-sm font-medium leading-none">จำนวนรายการ</p>
-                  <p className="text-xl font-bold">{monthlyStats.count} บิล</p>
-                </div>
-              </div>
+      {/* Monthly Summary */}
+      <Card>
+        <CardHeader>
+          <CardTitle>สรุปเดือนนี้</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-3">
+            <div>
+              <p className="text-sm text-muted-foreground">ยอดขายรวม</p>
+              <p className="text-2xl font-bold">
+                {formatCurrency(monthlyStats.revenue.toString())}
+              </p>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+            <div>
+              <p className="text-sm text-muted-foreground">กำไรรวม</p>
+              <p className="text-2xl font-bold text-green-600">
+                {formatCurrency(monthlyStats.profit.toString())}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">จำนวนรายการ</p>
+              <p className="text-2xl font-bold">{monthlyStats.count} บิล</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Recent Sales */}
