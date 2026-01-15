@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { createProduct, updateProduct } from '@/actions/products';
+import { StockAdjustmentDialog } from '@/components/features/products/stock-adjustment-dialog';
 
 interface Category {
   id: string;
@@ -158,16 +159,17 @@ export function ProductForm({ product, categories }: ProductFormProps) {
                 name="stock"
                 type="number"
                 min="0"
-                defaultValue={product?.stock || 0}
-                placeholder="0"
                 required
                 disabled={isEdit}
                 className={isEdit ? 'bg-muted' : ''}
               />
               {isEdit && (
-                <p className="text-[0.8rem] text-muted-foreground mt-1">
-                  * หากต้องการปรับสต็อก กรุณาไปที่แท็บ &quot;ประวัติสต็อก&quot;
-                </p>
+                <div className="mt-2">
+                  <StockAdjustmentDialog 
+                    productId={product.id} 
+                    currentStock={product.stock}
+                  />
+                </div>
               )}
               {errors.stock && (
                 <p className="text-sm text-destructive">{errors.stock[0]}</p>
