@@ -88,7 +88,7 @@ async function SaleDetails({ id }: { id: string }) {
           <div className="mb-8 grid grid-cols-2 gap-4">
             <div>
               <h3 className="font-semibold mb-2">ข้อมูลลูกค้า</h3>
-              <p className="text-sm">{sale.customerName || 'ลูกค้าทั่วไป'}</p>
+              <p className="text-sm">{sale.customer?.name || sale.customerName || 'ลูกค้าทั่วไป'}</p>
               {sale.customer && (
                 <>
                   <p className="text-sm text-muted-foreground">{sale.customer.address}</p>
