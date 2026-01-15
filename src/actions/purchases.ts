@@ -102,10 +102,9 @@ export async function createPurchase(input: PurchaseInput) {
         data: {
           userId,
           supplierId: purchaseData.supplierId || null,
-          // Removed supplierName and paymentMethod as they are not in schema
-          // Removed referenceNumber generation
-          notes: purchaseData.notes || (purchaseData.paymentMethod ? `Payment: ${purchaseData.paymentMethod}` : null),
-          totalCost: totalCost, // Schema uses totalCost, not totalAmount
+          supplierName: purchaseData.supplierName || null,
+          notes: purchaseData.notes || null,
+          totalCost: totalCost,
           receiptUrl: purchaseData.receiptUrl || null,
           items: {
             create: items.map((item) => ({

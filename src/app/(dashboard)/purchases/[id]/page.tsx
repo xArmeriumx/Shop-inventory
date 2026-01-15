@@ -101,6 +101,8 @@ async function PurchaseDetails({ id }: { id: string }) {
                     <p className="text-sm text-muted-foreground">{purchase.supplier.address}</p>
                   )}
                 </>
+              ) : purchase.supplierName ? (
+                <p className="text-sm font-medium">{purchase.supplierName}</p>
               ) : (
                 <p className="text-sm text-muted-foreground">ไม่ระบุผู้จำหน่าย</p>
               )}

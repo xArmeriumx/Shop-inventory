@@ -197,6 +197,7 @@ model Purchase {
 
   supplierId  String?
   supplier    Supplier? @relation(fields: [supplierId], references: [id])
+  supplierName String? // Manual supplier name (when not using Supplier)
 
   totalCost   Decimal  @db.Decimal(10, 2)
   receiptUrl  String?
