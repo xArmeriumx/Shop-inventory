@@ -104,6 +104,22 @@ export function Sidebar({ isCollapsed = false, onToggle }: SidebarProps) {
 
       {/* Navigation */}
       <nav className="flex-1 space-y-1 p-2">
+        {/* POS Button - Prominent */}
+        <Link
+          href="/pos"
+          className={cn(
+            'flex items-center gap-3 rounded-lg px-4 py-3 text-base font-bold transition-all mb-3',
+            'bg-primary text-primary-foreground hover:bg-primary/90 shadow-md',
+            isCollapsed && 'justify-center px-2'
+          )}
+          title={isCollapsed ? 'POS' : undefined}
+        >
+          <ShoppingCart className="h-6 w-6 shrink-0" />
+          {!isCollapsed && <span>POS</span>}
+        </Link>
+
+        <Separator className="my-2" />
+
         {navItems.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (
