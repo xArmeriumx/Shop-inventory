@@ -40,15 +40,20 @@ export function ProductForm({ product, categories }: ProductFormProps) {
       category: formData.get('category') as string,
       costPrice: parseFloat(formData.get('costPrice') as string) || 0,
       salePrice: parseFloat(formData.get('salePrice') as string) || 0,
-      stock: parseInt(formData.get('stock') as string) || 0,
+      stock: isEdit ? undefined : (parseInt(formData.get('stock') as string) || 0),
       minStock: parseInt(formData.get('minStock') as string) || 5,
-      images: [],
+      images: [] as string[],
     };
+    
+    // Remove undefined keys
+    if (isEdit) {
+        delete (data as any).stock;
+    }
 
     startTransition(async () => {
       const result = isEdit
         ? await updateProduct(product.id, data)
-        : await createProduct(data);
+        : await createProduct(data as any);
 
       if (result.error) {
         setErrors(result.error as Record<string, string[]>);
