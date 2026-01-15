@@ -23,6 +23,7 @@ interface Purchase {
   date: Date;
   totalCost: number | { toString: () => string };
   supplier?: { name: string } | null;
+  supplierName?: string | null;
   notes: string | null;
   status?: string;
 }
@@ -112,7 +113,7 @@ export function PurchasesTable({ purchases, pagination }: PurchasesTableProps) {
                   <div className="text-sm">{formatDate(purchase.date)}</div>
                 </TableCell>
                 <TableCell>
-                  {purchase.supplier?.name || (
+                  {purchase.supplier?.name || purchase.supplierName || (
                     <span className="text-muted-foreground">-</span>
                   )}
                 </TableCell>
