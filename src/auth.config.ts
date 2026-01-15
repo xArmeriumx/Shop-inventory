@@ -14,6 +14,7 @@ export const authConfig = {
   callbacks: {
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user;
+      const hasShop = !!auth?.user?.shopId;
       const isOnDashboard = nextUrl.pathname.startsWith('/dashboard') || 
                             nextUrl.pathname.startsWith('/products') ||
                             nextUrl.pathname.startsWith('/purchases') || 
@@ -24,14 +25,26 @@ export const authConfig = {
                             nextUrl.pathname.startsWith('/reports') ||
                             nextUrl.pathname.startsWith('/settings') ||
                             nextUrl.pathname.startsWith('/pos');
+      const isOnOnboarding = nextUrl.pathname.startsWith('/onboarding');
 
       if (isOnDashboard) {
-        if (isLoggedIn) return true;
-        return false; // Redirect unauthenticated users to login page
+        if (!isLoggedIn) return false;
+        // If logged in but no shop (and not auto-provisioned), redirect to onboarding
+        if (!hasShop) {
+          return Response.redirect(new URL('/onboarding', nextUrl));
+        }
+        return true;
+      } else if (isOnOnboarding) {
+        if (!isLoggedIn) return false;
+        // If already has shop, redirect to dashboard
+        if (hasShop) {
+          return Response.redirect(new URL('/dashboard', nextUrl));
+        }
+        return true;
       } else if (isLoggedIn) {
         // Redirect authed users away from login/register
         if (nextUrl.pathname.startsWith('/login') || nextUrl.pathname.startsWith('/register')) {
-           return Response.redirect(new URL('/dashboard', nextUrl));
+           return Response.redirect(new URL(hasShop ? '/dashboard' : '/onboarding', nextUrl));
         }
       }
       return true;

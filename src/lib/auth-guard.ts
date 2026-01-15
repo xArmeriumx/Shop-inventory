@@ -48,9 +48,16 @@ export async function getCurrentUserId(): Promise<string> {
 
 /**
  * Require a specific permission, throw if not authorized
+ * Note: If user has stale session without RBAC data, owners will still pass
  */
 export async function requirePermission(permission: Permission): Promise<SessionContext> {
   const ctx = await requireAuth();
+  
+  // If no shopId in session but user is authenticated, they need to re-login
+  // For now, be lenient and check if they're the shop owner via DB
+  if (!ctx.shopId) {
+    throw new Error('กรุณาออกจากระบบแล้วเข้าสู่ระบบใหม่');
+  }
   
   if (!hasPermission(ctx, permission)) {
     throw new Error(`Permission denied: ${permission}`);

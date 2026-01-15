@@ -1,128 +1,114 @@
-# Inventory & Sales Management System (POS)
+# Shop Inventory & Sales Management System
 
-A modern, robust Inventory and Sales Management System built with Next.js 14, TypeScript, Prisma, and TailwindCSS.
+A comprehensive Inventory and Sales Management System developed with Next.js 14, TypeScript, Prisma, and TailwindCSS. This system is designed for multi-tenant usage, featuring role-based access control (RBAC) and robust audit trails.
 
-![Project Status](https://img.shields.io/badge/Status-Completed-success)
-![Next.js](https://img.shields.io/badge/Next.js-14-black)
-![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
-![Prisma](https://img.shields.io/badge/Prisma-ORM-darkblue)
-![Tailwind](https://img.shields.io/badge/Tailwind-CSS-38bdf8)
+## System Overview
 
-## Features
+This application serves as a complete Point of Sale (POS) and inventory management solution. It supports multiple shops, granular user permissions, and precise stock tracking. The architecture prioritizes data integrity, auditability, and ease of use.
 
-- **Dashboard**: Real-time overview of sales, profit, and low stock alerts.
-- **Product Management**:
-  - Full CRUD operations.
-  - **Barcode/SKU Support**: "Quick Scan" mode for rapid checkout.
-  - **Stock Management**:
-    - Real-time tracking with complete movement history
-    - Manual stock adjustment with reason logging
-    - **Audit-Ready Cancel System**: Replace delete with cancel to maintain 100% audit trail
-      - Cancel sales/purchases instead of deleting (data never lost)
-      - Mandatory cancel reason (wrong entry, customer request, damaged, etc.)
-      - Automatic stock reversal with full logging
-      - Prevent negative stock on purchase cancellation
-      - Track who cancelled and when with timestamps
-- **POS Mode** (`/pos`):
-  - Dedicated fullscreen interface for cashiers.
-  - Touch-friendly product grid with category tabs.
-  - Barcode scanner support (Keyboard Mode).
-  - Real-time cart with quantity controls.
-  - **Multi-terminal support**: Auto-refresh stock every 3 seconds for real-time sync.
-  - Optimistic updates: Stock reflects immediately after sale completion.
-  - Separation-ready architecture (easy to extract as standalone app).
-- **Point of Sale (Sales)**:
-  - Fast interface with Barcode Scanner support (Keyboard Mode).
-  - Auto-stock deduction & profit calculation.
-  - Invoice generation (Print-ready).
-- **Purchases**: Stock replenishment, supplier management, cost tracking.
-- **Receipt Upload**: Attach proof of purchase/sale images (Supabase Storage).
-- **Customers**: Customer database and history.
-- **Expenses**: Expense tracking with categorization.
-- **Reports**: Financial reports (Revenue/Expense/Profit), daily breakdowns, and Charts.
-  - _Export to CSV supported._
-  - _Print-ready reports._
-- **Development Standards**:
-  - **Standardized Server Actions**: Uniform `ActionResponse` pattern for predictable success/error handling.
-  - **Type Safety**: Full TypeScript support across frontend and backend.
-  - **Audit Logging**: Comprehensive tracking of stock movements and cancellations.
+## Core Features
 
-## Tech Stack
+### 1. Multi-Tenant Architecture
+
+- Supports multiple independent shops.
+- **Role-Based Access Control (RBAC)**: secure and granular permission system (Owner, Manager, Cashier, etc.).
+- **Onboarding Flow**: streamlined process for creating new shops or joining existing teams via invitation.
+
+### 2. Inventory Management
+
+- Real-time stock tracking with detailed movement history.
+- Manual stock adjustments with mandatory reason logging.
+- Low stock alerts and cost tracking.
+
+### 3. Point of Sale (POS)
+
+- Dedicated POS interface optimized for speed and usability.
+- Barcode scanner support (Keyboard Mode) for rapid product entry.
+- Real-time stock synchronization across multiple terminals.
+- Optimistic UI updates for immediate feedback.
+
+### 4. Sales and Purchase Management
+
+- **Audit-Ready Cancellation**: Implements a rigorous cancellation workflow instead of deletion. All cancellations require a reason and are timestamped, ensuring a complete audit trail.
+- Automatic profit calculation and stock deduction.
+- Receipt upload capability via Supabase Storage.
+- Tax invoice generation.
+
+### 5. Reporting and Analytics
+
+- Comprehensive financial reports (Revenue, Expense, Profit).
+- Daily breakdowns and downloadable CSV exports.
+- Printable report formats.
+
+## Technical Architecture
+
+### Technology Stack
 
 - **Framework**: Next.js 14 (App Router)
-- **Language**: TypeScript
-- **Database**: PostgreSQL (via Supabase)
-- **Storage**: Supabase Storage (for receipts/attachments)
+- **Language**: TypeScript (Strict mode)
+- **Database**: PostgreSQL
 - **ORM**: Prisma
-- **Auth**: NextAuth.js v5
-- **UI**: TailwindCSS, shadcn/ui, Lucide React
-- **Charts**: Recharts
+- **Authentication**: NextAuth.js
+- **Styling**: TailwindCSS, Shadcn UI
+- **Deployment**: Vercel (Edge-compatible middleware)
 
-## Getting Started
+### Development Standards
+
+- **Server Actions**: Standardized `ActionResponse` pattern for consistent error handling.
+- **Type Safety**: Strictly typed interfaces across the entire codebase.
+- **Audit Logging**: All critical actions (stock changes, cancellations) are persistently logged.
+
+## Installation and Setup
 
 ### Prerequisites
 
-- Node.js 18+
-- PostgreSQL Database (Supabase recommended)
+- Node.js 18 or higher
+- PostgreSQL Database
 
-### Installation
+### Setup Instructions
 
-1. Clone the repository:
+1.  **Clone the repository**
 
-   ```bash
-   git clone https://github.com/xArmeriumx/Shop-inventory.git
-   cd Shop-inventory
-   ```
+    ```bash
+    git clone https://github.com/xArmeriumx/Shop-inventory.git
+    cd Shop-inventory
+    ```
 
-2. Install dependencies:
+2.  **Install dependencies**
 
-   ```bash
-   npm install
-   ```
+    ```bash
+    npm install
+    ```
 
-3. Set up environment variables:
-   Copy `.env.example` to `.env` (create one if missing) and add your keys:
+3.  **Environment Configuration**
+    Create a `.env` file based on `.env.example` and populate the necessary variables:
 
-   ```env
-   DATABASE_URL="your-postgresql-connection-string"
-   AUTH_SECRET="your-nextauth-secret"
-   AUTH_URL="http://localhost:3000"
+    ```env
+    DATABASE_URL="postgresql://..."
+    AUTH_SECRET="your-secret-key"
+    NEXT_PUBLIC_SUPABASE_URL="..."
+    ```
 
-   # Supabase Storage (for Receipt Upload)
-   NEXT_PUBLIC_SUPABASE_URL="https://your-project.supabase.co"
-   NEXT_PUBLIC_SUPABASE_ANON_KEY="your-anon-key"
-   SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
-   ```
+4.  **Database Initialization**
 
-4. Initialize Database:
+    ```bash
+    npx prisma db push
+    ```
 
-   ```bash
-   npx prisma db push
-   ```
+5.  **Start Development Server**
+    ```bash
+    npm run dev
+    ```
 
-5. Run Development Server:
-   ```bash
-   npm run dev
-   ```
-
-Open [http://localhost:3000](http://localhost:3000) to view the app.
+Access the application at `http://localhost:3000`.
 
 ## Deployment
 
-### Vercel (Recommended)
+The application is optimized for deployment on Vercel.
 
-1. Push your code to GitHub.
-2. Link your repository to Vercel.
-3. Add the **Environment Variables** in Vercel project settings.
-4. Deploy!
-
-## CI/CD
-
-This project uses **GitHub Actions** for continuous integration.
-
-- **Build Check**: Verifies that the app builds successfully.
-- **Linting**: Checks for code style issues.
-- **Type Checking**: Ensures TypeScript safety.
+1.  Connect the GitHub repository to Vercel.
+2.  Configure the environment variables in the Vercel dashboard.
+3.  Deploy.
 
 ## License
 
