@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -42,6 +43,7 @@ export function SaleForm() {
   const [customerAddress, setCustomerAddress] = useState<string>('');
   const [showAddress, setShowAddress] = useState(false);
   const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
+  const [date, setDate] = useState<string>(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
   const [items, setItems] = useState<SaleItem[]>([
     { productId: '', quantity: 1, salePrice: 0 },
   ]);
@@ -125,6 +127,7 @@ export function SaleForm() {
       paymentMethod: formData.get('paymentMethod') as any,
       notes: (formData.get('notes') as string) || null,
       receiptUrl,
+      date: new Date(date).toISOString(),
       items: items.map((item) => ({
         productId: item.productId,
         quantity: item.quantity,
@@ -154,12 +157,24 @@ export function SaleForm() {
         </div>
       )}
 
-      {/* Customer Info */}
+      {/* Date & Customer Info */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">ข้อมูลลูกค้า</CardTitle>
+          <CardTitle className="text-base">ข้อมูลการขาย</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="date">วันที่และเวลา (ย้อนหลังได้)</Label>
+            <Input
+              id="date"
+              type="datetime-local"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              required
+              max={format(new Date(), "yyyy-MM-dd'T'HH:mm")}
+            />
+          </div>
+
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>ชื่อลูกค้า (ถ้ามี)</Label>

@@ -194,6 +194,7 @@ export async function createSale(input: SaleInput) {
       // Create sale
       const newSale = await tx.sale.create({
         data: {
+          date: saleData.date ? new Date(saleData.date) : new Date(),
           invoiceNumber,
           userId,
           customerId: finalCustomerId || null,

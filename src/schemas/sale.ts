@@ -32,6 +32,7 @@ export const saleSchema = z.object({
     .min(1, 'กรุณาเพิ่มรายการสินค้าอย่างน้อย 1 รายการ'),
   receiptUrl: z.string().url().optional().nullable(),
   customerAddress: z.string().max(500, 'ที่อยู่ต้องไม่เกิน 500 ตัวอักษร').optional().nullable(),
+  date: z.string().optional(),
 });
 
 export type SaleInput = z.infer<typeof saleSchema>;

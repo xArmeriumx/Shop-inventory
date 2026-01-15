@@ -100,6 +100,7 @@ export async function createPurchase(input: PurchaseInput) {
       // Create purchase
       const newPurchase = await tx.purchase.create({
         data: {
+          date: purchaseData.date ? new Date(purchaseData.date) : new Date(),
           userId,
           supplierId: purchaseData.supplierId || null,
           supplierName: purchaseData.supplierName || null,

@@ -30,6 +30,7 @@ export const purchaseSchema = z.object({
   items: z
     .array(purchaseItemSchema)
     .min(1, 'กรุณาเพิ่มรายการสินค้าอย่างน้อย 1 รายการ'),
+  date: z.string().optional(),
 });
 
 export type PurchaseInput = z.infer<typeof purchaseSchema>;

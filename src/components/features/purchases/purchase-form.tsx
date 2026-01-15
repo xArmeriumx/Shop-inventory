@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -34,6 +35,7 @@ export function PurchaseForm() {
   const [errors, setErrors] = useState<Record<string, string[]>>({});
   const [products, setProducts] = useState<Product[]>([]);
   const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
+  const [date, setDate] = useState<string>(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
   const [items, setItems] = useState<PurchaseItem[]>([
     { productId: '', quantity: 1, costPrice: 0 },
   ]);
@@ -100,6 +102,7 @@ export function PurchaseForm() {
       paymentMethod: formData.get('paymentMethod') as any,
       notes: (formData.get('notes') as string) || null,
       receiptUrl: receiptUrl,
+      date: new Date(date).toISOString(),
       items: items.map((item) => ({
         productId: item.productId,
         quantity: item.quantity,
@@ -129,12 +132,24 @@ export function PurchaseForm() {
         </div>
       )}
 
-      {/* Supplier Info */}
+      {/* Supplier Info & Date */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">ข้อมูลผู้จัดจำหน่าย</CardTitle>
+          <CardTitle className="text-base">ข้อมูลการซื้อ</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="date">วันที่และเวลา (ย้อนหลังได้)</Label>
+            <Input
+              id="date"
+              type="datetime-local"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              required
+              max={format(new Date(), "yyyy-MM-dd'T'HH:mm")}
+            />
+          </div>
+
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="supplierName">ชื่อผู้จัดจำหน่าย</Label>
