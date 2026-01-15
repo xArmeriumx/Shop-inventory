@@ -8,29 +8,31 @@ A modern, robust Inventory and Sales Management System built with Next.js 14, Ty
 ![Prisma](https://img.shields.io/badge/Prisma-ORM-darkblue)
 ![Tailwind](https://img.shields.io/badge/Tailwind-CSS-38bdf8)
 
-## 🚀 Features
+## Features
 
 - **Dashboard**: Real-time overview of sales, profit, and low stock alerts.
 - **Product Management**: Full CRUD, barcode/SKU support, stock tracking.
 - **Point of Sale (Sales)**: Easy-to-use sales interface, auto stock deduction, invoice generation.
 - **Purchases**: Stock replenishment, supplier management, cost tracking.
+- **Receipt Upload**: Attach proof of purchase/sale images (Supabase Storage).
 - **Customers**: Customer database and history.
 - **Expenses**: Expense tracking with categorization.
 - **Reports**: Financial reports (Revenue/Expense/Profit), daily breakdowns, and Charts.
   - _Export to CSV supported._
   - _Print-ready reports._
 
-## 🛠 Tech Stack
+## Tech Stack
 
 - **Framework**: Next.js 14 (App Router)
 - **Language**: TypeScript
 - **Database**: PostgreSQL (via Supabase)
+- **Storage**: Supabase Storage (for receipts/attachments)
 - **ORM**: Prisma
 - **Auth**: NextAuth.js v5
 - **UI**: TailwindCSS, shadcn/ui, Lucide React
 - **Charts**: Recharts
 
-## 📦 Getting Started
+## Getting Started
 
 ### Prerequisites
 
@@ -59,6 +61,11 @@ A modern, robust Inventory and Sales Management System built with Next.js 14, Ty
    DATABASE_URL="your-postgresql-connection-string"
    AUTH_SECRET="your-nextauth-secret"
    AUTH_URL="http://localhost:3000"
+
+   # Supabase Storage (for Receipt Upload)
+   NEXT_PUBLIC_SUPABASE_URL="https://your-project.supabase.co"
+   NEXT_PUBLIC_SUPABASE_ANON_KEY="your-anon-key"
+   SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
    ```
 
 4. Initialize Database:
@@ -74,7 +81,7 @@ A modern, robust Inventory and Sales Management System built with Next.js 14, Ty
 
 Open [http://localhost:3000](http://localhost:3000) to view the app.
 
-## 🚢 Deployment
+## Deployment
 
 ### Vercel (Recommended)
 
@@ -83,7 +90,7 @@ Open [http://localhost:3000](http://localhost:3000) to view the app.
 3. Add the **Environment Variables** in Vercel project settings.
 4. Deploy!
 
-## 🧪 CI/CD
+## CI/CD
 
 This project uses **GitHub Actions** for continuous integration.
 
@@ -91,6 +98,6 @@ This project uses **GitHub Actions** for continuous integration.
 - **Linting**: Checks for code style issues.
 - **Type Checking**: Ensures TypeScript safety.
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License.
