@@ -29,12 +29,11 @@ This application serves as a complete Point of Sale (POS) and inventory manageme
 
 ### 4. Team & Role Management (RBAC)
 
-- **Granular Permissions**: Define custom roles (e.g., Manager, Stock Keeper, Cashier) with specific capability flags.
-- **Smart Permission Logic**: Auto-resolves dependencies (e.g., "Create Sale" grants "View Product" automatically).
-- **Secure Onboarding**: Invite-only system for adding staff to your shop.
-- **Real-time Enforcement**: Permission changes take effect immediately without re-login.
-- **High-Performance Polling**: Version-based smart polling reduces API calls by 98% vs naive polling.
-- **Tab Visibility Awareness**: Stops polling when tab is hidden, refreshes instantly when visible.
+- **Granular Permissions**: Define custom roles with specific capability flags.
+- **Auto-dependency Resolution**: Related permissions are granted automatically when needed.
+- **Invite-only Onboarding**: Secure invitation system for adding staff.
+- **Real-time Enforcement**: Permission changes take effect immediately.
+- **Optimized Performance**: Efficient polling mechanism with minimal server overhead.
 
 ### 5. Sales and Purchase Management
 

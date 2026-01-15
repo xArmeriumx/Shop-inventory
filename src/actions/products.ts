@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
-import { requireAuth, requirePermission, hasPermission, getCurrentUserId } from '@/lib/auth-guard';
+import { requirePermission, hasPermission } from '@/lib/auth-guard';
 import { paginatedQuery, buildSearchFilter } from '@/lib/pagination';
 import { productSchema, type ProductInput, type ProductUpdateInput } from '@/schemas/product';
 import { Product } from '@prisma/client';
@@ -156,9 +156,9 @@ export async function updateProduct(id: string, input: ProductUpdateInput): Prom
     };
   }
 
-  // Check ownership
+  // Check ownership by shop (RBAC scope)
   const existing = await db.product.findFirst({
-    where: { id, userId: ctx.userId },
+    where: { id, shopId: ctx.shopId },
   });
 
   if (!existing) {
@@ -168,10 +168,14 @@ export async function updateProduct(id: string, input: ProductUpdateInput): Prom
     };
   }
 
-  // Check duplicate SKU (if changed)
+  // Check duplicate SKU (if changed) - scoped by shop
   if (validated.data.sku && validated.data.sku !== existing.sku) {
     const duplicate = await db.product.findFirst({
-      where: { sku: validated.data.sku, id: { not: id } },
+      where: { 
+        sku: validated.data.sku, 
+        shopId: ctx.shopId,  // RBAC: Scope to shop
+        id: { not: id } 
+      },
     });
     if (duplicate) {
       return {
@@ -324,10 +328,11 @@ export async function adjustStock(productId: string, input: AdjustStockInput): P
         where: { id: productId },
         select: { stock: true, shopId: true },
       });
-      // Safety check for scope
-      if (!product || product.shopId !== ctx.shopId) throw new Error('ไม่พบสินค้า');
-
-      if (!product) throw new Error('ไม่พบสินค้า');
+      
+      // Safety check: product exists and belongs to this shop
+      if (!product || product.shopId !== ctx.shopId) {
+        throw new Error('ไม่พบสินค้า');
+      }
 
       let change = 0;
       let notePrefix = '';

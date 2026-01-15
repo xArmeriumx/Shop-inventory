@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
-import { requireAuth, requirePermission, getCurrentUserId } from '@/lib/auth-guard';
+import { requirePermission } from '@/lib/auth-guard';
 import { paginatedQuery, buildSearchFilter } from '@/lib/pagination';
 import { customerSchema, type CustomerInput } from '@/schemas/customer';
 import type { Customer } from '@prisma/client';

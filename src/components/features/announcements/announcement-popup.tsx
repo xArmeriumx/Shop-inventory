@@ -15,31 +15,31 @@ import { Megaphone, Users, Shield, ShoppingCart, CheckCircle2 } from 'lucide-rea
 
 // Configuration for the latest announcement
 const CURRENT_ANNOUNCEMENT = {
-  id: 'update-v2.1-rbac-performance', // New ID triggers show for everyone
+  id: 'update-v2.1-performance',
   version: 'v2.1.0',
-  date: '16 มกราคม 2026',
-  title: '🚀 เร็วขึ้น 98%! ระบบสิทธิ์แบบ Real-time',
-  description: 'ปรับปรุงประสิทธิภาพระบบสิทธิ์ (RBAC) ให้เร็วขึ้นและประหยัดทรัพยากรมากขึ้น',
+  date: '16 มกราคม 2569',
+  title: 'อัปเดตระบบ v2.1 - ปรับปรุงประสิทธิภาพ',
+  description: 'เพิ่มประสิทธิภาพระบบจัดการสิทธิ์และปรับปรุงการทำงานโดยรวม',
   features: [
     {
       icon: Shield,
-      title: 'Real-time Permission Sync',
-      description: 'เปลี่ยนสิทธิ์ให้ทีมงานแล้วเห็นผลทันที! ไม่ต้อง Logout/Login ใหม่ ระบบจะอัปเดต Sidebar และเมนูให้อัตโนมัติ',
+      title: 'สิทธิ์อัปเดตแบบ Real-time',
+      description: 'เปลี่ยนบทบาทพนักงานแล้วมีผลทันที ไม่ต้องออกจากระบบใหม่',
     },
     {
       icon: CheckCircle2,
-      title: 'Smart Polling ลดโหลดเซิร์ฟเวอร์ 98%',
-      description: 'ระบบตรวจสอบแบบ Version-based ตรวจแค่เลข Version เล็กๆ แทนการโหลดข้อมูลทั้งหมดทุกครั้ง',
+      title: 'ลดการใช้ทรัพยากรเซิร์ฟเวอร์',
+      description: 'ปรับระบบตรวจสอบสิทธิ์ให้มีประสิทธิภาพมากขึ้น',
     },
     {
       icon: Users,
-      title: 'Tab Visibility Awareness',
-      description: 'หยุดตรวจสอบเมื่อปิดหน้าต่าง เปิดกลับมาเมื่อไหร่ก็รีเฟรชให้ทันที ประหยัดแบตและเน็ต',
+      title: 'ประหยัดทรัพยากรเมื่อสลับแท็บ',
+      description: 'ระบบหยุดทำงานอัตโนมัติเมื่อปิดหน้าจอ และกลับมาทำงานเมื่อเปิดใช้งานอีกครั้ง',
     },
     {
       icon: ShoppingCart,
-      title: 'ระบบ POS และการขาย',
-      description: 'หน้าขายแบบ Full-screen, ยิงบาร์โค้ดได้, สิทธิ์อัปเดตแบบ Real-time ไม่ต้องรีเฟรชหน้า',
+      title: 'ปรับปรุงหน้า POS',
+      description: 'รองรับการยิงบาร์โค้ด และอัปเดตสต็อกแบบ Real-time',
     },
   ],
 };

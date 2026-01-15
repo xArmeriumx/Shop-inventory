@@ -2,12 +2,13 @@
 
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
-import { requireAuth, requirePermission, hasPermission, getCurrentUserId } from '@/lib/auth-guard';
+import { requirePermission, hasPermission } from '@/lib/auth-guard';
 import { paginatedQuery, buildSearchFilter, buildDateRangeFilter } from '@/lib/pagination';
 import { saleSchema, type SaleInput } from '@/schemas/sale';
 import type { Sale, SaleItem } from '@prisma/client';
 import { StockService } from '@/lib/stock-service';
 import type { ActionResponse } from '@/types/action-response';
+import { Decimal } from '@prisma/client/runtime/library';
 
 interface GetSalesParams {
   page?: number;
@@ -28,10 +29,6 @@ type SaleWithItems = Sale & {
     name: string;
   } | null;
 };
-
-import { Decimal } from '@prisma/client/runtime/library';
-
-// ... existing imports ...
 
 export async function getSales(params: GetSalesParams = {}) {
   // Require View Permission
