@@ -99,7 +99,7 @@ export async function createPurchase(input: PurchaseInput): Promise<ActionRespon
     };
   }
 
-  const { items, ...purchaseData } = validated.data;
+  const { items, paymentMethod, ...purchaseData } = validated.data;
   if (items.length === 0) {
     return {
       success: false,
