@@ -19,6 +19,7 @@ import { XCircle, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
 import { cancelSale } from '@/actions/sales';
 import { useState, useTransition } from 'react';
 import { CancelDialog } from '@/components/features/shared/cancel-dialog';
+import { usePermissions } from '@/hooks/use-permissions';
 
 type SaleWithCustomer = Sale & {
   customer: Pick<Customer, 'name'> | null;
@@ -45,6 +46,11 @@ export function SalesTable({ sales, pagination }: SalesTableProps) {
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [cancelDialogSale, setCancelDialogSale] = useState<SaleWithCustomer | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  
+  // RBAC: Check permissions for sensitive columns and actions
+  const { hasPermission } = usePermissions();
+  const canViewProfit = hasPermission('SALE_VIEW_PROFIT');
+  const canCancelSale = hasPermission('SALE_CANCEL');
 
   const getPaymentMethodLabel = (value: string) => {
     return PAYMENT_METHODS.find((m) => m.value === value)?.label || value;
@@ -118,7 +124,7 @@ export function SalesTable({ sales, pagination }: SalesTableProps) {
               <TableHead>ลูกค้า</TableHead>
               <TableHead>วิธีชำระ</TableHead>
               <TableHead className="text-right">ยอดรวม</TableHead>
-              <TableHead className="text-right">กำไร</TableHead>
+              {canViewProfit && <TableHead className="text-right">กำไร</TableHead>}
               <TableHead className="w-[100px]"></TableHead>
             </TableRow>
           </TableHeader>
@@ -144,11 +150,13 @@ export function SalesTable({ sales, pagination }: SalesTableProps) {
                 <TableCell className="text-right font-medium">
                   {formatCurrency(sale.totalAmount.toString())}
                 </TableCell>
-                <TableCell className="text-right">
-                  <span className={Number(sale.profit) >= 0 ? 'text-green-600' : 'text-destructive'}>
-                    {formatCurrency(sale.profit.toString())}
-                  </span>
-                </TableCell>
+                {canViewProfit && (
+                  <TableCell className="text-right">
+                    <span className={Number(sale.profit) >= 0 ? 'text-green-600' : 'text-destructive'}>
+                      {formatCurrency(sale.profit.toString())}
+                    </span>
+                  </TableCell>
+                )}
                 <TableCell>
                   <div className="flex items-center justify-end gap-1">
                     <Button variant="ghost" size="icon" asChild>

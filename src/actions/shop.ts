@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { db } from '@/lib/db';
-import { getCurrentUserId } from '@/lib/auth-guard';
+import { requireAuth, requirePermission, getCurrentUserId } from '@/lib/auth-guard';
 
 const shopSchema = z.object({
   name: z.string().min(1, 'กรุณากรอกชื่อร้าน'),
@@ -65,7 +65,8 @@ export async function createShopIfNotExists() {
 }
 
 export async function updateShop(prevState: ShopState, formData: FormData): Promise<ShopState> {
-  const userId = await getCurrentUserId();
+  // RBAC: Require SETTINGS_SHOP permission
+  const ctx = await requirePermission('SETTINGS_SHOP');
   
   const rawFormData = {
     name: formData.get('name'),
@@ -86,7 +87,7 @@ export async function updateShop(prevState: ShopState, formData: FormData): Prom
 
   try {
     await db.shop.upsert({
-      where: { userId },
+      where: { userId: ctx.userId },
       update: {
         name: validatedFields.data.name,
         address: validatedFields.data.address,
@@ -95,7 +96,7 @@ export async function updateShop(prevState: ShopState, formData: FormData): Prom
         taxId: validatedFields.data.taxId,
       },
       create: {
-        userId,
+        userId: ctx.userId,
         name: validatedFields.data.name,
         address: validatedFields.data.address,
         phone: validatedFields.data.phone,

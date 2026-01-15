@@ -22,6 +22,7 @@ model User {
 
   // Relations
   shop          Shop?
+  memberships   ShopMember[]  // RBAC: User can be member of multiple shops
   products      Product[]
   purchases     Purchase[]
   sales         Sale[]
@@ -95,11 +96,124 @@ model Shop {
   logo        String?  // URL โลโก้
   taxId       String?  // เลขประจำตัวผู้เสียภาษี
 
+  // Original owner (for billing, cannot be removed)
   userId      String   @unique
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // RBAC Relations
+  members     ShopMember[]
+  roles       Role[]
+
+  // Data ownership relations
+  products    Product[]
+  suppliers   Supplier[]
+  customers   Customer[]
+  purchases   Purchase[]
+  sales       Sale[]
+  expenses    Expense[]
+  stockLogs   StockLog[]
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+// ==================== RBAC (Role-Based Access Control) ====================
+
+enum Permission {
+  // Product
+  PRODUCT_VIEW
+  PRODUCT_CREATE
+  PRODUCT_EDIT
+  PRODUCT_DELETE
+  PRODUCT_VIEW_COST       // Sensitive: ดูต้นทุน
+
+  // Stock
+  STOCK_VIEW_HISTORY
+  STOCK_ADJUST
+
+  // Sales
+  SALE_VIEW
+  SALE_CREATE
+  SALE_VIEW_PROFIT        // Sensitive: ดูกำไร
+  SALE_CANCEL
+
+  // Purchases
+  PURCHASE_VIEW
+  PURCHASE_CREATE
+  PURCHASE_CANCEL
+
+  // Customers
+  CUSTOMER_VIEW
+  CUSTOMER_CREATE
+  CUSTOMER_EDIT
+  CUSTOMER_DELETE
+
+  // Expenses
+  EXPENSE_VIEW
+  EXPENSE_CREATE
+  EXPENSE_EDIT
+  EXPENSE_DELETE
+
+  // Reports
+  REPORT_VIEW_SALES
+  REPORT_VIEW_PROFIT      // Sensitive: ดูกำไรในรายงาน
+  REPORT_EXPORT
+
+  // Settings
+  SETTINGS_SHOP
+  SETTINGS_LOOKUPS
+
+  // Team
+  TEAM_VIEW
+  TEAM_INVITE
+  TEAM_EDIT
+  TEAM_REMOVE
+
+  // POS
+  POS_ACCESS
+}
+
+model Role {
+  id          String       @id @default(cuid())
+  name        String       // e.g., "พนักงานขาย", "ผู้จัดการ"
+  description String?
+  isDefault   Boolean      @default(false)  // Default role for new invites
+  isSystem    Boolean      @default(false)  // OWNER role, undeletable
+
+  shopId      String
+  shop        Shop         @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  permissions Permission[]
+
+  members     ShopMember[]
+
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([shopId, name])
+  @@index([shopId])
+}
+
+model ShopMember {
+  id        String   @id @default(cuid())
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  shopId    String
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  roleId    String
+  role      Role     @relation(fields: [roleId], references: [id])
+
+  isOwner   Boolean  @default(false)  // Shortcut flag for Owner
+
+  joinedAt  DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, shopId])  // A user can only be in a shop once
+  @@index([shopId])
+  @@index([userId])
 }
 
 // ==================== Core Models ====================
@@ -120,8 +234,12 @@ model Product {
   images      String[]
   isActive    Boolean  @default(true)
 
+  // Ownership (keeping userId for audit, adding shopId for RBAC)
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  shopId      String?  // RBAC: Nullable during transition
+  shop        Shop?    @relation(fields: [shopId], references: [id], onDelete: Cascade)
   
   categoryRef LookupValue? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
@@ -138,6 +256,7 @@ model Product {
   @@unique([userId, sku])
   @@index([userId])
   @@index([userId, deletedAt])
+  @@index([shopId])  // RBAC index
   @@index([category])
   @@index([categoryId])
   @@index([name])
@@ -152,8 +271,12 @@ model Supplier {
   address   String?
   notes     String?
 
+  // Ownership
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  shopId    String?  // RBAC: Nullable during transition
+  shop      Shop?    @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
   purchases Purchase[]
 
@@ -165,6 +288,7 @@ model Supplier {
 
   @@index([userId])
   @@index([userId, deletedAt])
+  @@index([shopId])  // RBAC index
   @@index([name])
 }
 
@@ -176,8 +300,12 @@ model Customer {
   taxId     String?
   notes     String?
 
+  // Ownership
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  shopId    String?  // RBAC: Nullable during transition
+  shop      Shop?    @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
   sales     Sale[]
 
@@ -189,6 +317,7 @@ model Customer {
 
   @@index([userId])
   @@index([userId, deletedAt])
+  @@index([shopId])  // RBAC index
   @@index([name])
 }
 
@@ -206,8 +335,12 @@ model Purchase {
   receiptUrl  String?
   notes       String?
 
+  // Ownership
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  shopId      String?  // RBAC: Nullable during transition
+  shop        Shop?    @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
   items       PurchaseItem[]
 
@@ -227,6 +360,7 @@ model Purchase {
   @@index([userId, deletedAt])
   @@index([userId, date])
   @@index([userId, status])  // For filtering active/cancelled
+  @@index([shopId])  // RBAC index
   @@index([date])
   @@index([supplierId])
 }
@@ -265,8 +399,12 @@ model Sale {
   notes         String?
   receiptUrl    String?
 
+  // Ownership
   userId        String
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  shopId        String?  // RBAC: Nullable during transition
+  shop          Shop?    @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
   items         SaleItem[]
 
@@ -287,6 +425,7 @@ model Sale {
   @@index([userId, deletedAt])
   @@index([userId, date])
   @@index([userId, status])  // For filtering active/cancelled
+  @@index([shopId])  // RBAC index
   @@index([date])
   @@index([customerId])
 }
@@ -319,8 +458,12 @@ model Expense {
   date        DateTime @default(now())
   receiptUrl  String?
 
+  // Ownership
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  shopId      String?  // RBAC: Nullable during transition
+  shop        Shop?    @relation(fields: [shopId], references: [id], onDelete: Cascade)
   
   categoryRef LookupValue? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
@@ -333,6 +476,7 @@ model Expense {
   @@index([userId])
   @@index([userId, deletedAt])
   @@index([userId, date])
+  @@index([shopId])  // RBAC index
   @@index([date])
   @@index([category])
   @@index([categoryId])
@@ -368,12 +512,17 @@ model StockLog {
   
   date          DateTime          @default(now())
   
+  // Ownership
   userId        String
   user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  shopId        String?           // RBAC: Nullable during transition
+  shop          Shop?             @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
   createdAt     DateTime          @default(now())
 
   @@index([productId, date])
   @@index([userId, date])
+  @@index([shopId])  // RBAC index
   @@index([referenceId])
 }

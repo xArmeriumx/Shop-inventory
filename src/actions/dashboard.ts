@@ -1,7 +1,7 @@
 'use server';
 
 import { db } from '@/lib/db';
-import { getCurrentUserId } from '@/lib/auth-guard';
+import { requireAuth, getCurrentUserId } from '@/lib/auth-guard';
 
 export async function getDashboardStats() {
   const userId = await getCurrentUserId();

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
-import { getCurrentUserId } from '@/lib/auth-guard';
+import { requireAuth, requirePermission, getCurrentUserId } from '@/lib/auth-guard';
 import { paginatedQuery, buildSearchFilter, buildDateRangeFilter } from '@/lib/pagination';
 import { purchaseSchema, type PurchaseInput } from '@/schemas/purchase';
 import type { Purchase } from '@prisma/client';
@@ -88,7 +88,8 @@ export async function getPurchase(id: string) {
 // ... interfaces
 
 export async function createPurchase(input: PurchaseInput): Promise<ActionResponse<Purchase>> {
-  const userId = await getCurrentUserId();
+  // RBAC: Require PURCHASE_CREATE permission
+  const ctx = await requirePermission('PURCHASE_CREATE');
 
   const validated = purchaseSchema.safeParse(input);
   if (!validated.success) {
@@ -120,7 +121,8 @@ export async function createPurchase(input: PurchaseInput): Promise<ActionRespon
         data: {
           ...purchaseData,
           date: purchaseData.date ? new Date(purchaseData.date) : new Date(),
-          userId,
+          userId: ctx.userId,
+          shopId: ctx.shopId,  // RBAC: Set shopId for new purchase
           supplierId: purchaseData.supplierId || null,
           supplierName: purchaseData.supplierName || null,
           notes: purchaseData.notes || null,
@@ -147,7 +149,7 @@ export async function createPurchase(input: PurchaseInput): Promise<ActionRespon
           productId: item.productId,
           type: 'PURCHASE',
           quantity: item.quantity, // Purchase increases stock
-          userId,
+          userId: ctx.userId,
           referenceId: newPurchase.id,
           referenceType: 'PURCHASE',
           note: `ซื้อสินค้า ${newPurchase.supplierName || ''}`,
@@ -200,7 +202,8 @@ interface CancelPurchaseInput {
 }
 
 export async function cancelPurchase(input: CancelPurchaseInput): Promise<ActionResponse> {
-  const userId = await getCurrentUserId();
+  // RBAC: Require PURCHASE_CANCEL permission
+  const ctx = await requirePermission('PURCHASE_CANCEL');
   const { id, reasonCode, reasonDetail } = input;
 
   // Validate: Cancel reason is required
@@ -226,13 +229,13 @@ export async function cancelPurchase(input: CancelPurchaseInput): Promise<Action
   try {
     // Get current user name for audit
     const user = await db.user.findUnique({
-      where: { id: userId },
+      where: { id: ctx.userId },
       select: { name: true },
     });
 
     await db.$transaction(async (tx: any) => {
       const purchase = await tx.purchase.findFirst({
-        where: { id, userId },
+        where: { id, userId: ctx.userId },
         include: { items: { include: { product: true } } },
       });
 
@@ -261,7 +264,7 @@ export async function cancelPurchase(input: CancelPurchaseInput): Promise<Action
           productId: item.productId,
           type: 'PURCHASE_CANCEL',
           quantity: -item.quantity, // Negative = reduce
-          userId,
+          userId: ctx.userId,
           referenceId: purchase.id,
           referenceType: 'PURCHASE_CANCEL',
           note: `ยกเลิกการซื้อ - ${cancelReason}`,

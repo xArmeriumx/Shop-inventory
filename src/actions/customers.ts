@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
-import { getCurrentUserId } from '@/lib/auth-guard';
+import { requireAuth, requirePermission, getCurrentUserId } from '@/lib/auth-guard';
 import { paginatedQuery, buildSearchFilter } from '@/lib/pagination';
 import { customerSchema, type CustomerInput } from '@/schemas/customer';
 import type { Customer } from '@prisma/client';
@@ -49,7 +49,8 @@ export async function getCustomer(id: string) {
 }
 
 export async function createCustomer(input: CustomerInput): Promise<ActionResponse<Customer>> {
-  const userId = await getCurrentUserId();
+  // RBAC: Require CUSTOMER_CREATE permission
+  const ctx = await requirePermission('CUSTOMER_CREATE');
 
   const validated = customerSchema.safeParse(input);
   if (!validated.success) {
@@ -69,7 +70,8 @@ export async function createCustomer(input: CustomerInput): Promise<ActionRespon
         address: validated.data.address || null,
         taxId: validated.data.taxId || null,
         notes: validated.data.notes || null,
-        userId,
+        userId: ctx.userId,
+        shopId: ctx.shopId,  // RBAC: Set shopId for new customer
       },
     });
 
@@ -89,7 +91,8 @@ export async function createCustomer(input: CustomerInput): Promise<ActionRespon
 }
 
 export async function updateCustomer(id: string, input: CustomerInput): Promise<ActionResponse<Customer>> {
-  const userId = await getCurrentUserId();
+  // RBAC: Require CUSTOMER_EDIT permission
+  const ctx = await requirePermission('CUSTOMER_EDIT');
 
   const validated = customerSchema.safeParse(input);
   if (!validated.success) {
@@ -101,7 +104,7 @@ export async function updateCustomer(id: string, input: CustomerInput): Promise<
   }
 
   const existing = await db.customer.findFirst({
-    where: { id, userId, deletedAt: null },
+    where: { id, userId: ctx.userId, deletedAt: null },
   });
 
   if (!existing) {
@@ -142,10 +145,11 @@ export async function updateCustomer(id: string, input: CustomerInput): Promise<
 }
 
 export async function deleteCustomer(id: string): Promise<ActionResponse> {
-  const userId = await getCurrentUserId();
+  // RBAC: Require CUSTOMER_DELETE permission
+  const ctx = await requirePermission('CUSTOMER_DELETE');
 
   const existing = await db.customer.findFirst({
-    where: { id, userId, deletedAt: null },
+    where: { id, userId: ctx.userId, deletedAt: null },
   });
 
   if (!existing) {

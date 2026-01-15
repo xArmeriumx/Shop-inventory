@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
-import { getCurrentUserId } from '@/lib/auth-guard';
+import { requireAuth, requirePermission, getCurrentUserId } from '@/lib/auth-guard';
 import { paginatedQuery, buildSearchFilter, buildDateRangeFilter } from '@/lib/pagination';
 import { expenseSchema, type ExpenseInput } from '@/schemas/expense';
 
@@ -52,7 +52,8 @@ export async function getExpense(id: string) {
 }
 
 export async function createExpense(input: ExpenseInput) {
-  const userId = await getCurrentUserId();
+  // RBAC: Require EXPENSE_CREATE permission
+  const ctx = await requirePermission('EXPENSE_CREATE');
 
   const validated = expenseSchema.safeParse(input);
   if (!validated.success) {
@@ -63,7 +64,8 @@ export async function createExpense(input: ExpenseInput) {
     const expense = await db.expense.create({
       data: {
         ...validated.data,
-        userId,
+        userId: ctx.userId,
+        shopId: ctx.shopId,  // RBAC: Set shopId for new expense
       },
     });
 
@@ -77,7 +79,8 @@ export async function createExpense(input: ExpenseInput) {
 }
 
 export async function updateExpense(id: string, input: ExpenseInput) {
-  const userId = await getCurrentUserId();
+  // RBAC: Require EXPENSE_EDIT permission
+  const ctx = await requirePermission('EXPENSE_EDIT');
 
   const validated = expenseSchema.safeParse(input);
   if (!validated.success) {
@@ -85,7 +88,7 @@ export async function updateExpense(id: string, input: ExpenseInput) {
   }
 
   const existing = await db.expense.findFirst({
-    where: { id, userId },
+    where: { id, userId: ctx.userId },
   });
 
   if (!existing) {
@@ -110,10 +113,11 @@ export async function updateExpense(id: string, input: ExpenseInput) {
 }
 
 export async function deleteExpense(id: string) {
-  const userId = await getCurrentUserId();
+  // RBAC: Require EXPENSE_DELETE permission
+  const ctx = await requirePermission('EXPENSE_DELETE');
 
   const existing = await db.expense.findFirst({
-    where: { id, userId },
+    where: { id, userId: ctx.userId },
   });
 
   if (!existing) {

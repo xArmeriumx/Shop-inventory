@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { db } from '@/lib/db';
-import { getCurrentUserId } from '@/lib/auth-guard';
+import { requireAuth, requirePermission, getCurrentUserId } from '@/lib/auth-guard';
 import { LookupTypeCode } from '@prisma/client';
 
 // ==================== Schemas ====================
@@ -108,7 +108,8 @@ export async function createLookupValue(
   prevState: LookupValueState,
   formData: FormData
 ): Promise<LookupValueState> {
-  const userId = await getCurrentUserId();
+  // RBAC: Require SETTINGS_LOOKUPS permission
+  const ctx = await requirePermission('SETTINGS_LOOKUPS');
 
   const rawData = {
     name: formData.get('name'),
@@ -144,7 +145,7 @@ export async function createLookupValue(
     const existing = await db.lookupValue.findFirst({
       where: {
         lookupTypeId: lookupType.id,
-        userId: userId,
+        userId: ctx.userId,
         code: code,
         deletedAt: null,
       },
@@ -158,7 +159,7 @@ export async function createLookupValue(
     const maxOrder = await db.lookupValue.aggregate({
       where: {
         lookupTypeId: lookupType.id,
-        userId: userId,
+        userId: ctx.userId,
       },
       _max: { order: true },
     });
@@ -166,7 +167,7 @@ export async function createLookupValue(
     await db.lookupValue.create({
       data: {
         lookupTypeId: lookupType.id,
-        userId: userId,
+        userId: ctx.userId,
         code: code,
         name: validated.data.name,
         color: validated.data.color,
@@ -188,7 +189,8 @@ export async function updateLookupValue(
   prevState: LookupValueState,
   formData: FormData
 ): Promise<LookupValueState> {
-  const userId = await getCurrentUserId();
+  // RBAC: Require SETTINGS_LOOKUPS permission
+  const ctx = await requirePermission('SETTINGS_LOOKUPS');
 
   const rawData = {
     name: formData.get('name') || undefined,
@@ -210,7 +212,7 @@ export async function updateLookupValue(
     const existing = await db.lookupValue.findFirst({
       where: {
         id,
-        userId: userId,
+        userId: ctx.userId,
         deletedAt: null,
       },
     });
@@ -241,13 +243,14 @@ export async function updateLookupValue(
 }
 
 export async function deleteLookupValue(id: string): Promise<LookupValueState> {
-  const userId = await getCurrentUserId();
+  // RBAC: Require SETTINGS_LOOKUPS permission
+  const ctx = await requirePermission('SETTINGS_LOOKUPS');
 
   try {
     const existing = await db.lookupValue.findFirst({
       where: {
         id,
-        userId: userId,
+        userId: ctx.userId,
         deletedAt: null,
       },
       include: {

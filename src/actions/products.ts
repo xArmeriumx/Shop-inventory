@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
-import { getCurrentUserId } from '@/lib/auth-guard';
+import { requireAuth, requirePermission, hasPermission, getCurrentUserId } from '@/lib/auth-guard';
 import { paginatedQuery, buildSearchFilter } from '@/lib/pagination';
 import { productSchema, type ProductInput, type ProductUpdateInput } from '@/schemas/product';
 import { Product } from '@prisma/client';
@@ -83,7 +83,8 @@ export async function getProduct(id: string) {
 }
 
 export async function createProduct(input: ProductInput): Promise<ActionResponse<Product>> {
-  const userId = await getCurrentUserId();
+  // RBAC: Require PRODUCT_CREATE permission
+  const ctx = await requirePermission('PRODUCT_CREATE');
 
   // Validate input
   const validated = productSchema.safeParse(input);
@@ -95,10 +96,13 @@ export async function createProduct(input: ProductInput): Promise<ActionResponse
     };
   }
 
-  // Check duplicate SKU
+  // Check duplicate SKU (within shop if available, otherwise global)
   if (validated.data.sku) {
     const existing = await db.product.findFirst({
-      where: { sku: validated.data.sku },
+      where: { 
+        sku: validated.data.sku,
+        ...(ctx.shopId ? { shopId: ctx.shopId } : { userId: ctx.userId }),
+      },
     });
     if (existing) {
       return {
@@ -115,7 +119,8 @@ export async function createProduct(input: ProductInput): Promise<ActionResponse
         ...validated.data,
         description: validated.data.description || null,
         sku: validated.data.sku || null,
-        userId,
+        userId: ctx.userId,
+        shopId: ctx.shopId,  // RBAC: Set shopId for new records
       },
     });
 
@@ -135,7 +140,8 @@ export async function createProduct(input: ProductInput): Promise<ActionResponse
 }
 
 export async function updateProduct(id: string, input: ProductUpdateInput): Promise<ActionResponse<Product>> {
-  const userId = await getCurrentUserId();
+  // RBAC: Require PRODUCT_EDIT permission
+  const ctx = await requirePermission('PRODUCT_EDIT');
 
   // Validate input
   const validated = productSchema.partial().safeParse(input);
@@ -149,7 +155,7 @@ export async function updateProduct(id: string, input: ProductUpdateInput): Prom
 
   // Check ownership
   const existing = await db.product.findFirst({
-    where: { id, userId },
+    where: { id, userId: ctx.userId },
   });
 
   if (!existing) {
@@ -184,7 +190,7 @@ export async function updateProduct(id: string, input: ProductUpdateInput): Prom
           productId: id,
           type: 'ADJUSTMENT',
           quantity: diff,
-          userId,
+          userId: ctx.userId,
           note: 'ปรับปรุงสต็อก (แก้ไขสินค้า)',
           tx,
         });
@@ -221,11 +227,12 @@ export async function updateProduct(id: string, input: ProductUpdateInput): Prom
 }
 
 export async function deleteProduct(id: string): Promise<ActionResponse> {
-  const userId = await getCurrentUserId();
+  // RBAC: Require PRODUCT_DELETE permission
+  const ctx = await requirePermission('PRODUCT_DELETE');
 
   // Check ownership
   const existing = await db.product.findFirst({
-    where: { id, userId },
+    where: { id, userId: ctx.userId },
   });
 
   if (!existing) {

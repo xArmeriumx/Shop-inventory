@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
-import { getCurrentUserId } from '@/lib/auth-guard';
+import { requireAuth, requirePermission, getCurrentUserId } from '@/lib/auth-guard';
 import { paginatedQuery, buildSearchFilter, buildDateRangeFilter } from '@/lib/pagination';
 import { saleSchema, type SaleInput } from '@/schemas/sale';
 import type { Sale, SaleItem } from '@prisma/client';
@@ -95,7 +95,8 @@ export async function getSale(id: string) {
 }
 
 export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>> {
-  const userId = await getCurrentUserId();
+  // RBAC: Require SALE_CREATE permission
+  const ctx = await requirePermission('SALE_CREATE');
 
   // Validate input
   const validated = saleSchema.safeParse(input);
@@ -137,7 +138,7 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>
 
       // 2. Generate invoice number
       const lastSale = await tx.sale.findFirst({
-        where: { userId },
+        where: { userId: ctx.userId },
         orderBy: { createdAt: 'desc' },
         select: { invoiceNumber: true },
       });
@@ -193,7 +194,7 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>
       // Case 2: New Customer Name provided (and no existing ID matched in frontend)
       else if (!finalCustomerId && saleData.customerName) {
          const existing = await tx.customer.findFirst({
-            where: { userId, name: saleData.customerName, deletedAt: null }
+            where: { userId: ctx.userId, name: saleData.customerName, deletedAt: null }
          });
          
          if (existing) {
@@ -208,7 +209,8 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>
          } else {
             const newC = await tx.customer.create({
                data: {
-                  userId,
+                  userId: ctx.userId,
+                  shopId: ctx.shopId,  // RBAC: Set shopId for new customer
                   name: saleData.customerName,
                   address: customerAddress || null
                }
@@ -223,7 +225,8 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>
           ...saleData,
           customerId: finalCustomerId || null,
           customerName: saleData.customerName || 'ลูกค้าทั่วไป',
-          userId,
+          userId: ctx.userId,
+          shopId: ctx.shopId,  // RBAC: Set shopId for new sale
           invoiceNumber,
           totalAmount,
           totalCost,
@@ -253,7 +256,7 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>
             note: `ขาย: ${sale.invoiceNumber}`,
             date: sale.date,
             tx,
-            userId,
+            userId: ctx.userId,
           });
       }
 

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { Sidebar } from '@/components/layout/sidebar';
 import { Header } from '@/components/layout/header';
+import { UpdateAnnouncementModal } from '@/components/features/announcements/update-announcement-modal';
 
 interface ClientLayoutProps {
   children: React.ReactNode;
@@ -25,6 +26,9 @@ export function DashboardLayoutClient({ children, user }: ClientLayoutProps) {
 
   return (
     <div className="flex h-screen overflow-hidden">
+      {/* Update Announcement Modal */}
+      <UpdateAnnouncementModal />
+      
       {/* Desktop Sidebar */}
       <div className="hidden lg:block h-full">
         <Sidebar />
@@ -59,3 +63,4 @@ export function DashboardLayoutClient({ children, user }: ClientLayoutProps) {
     </div>
   );
 }
+

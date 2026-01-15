@@ -16,7 +16,7 @@
  */
 
 import { db } from '@/lib/db';
-import { getCurrentUserId } from '@/lib/auth-guard';
+import { requireAuth, getCurrentUserId } from '@/lib/auth-guard';
 import { createSale as createSaleAction } from '@/actions/sales';
 import type { 
   POSProduct, 

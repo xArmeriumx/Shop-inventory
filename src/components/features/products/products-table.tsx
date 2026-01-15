@@ -18,6 +18,7 @@ import { PRODUCT_CATEGORIES } from '@/lib/constants';
 import { Edit, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { deleteProduct } from '@/actions/products';
 import { useState, useTransition } from 'react';
+import { usePermissions } from '@/hooks/use-permissions';
 
 interface ProductsTableProps {
   products: Product[];
@@ -37,6 +38,11 @@ export function ProductsTable({ products, pagination }: ProductsTableProps) {
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  
+  // RBAC: Check permissions for sensitive columns and actions
+  const { hasPermission } = usePermissions();
+  const canViewCost = hasPermission('PRODUCT_VIEW_COST');
+  const canDeleteProduct = hasPermission('PRODUCT_DELETE');
 
   const getCategoryLabel = (value: string) => {
     return PRODUCT_CATEGORIES.find((c) => c.value === value)?.label || value;
@@ -89,7 +95,7 @@ export function ProductsTable({ products, pagination }: ProductsTableProps) {
             <TableRow>
               <TableHead>สินค้า</TableHead>
               <TableHead>หมวดหมู่</TableHead>
-              <TableHead className="text-right">ราคาทุน</TableHead>
+              {canViewCost && <TableHead className="text-right">ราคาทุน</TableHead>}
               <TableHead className="text-right">ราคาขาย</TableHead>
               <TableHead className="text-right">สต็อก</TableHead>
               <TableHead className="w-[100px]"></TableHead>
@@ -115,9 +121,11 @@ export function ProductsTable({ products, pagination }: ProductsTableProps) {
                       {getCategoryLabel(product.category)}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-right">
-                    {formatCurrency(product.costPrice.toString())}
-                  </TableCell>
+                  {canViewCost && (
+                    <TableCell className="text-right">
+                      {formatCurrency(product.costPrice.toString())}
+                    </TableCell>
+                  )}
                   <TableCell className="text-right">
                     {formatCurrency(product.salePrice.toString())}
                   </TableCell>
@@ -136,14 +144,16 @@ export function ProductsTable({ products, pagination }: ProductsTableProps) {
                           <Edit className="h-4 w-4" />
                         </Link>
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDelete(product.id, product.name)}
-                        disabled={deletingId === product.id}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {canDeleteProduct && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDelete(product.id, product.name)}
+                          disabled={deletingId === product.id}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>

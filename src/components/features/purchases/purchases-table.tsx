@@ -17,6 +17,7 @@ import { XCircle, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
 import { cancelPurchase } from '@/actions/purchases';
 import { useState, useTransition } from 'react';
 import { CancelDialog, PURCHASE_CANCEL_REASONS } from '@/components/features/shared/cancel-dialog';
+import { usePermissions } from '@/hooks/use-permissions';
 
 interface Purchase {
   id: string;
@@ -48,6 +49,10 @@ export function PurchasesTable({ purchases, pagination }: PurchasesTableProps) {
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [cancelDialogPurchase, setCancelDialogPurchase] = useState<Purchase | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  
+  // RBAC: Check permissions for actions
+  const { hasPermission } = usePermissions();
+  const canCancelPurchase = hasPermission('PURCHASE_CANCEL');
 
   const handlePageChange = (newPage: number) => {
     const params = new URLSearchParams(searchParams);
@@ -134,7 +139,7 @@ export function PurchasesTable({ purchases, pagination }: PurchasesTableProps) {
                         <Eye className="h-4 w-4" />
                       </Link>
                     </Button>
-                    {purchase.status !== 'CANCELLED' && (
+                    {canCancelPurchase && purchase.status !== 'CANCELLED' && (
                       <Button
                         variant="ghost"
                         size="icon"
