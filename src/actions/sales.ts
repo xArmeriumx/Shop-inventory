@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
-import { requireAuth, requirePermission, getCurrentUserId } from '@/lib/auth-guard';
+import { requireAuth, requirePermission, hasPermission, getCurrentUserId } from '@/lib/auth-guard';
 import { paginatedQuery, buildSearchFilter, buildDateRangeFilter } from '@/lib/pagination';
 import { saleSchema, type SaleInput } from '@/schemas/sale';
 import type { Sale, SaleItem } from '@prisma/client';
@@ -29,8 +29,15 @@ type SaleWithItems = Sale & {
   } | null;
 };
 
+import { Decimal } from '@prisma/client/runtime/library';
+
+// ... existing imports ...
+
 export async function getSales(params: GetSalesParams = {}) {
-  const userId = await getCurrentUserId();
+  // Require View Permission
+  const ctx = await requirePermission('SALE_VIEW');
+  const canViewProfit = hasPermission(ctx, 'SALE_VIEW_PROFIT');
+
   const {
     page = 1,
     limit = 20,
@@ -44,13 +51,13 @@ export async function getSales(params: GetSalesParams = {}) {
   const dateFilter = buildDateRangeFilter(startDate, endDate);
 
   const where = {
-    userId,
+    shopId: ctx.shopId,
     ...(searchFilter && searchFilter),
     ...(dateFilter && { date: dateFilter }),
     ...(paymentMethod && { paymentMethod }),
   };
 
-  return paginatedQuery<SaleWithItems>(db.sale as any, {
+  const result = await paginatedQuery<SaleWithItems>(db.sale as any, {
     where,
     include: {
       items: {
@@ -68,13 +75,29 @@ export async function getSales(params: GetSalesParams = {}) {
     limit,
     orderBy: { date: 'desc' },
   });
+
+  // Mask sensitive data if no permission
+  if (!canViewProfit) {
+    result.data = result.data.map(sale => ({
+      ...sale,
+      totalCost: new Decimal(0),
+      profit: new Decimal(0),
+      items: sale.items.map(item => ({
+        ...item,
+        costPrice: new Decimal(0),
+        profit: new Decimal(0)
+      }))
+    }));
+  }
+
+  return result;
 }
 
 export async function getSale(id: string) {
-  const userId = await getCurrentUserId();
+  const ctx = await requirePermission('SALE_VIEW');
 
   const sale = await db.sale.findFirst({
-    where: { id, userId },
+    where: { id, shopId: ctx.shopId },
     include: {
       items: {
         include: {
@@ -138,7 +161,7 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>
 
       // 2. Generate invoice number
       const lastSale = await tx.sale.findFirst({
-        where: { userId: ctx.userId },
+        where: { shopId: ctx.shopId },
         orderBy: { createdAt: 'desc' },
         select: { invoiceNumber: true },
       });
@@ -194,7 +217,7 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>
       // Case 2: New Customer Name provided (and no existing ID matched in frontend)
       else if (!finalCustomerId && saleData.customerName) {
          const existing = await tx.customer.findFirst({
-            where: { userId: ctx.userId, name: saleData.customerName, deletedAt: null }
+            where: { shopId: ctx.shopId, name: saleData.customerName, deletedAt: null }
          });
          
          if (existing) {
@@ -294,7 +317,10 @@ interface CancelSaleInput {
 }
 
 export async function cancelSale(input: CancelSaleInput) {
-  const userId = await getCurrentUserId();
+  // RBAC: Require SALE_CANCEL permission (Critical)
+  const ctx = await requirePermission('SALE_CANCEL');
+  const userId = ctx.userId; // For audit log (cancelledBy)
+  
   const { id, reasonCode, reasonDetail } = input;
 
   // Validate: Cancel reason is required
@@ -322,7 +348,7 @@ export async function cancelSale(input: CancelSaleInput) {
     await db.$transaction(async (tx) => {
       // Get sale with items
       const sale = await tx.sale.findFirst({
-        where: { id, userId },
+        where: { id, shopId: ctx.shopId },
         include: { items: true },
       });
 
@@ -373,7 +399,7 @@ export async function cancelSale(input: CancelSaleInput) {
 }
 
 export async function getTodaySales() {
-  const userId = await getCurrentUserId();
+  const ctx = await requirePermission('SALE_VIEW');
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -382,7 +408,7 @@ export async function getTodaySales() {
 
   const result = await db.sale.aggregate({
     where: {
-      userId,
+      shopId: ctx.shopId,
       date: {
         gte: today,
         lt: tomorrow,
@@ -395,18 +421,21 @@ export async function getTodaySales() {
     _count: true,
   });
 
+  // Check for profit view permission
+  const canViewProfit = hasPermission(ctx, 'SALE_VIEW_PROFIT');
+
   return {
     totalAmount: Number(result._sum.totalAmount || 0),
-    profit: Number(result._sum.profit || 0),
+    profit: canViewProfit ? Number(result._sum.profit || 0) : 0,
     count: result._count,
   };
 }
 
 export async function getRecentSales(limit: number = 5) {
-  const userId = await getCurrentUserId();
+  const ctx = await requirePermission('SALE_VIEW');
 
   return db.sale.findMany({
-    where: { userId },
+    where: { shopId: ctx.shopId },
     include: {
       customer: {
         select: { name: true },

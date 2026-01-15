@@ -9,7 +9,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ArrowLeft, Users, ShieldCheck, UserPlus } from 'lucide-react';
 import Loading from '@/app/(dashboard)/loading';
 
+import { requirePermission } from '@/lib/auth-guard';
+import { Guard } from '@/components/auth/guard';
+
 async function TeamContent() {
+  await requirePermission('TEAM_VIEW');
+
   const [members, roles, shopInfo] = await Promise.all([
     getTeamMembers(),
     getRoles(),
@@ -38,9 +43,11 @@ async function TeamContent() {
           <CardContent>
             <div className="text-2xl font-bold">{shopInfo?._count.roles || 0}</div>
             <p className="text-xs text-muted-foreground">
-              <Link href="/settings/roles" className="text-primary hover:underline">
-                จัดการ Roles
-              </Link>
+              <Guard permission="TEAM_VIEW">
+                <Link href="/settings/roles" className="text-primary hover:underline">
+                  จัดการ Roles
+                </Link>
+              </Guard>
             </p>
           </CardContent>
         </Card>
@@ -53,7 +60,9 @@ async function TeamContent() {
             <CardTitle>สมาชิกในทีม</CardTitle>
             <CardDescription>จัดการสมาชิกและสิทธิ์การเข้าถึง</CardDescription>
           </div>
-          <InviteMemberDialog roles={roles} />
+          <Guard permission="TEAM_INVITE">
+            <InviteMemberDialog roles={roles} />
+          </Guard>
         </CardHeader>
         <CardContent>
           <TeamMembersTable members={members} roles={roles} />

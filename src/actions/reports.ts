@@ -1,7 +1,7 @@
 'use server';
 
 import { db } from '@/lib/db';
-import { getCurrentUserId } from '@/lib/auth-guard';
+import { getCurrentUserId, requirePermission } from '@/lib/auth-guard';
 
 export interface ReportData {
   period: { start: string; end: string };
@@ -23,7 +23,7 @@ export interface ReportData {
 }
 
 export async function getReportData(startDate?: string, endDate?: string): Promise<ReportData> {
-  const userId = await getCurrentUserId();
+  const ctx = await requirePermission('REPORT_VIEW_SALES');
   
   // Default to current month if no dates provided
   const now = new Date();
@@ -38,7 +38,7 @@ export async function getReportData(startDate?: string, endDate?: string): Promi
     // Get Sales
     db.sale.findMany({
       where: {
-        userId,
+        shopId: ctx.shopId,
         date: { gte: start, lte: end },
       },
       orderBy: { date: 'asc' },
@@ -47,7 +47,7 @@ export async function getReportData(startDate?: string, endDate?: string): Promi
     // Get Expenses
     db.expense.findMany({
       where: {
-        userId,
+        shopId: ctx.shopId,
         date: { gte: start, lte: end },
       },
       orderBy: { date: 'asc' },

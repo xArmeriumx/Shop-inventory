@@ -26,43 +26,24 @@ export type ShopState = {
 };
 
 export async function getShop() {
-  const userId = await getCurrentUserId();
+  const ctx = await requireAuth();
   
-  const shop = await db.shop.findUnique({
-    where: { userId },
-  });
-
-  return shop;
-}
-
-export async function createShopIfNotExists() {
-  const userId = await getCurrentUserId();
-  
-  const existingShop = await db.shop.findUnique({
-    where: { userId },
-  });
-
-  if (existingShop) {
-    return existingShop;
+  // If user has a shopId in session, fetch that shop
+  if (ctx.shopId) {
+    return db.shop.findUnique({
+      where: { id: ctx.shopId },
+    });
   }
 
-  // Get user name for default shop name
-  const user = await db.user.findUnique({
-    where: { id: userId },
-    select: { name: true, email: true },
-  });
-
-  const defaultName = user?.name || user?.email?.split('@')[0] || 'ร้านของฉัน';
-
-  const shop = await db.shop.create({
-    data: {
-      userId,
-      name: defaultName,
-    },
+  // Fallback: Check if user owns a shop (legacy or if session stale)
+  const shop = await db.shop.findUnique({
+    where: { userId: ctx.userId },
   });
 
   return shop;
 }
+
+
 
 export async function updateShop(prevState: ShopState, formData: FormData): Promise<ShopState> {
   // RBAC: Require SETTINGS_SHOP permission

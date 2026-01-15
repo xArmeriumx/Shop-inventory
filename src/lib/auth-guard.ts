@@ -60,7 +60,8 @@ export async function requirePermission(permission: Permission): Promise<Session
   }
   
   if (!hasPermission(ctx, permission)) {
-    throw new Error(`Permission denied: ${permission}`);
+    // throw new Error(`Permission denied: ${permission}`);
+    redirect('/dashboard');
   }
   
   return ctx;

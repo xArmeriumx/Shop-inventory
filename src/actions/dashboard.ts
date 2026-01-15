@@ -1,10 +1,14 @@
 'use server';
 
 import { db } from '@/lib/db';
-import { requireAuth, getCurrentUserId } from '@/lib/auth-guard';
+import { requireAuth, getCurrentUserId, requirePermission } from '@/lib/auth-guard';
 
 export async function getDashboardStats() {
-  const userId = await getCurrentUserId();
+  // Use a permission that represents general dashboard access, e.g., SALE_VIEW or just requireAuth if basic
+  // Since it shows sales and stock, let's use SALE_VIEW as a baseline or checks permissions context
+  // But for now, let's assume if you are a shop member you can see dashboard? 
+  // Better to use specific permission if strict. Let's use SALE_VIEW for now.
+  const ctx = await requirePermission('SALE_VIEW');
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const tomorrow = new Date(today);
@@ -20,7 +24,7 @@ export async function getDashboardStats() {
     // Today's sales summary
     db.sale.aggregate({
       where: {
-        userId,
+        shopId: ctx.shopId,
         date: { gte: today, lt: tomorrow },
       },
       _sum: { totalAmount: true, profit: true },
@@ -29,18 +33,18 @@ export async function getDashboardStats() {
 
     // Total products count
     db.product.count({
-      where: { userId, isActive: true },
+      where: { shopId: ctx.shopId, isActive: true },
     }),
 
     // Low stock products count
     db.product.count({
       where: {
-        userId,
+        shopId: ctx.shopId,
         isActive: true,
       },
     }).then(async () => {
       const products = await db.product.findMany({
-        where: { userId, isActive: true },
+        where: { shopId: ctx.shopId, isActive: true },
         select: { stock: true, minStock: true },
       });
       return products.filter((p) => p.stock <= p.minStock).length;
@@ -48,7 +52,7 @@ export async function getDashboardStats() {
 
     // Recent sales (last 5)
     db.sale.findMany({
-      where: { userId },
+      where: { shopId: ctx.shopId },
       include: {
         customer: { select: { name: true } },
       },
@@ -58,7 +62,7 @@ export async function getDashboardStats() {
 
     // Low stock products (top 5)
     db.product.findMany({
-      where: { userId, isActive: true },
+      where: { shopId: ctx.shopId, isActive: true },
       orderBy: { stock: 'asc' },
       take: 10,
     }).then((products) => {
@@ -93,14 +97,14 @@ export async function getDashboardStats() {
 }
 
 export async function getMonthlyStats() {
-  const userId = await getCurrentUserId();
+  const ctx = await requirePermission('SALE_VIEW');
   const now = new Date();
   const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const firstDayOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
   const monthlySales = await db.sale.aggregate({
     where: {
-      userId,
+      shopId: ctx.shopId,
       date: {
         gte: firstDayOfMonth,
         lt: firstDayOfNextMonth,
@@ -118,7 +122,7 @@ export async function getMonthlyStats() {
 }
 
 export async function getSalesChartData(days = 7) {
-  const userId = await getCurrentUserId();
+  const ctx = await requirePermission('SALE_VIEW');
   const endDate = new Date();
   endDate.setHours(23, 59, 59, 999);
   
@@ -128,7 +132,7 @@ export async function getSalesChartData(days = 7) {
 
   const sales = await db.sale.findMany({
     where: {
-      userId,
+      shopId: ctx.shopId,
       date: {
         gte: startDate,
         lte: endDate,

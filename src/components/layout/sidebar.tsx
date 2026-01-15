@@ -18,6 +18,8 @@ import {
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { Permission } from '@prisma/client';
+import { usePermissions } from '@/hooks/use-permissions';
 
 const navItems = [
   {
@@ -29,26 +31,31 @@ const navItems = [
     title: 'ขายสินค้า',
     href: '/sales',
     icon: ShoppingCart,
+    permission: 'SALE_VIEW' as Permission,
   },
   {
     title: 'สินค้า',
     href: '/products',
     icon: Package,
+    permission: 'PRODUCT_VIEW' as Permission,
   },
   {
     title: 'ซื้อสินค้า',
     href: '/purchases',
     icon: Receipt,
+    permission: 'PURCHASE_VIEW' as Permission,
   },
   {
     title: 'ลูกค้า',
     href: '/customers',
     icon: Users,
+    permission: 'CUSTOMER_VIEW' as Permission,
   },
   {
     title: 'ค่าใช้จ่าย',
     href: '/expenses',
     icon: Wallet,
+    permission: 'EXPENSE_VIEW' as Permission,
   },
 ];
 
@@ -57,11 +64,14 @@ const secondaryNavItems = [
     title: 'รายงาน',
     href: '/reports',
     icon: BarChart3,
+    permission: 'REPORT_VIEW' as Permission,
   },
   {
     title: 'ตั้งค่า',
     href: '/settings',
     icon: Settings,
+    // Settings has its own internal tabs with permissions
+    // but the page itself is accessible to all logged-in users (for profile)
   },
   {
     title: 'คู่มือ',
@@ -77,6 +87,7 @@ interface SidebarProps {
 
 export function Sidebar({ isCollapsed = false, onToggle }: SidebarProps) {
   const pathname = usePathname();
+  const { hasPermission } = usePermissions();
 
   return (
     <aside
@@ -121,6 +132,10 @@ export function Sidebar({ isCollapsed = false, onToggle }: SidebarProps) {
         <Separator className="my-2" />
 
         {navItems.map((item) => {
+          if (item.permission && !hasPermission(item.permission)) {
+            return null;
+          }
+          
           const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (
             <Link
@@ -144,6 +159,10 @@ export function Sidebar({ isCollapsed = false, onToggle }: SidebarProps) {
         <Separator className="my-4" />
 
         {secondaryNavItems.map((item) => {
+          if (item.permission && !hasPermission(item.permission)) {
+            return null;
+          }
+
           const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (
             <Link

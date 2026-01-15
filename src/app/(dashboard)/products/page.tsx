@@ -6,6 +6,9 @@ import { getProducts } from '@/actions/products';
 import { ProductsTable } from '@/components/features/products/products-table';
 import { ProductsToolbar } from '@/components/features/products/products-toolbar';
 
+import { requirePermission } from '@/lib/auth-guard';
+import { Guard } from '@/components/auth/guard';
+
 interface ProductsPageProps {
   searchParams: {
     page?: string;
@@ -15,6 +18,8 @@ interface ProductsPageProps {
 }
 
 export default async function ProductsPage({ searchParams }: ProductsPageProps) {
+  await requirePermission('PRODUCT_VIEW');
+  
   const page = Number(searchParams.page) || 1;
   const search = searchParams.search || '';
   const category = searchParams.category || '';
@@ -28,12 +33,14 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   return (
     <div>
       <PageHeader title="สินค้า" description="จัดการข้อมูลสินค้าและสต็อก">
-        <Button asChild>
-          <Link href="/products/new">
-            <Plus className="mr-2 h-4 w-4" />
-            เพิ่มสินค้า
-          </Link>
-        </Button>
+        <Guard permission="PRODUCT_CREATE">
+          <Button asChild>
+            <Link href="/products/new">
+              <Plus className="mr-2 h-4 w-4" />
+              เพิ่มสินค้า
+            </Link>
+          </Button>
+        </Guard>
       </PageHeader>
 
       <div className="space-y-4">

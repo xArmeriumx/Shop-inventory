@@ -102,6 +102,11 @@ export async function updateMemberRole(memberId: string, roleId: string): Promis
     return { success: false, message: 'ไม่สามารถเปลี่ยน Role ของเจ้าของร้านได้' };
   }
 
+  // Cannot modify your own role (Prevent privilege escalation/lockout)
+  if (member.userId === ctx.userId) {
+    return { success: false, message: 'ไม่สามารถแก้ไข Role ของตัวเองได้' };
+  }
+
   // Verify role belongs to shop
   const role = await db.role.findFirst({
     where: { id: roleId, shopId: ctx.shopId },

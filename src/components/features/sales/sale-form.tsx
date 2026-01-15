@@ -15,6 +15,7 @@ import { formatCurrency } from '@/lib/formatters';
 import { Plus, Trash2, ScanBarcode } from 'lucide-react';
 import { CustomerCombobox } from '@/components/features/customers/customer-combobox';
 import { FileUpload } from '@/components/ui/file-upload';
+import { usePermissions } from '@/hooks/use-permissions';
 
 interface Product {
   id: string;
@@ -35,6 +36,7 @@ interface SaleItem {
 export function SaleForm() {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const { hasPermission } = usePermissions();
   const [errors, setErrors] = useState<Record<string, string[]>>({});
   const [products, setProducts] = useState<Product[]>([]);
   const [customers, setCustomers] = useState<{id: string; name: string; address?: string | null}[]>([]);
@@ -484,15 +486,23 @@ export function SaleForm() {
               <span className="font-medium">{formatCurrency(totalAmount.toString())}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">ต้นทุน</span>
-              <span>{formatCurrency(totalCost.toString())}</span>
+              <span className="text-muted-foreground">ยอดรวม</span>
+              <span className="font-medium">{formatCurrency(totalAmount.toString())}</span>
             </div>
-            <div className="flex justify-between border-t pt-2">
-              <span className="font-medium">กำไร</span>
-              <span className={`font-bold ${profit >= 0 ? 'text-green-600' : 'text-destructive'}`}>
-                {formatCurrency(profit.toString())}
-              </span>
-            </div>
+            {hasPermission('SALE_VIEW_PROFIT') && (
+              <>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">ต้นทุน</span>
+                  <span>{formatCurrency(totalCost.toString())}</span>
+                </div>
+                <div className="flex justify-between border-t pt-2">
+                  <span className="font-medium">กำไร</span>
+                  <span className={`font-bold ${profit >= 0 ? 'text-green-600' : 'text-destructive'}`}>
+                    {formatCurrency(profit.toString())}
+                  </span>
+                </div>
+              </>
+            )}
           </div>
         </CardContent>
       </Card>

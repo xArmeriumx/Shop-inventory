@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { createProduct, updateProduct } from '@/actions/products';
 import { StockAdjustmentDialog } from '@/components/features/products/stock-adjustment-dialog';
+import { usePermissions } from '@/hooks/use-permissions';
 
 interface Category {
   id: string;
@@ -25,6 +26,7 @@ export function ProductForm({ product, categories }: ProductFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [errors, setErrors] = useState<Record<string, string[]>>({});
+  const { hasPermission } = usePermissions();
 
   const isEdit = !!product;
 
@@ -127,22 +129,24 @@ export function ProductForm({ product, categories }: ProductFormProps) {
               )}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="costPrice">ราคาทุน (บาท) *</Label>
-              <Input
-                id="costPrice"
-                name="costPrice"
-                type="number"
-                step="0.01"
-                min="0"
-                defaultValue={product?.costPrice.toString() || ''}
-                placeholder="0.00"
-                required
-              />
-              {errors.costPrice && (
-                <p className="text-sm text-destructive">{errors.costPrice[0]}</p>
-              )}
-            </div>
+            {hasPermission('PRODUCT_VIEW_COST') && (
+              <div className="space-y-2">
+                <Label htmlFor="costPrice">ราคาทุน (บาท) *</Label>
+                <Input
+                  id="costPrice"
+                  name="costPrice"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  defaultValue={product?.costPrice.toString() || ''}
+                  placeholder="0.00"
+                  required
+                />
+                {errors.costPrice && (
+                  <p className="text-sm text-destructive">{errors.costPrice[0]}</p>
+                )}
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="salePrice">ราคาขาย (บาท) *</Label>

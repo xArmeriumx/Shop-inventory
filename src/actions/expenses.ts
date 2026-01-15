@@ -16,14 +16,14 @@ interface GetExpensesParams {
 }
 
 export async function getExpenses(params: GetExpensesParams = {}) {
-  const userId = await getCurrentUserId();
+  const ctx = await requirePermission('EXPENSE_VIEW');
   const { page = 1, limit = 20, search, category, startDate, endDate } = params;
 
   const searchFilter = buildSearchFilter(search, ['description']);
   const dateFilter = buildDateRangeFilter(startDate, endDate);
 
   const where = {
-    userId,
+    shopId: ctx.shopId,
     ...(searchFilter && searchFilter),
     ...(category && { category }),
     ...(dateFilter && { date: dateFilter }),
@@ -38,10 +38,10 @@ export async function getExpenses(params: GetExpensesParams = {}) {
 }
 
 export async function getExpense(id: string) {
-  const userId = await getCurrentUserId();
+  const ctx = await requirePermission('EXPENSE_VIEW');
 
   const expense = await db.expense.findFirst({
-    where: { id, userId },
+    where: { id, shopId: ctx.shopId },
   });
 
   if (!expense) {
@@ -139,14 +139,14 @@ export async function deleteExpense(id: string) {
 }
 
 export async function getMonthlyExpenses() {
-  const userId = await getCurrentUserId();
+  const ctx = await requirePermission('EXPENSE_VIEW'); // Or DASHBOARD_VIEW
   const now = new Date();
   const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const firstDayOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
   const result = await db.expense.aggregate({
     where: {
-      userId,
+      shopId: ctx.shopId,
       date: {
         gte: firstDayOfMonth,
         lt: firstDayOfNextMonth,

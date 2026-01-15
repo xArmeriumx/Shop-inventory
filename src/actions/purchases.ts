@@ -19,7 +19,7 @@ interface GetPurchasesParams {
 }
 
 export async function getPurchases(params: GetPurchasesParams = {}) {
-  const userId = await getCurrentUserId();
+  const ctx = await requirePermission('PURCHASE_VIEW');
   const {
     page = 1,
     limit = 20,
@@ -33,7 +33,7 @@ export async function getPurchases(params: GetPurchasesParams = {}) {
   const dateFilter = buildDateRangeFilter(startDate, endDate);
 
   const where = {
-    userId,
+    shopId: ctx.shopId,
     ...(searchFilter && searchFilter),
     ...(dateFilter && { date: dateFilter }),
   };
@@ -59,10 +59,10 @@ export async function getPurchases(params: GetPurchasesParams = {}) {
 }
 
 export async function getPurchase(id: string) {
-  const userId = await getCurrentUserId();
+  const ctx = await requirePermission('PURCHASE_VIEW');
 
   const purchase = await db.purchase.findFirst({
-    where: { id, userId },
+    where: { id, shopId: ctx.shopId },
     include: {
       items: {
         include: {
@@ -116,6 +116,8 @@ export async function createPurchase(input: PurchaseInput): Promise<ActionRespon
         0
       );
 
+      // 2. Generate invoice number? No invoice number for purchases usually, unless supplier ref.
+      
       // Create purchase
       const newPurchase = await tx.purchase.create({
         data: {
@@ -235,7 +237,7 @@ export async function cancelPurchase(input: CancelPurchaseInput): Promise<Action
 
     await db.$transaction(async (tx: any) => {
       const purchase = await tx.purchase.findFirst({
-        where: { id, userId: ctx.userId },
+        where: { id, shopId: ctx.shopId },
         include: { items: { include: { product: true } } },
       });
 

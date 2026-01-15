@@ -22,7 +22,11 @@ interface SaleDetailsPageProps {
   };
 }
 
+import { requirePermission } from '@/lib/auth-guard';
+
 async function SaleDetails({ id }: { id: string }) {
+  await requirePermission('SALE_VIEW');
+
   const [sale, shop] = await Promise.all([
     getSale(id),
     getShop(),

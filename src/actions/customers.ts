@@ -15,13 +15,13 @@ interface GetCustomersParams {
 }
 
 export async function getCustomers(params: GetCustomersParams = {}) {
-  const userId = await getCurrentUserId();
+  const ctx = await requirePermission('CUSTOMER_VIEW');
   const { page = 1, limit = 20, search } = params;
 
   const searchFilter = buildSearchFilter(search, ['name', 'phone', 'address']);
 
   const where = {
-    userId,
+    shopId: ctx.shopId,
     ...(searchFilter && searchFilter),
     deletedAt: null, // Only active customers
   };
@@ -35,10 +35,10 @@ export async function getCustomers(params: GetCustomersParams = {}) {
 }
 
 export async function getCustomer(id: string) {
-  const userId = await getCurrentUserId();
+  const ctx = await requirePermission('CUSTOMER_VIEW');
 
   const customer = await db.customer.findFirst({
-    where: { id, userId, deletedAt: null },
+    where: { id, shopId: ctx.shopId, deletedAt: null },
   });
 
   if (!customer) {
@@ -104,7 +104,7 @@ export async function updateCustomer(id: string, input: CustomerInput): Promise<
   }
 
   const existing = await db.customer.findFirst({
-    where: { id, userId: ctx.userId, deletedAt: null },
+    where: { id, shopId: ctx.shopId, deletedAt: null },
   });
 
   if (!existing) {
@@ -149,7 +149,7 @@ export async function deleteCustomer(id: string): Promise<ActionResponse> {
   const ctx = await requirePermission('CUSTOMER_DELETE');
 
   const existing = await db.customer.findFirst({
-    where: { id, userId: ctx.userId, deletedAt: null },
+    where: { id, shopId: ctx.shopId, deletedAt: null },
   });
 
   if (!existing) {
@@ -181,10 +181,10 @@ export async function deleteCustomer(id: string): Promise<ActionResponse> {
 }
 
 export async function getCustomersForSelect() {
-  const userId = await getCurrentUserId();
+  const ctx = await requirePermission('CUSTOMER_VIEW');
 
   return db.customer.findMany({
-    where: { userId, deletedAt: null },
+    where: { shopId: ctx.shopId, deletedAt: null },
     select: { id: true, name: true, phone: true, address: true, taxId: true },
     orderBy: { name: 'asc' },
   });

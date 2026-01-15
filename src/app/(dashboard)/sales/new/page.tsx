@@ -1,7 +1,10 @@
 import { PageHeader } from '@/components/layout/page-header';
 import { SaleForm } from '@/components/features/sales/sale-form';
 
-export default function NewSalePage() {
+import { requirePermission } from '@/lib/auth-guard';
+
+export default async function NewSalePage() {
+  await requirePermission('SALE_CREATE');
   return (
     <div>
       <PageHeader

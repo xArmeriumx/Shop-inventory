@@ -19,6 +19,7 @@ import { Edit, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { deleteProduct } from '@/actions/products';
 import { useState, useTransition } from 'react';
 import { usePermissions } from '@/hooks/use-permissions';
+import { Guard } from '@/components/auth/guard';
 
 interface ProductsTableProps {
   products: Product[];
@@ -42,7 +43,7 @@ export function ProductsTable({ products, pagination }: ProductsTableProps) {
   // RBAC: Check permissions for sensitive columns and actions
   const { hasPermission } = usePermissions();
   const canViewCost = hasPermission('PRODUCT_VIEW_COST');
-  const canDeleteProduct = hasPermission('PRODUCT_DELETE');
+  // const canDeleteProduct = hasPermission('PRODUCT_DELETE');
 
   const getCategoryLabel = (value: string) => {
     return PRODUCT_CATEGORIES.find((c) => c.value === value)?.label || value;
@@ -144,7 +145,7 @@ export function ProductsTable({ products, pagination }: ProductsTableProps) {
                           <Edit className="h-4 w-4" />
                         </Link>
                       </Button>
-                      {canDeleteProduct && (
+                      <Guard permission="PRODUCT_DELETE">
                         <Button
                           variant="ghost"
                           size="icon"
@@ -153,7 +154,7 @@ export function ProductsTable({ products, pagination }: ProductsTableProps) {
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
-                      )}
+                      </Guard>
                     </div>
                   </TableCell>
                 </TableRow>

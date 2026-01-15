@@ -1,23 +1,24 @@
 import { Suspense } from 'react';
 
 import { getUserProfile } from '@/actions/settings';
-import { getShop, createShopIfNotExists } from '@/actions/shop';
+import { getShop } from '@/actions/shop';
 import { getLookupValuesForSettings, seedDefaultLookupValues } from '@/actions/lookups';
+import { LookupValue } from '@prisma/client';
 import { SettingsForm } from '@/components/features/settings/settings-form';
 import Loading from '@/app/(dashboard)/loading';
 
 async function SettingsContent() {
+  // Seed default categories if needed (ignore permission error)
+  try {
+    await seedDefaultLookupValues();
+  } catch (error) {
+    // Ignore permission error
+  }
+
   // Fetch all data in parallel
-  const [user, shop] = await Promise.all([
+  const [user, shop, productCategories, expenseCategories] = await Promise.all([
     getUserProfile(),
-    createShopIfNotExists(),
-  ]);
-
-  // Seed default categories if needed
-  await seedDefaultLookupValues();
-
-  // Fetch categories
-  const [productCategories, expenseCategories] = await Promise.all([
+    getShop(),
     getLookupValuesForSettings('PRODUCT_CATEGORY'),
     getLookupValuesForSettings('EXPENSE_CATEGORY'),
   ]);

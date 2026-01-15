@@ -70,13 +70,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         trigger === 'update' || 
         !token.shopId;
 
+      console.log('JWT Callback:', { 
+        hasUser: !!user, 
+        trigger, 
+        hasShopId: !!token.shopId, 
+        sub: token.sub,
+        shouldFetch: shouldFetchMembership 
+      });
+
       if (shouldFetchMembership && token.sub) {
         if (user) {
           token.id = user.id;
         }
 
+        const userId = (token.sub as string) || (token.id as string) || user?.id;
+        
         // Fetch fresh RBAC data
-        const membership = await getActiveShopMembership(token.sub as string);
+        const membership = await getActiveShopMembership(userId);
+
         if (membership) {
           token.shopId = membership.shopId;
           token.roleId = membership.roleId ?? undefined;

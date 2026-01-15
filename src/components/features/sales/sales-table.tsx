@@ -20,6 +20,7 @@ import { cancelSale } from '@/actions/sales';
 import { useState, useTransition } from 'react';
 import { CancelDialog } from '@/components/features/shared/cancel-dialog';
 import { usePermissions } from '@/hooks/use-permissions';
+import { Guard } from '@/components/auth/guard';
 
 type SaleWithCustomer = Sale & {
   customer: Pick<Customer, 'name'> | null;
@@ -164,17 +165,19 @@ export function SalesTable({ sales, pagination }: SalesTableProps) {
                         <Eye className="h-4 w-4" />
                       </Link>
                     </Button>
-                    {sale.status !== 'CANCELLED' && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setCancelDialogSale(sale)}
-                        disabled={cancellingId === sale.id}
-                        title="ยกเลิกรายการ"
-                      >
-                        <XCircle className="h-4 w-4 text-destructive" />
-                      </Button>
-                    )}
+                    <Guard permission="SALE_CANCEL">
+                      {sale.status !== 'CANCELLED' && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setCancelDialogSale(sale)}
+                          disabled={cancellingId === sale.id}
+                          title="ยกเลิกรายการ"
+                        >
+                          <XCircle className="h-4 w-4 text-destructive" />
+                        </Button>
+                      )}
+                    </Guard>
                     {sale.status === 'CANCELLED' && (
                       <Badge variant="outline" className="text-xs text-destructive border-destructive">
                         ยกเลิกแล้ว

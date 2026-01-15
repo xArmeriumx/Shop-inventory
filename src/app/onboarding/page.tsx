@@ -61,18 +61,18 @@ export default function OnboardingPage() {
             <Store className="h-6 w-6 text-primary" />
           </div>
           <h2 className="mt-6 text-3xl font-bold tracking-tight text-gray-900">
-            ยินดีต้อนรับสู่ Shop Inventory
+            ระบบบริหารจัดการสินค้าและยอดขาย
           </h2>
           <p className="mt-2 text-sm text-gray-600">
-            เริ่มต้นใช้งานโดยการสร้างร้านค้าของคุณ หรือรอคำเชิญจากเจ้าของร้าน
+             กรุณาเลือกดำเนินการเพื่อเริ่มต้นใช้งานระบบ
           </p>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>สำหรับเจ้าของร้าน (Owner)</CardTitle>
+            <CardTitle>สำหรับผู้ประกอบการ (Owner)</CardTitle>
             <CardDescription>
-              สร้างร้านค้าใหม่เพื่อเริ่มบริหารจัดการสต็อกและยอดขาย
+              สร้างร้านค้าใหม่เพื่อเริ่มต้นบริหารจัดการระบบสต็อกและยอดขาย
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -96,10 +96,10 @@ export default function OnboardingPage() {
               {isCreating ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  กำลังสร้างร้านค้า...
+                  กำลังดำเนินการ...
                 </>
               ) : (
-                'เริ่มใช้งาน (สร้างร้านใหม่)'
+                'ยืนยันการสร้างร้านค้า'
               )}
             </Button>
           </CardContent>
@@ -111,8 +111,8 @@ export default function OnboardingPage() {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">
-              หากคุณเป็นพนักงาน กรุณาติดต่อเจ้าของร้านเพื่อขอคำเชิญ (Invite) ทางอีเมล 
-              เมื่อได้รับคำเชิญแล้ว คุณจะสามารถเข้าใช้งานร้านค้าได้ทันที
+              หากท่านเป็นพนักงาน กรุณาติดต่อผู้ดูแลระบบเพื่อขอสิทธิ์การเข้าใช้งาน (Invite) 
+              เมื่อได้รับสิทธิ์แล้ว ท่านจะสามารถเข้าใช้งานระบบได้ทันที
             </p>
           </CardContent>
         </Card>

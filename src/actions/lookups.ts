@@ -42,7 +42,7 @@ export async function getLookupTypes() {
 }
 
 export async function getLookupValues(typeCode: LookupTypeCode) {
-  const userId = await getCurrentUserId();
+  const ctx = await requireAuth();
 
   // Get lookup type first
   const lookupType = await db.lookupType.findUnique({
@@ -53,15 +53,16 @@ export async function getLookupValues(typeCode: LookupTypeCode) {
     return [];
   }
 
-  // Get values: global (userId = null) + shop-specific
+  // Get values: system (shopId = null, isSystem = true) + shop-specific
+  // Note: We'll filter by shopId OR isSystem
   const values = await db.lookupValue.findMany({
     where: {
       lookupTypeId: lookupType.id,
       isActive: true,
       deletedAt: null,
       OR: [
-        { userId: null },
-        { userId: userId },
+        { isSystem: true },
+        { shopId: ctx.shopId },
       ],
     },
     orderBy: [
@@ -75,7 +76,7 @@ export async function getLookupValues(typeCode: LookupTypeCode) {
 }
 
 export async function getLookupValuesForSettings(typeCode: LookupTypeCode) {
-  const userId = await getCurrentUserId();
+  const ctx = await requirePermission('SETTINGS_LOOKUPS');
 
   const lookupType = await db.lookupType.findUnique({
     where: { code: typeCode },
@@ -89,7 +90,7 @@ export async function getLookupValuesForSettings(typeCode: LookupTypeCode) {
   const values = await db.lookupValue.findMany({
     where: {
       lookupTypeId: lookupType.id,
-      userId: userId,
+      shopId: ctx.shopId,
       deletedAt: null,
     },
     orderBy: [
@@ -145,7 +146,7 @@ export async function createLookupValue(
     const existing = await db.lookupValue.findFirst({
       where: {
         lookupTypeId: lookupType.id,
-        userId: ctx.userId,
+        shopId: ctx.shopId,
         code: code,
         deletedAt: null,
       },
@@ -159,7 +160,7 @@ export async function createLookupValue(
     const maxOrder = await db.lookupValue.aggregate({
       where: {
         lookupTypeId: lookupType.id,
-        userId: ctx.userId,
+        shopId: ctx.shopId,
       },
       _max: { order: true },
     });
@@ -167,7 +168,8 @@ export async function createLookupValue(
     await db.lookupValue.create({
       data: {
         lookupTypeId: lookupType.id,
-        userId: ctx.userId,
+        shopId: ctx.shopId, // Set shopId
+        userId: ctx.userId, // Keep userId for audit if needed, or make it optional in schema? Schema says userId String?
         code: code,
         name: validated.data.name,
         color: validated.data.color,
@@ -212,7 +214,7 @@ export async function updateLookupValue(
     const existing = await db.lookupValue.findFirst({
       where: {
         id,
-        userId: ctx.userId,
+        shopId: ctx.shopId,
         deletedAt: null,
       },
     });
@@ -250,7 +252,7 @@ export async function deleteLookupValue(id: string): Promise<LookupValueState> {
     const existing = await db.lookupValue.findFirst({
       where: {
         id,
-        userId: ctx.userId,
+        shopId: ctx.shopId,
         deletedAt: null,
       },
       include: {
@@ -296,11 +298,11 @@ export async function deleteLookupValue(id: string): Promise<LookupValueState> {
 // ==================== Seed Default Values ====================
 
 export async function seedDefaultLookupValues() {
-  const userId = await getCurrentUserId();
+  const ctx = await requirePermission('SETTINGS_LOOKUPS'); // or requireAuth?
 
-  // Check if user already has values
+  // Check if shop already has values
   const existingCount = await db.lookupValue.count({
-    where: { userId },
+    where: { shopId: ctx.shopId },
   });
 
   if (existingCount > 0) {
@@ -342,13 +344,15 @@ export async function seedDefaultLookupValues() {
       data: [
         ...productCategories.map((cat, i) => ({
           lookupTypeId: productCategoryType.id,
-          userId,
+          shopId: ctx.shopId,
+          userId: ctx.userId,
           ...cat,
           order: i + 1,
         })),
         ...expenseCategories.map((cat, i) => ({
           lookupTypeId: expenseCategoryType.id,
-          userId,
+          shopId: ctx.shopId,
+          userId: ctx.userId,
           ...cat,
           order: i + 1,
         })),

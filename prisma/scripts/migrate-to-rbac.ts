@@ -47,15 +47,13 @@ async function main() {
   for (const user of users) {
     console.log(`Processing user: ${user.email}`);
 
-    // Skip if user already has a shop membership
-    if (user.memberships.length > 0) {
-      console.log(`  ⏩ Already has ${user.memberships.length} membership(s), skipping\n`);
-      skippedCount++;
-      continue;
-    }
-
+    // Check for existing membership
+    const hasMembership = user.memberships.length > 0;
+    
     // Check if user has a shop
     let shop = user.shop;
+
+    // Logic: Ensure Shop Exists -> Ensure Owner Role -> Ensure Membership -> Update Data lookup
 
     // Create shop if not exists
     if (!shop) {
@@ -96,16 +94,28 @@ async function main() {
       console.log(`  ✅ Owner role exists`);
     }
 
-    // Create ShopMember record
-    await prisma.shopMember.create({
-      data: {
+    // Check for existing membership
+    const existingMember = await prisma.shopMember.findFirst({
+      where: {
         userId: user.id,
         shopId: shop.id,
-        roleId: ownerRole.id,
-        isOwner: true,
       },
     });
-    console.log(`  ✅ Created ShopMember (isOwner=true)`);
+
+    if (!existingMember) {
+      // Create ShopMember record
+      await prisma.shopMember.create({
+        data: {
+          userId: user.id,
+          shopId: shop.id,
+          roleId: ownerRole.id,
+          isOwner: true,
+        },
+      });
+      console.log(`  ✅ Created ShopMember (isOwner=true)`);
+    } else {
+      console.log(`  ✅ Already a member`);
+    }
 
     // Update user's data with shopId
     const updatePromises = [
@@ -141,7 +151,11 @@ async function main() {
 
     const results = await Promise.all(updatePromises);
     const totalUpdated = results.reduce((sum, r) => sum + r.count, 0);
-    console.log(`  ✅ Updated ${totalUpdated} existing records with shopId\n`);
+    if (totalUpdated > 0) {
+      console.log(`  ✅ Updated ${totalUpdated} existing records with shopId\n`);
+    } else {
+      console.log(`  ✅ Records already linked to shop\n`);
+    }
 
     migratedCount++;
   }

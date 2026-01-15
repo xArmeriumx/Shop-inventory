@@ -12,6 +12,19 @@ export const authConfig = {
   },
   session: { strategy: 'jwt' },
   callbacks: {
+    // Session callback is needed here for Middleware to access custom fields (shopId, roleId, etc.)
+    session: async ({ session, token }) => {
+      if (token && session.user) {
+        session.user.id = token.id as string;
+        session.user.shopId = token.shopId as string | undefined;
+        session.user.roleId = token.roleId as string | undefined;
+        // Note: permissions might be large, be careful if header size limits hit. 
+        // For middleware checks, we mainly need simple flags, but let's map it all for consistency.
+        session.user.permissions = token.permissions as any; 
+        session.user.isOwner = token.isOwner as boolean | undefined;
+      }
+      return session;
+    },
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user;
       const hasShop = !!auth?.user?.shopId;

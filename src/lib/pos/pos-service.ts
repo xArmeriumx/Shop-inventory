@@ -16,7 +16,7 @@
  */
 
 import { db } from '@/lib/db';
-import { requireAuth, getCurrentUserId } from '@/lib/auth-guard';
+import { requirePermission } from '@/lib/auth-guard';
 import { createSale as createSaleAction } from '@/actions/sales';
 import type { 
   POSProduct, 
@@ -33,11 +33,11 @@ import type {
  * Optimized query: only fetches id, name, phone
  */
 export async function getPOSCustomers(): Promise<POSCustomer[]> {
-  const userId = await getCurrentUserId();
+  const ctx = await requirePermission('POS_ACCESS');
 
   const customers = await db.customer.findMany({
     where: {
-      userId,
+      shopId: ctx.shopId,
       deletedAt: null,
     },
     select: {
@@ -62,11 +62,11 @@ export async function getPOSCustomers(): Promise<POSCustomer[]> {
  * Optimized query: only fetches fields needed for POS
  */
 export async function getProductsForPOS(): Promise<POSProduct[]> {
-  const userId = await getCurrentUserId();
+  const ctx = await requirePermission('POS_ACCESS');
 
   const products = await db.product.findMany({
     where: {
-      userId,
+      shopId: ctx.shopId,
       isActive: true,
       deletedAt: null,
     },
@@ -102,11 +102,11 @@ export async function getProductsForPOS(): Promise<POSProduct[]> {
  * Search product by SKU (for barcode scanning)
  */
 export async function getProductBySKU(sku: string): Promise<POSProduct | null> {
-  const userId = await getCurrentUserId();
+  const ctx = await requirePermission('POS_ACCESS');
 
   const product = await db.product.findFirst({
     where: {
-      userId,
+      shopId: ctx.shopId,
       sku,
       isActive: true,
       deletedAt: null,
@@ -143,12 +143,12 @@ export async function getProductBySKU(sku: string): Promise<POSProduct | null> {
  * Get unique product categories for filter tabs
  */
 export async function getCategories(): Promise<POSCategory[]> {
-  const userId = await getCurrentUserId();
+  const ctx = await requirePermission('POS_ACCESS');
 
   const categories = await db.product.groupBy({
     by: ['category'],
     where: {
-      userId,
+      shopId: ctx.shopId,
       isActive: true,
       deletedAt: null,
     },

@@ -20,7 +20,8 @@ interface GetProductsParams {
 }
 
 export async function getProducts(params: GetProductsParams = {}) {
-  const userId = await getCurrentUserId();
+  // RBAC: Require PRODUCT_VIEW permission for list
+  const ctx = await requirePermission('PRODUCT_VIEW');
   const { 
     page = 1, 
     limit = 20, 
@@ -34,7 +35,8 @@ export async function getProducts(params: GetProductsParams = {}) {
   const searchFilter = buildSearchFilter(search, ['name', 'sku', 'description']);
 
   const where = {
-    userId,
+    // userId, // Removed: Scope by Shop instead
+    shopId: ctx.shopId,
     isActive: true,
     ...(searchFilter && searchFilter),
     ...(category && { category }),
@@ -49,7 +51,8 @@ export async function getProducts(params: GetProductsParams = {}) {
   // Simplified version without raw SQL comparison
   const whereClause = lowStockOnly
     ? {
-        userId,
+        // userId, // Removed
+        shopId: ctx.shopId,
         isActive: true,
         ...(searchFilter && searchFilter),
         ...(category && { category }),
@@ -65,12 +68,12 @@ export async function getProducts(params: GetProductsParams = {}) {
 }
 
 export async function getProduct(id: string) {
-  const userId = await getCurrentUserId();
+  const ctx = await requirePermission('PRODUCT_VIEW');
 
   const product = await db.product.findFirst({
     where: {
       id,
-      userId,
+      shopId: ctx.shopId,
       isActive: true,
     },
   });
@@ -101,7 +104,7 @@ export async function createProduct(input: ProductInput): Promise<ActionResponse
     const existing = await db.product.findFirst({
       where: { 
         sku: validated.data.sku,
-        ...(ctx.shopId ? { shopId: ctx.shopId } : { userId: ctx.userId }),
+        shopId: ctx.shopId,
       },
     });
     if (existing) {
@@ -230,9 +233,9 @@ export async function deleteProduct(id: string): Promise<ActionResponse> {
   // RBAC: Require PRODUCT_DELETE permission
   const ctx = await requirePermission('PRODUCT_DELETE');
 
-  // Check ownership
+  // Check ownership/scope
   const existing = await db.product.findFirst({
-    where: { id, userId: ctx.userId },
+    where: { id, shopId: ctx.shopId },
   });
 
   if (!existing) {
@@ -264,11 +267,11 @@ export async function deleteProduct(id: string): Promise<ActionResponse> {
 }
 
 export async function getProductsForSelect() {
-  const userId = await getCurrentUserId();
+  const ctx = await requirePermission('PRODUCT_VIEW'); // Assume needed
 
   return db.product.findMany({
     where: {
-      userId,
+      shopId: ctx.shopId,
       isActive: true,
       stock: { gt: 0 },
     },
@@ -285,12 +288,12 @@ export async function getProductsForSelect() {
 }
 
 export async function getLowStockProducts(limit: number = 5) {
-  const userId = await getCurrentUserId();
+  const ctx = await requirePermission('PRODUCT_VIEW'); // Or DASHBOARD_VIEW
 
   // Get products where stock <= minStock
   const products = await db.product.findMany({
     where: {
-      userId,
+      shopId: ctx.shopId,
       isActive: true,
     },
     orderBy: { stock: 'asc' },
@@ -312,14 +315,17 @@ interface AdjustStockInput {
 }
 
 export async function adjustStock(productId: string, input: AdjustStockInput): Promise<ActionResponse> {
-  const userId = await getCurrentUserId();
+  // Use specific permission or PRODUCT_EDIT
+  const ctx = await requirePermission('PRODUCT_EDIT'); 
 
   try {
     await db.$transaction(async (tx) => {
       const product = await tx.product.findUnique({
         where: { id: productId },
-        select: { stock: true },
+        select: { stock: true, shopId: true },
       });
+      // Safety check for scope
+      if (!product || product.shopId !== ctx.shopId) throw new Error('ไม่พบสินค้า');
 
       if (!product) throw new Error('ไม่พบสินค้า');
 
@@ -347,7 +353,7 @@ export async function adjustStock(productId: string, input: AdjustStockInput): P
         productId,
         type: 'ADJUSTMENT',
         quantity: change,
-        userId,
+        userId: ctx.userId,
         note: `${notePrefix} ${input.note}`,
         tx,
       });

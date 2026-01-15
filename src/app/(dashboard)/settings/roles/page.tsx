@@ -8,7 +8,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ArrowLeft } from 'lucide-react';
 import Loading from '@/app/(dashboard)/loading';
 
+import { requirePermission } from '@/lib/auth-guard';
+import { Guard } from '@/components/auth/guard';
+
 async function RolesContent() {
+  await requirePermission('TEAM_VIEW'); // View roles requires TEAM_VIEW
+
   const roles = await getRoles();
 
   return (
@@ -18,7 +23,9 @@ async function RolesContent() {
           <CardTitle>Roles ทั้งหมด</CardTitle>
           <CardDescription>กำหนดสิทธิ์การเข้าถึงสำหรับสมาชิกในทีม</CardDescription>
         </div>
-        <CreateRoleDialog />
+        <Guard permission="TEAM_EDIT">
+          <CreateRoleDialog />
+        </Guard>
       </CardHeader>
       <CardContent>
         <RolesTable roles={roles} />

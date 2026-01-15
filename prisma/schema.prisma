@@ -58,6 +58,7 @@ model LookupValue {
   id           String         @id @default(cuid())
   lookupTypeId String
   userId       String?
+  shopId       String?  // RBAC: Data visibility scope
   
   code         String
   name         String
@@ -75,14 +76,26 @@ model LookupValue {
 
   lookupType   LookupType     @relation(fields: [lookupTypeId], references: [id], onDelete: Cascade)
   user         User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shop         Shop?          @relation(fields: [shopId], references: [id], onDelete: Cascade)
   
   // Reverse relations
   products     Product[]
   expenses     Expense[]
 
-  @@unique([lookupTypeId, userId, code])
+  // Allow unique codes per shop, or per user (legacy), or system (nulls)
+  // Note: Validation should handle enforcement preference
+  @@unique([lookupTypeId, shopId, code]) 
+  // We keep the old unique constraint? No, migration might fail if duplicates exist when shopId is null for many?
+  // Postgres treats NULLs as distinct for unique, so unique([type, null, code]) and unique([type, null, code]) are allowed duplicates?
+  // Actually no, standard SQL unique allows multiple nulls.
+  // But we want to enforce uniqueness per shop. 
+  // Let's add the index and handle logic in app or refine constraint later.
+  // For now, index is important.
+  
   @@index([lookupTypeId, userId, isActive])
+  @@index([lookupTypeId, shopId, isActive])
   @@index([userId, deletedAt])
+  @@index([shopId, deletedAt])
 }
 
 
@@ -112,6 +125,7 @@ model Shop {
   sales       Sale[]
   expenses    Expense[]
   stockLogs   StockLog[]
+  lookupValues LookupValue[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

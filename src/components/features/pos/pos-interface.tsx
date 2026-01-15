@@ -275,7 +275,7 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
     } finally {
       setIsProcessing(false);
     }
-  }, [cart.items, clearCart, router]);
+  }, [cart.items, clearCart, router, selectedCustomer]);
 
   // ==================== Render ====================
 
