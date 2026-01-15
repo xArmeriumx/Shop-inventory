@@ -20,6 +20,8 @@ A modern, robust Inventory and Sales Management System built with Next.js 14, Ty
   - Touch-friendly product grid with category tabs.
   - Barcode scanner support (Keyboard Mode).
   - Real-time cart with quantity controls.
+  - **Multi-terminal support**: Auto-refresh stock every 3 seconds for real-time sync.
+  - Optimistic updates: Stock reflects immediately after sale completion.
   - Separation-ready architecture (easy to extract as standalone app).
 - **Point of Sale (Sales)**:
   - Fast interface with Barcode Scanner support (Keyboard Mode).
