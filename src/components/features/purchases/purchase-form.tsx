@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { FileUpload } from '@/components/ui/file-upload';
 import { PAYMENT_METHODS } from '@/lib/constants';
 import { createPurchase } from '@/actions/purchases';
 import { getProductsForSelect } from '@/actions/products';
@@ -32,6 +33,7 @@ export function PurchaseForm() {
   const [isPending, startTransition] = useTransition();
   const [errors, setErrors] = useState<Record<string, string[]>>({});
   const [products, setProducts] = useState<Product[]>([]);
+  const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
   const [items, setItems] = useState<PurchaseItem[]>([
     { productId: '', quantity: 1, costPrice: 0 },
   ]);
@@ -97,6 +99,7 @@ export function PurchaseForm() {
       supplierName: (formData.get('supplierName') as string) || null,
       paymentMethod: formData.get('paymentMethod') as any,
       notes: (formData.get('notes') as string) || null,
+      receiptUrl: receiptUrl,
       items: items.map((item) => ({
         productId: item.productId,
         quantity: item.quantity,
@@ -171,6 +174,15 @@ export function PurchaseForm() {
               placeholder="บันทึกเพิ่มเติม"
               rows={2}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>หลักฐานการซื้อ</Label>
+            <FileUpload
+              value={receiptUrl || undefined}
+              onChange={(url) => setReceiptUrl(url)}
+              folder="purchases"
             />
           </div>
         </CardContent>

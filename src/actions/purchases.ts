@@ -106,6 +106,7 @@ export async function createPurchase(input: PurchaseInput) {
           // Removed referenceNumber generation
           notes: purchaseData.notes || (purchaseData.paymentMethod ? `Payment: ${purchaseData.paymentMethod}` : null),
           totalCost: totalCost, // Schema uses totalCost, not totalAmount
+          receiptUrl: purchaseData.receiptUrl || null,
           items: {
             create: items.map((item) => ({
               productId: item.productId,

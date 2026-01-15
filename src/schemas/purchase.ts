@@ -26,6 +26,7 @@ export const purchaseSchema = z.object({
     .max(1000, 'หมายเหตุต้องไม่เกิน 1000 ตัวอักษร')
     .optional()
     .nullable(),
+  receiptUrl: z.string().url().optional().nullable(),
   items: z
     .array(purchaseItemSchema)
     .min(1, 'กรุณาเพิ่มรายการสินค้าอย่างน้อย 1 รายการ'),

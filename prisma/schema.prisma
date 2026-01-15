@@ -252,6 +252,7 @@ model Sale {
 
   paymentMethod String
   notes         String?
+  receiptUrl    String?
 
   userId        String
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
