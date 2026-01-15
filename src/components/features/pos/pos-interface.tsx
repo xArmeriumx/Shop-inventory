@@ -9,7 +9,7 @@ import { POSProductGrid } from './pos-product-grid';
 import { POSCartPanel } from './pos-cart';
 import { POSPaymentDialog } from './pos-payment-dialog';
 import { POSSuccessDialog } from './pos-success-dialog';
-import { createPOSSale, getProductBySKU } from '@/lib/pos/pos-service';
+import { createPOSSale, getProductBySKU, getProductsForPOS } from '@/lib/pos/pos-service';
 import type { POSProduct, POSCategory, POSCart, POSCartItem } from '@/lib/pos/types';
 
 interface POSInterfaceProps {
@@ -57,6 +57,24 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
       scanInputRef.current?.focus();
     }
   }, [isTouchDevice]);
+
+  // Auto-refresh stock every 3 seconds for multi-terminal sync
+  useEffect(() => {
+    const refreshInterval = setInterval(async () => {
+      // Skip refresh if payment dialog is open (don't interrupt user)
+      if (isPaymentOpen || isProcessing) return;
+
+      try {
+        const latestProducts = await getProductsForPOS();
+        setProducts(latestProducts);
+      } catch (error) {
+        console.error('Stock refresh error:', error);
+        // Silently fail - don't interrupt POS operation
+      }
+    }, 3000); // 3 seconds - fast enough for real-time feel
+
+    return () => clearInterval(refreshInterval);
+  }, [isPaymentOpen, isProcessing]);
 
   // ==================== Cart Operations ====================
 
