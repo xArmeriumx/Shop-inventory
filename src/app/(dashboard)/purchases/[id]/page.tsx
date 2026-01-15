@@ -158,6 +158,26 @@ async function PurchaseDetails({ id }: { id: string }) {
             </div>
           )}
 
+          {/* Receipt Image */}
+          {purchase.receiptUrl && (
+            <div className="mt-8 border-t pt-4 print:hidden">
+              <h4 className="font-semibold mb-3 text-sm">หลักฐานการซื้อ:</h4>
+              <a 
+                href={purchase.receiptUrl} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="inline-block"
+              >
+                <img 
+                  src={purchase.receiptUrl} 
+                  alt="หลักฐานการซื้อ" 
+                  className="max-w-xs max-h-48 object-contain rounded-lg border hover:opacity-80 transition-opacity cursor-pointer"
+                />
+              </a>
+              <p className="text-xs text-muted-foreground mt-2">คลิกที่รูปเพื่อดูขนาดเต็ม</p>
+            </div>
+          )}
+
           {/* Footer */}
           <div className="mt-8 pt-4 border-t text-center text-sm text-muted-foreground print:mt-12">
             <p>เอกสารนี้ออกโดยระบบอัตโนมัติ</p>
