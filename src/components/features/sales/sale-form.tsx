@@ -28,8 +28,8 @@ interface Product {
 interface SaleItem {
   productId: string;
   product?: Product;
-  quantity: number;
-  salePrice: number;
+  quantity: number | string;
+  salePrice: number | string;
 }
 
 export function SaleForm() {
@@ -105,8 +105,10 @@ export function SaleForm() {
     let totalCost = 0;
 
     items.forEach((item) => {
-      const subtotal = item.quantity * item.salePrice;
-      const cost = item.quantity * (item.product?.costPrice || 0);
+      const quantity = Number(item.quantity) || 0;
+      const salePrice = Number(item.salePrice) || 0;
+      const subtotal = quantity * salePrice;
+      const cost = quantity * (item.product?.costPrice || 0);
       totalAmount += subtotal;
       totalCost += cost;
     });
@@ -131,8 +133,8 @@ export function SaleForm() {
       date: isBackdated ? new Date(date).toISOString() : undefined,
       items: items.map((item) => ({
         productId: item.productId,
-        quantity: item.quantity,
-        salePrice: item.salePrice,
+        quantity: Number(item.quantity) || 0,
+        salePrice: Number(item.salePrice) || 0,
       })),
     };
 
@@ -333,9 +335,11 @@ export function SaleForm() {
                   min="1"
                   max={item.product?.stock || 999}
                   value={item.quantity}
-                  onChange={(e) =>
-                    handleItemChange(index, 'quantity', parseInt(e.target.value) || 1)
-                  }
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === '') handleItemChange(index, 'quantity', '');
+                    else handleItemChange(index, 'quantity', parseInt(val) || 0);
+                  }}
                   required
                 />
               </div>
@@ -347,9 +351,11 @@ export function SaleForm() {
                   step="0.01"
                   min="0"
                   value={item.salePrice}
-                  onChange={(e) =>
-                    handleItemChange(index, 'salePrice', parseFloat(e.target.value) || 0)
-                  }
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === '') handleItemChange(index, 'salePrice', '');
+                    else handleItemChange(index, 'salePrice', parseFloat(val) || 0);
+                  }}
                   required
                 />
               </div>
@@ -358,7 +364,7 @@ export function SaleForm() {
                 <div className="space-y-2">
                   <Label>รวม</Label>
                   <div className="text-sm font-medium">
-                    {formatCurrency((item.quantity * item.salePrice).toString())}
+                    {formatCurrency(((Number(item.quantity) || 0) * (Number(item.salePrice) || 0)).toString())}
                   </div>
                 </div>
               </div>

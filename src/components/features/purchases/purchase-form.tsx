@@ -25,8 +25,8 @@ interface Product {
 interface PurchaseItem {
   productId: string;
   product?: Product;
-  quantity: number;
-  costPrice: number;
+  quantity: number | string;
+  costPrice: number | string;
 }
 
 export function PurchaseForm() {
@@ -88,7 +88,7 @@ export function PurchaseForm() {
 
   const calculateTotal = () => {
     return items.reduce(
-      (sum, item) => sum + item.quantity * item.costPrice,
+      (sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.costPrice) || 0),
       0
     );
   };
@@ -106,8 +106,8 @@ export function PurchaseForm() {
       date: isBackdated ? new Date(date).toISOString() : undefined,
       items: items.map((item) => ({
         productId: item.productId,
-        quantity: item.quantity,
-        costPrice: item.costPrice,
+        quantity: Number(item.quantity) || 0,
+        costPrice: Number(item.costPrice) || 0,
       })),
     };
 
@@ -263,9 +263,11 @@ export function PurchaseForm() {
                   type="number"
                   min="1"
                   value={item.quantity}
-                  onChange={(e) =>
-                    handleItemChange(index, 'quantity', parseInt(e.target.value) || 1)
-                  }
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === '') handleItemChange(index, 'quantity', '');
+                    else handleItemChange(index, 'quantity', parseInt(val) || 0);
+                  }}
                   required
                 />
               </div>
@@ -277,9 +279,11 @@ export function PurchaseForm() {
                   step="0.01"
                   min="0"
                   value={item.costPrice}
-                  onChange={(e) =>
-                    handleItemChange(index, 'costPrice', parseFloat(e.target.value) || 0)
-                  }
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === '') handleItemChange(index, 'costPrice', '');
+                    else handleItemChange(index, 'costPrice', parseFloat(val) || 0);
+                  }}
                   required
                 />
               </div>
@@ -288,7 +292,7 @@ export function PurchaseForm() {
                 <div className="space-y-2">
                   <Label>รวม</Label>
                   <div className="text-sm font-medium">
-                    {formatCurrency((item.quantity * item.costPrice).toString())}
+                    {formatCurrency(((Number(item.quantity) || 0) * (Number(item.costPrice) || 0)).toString())}
                   </div>
                 </div>
               </div>
