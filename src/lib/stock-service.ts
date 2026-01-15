@@ -1,7 +1,7 @@
 import { db } from '@/lib/db';
 import { Prisma } from '@prisma/client';
 
-export type StockMovementType = 'SALE' | 'PURCHASE' | 'ADJUSTMENT' | 'RETURN' | 'WASTE' | 'CANCEL';
+export type StockMovementType = 'SALE' | 'PURCHASE' | 'ADJUSTMENT' | 'RETURN' | 'WASTE' | 'CANCEL' | 'SALE_CANCEL' | 'PURCHASE_CANCEL';
 
 interface CreateStockMovementParams {
   productId: string;
@@ -9,7 +9,7 @@ interface CreateStockMovementParams {
   quantity: number; // Positive for add, Negative for remove
   userId: string;
   referenceId?: string;
-  referenceType?: 'SALE' | 'PURCHASE';
+  referenceType?: 'SALE' | 'PURCHASE' | 'SALE_CANCEL' | 'PURCHASE_CANCEL';
   note?: string;
   date?: Date | string;
   tx?: Prisma.TransactionClient; // Optional transaction client

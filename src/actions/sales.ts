@@ -249,10 +249,46 @@ export async function createSale(input: SaleInput) {
   }
 }
 
-export async function deleteSale(id: string) {
+// Cancel Reasons for Audit (internal use only)
+const CANCEL_REASONS = {
+  WRONG_ENTRY: 'บันทึกผิดพลาด',
+  CUSTOMER_REQUEST: 'ลูกค้าขอยกเลิก',
+  DAMAGED: 'สินค้าชำรุด',
+  OTHER: 'อื่นๆ',
+} as const;
+
+interface CancelSaleInput {
+  id: string;
+  reasonCode: string;
+  reasonDetail?: string; // Required if reasonCode is 'OTHER'
+}
+
+export async function cancelSale(input: CancelSaleInput) {
   const userId = await getCurrentUserId();
+  const { id, reasonCode, reasonDetail } = input;
+
+  // Validate: Cancel reason is required
+  if (!reasonCode) {
+    return { error: 'กรุณาเลือกเหตุผลในการยกเลิก' };
+  }
+
+  // Validate: If 'OTHER', reasonDetail is required
+  if (reasonCode === 'OTHER' && !reasonDetail?.trim()) {
+    return { error: 'กรุณากรอกรายละเอียดเหตุผล' };
+  }
+
+  // Build cancel reason text
+  const cancelReason = reasonCode === 'OTHER' 
+    ? `${CANCEL_REASONS.OTHER}: ${reasonDetail}` 
+    : (CANCEL_REASONS as Record<string, string>)[reasonCode] || reasonCode;
 
   try {
+    // Get current user name for audit
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: { name: true },
+    });
+
     await db.$transaction(async (tx) => {
       // Get sale with items
       const sale = await tx.sale.findFirst({
@@ -264,29 +300,44 @@ export async function deleteSale(id: string) {
         throw new Error('ไม่พบข้อมูลการขาย');
       }
 
-      // Restore stock
+      // Check if already cancelled
+      if (sale.status === 'CANCELLED') {
+        throw new Error('รายการนี้ถูกยกเลิกไปแล้ว');
+      }
+
+      // Restore stock with movement log
       for (const item of sale.items) {
-        await tx.product.update({
-          where: { id: item.productId },
-          data: {
-            stock: {
-              increment: item.quantity,
-            },
-          },
+        await StockService.recordMovement({
+          productId: item.productId,
+          type: 'SALE_CANCEL',
+          quantity: item.quantity, // Positive = restore
+          userId,
+          referenceId: sale.id,
+          referenceType: 'SALE_CANCEL',
+          note: `ยกเลิกการขาย ${sale.invoiceNumber} - ${cancelReason}`,
+          date: new Date(),
+          tx,
         });
       }
 
-      // Delete sale (cascade will delete items)
-      await tx.sale.delete({
+      // Mark sale as cancelled (not delete)
+      await tx.sale.update({
         where: { id },
+        data: {
+          status: 'CANCELLED',
+          cancelledAt: new Date(),
+          cancelledBy: user?.name || 'Unknown',
+          cancelReason,
+        },
       });
     });
 
     revalidatePath('/sales');
+    revalidatePath('/products');
     revalidatePath('/dashboard');
     return { success: true };
   } catch (error: any) {
-    console.error('Delete sale error:', error);
+    console.error('Cancel sale error:', error);
     return { error: error.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง' };
   }
 }

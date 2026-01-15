@@ -15,12 +15,14 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { PAYMENT_METHODS } from '@/lib/constants';
-import { Trash2, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
-import { deleteSale } from '@/actions/sales';
+import { XCircle, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
+import { cancelSale } from '@/actions/sales';
 import { useState, useTransition } from 'react';
+import { CancelDialog } from '@/components/features/shared/cancel-dialog';
 
 type SaleWithCustomer = Sale & {
   customer: Pick<Customer, 'name'> | null;
+  status?: string;
 };
 
 interface SalesTableProps {
@@ -40,7 +42,9 @@ export function SalesTable({ sales, pagination }: SalesTableProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [cancelDialogSale, setCancelDialogSale] = useState<SaleWithCustomer | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const getPaymentMethodLabel = (value: string) => {
     return PAYMENT_METHODS.find((m) => m.value === value)?.label || value;
@@ -67,22 +71,28 @@ export function SalesTable({ sales, pagination }: SalesTableProps) {
     });
   };
 
-  const handleDelete = async (id: string, invoiceNumber: string) => {
-    if (!confirm(`ต้องการลบ "${invoiceNumber}" หรือไม่?\n\n⚠️ สต็อกสินค้าจะถูก restore กลับ`)) {
-      return;
-    }
-
-    setDeletingId(id);
+  const handleCancelConfirm = async (reasonCode: string, reasonDetail?: string) => {
+    if (!cancelDialogSale) return;
+    
+    setIsProcessing(true);
+    setCancellingId(cancelDialogSale.id);
     try {
-      const result = await deleteSale(id);
+      const result = await cancelSale({
+        id: cancelDialogSale.id,
+        reasonCode,
+        reasonDetail,
+      });
       if (result.error) {
         alert(result.error);
+      } else {
+        setCancelDialogSale(null);
       }
       router.refresh();
     } catch {
       alert('เกิดข้อผิดพลาด');
     } finally {
-      setDeletingId(null);
+      setIsProcessing(false);
+      setCancellingId(null);
     }
   };
 
@@ -146,14 +156,22 @@ export function SalesTable({ sales, pagination }: SalesTableProps) {
                         <Eye className="h-4 w-4" />
                       </Link>
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDelete(sale.id, sale.invoiceNumber)}
-                      disabled={deletingId === sale.id}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {sale.status !== 'CANCELLED' && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setCancelDialogSale(sale)}
+                        disabled={cancellingId === sale.id}
+                        title="ยกเลิกรายการ"
+                      >
+                        <XCircle className="h-4 w-4 text-destructive" />
+                      </Button>
+                    )}
+                    {sale.status === 'CANCELLED' && (
+                      <Badge variant="outline" className="text-xs text-destructive border-destructive">
+                        ยกเลิกแล้ว
+                      </Badge>
+                    )}
                   </div>
                 </TableCell>
               </TableRow>
@@ -191,6 +209,17 @@ export function SalesTable({ sales, pagination }: SalesTableProps) {
           </Button>
         </div>
       </div>
+
+      {/* Cancel Dialog */}
+      <CancelDialog
+        isOpen={!!cancelDialogSale}
+        onClose={() => setCancelDialogSale(null)}
+        onConfirm={handleCancelConfirm}
+        title="ยกเลิกรายการขาย"
+        description={cancelDialogSale ? `ยกเลิก ${cancelDialogSale.invoiceNumber}` : ''}
+        stockChangePreview="สต็อกจะถูกเพิ่มกลับตามจำนวนที่ขาย"
+        isLoading={isProcessing}
+      />
     </div>
   );
 }

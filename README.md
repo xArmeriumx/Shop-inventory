@@ -14,7 +14,15 @@ A modern, robust Inventory and Sales Management System built with Next.js 14, Ty
 - **Product Management**:
   - Full CRUD operations.
   - **Barcode/SKU Support**: "Quick Scan" mode for rapid checkout.
-  - **Stock Management**: Real-time tracking, manual adjustment, and movement history.
+  - **Stock Management**:
+    - Real-time tracking with complete movement history
+    - Manual stock adjustment with reason logging
+    - **Audit-Ready Cancel System**: Replace delete with cancel to maintain 100% audit trail
+      - Cancel sales/purchases instead of deleting (data never lost)
+      - Mandatory cancel reason (wrong entry, customer request, damaged, etc.)
+      - Automatic stock reversal with full logging
+      - Prevent negative stock on purchase cancellation
+      - Track who cancelled and when with timestamps
 - **POS Mode** (`/pos`):
   - Dedicated fullscreen interface for cashiers.
   - Touch-friendly product grid with category tabs.

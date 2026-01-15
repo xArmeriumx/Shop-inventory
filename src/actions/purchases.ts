@@ -159,32 +159,94 @@ export async function createPurchase(input: PurchaseInput) {
   }
 }
 
-export async function deletePurchase(id: string) {
+// Cancel Reasons for Audit (internal use only)
+const CANCEL_REASONS = {
+  WRONG_ENTRY: 'บันทึกผิดพลาด',
+  SUPPLIER_ISSUE: 'ปัญหาจากผู้จำหน่าย',
+  DAMAGED: 'สินค้าชำรุด',
+  OTHER: 'อื่นๆ',
+} as const;
+
+interface CancelPurchaseInput {
+  id: string;
+  reasonCode: string;
+  reasonDetail?: string;
+}
+
+export async function cancelPurchase(input: CancelPurchaseInput) {
   const userId = await getCurrentUserId();
+  const { id, reasonCode, reasonDetail } = input;
+
+  // Validate: Cancel reason is required
+  if (!reasonCode) {
+    return { error: 'กรุณาเลือกเหตุผลในการยกเลิก' };
+  }
+
+  // Validate: If 'OTHER', reasonDetail is required
+  if (reasonCode === 'OTHER' && !reasonDetail?.trim()) {
+    return { error: 'กรุณากรอกรายละเอียดเหตุผล' };
+  }
+
+  const cancelReason = reasonCode === 'OTHER'
+    ? `${CANCEL_REASONS.OTHER}: ${reasonDetail}`
+    : (CANCEL_REASONS as Record<string, string>)[reasonCode] || reasonCode;
 
   try {
+    // Get current user name for audit
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: { name: true },
+    });
+
     await db.$transaction(async (tx: any) => {
       const purchase = await tx.purchase.findFirst({
         where: { id, userId },
-        include: { items: true },
+        include: { items: { include: { product: true } } },
       });
 
       if (!purchase) {
         throw new Error('ไม่พบข้อมูลการซื้อ');
       }
 
-      // Restore stock
+      // Check if already cancelled
+      if (purchase.status === 'CANCELLED') {
+        throw new Error('รายการนี้ถูกยกเลิกไปแล้ว');
+      }
+
+      // Validate: Check if stock would go negative
       for (const item of purchase.items) {
-        await tx.product.update({
-          where: { id: item.productId },
-          data: {
-            stock: { decrement: item.quantity },
-          },
+        const newStock = item.product.stock - item.quantity;
+        if (newStock < 0) {
+          throw new Error(
+            `ไม่สามารถยกเลิกได้: สต็อก ${item.product.name} จะติดลบ (คงเหลือ ${item.product.stock}, ต้องหัก ${item.quantity})`
+          );
+        }
+      }
+
+      // Reduce stock with movement log
+      for (const item of purchase.items) {
+        await StockService.recordMovement({
+          productId: item.productId,
+          type: 'PURCHASE_CANCEL',
+          quantity: -item.quantity, // Negative = reduce
+          userId,
+          referenceId: purchase.id,
+          referenceType: 'PURCHASE_CANCEL',
+          note: `ยกเลิกการซื้อ - ${cancelReason}`,
+          date: new Date(),
+          tx,
         });
       }
 
-      await tx.purchase.delete({
+      // Mark purchase as cancelled (not delete)
+      await tx.purchase.update({
         where: { id },
+        data: {
+          status: 'CANCELLED',
+          cancelledAt: new Date(),
+          cancelledBy: user?.name || 'Unknown',
+          cancelReason,
+        },
       });
     });
 
@@ -193,7 +255,7 @@ export async function deletePurchase(id: string) {
     revalidatePath('/dashboard');
     return { success: true };
   } catch (error: any) {
-    console.error('Delete purchase error:', error);
+    console.error('Cancel purchase error:', error);
     return { error: error.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง' };
   }
 }

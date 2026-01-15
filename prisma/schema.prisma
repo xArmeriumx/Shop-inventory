@@ -211,7 +211,13 @@ model Purchase {
 
   items       PurchaseItem[]
 
-  // Soft Delete
+  // Cancel/Void (Audit-Ready)
+  status        String    @default("ACTIVE")  // ACTIVE | CANCELLED
+  cancelledAt   DateTime?
+  cancelledBy   String?   // User name who cancelled
+  cancelReason  String?   // Reason for cancellation
+
+  // Soft Delete (legacy, use status instead)
   deletedAt   DateTime?
 
   createdAt   DateTime @default(now())
@@ -220,6 +226,7 @@ model Purchase {
   @@index([userId])
   @@index([userId, deletedAt])
   @@index([userId, date])
+  @@index([userId, status])  // For filtering active/cancelled
   @@index([date])
   @@index([supplierId])
 }
@@ -263,7 +270,13 @@ model Sale {
 
   items         SaleItem[]
 
-  // Soft Delete
+  // Cancel/Void (Audit-Ready)
+  status        String    @default("ACTIVE")  // ACTIVE | CANCELLED
+  cancelledAt   DateTime?
+  cancelledBy   String?   // User name who cancelled
+  cancelReason  String?   // Reason for cancellation
+
+  // Soft Delete (legacy, use status instead)
   deletedAt     DateTime?
 
   createdAt     DateTime @default(now())
@@ -273,6 +286,7 @@ model Sale {
   @@index([userId])
   @@index([userId, deletedAt])
   @@index([userId, date])
+  @@index([userId, status])  // For filtering active/cancelled
   @@index([date])
   @@index([customerId])
 }
@@ -334,6 +348,8 @@ enum StockMovementType {
   RETURN
   WASTE
   CANCEL
+  SALE_CANCEL
+  PURCHASE_CANCEL
 }
 
 model StockLog {

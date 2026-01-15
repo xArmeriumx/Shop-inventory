@@ -13,10 +13,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency, formatDate } from '@/lib/formatters';
-import { PAYMENT_METHODS } from '@/lib/constants';
-import { Trash2, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
-import { deletePurchase } from '@/actions/purchases';
+import { XCircle, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
+import { cancelPurchase } from '@/actions/purchases';
 import { useState, useTransition } from 'react';
+import { CancelDialog, PURCHASE_CANCEL_REASONS } from '@/components/features/shared/cancel-dialog';
 
 interface Purchase {
   id: string;
@@ -24,6 +24,7 @@ interface Purchase {
   totalCost: number | { toString: () => string };
   supplier?: { name: string } | null;
   notes: string | null;
+  status?: string;
 }
 
 interface PurchasesTableProps {
@@ -43,7 +44,9 @@ export function PurchasesTable({ purchases, pagination }: PurchasesTableProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [cancelDialogPurchase, setCancelDialogPurchase] = useState<Purchase | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const handlePageChange = (newPage: number) => {
     const params = new URLSearchParams(searchParams);
@@ -53,22 +56,28 @@ export function PurchasesTable({ purchases, pagination }: PurchasesTableProps) {
     });
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm(`ต้องการลบรายการนี้หรือไม่?\n\n⚠️ สต็อกสินค้าจะถูกหักออก`)) {
-      return;
-    }
-
-    setDeletingId(id);
+  const handleCancelConfirm = async (reasonCode: string, reasonDetail?: string) => {
+    if (!cancelDialogPurchase) return;
+    
+    setIsProcessing(true);
+    setCancellingId(cancelDialogPurchase.id);
     try {
-      const result = await deletePurchase(id);
+      const result = await cancelPurchase({
+        id: cancelDialogPurchase.id,
+        reasonCode,
+        reasonDetail,
+      });
       if (result.error) {
         alert(result.error);
+      } else {
+        setCancelDialogPurchase(null);
       }
       router.refresh();
     } catch {
       alert('เกิดข้อผิดพลาด');
     } finally {
-      setDeletingId(null);
+      setIsProcessing(false);
+      setCancellingId(null);
     }
   };
 
@@ -124,14 +133,22 @@ export function PurchasesTable({ purchases, pagination }: PurchasesTableProps) {
                         <Eye className="h-4 w-4" />
                       </Link>
                     </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDelete(purchase.id)}
-                      disabled={deletingId === purchase.id}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    {purchase.status !== 'CANCELLED' && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setCancelDialogPurchase(purchase)}
+                        disabled={cancellingId === purchase.id}
+                        title="ยกเลิกรายการ"
+                      >
+                        <XCircle className="h-4 w-4 text-destructive" />
+                      </Button>
+                    )}
+                    {purchase.status === 'CANCELLED' && (
+                      <Badge variant="outline" className="text-xs text-destructive border-destructive">
+                        ยกเลิกแล้ว
+                      </Badge>
+                    )}
                   </div>
                 </TableCell>
               </TableRow>
@@ -168,6 +185,18 @@ export function PurchasesTable({ purchases, pagination }: PurchasesTableProps) {
           </Button>
         </div>
       </div>
+
+      {/* Cancel Dialog */}
+      <CancelDialog
+        isOpen={!!cancelDialogPurchase}
+        onClose={() => setCancelDialogPurchase(null)}
+        onConfirm={handleCancelConfirm}
+        title="ยกเลิกรายการซื้อ"
+        description="ยกเลิกรายการซื้อนี้"
+        stockChangePreview="สต็อกจะถูกหักออกตามจำนวนที่ซื้อ"
+        isLoading={isProcessing}
+        reasons={PURCHASE_CANCEL_REASONS}
+      />
     </div>
   );
 }
