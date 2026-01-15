@@ -13,6 +13,7 @@ import { getCustomersForSelect } from '@/actions/customers';
 import { formatCurrency } from '@/lib/formatters';
 import { Plus, Trash2 } from 'lucide-react';
 import { CustomerCombobox } from '@/components/features/customers/customer-combobox';
+import { FileUpload } from '@/components/ui/file-upload';
 
 interface Product {
   id: string;
@@ -38,6 +39,9 @@ export function SaleForm() {
   const [customers, setCustomers] = useState<{id: string; name: string}[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
   const [isNewCustomer, setIsNewCustomer] = useState(false);
+  const [customerAddress, setCustomerAddress] = useState<string>('');
+  const [showAddress, setShowAddress] = useState(false);
+  const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
   const [items, setItems] = useState<SaleItem[]>([
     { productId: '', quantity: 1, salePrice: 0 },
   ]);
@@ -117,8 +121,10 @@ export function SaleForm() {
     const data = {
       customerId: (!isNewCustomer && selectedCustomer) ? selectedCustomer : null,
       customerName: isNewCustomer ? selectedCustomer : null,
+      customerAddress: (isNewCustomer && showAddress) ? customerAddress : null,
       paymentMethod: formData.get('paymentMethod') as any,
       notes: (formData.get('notes') as string) || null,
+      receiptUrl,
       items: items.map((item) => ({
         productId: item.productId,
         quantity: item.quantity,
@@ -167,7 +173,36 @@ export function SaleForm() {
                 placeholder="เลือกหรือพิมพ์ชื่อลูกค้า..."
               />
               {isNewCustomer && selectedCustomer && (
-                <p className="text-xs text-muted-foreground">✨ จะสร้างลูกค้าใหม่: {selectedCustomer}</p>
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">จะสร้างลูกค้าใหม่: {selectedCustomer}</p>
+                  
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="showAddress"
+                      checked={showAddress}
+                      onChange={(e) => setShowAddress(e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                    />
+                    <Label htmlFor="showAddress" className="font-normal cursor-pointer text-sm">
+                      ระบุที่อยู่
+                    </Label>
+                  </div>
+
+                  {showAddress && (
+                    <div className="animate-in fade-in slide-in-from-top-2">
+                      <Label htmlFor="customerAddress" className="sr-only">ที่อยู่</Label>
+                      <textarea
+                        id="customerAddress"
+                        value={customerAddress}
+                        onChange={(e) => setCustomerAddress(e.target.value)}
+                        placeholder="ที่อยู่ลูกค้า..."
+                        rows={2}
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm mt-2"
+                      />
+                    </div>
+                  )}
+                </div>
               )}
             </div>
 
@@ -296,6 +331,20 @@ export function SaleForm() {
           {errors.items && (
             <p className="text-sm text-destructive">{errors.items[0]}</p>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Receipt Upload */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">หลักฐานการชำระเงิน</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <FileUpload
+            value={receiptUrl || undefined}
+            onChange={setReceiptUrl}
+            folder="receipts"
+          />
         </CardContent>
       </Card>
 

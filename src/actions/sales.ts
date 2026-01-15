@@ -184,6 +184,7 @@ export async function createSale(input: SaleInput) {
             data: {
               userId,
               name: saleData.customerName,
+              address: saleData.customerAddress || null,
             },
           });
           finalCustomerId = newCustomer.id;
@@ -199,6 +200,7 @@ export async function createSale(input: SaleInput) {
           customerName: saleData.customerName || null,
           paymentMethod: saleData.paymentMethod,
           notes: saleData.notes || null,
+          receiptUrl: saleData.receiptUrl || null,
           totalAmount,
           totalCost,
           profit,
