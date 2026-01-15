@@ -5,6 +5,7 @@ import { db } from '@/lib/db';
 import { getCurrentUserId } from '@/lib/auth-guard';
 import { paginatedQuery, buildSearchFilter, buildDateRangeFilter } from '@/lib/pagination';
 import { purchaseSchema, type PurchaseInput } from '@/schemas/purchase';
+import { StockService } from '@/lib/stock-service';
 
 interface GetPurchasesParams {
   page?: number;
@@ -123,11 +124,24 @@ export async function createPurchase(input: PurchaseInput) {
 
       // Update product stock and cost price
       for (const item of items) {
+        // Record stock movement (This updates the stock quantity)
+        await StockService.recordMovement({
+          productId: item.productId,
+          type: 'PURCHASE',
+          quantity: item.quantity, // Purchase increases stock
+          userId,
+          referenceId: newPurchase.id,
+          referenceType: 'PURCHASE',
+          note: `ซื้อสินค้า ${newPurchase.supplierName || ''}`,
+          date: newPurchase.date,
+          tx,
+        });
+
+        // Update cost price separately as it's not part of standard stock movement
         await tx.product.update({
           where: { id: item.productId },
           data: {
-            stock: { increment: item.quantity },
-            costPrice: item.costPrice, // Update cost price to latest
+            costPrice: item.costPrice, 
           },
         });
       }

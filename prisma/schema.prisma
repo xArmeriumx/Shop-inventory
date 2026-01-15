@@ -29,6 +29,7 @@ model User {
   suppliers     Supplier[]
   customers     Customer[]
   lookupValues  LookupValue[]
+  stockLogs     StockLog[]
 }
 
 // ==================== Lookup System (Custom Dropdowns) ====================
@@ -126,6 +127,7 @@ model Product {
 
   purchaseItems PurchaseItem[]
   saleItems     SaleItem[]
+  stockLogs     StockLog[]
 
   // Soft Delete
   deletedAt   DateTime?
@@ -322,3 +324,40 @@ model Expense {
   @@index([categoryId])
 }
 
+
+// ==================== Stock Management ====================
+
+enum StockMovementType {
+  SALE
+  PURCHASE
+  ADJUSTMENT
+  RETURN
+  WASTE
+  CANCEL
+}
+
+model StockLog {
+  id            String            @id @default(cuid())
+  type          StockMovementType
+  
+  productId     String
+  product       Product           @relation(fields: [productId], references: [id])
+  
+  quantity      Int
+  balance       Int              // Balance snapshot after movement
+  
+  referenceId   String?           // Sale ID, Purchase ID, etc
+  referenceType String?           // "SALE", "PURCHASE"
+  note          String?
+  
+  date          DateTime          @default(now())
+  
+  userId        String
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime          @default(now())
+
+  @@index([productId, date])
+  @@index([userId, date])
+  @@index([referenceId])
+}

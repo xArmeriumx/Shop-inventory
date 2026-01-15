@@ -6,6 +6,7 @@ import { getCurrentUserId } from '@/lib/auth-guard';
 import { paginatedQuery, buildSearchFilter, buildDateRangeFilter } from '@/lib/pagination';
 import { saleSchema, type SaleInput } from '@/schemas/sale';
 import type { Sale, SaleItem } from '@prisma/client';
+import { StockService } from '@/lib/stock-service';
 
 interface GetSalesParams {
   page?: number;
@@ -221,15 +222,18 @@ export async function createSale(input: SaleInput) {
         },
       });
 
-      // Update stock
+      // Update stock using StockService
       for (const item of calculatedItems) {
-        await tx.product.update({
-          where: { id: item.productId },
-          data: {
-            stock: {
-              decrement: item.quantity,
-            },
-          },
+        await StockService.recordMovement({
+          productId: item.productId,
+          type: 'SALE',
+          quantity: -item.quantity, // Sale reduces stock
+          userId,
+          referenceId: newSale.id,
+          referenceType: 'SALE',
+          note: `ขายสินค้า INV: ${newSale.invoiceNumber}`,
+          date: newSale.date,
+          tx,
         });
       }
 
