@@ -17,7 +17,7 @@ export async function getCustomers(params: GetCustomersParams = {}) {
   const userId = await getCurrentUserId();
   const { page = 1, limit = 20, search } = params;
 
-  const searchFilter = buildSearchFilter(search, ['name', 'phone']);
+  const searchFilter = buildSearchFilter(search, ['name', 'phone', 'address']);
 
   const where = {
     userId,
@@ -61,6 +61,7 @@ export async function createCustomer(input: CustomerInput) {
         name: validated.data.name,
         phone: validated.data.phone || null,
         address: validated.data.address || null,
+        taxId: validated.data.taxId || null,
         notes: validated.data.notes || null,
         userId,
       },
@@ -98,6 +99,7 @@ export async function updateCustomer(id: string, input: CustomerInput) {
         name: validated.data.name,
         phone: validated.data.phone || null,
         address: validated.data.address || null,
+        taxId: validated.data.taxId || null,
         notes: validated.data.notes || null,
       },
     });
@@ -140,7 +142,7 @@ export async function getCustomersForSelect() {
 
   return db.customer.findMany({
     where: { userId },
-    select: { id: true, name: true, phone: true, address: true },
+    select: { id: true, name: true, phone: true, address: true, taxId: true },
     orderBy: { name: 'asc' },
   });
 }

@@ -171,6 +171,7 @@ model Customer {
   name      String
   phone     String?
   address   String?
+  taxId     String?
   notes     String?
 
   userId    String

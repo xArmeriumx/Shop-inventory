@@ -13,6 +13,7 @@ interface Customer {
   name: string;
   phone: string | null;
   address: string | null;
+  taxId: string | null;
   notes: string | null;
 }
 
@@ -36,6 +37,7 @@ export function CustomerForm({ customer }: CustomerFormProps) {
       name: formData.get('name') as string,
       phone: (formData.get('phone') as string) || null,
       address: (formData.get('address') as string) || null,
+      taxId: (formData.get('taxId') as string) || null,
       notes: (formData.get('notes') as string) || null,
     };
 
@@ -91,8 +93,20 @@ export function CustomerForm({ customer }: CustomerFormProps) {
               )}
             </div>
 
+            <div className="space-y-2">
+              <Label htmlFor="taxId">เลขประจำตัวผู้เสียภาษี</Label>
+              <Input
+                id="taxId"
+                name="taxId"
+                defaultValue={customer?.taxId || ''}
+                placeholder="เลข 13 หลัก"
+              />
+            </div>
+
             <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="address">ที่อยู่</Label>
+              <Label htmlFor="address">ที่อยู่ 
+                <span className="text-muted-foreground text-xs font-normal ml-2">(จำเป็นสำหรับออกใบกำกับภาษี)</span>
+              </Label>
               <textarea
                 id="address"
                 name="address"

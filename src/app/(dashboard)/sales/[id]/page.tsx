@@ -45,7 +45,14 @@ async function SaleDetails({ id }: { id: string }) {
           </Button>
           <h1 className="text-2xl font-bold tracking-tight">รายละเอียดการขาย</h1>
         </div>
-        <PrintButton />
+        <div className="flex gap-2">
+          <Button variant="outline" asChild>
+            <a href={`/sales/${id}/tax-invoice`} target="_blank" rel="noopener noreferrer">
+              พิมพ์ใบกำกับภาษี (A4)
+            </a>
+          </Button>
+          <PrintButton />
+        </div>
       </div>
 
       <Card className="print:shadow-none print:border-none">

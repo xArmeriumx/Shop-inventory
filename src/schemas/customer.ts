@@ -12,6 +12,11 @@ export const customerSchema = z.object({
     .max(20, 'เบอร์โทรต้องไม่เกิน 20 ตัวอักษร')
     .optional()
     .nullable(),
+  taxId: z
+    .string()
+    .max(13, 'เลขประจำตัวผู้เสียภาษีต้องไม่เกิน 13 ตัวอักษร')
+    .optional()
+    .nullable(),
   email: z
     .string()
     .email('อีเมลไม่ถูกต้อง')
