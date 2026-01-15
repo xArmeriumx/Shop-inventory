@@ -24,6 +24,15 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
   const router = useRouter();
   const scanInputRef = useRef<HTMLInputElement>(null);
 
+  // Detect touch device (iPad/tablet) - don't auto-focus on touch devices to prevent keyboard popup
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
+  
+  useEffect(() => {
+    // Check if device has touch capability
+    const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    setIsTouchDevice(hasTouch);
+  }, []);
+
   // State
   const [products] = useState<POSProduct[]>(initialProducts);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -39,10 +48,12 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Focus scan input on mount and after actions
+  // Focus scan input on mount - only for non-touch devices (desktop with barcode scanner)
   useEffect(() => {
-    scanInputRef.current?.focus();
-  }, []);
+    if (!isTouchDevice) {
+      scanInputRef.current?.focus();
+    }
+  }, [isTouchDevice]);
 
   // ==================== Cart Operations ====================
 
@@ -94,9 +105,11 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
       return recalculateCart(newItems);
     });
 
-    // Refocus scan input
-    scanInputRef.current?.focus();
-  }, [recalculateCart]);
+    // Refocus scan input (only on desktop - touch devices use tap)
+    if (!isTouchDevice) {
+      scanInputRef.current?.focus();
+    }
+  }, [recalculateCart, isTouchDevice]);
 
   const updateQuantity = useCallback((productId: string, quantity: number) => {
     setCart((prev) => {
@@ -119,8 +132,10 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
       const newItems = prev.items.filter((item) => item.productId !== productId);
       return recalculateCart(newItems);
     });
-    scanInputRef.current?.focus();
-  }, [recalculateCart]);
+    if (!isTouchDevice) {
+      scanInputRef.current?.focus();
+    }
+  }, [recalculateCart, isTouchDevice]);
 
   const clearCart = useCallback(() => {
     setCart({
@@ -130,8 +145,10 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
       profit: 0,
       itemCount: 0,
     });
-    scanInputRef.current?.focus();
-  }, []);
+    if (!isTouchDevice) {
+      scanInputRef.current?.focus();
+    }
+  }, [isTouchDevice]);
 
   // ==================== Barcode Scanning ====================
 

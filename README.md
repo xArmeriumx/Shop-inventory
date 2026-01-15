@@ -15,7 +15,7 @@ A modern, robust Inventory and Sales Management System built with Next.js 14, Ty
   - Full CRUD operations.
   - **Barcode/SKU Support**: "Quick Scan" mode for rapid checkout.
   - **Stock Management**: Real-time tracking, manual adjustment, and movement history.
-- **🆕 POS Mode** (`/pos`):
+- **POS Mode** (`/pos`):
   - Dedicated fullscreen interface for cashiers.
   - Touch-friendly product grid with category tabs.
   - Barcode scanner support (Keyboard Mode).
