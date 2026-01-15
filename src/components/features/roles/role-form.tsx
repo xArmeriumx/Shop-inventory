@@ -34,22 +34,112 @@ export function RoleForm({ role }: RoleFormProps) {
   const [isDefault, setIsDefault] = useState(role.isDefault);
   const [permissions, setPermissions] = useState<string[]>(role.permissions);
 
+  // Define dependencies: Key needs Value(s) to function properly
+  const PERMISSION_DEPENDENCIES: Record<string, string[]> = {
+    // Sales dependencies
+    'SALE_CREATE': ['SALE_VIEW', 'PRODUCT_VIEW'],
+    'SALE_CANCEL': ['SALE_VIEW'],
+    'SALE_VIEW_PROFIT': ['SALE_VIEW'],
+    
+    // POS needs access to products and sales creation
+    'POS_ACCESS': ['SALE_CREATE', 'SALE_VIEW', 'PRODUCT_VIEW', 'CUSTOMER_VIEW'],
+
+    // Product management
+    'PRODUCT_CREATE': ['PRODUCT_VIEW'],
+    'PRODUCT_EDIT': ['PRODUCT_VIEW'],
+    'PRODUCT_DELETE': ['PRODUCT_VIEW'],
+    'PRODUCT_VIEW_COST': ['PRODUCT_VIEW'],
+    
+    // Stock dependencies
+    'STOCK_ADJUST': ['PRODUCT_VIEW'],
+    'STOCK_VIEW_HISTORY': ['PRODUCT_VIEW'],
+
+    // Purchase dependencies
+    'PURCHASE_CREATE': ['PURCHASE_VIEW', 'PRODUCT_VIEW'],
+    'PURCHASE_CANCEL': ['PURCHASE_VIEW'],
+
+    // Customer dependencies
+    'CUSTOMER_CREATE': ['CUSTOMER_VIEW'],
+    'CUSTOMER_EDIT': ['CUSTOMER_VIEW'],
+    'CUSTOMER_DELETE': ['CUSTOMER_VIEW'],
+
+    // Expense dependencies
+    'EXPENSE_CREATE': ['EXPENSE_VIEW'],
+    'EXPENSE_EDIT': ['EXPENSE_VIEW'],
+    'EXPENSE_DELETE': ['EXPENSE_VIEW'],
+
+    // Report dependencies
+    'REPORT_EXPORT': ['REPORT_VIEW_SALES'], // Assumes export needs view
+    
+    // Team dependencies
+    'TEAM_INVITE': ['TEAM_VIEW'],
+    'TEAM_EDIT': ['TEAM_VIEW'],
+    'TEAM_REMOVE': ['TEAM_VIEW'],
+  };
+
   const handlePermissionChange = (permission: string, checked: boolean) => {
     setPermissions(prev => {
+      let newPermissions = [...prev];
+
       if (checked) {
-        return [...prev, permission];
+        // If checking a permission, also check its dependencies
+        if (!newPermissions.includes(permission)) {
+          newPermissions.push(permission);
+        }
+        
+        const dependencies = PERMISSION_DEPENDENCIES[permission] || [];
+        dependencies.forEach(dep => {
+          if (!newPermissions.includes(dep)) {
+            newPermissions.push(dep);
+          }
+        });
       } else {
-        return prev.filter(p => p !== permission);
+        // If unchecking a permission
+        newPermissions = newPermissions.filter(p => p !== permission);
+        
+        // Also uncheck any permissions that DEPEND ON this one
+        // (e.g. if unchecking PRODUCT_VIEW, must uncheck SALE_CREATE because SALE_CREATE needs PRODUCT_VIEW)
+        Object.entries(PERMISSION_DEPENDENCIES).forEach(([key, deps]) => {
+          if (deps.includes(permission)) {
+            newPermissions = newPermissions.filter(p => p !== key);
+          }
+        });
       }
+      
+      return newPermissions;
     });
   };
 
   const handleGroupToggle = (groupPerms: readonly { key: string }[], checked: boolean) => {
-    const groupKeys = groupPerms.map(p => p.key);
-    setPermissions(prev => {
-      const others = prev.filter(p => !groupKeys.includes(p));
-      return checked ? [...others, ...groupKeys] : others;
+    // When toggling a group, we just map through them and apply the logic sequentially
+    // This is safer than bulk set because it triggers the dependency logic for each one
+    let currentPermissions = [...permissions];
+    
+    groupPerms.forEach(perm => {
+        // We simulate the logic of handlePermissionChange for each item
+        const permission = perm.key;
+        
+        if (checked) {
+            if (!currentPermissions.includes(permission)) {
+                currentPermissions.push(permission);
+            }
+            const dependencies = PERMISSION_DEPENDENCIES[permission] || [];
+            dependencies.forEach(dep => {
+                if (!currentPermissions.includes(dep)) {
+                    currentPermissions.push(dep);
+                }
+            });
+        } else {
+            currentPermissions = currentPermissions.filter(p => p !== permission);
+            Object.entries(PERMISSION_DEPENDENCIES).forEach(([key, deps]) => {
+                if (deps.includes(permission)) {
+                    currentPermissions = currentPermissions.filter(p => p !== key);
+                }
+            });
+        }
     });
+    
+    setPermissions(currentPermissions);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

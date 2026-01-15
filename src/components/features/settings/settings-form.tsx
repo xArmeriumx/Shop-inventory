@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Mail, Store, MapPin, Phone, FileText, Package, Wallet } from 'lucide-react';
+import { Mail, Store, MapPin, Phone, FileText, Package, Wallet, Users, Shield } from 'lucide-react';
 import { CategoryManager } from '@/components/features/lookups/category-manager';
 import { usePermissions } from '@/hooks/use-permissions';
 
@@ -57,13 +57,23 @@ export function SettingsForm({ initialData, shopData, productCategories, expense
 
   return (
     <Tabs defaultValue="profile" className="space-y-6">
-      <TabsList>
+      <TabsList className="mb-4 flex-wrap h-auto gap-2">
         <TabsTrigger value="profile">ผู้ใช้</TabsTrigger>
         {hasPermission('SETTINGS_SHOP') && (
           <TabsTrigger value="shop">ร้านค้า</TabsTrigger>
         )}
         {hasPermission('SETTINGS_LOOKUPS') && (
           <TabsTrigger value="categories">หมวดหมู่</TabsTrigger>
+        )}
+        {hasPermission('TEAM_VIEW') && (
+             <a href="/settings/team" className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm hover:bg-background/50 text-muted-foreground">
+                ทีมงาน
+             </a>
+        )}
+        {hasPermission('TEAM_VIEW') && (
+             <a href="/settings/roles" className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm hover:bg-background/50 text-muted-foreground">
+                จัดการ Roles
+             </a>
         )}
       </TabsList>
 

@@ -22,19 +22,26 @@ This application serves as a complete Point of Sale (POS) and inventory manageme
 
 ### 3. Point of Sale (POS)
 
-- Dedicated POS interface optimized for speed and usability.
-- Barcode scanner support (Keyboard Mode) for rapid product entry.
-- Real-time stock synchronization across multiple terminals.
-- Optimistic UI updates for immediate feedback.
+- **Dedicated POS Interface**: Full-screen mode optimized for tablets and desktop.
+- **Barcode Support**: Quick product entry via barcode scanning.
+- **Real-time Synchronization**: Stock updates instantly across all devices.
+- **Invoice Generation**: Auto-generate Tax Invoices and Receipts.
 
-### 4. Sales and Purchase Management
+### 4. Team & Role Management (RBAC)
 
-- **Audit-Ready Cancellation**: Implements a rigorous cancellation workflow instead of deletion. All cancellations require a reason and are timestamped, ensuring a complete audit trail.
+- **Granular Permissions**: Define custom roles (e.g., Manager, Stock Keeper, Cashier) with specific capability flags.
+- **Smart Permission Logic**: Auto-resolves dependencies (e.g., "Create Sale" grants "View Product" automatically).
+- **Secure Onboarding**: Invite-only system for adding staff to your shop.
+- **Real-time Enforcement**: Permission changes take effect immediately without re-login.
+
+### 5. Sales and Purchase Management
+
+- **Audit-Ready Cancellation**: Implements a rigorous cancellation workflow instead of deletion. All cancellations require a reason and are timestamped.
 - Automatic profit calculation and stock deduction.
 - Receipt upload capability via Supabase Storage.
 - Tax invoice generation.
 
-### 5. Reporting and Analytics
+### 6. Reporting and Analytics
 
 - Comprehensive financial reports (Revenue, Expense, Profit).
 - Daily breakdowns and downloadable CSV exports.

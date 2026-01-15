@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
+import { Toaster } from 'sonner';
 import { Providers } from '@/components/providers';
+import { auth } from '@/lib/auth';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -35,19 +37,24 @@ export const viewport: Viewport = {
   userScalable: false,
 };
 
-export default function RootLayout({
+import { AnnouncementPopup } from '@/components/features/announcements/announcement-popup';
+
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const session = await auth();
+
   return (
-    <html lang="th" suppressHydrationWarning>
-      <body className={`${inter.variable} font-sans`}>
-        <Providers>
+    <html lang="en">
+      <body className={inter.className}>
+        <Providers session={session}>
           {children}
+          <Toaster richColors closeButton position="top-center" />
+          <AnnouncementPopup />
         </Providers>
       </body>
     </html>
   );
 }
-

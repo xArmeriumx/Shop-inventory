@@ -16,6 +16,12 @@ export interface SessionContext {
 /**
  * Get current user session, redirect to login if not authenticated
  */
+import { db } from '@/lib/db';
+
+/**
+ * Get current user session, redirect to login if not authenticated
+ * Enhanced for Real-time RBAC: Fetches fresh permissions from DB
+ */
 export async function requireAuth(): Promise<SessionContext> {
   const session = await auth();
 
@@ -23,12 +29,22 @@ export async function requireAuth(): Promise<SessionContext> {
     redirect('/login');
   }
 
+  // Real-time Permission Check: Fetch fresh data from DB
+  // This ensures that role changes (e.g., promoted/demoted) are reflected INSTANTLY
+  // without requiring the user to sign out/sign in.
+  const membership = await db.shopMember.findFirst({
+    where: { userId: session.user.id },
+    include: {
+      role: { select: { permissions: true } }
+    }
+  });
+
   return {
     userId: session.user.id,
-    shopId: session.user.shopId,
-    roleId: session.user.roleId,
-    permissions: session.user.permissions ?? [],
-    isOwner: session.user.isOwner ?? false,
+    shopId: membership?.shopId ?? session.user.shopId,
+    roleId: membership?.roleId ?? session.user.roleId,
+    permissions: membership?.role?.permissions ?? session.user.permissions ?? [],
+    isOwner: membership?.isOwner ?? session.user.isOwner ?? false,
   };
 }
 
@@ -48,19 +64,16 @@ export async function getCurrentUserId(): Promise<string> {
 
 /**
  * Require a specific permission, throw if not authorized
- * Note: If user has stale session without RBAC data, owners will still pass
  */
 export async function requirePermission(permission: Permission): Promise<SessionContext> {
   const ctx = await requireAuth();
   
-  // If no shopId in session but user is authenticated, they need to re-login
-  // For now, be lenient and check if they're the shop owner via DB
   if (!ctx.shopId) {
-    throw new Error('กรุณาออกจากระบบแล้วเข้าสู่ระบบใหม่');
+    // If fully missing shopId (not even in DB), then redirect
+    redirect('/onboarding');
   }
   
   if (!hasPermission(ctx, permission)) {
-    // throw new Error(`Permission denied: ${permission}`);
     redirect('/dashboard');
   }
   
