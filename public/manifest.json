@@ -1,0 +1,16 @@
+{
+  "name": "Shop Inventory System",
+  "short_name": "ShopInv",
+  "description": "ระบบบริหารสต็อกและการขาย",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#09090b",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
