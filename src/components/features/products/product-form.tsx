@@ -55,8 +55,12 @@ export function ProductForm({ product, categories }: ProductFormProps) {
         ? await updateProduct(product.id, data)
         : await createProduct(data as any);
 
-      if (result.error) {
-        setErrors(result.error as Record<string, string[]>);
+      if (!result.success) {
+        if (result.errors) {
+          setErrors(result.errors as Record<string, string[]>);
+        } else if (result.message) {
+          setErrors({ _form: [result.message] });
+        }
       } else {
         router.push('/products');
         router.refresh();

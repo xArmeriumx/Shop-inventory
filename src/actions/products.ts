@@ -6,6 +6,7 @@ import { getCurrentUserId } from '@/lib/auth-guard';
 import { paginatedQuery, buildSearchFilter } from '@/lib/pagination';
 import { productSchema, type ProductInput, type ProductUpdateInput } from '@/schemas/product';
 import { Product } from '@prisma/client';
+import { ActionResponse } from '@/types/action-response';
 import { StockService } from '@/lib/stock-service';
 
 interface GetProductsParams {
@@ -81,13 +82,17 @@ export async function getProduct(id: string) {
   return product;
 }
 
-export async function createProduct(input: ProductInput) {
+export async function createProduct(input: ProductInput): Promise<ActionResponse<Product>> {
   const userId = await getCurrentUserId();
 
   // Validate input
   const validated = productSchema.safeParse(input);
   if (!validated.success) {
-    return { error: validated.error.flatten().fieldErrors };
+    return {
+      success: false,
+      message: 'ข้อมูลสินค้าไม่ถูกต้อง',
+      errors: validated.error.flatten().fieldErrors
+    };
   }
 
   // Check duplicate SKU
@@ -96,7 +101,11 @@ export async function createProduct(input: ProductInput) {
       where: { sku: validated.data.sku },
     });
     if (existing) {
-      return { error: { sku: ['SKU นี้มีอยู่แล้ว'] } };
+      return {
+        success: false,
+        message: 'รหัสสินค้า (SKU) นี้มีอยู่แล้ว',
+        errors: { sku: ['SKU นี้มีอยู่แล้ว'] }
+      };
     }
   }
 
@@ -111,20 +120,31 @@ export async function createProduct(input: ProductInput) {
     });
 
     revalidatePath('/products');
-    return { data: product };
-  } catch (error) {
+    return {
+      success: true,
+      message: 'สร้างสินค้าสำเร็จ',
+      data: product
+    };
+  } catch (error: any) {
     console.error('Create product error:', error);
-    return { error: { _form: ['เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง'] } };
+    return {
+      success: false,
+      message: error.message || 'เกิดข้อผิดพลาดในการสร้างสินค้า'
+    };
   }
 }
 
-export async function updateProduct(id: string, input: ProductUpdateInput) {
+export async function updateProduct(id: string, input: ProductUpdateInput): Promise<ActionResponse<Product>> {
   const userId = await getCurrentUserId();
 
   // Validate input
   const validated = productSchema.partial().safeParse(input);
   if (!validated.success) {
-    return { error: validated.error.flatten().fieldErrors };
+    return {
+      success: false,
+      message: 'ข้อมูลสินค้าไม่ถูกต้อง',
+      errors: validated.error.flatten().fieldErrors
+    };
   }
 
   // Check ownership
@@ -133,7 +153,10 @@ export async function updateProduct(id: string, input: ProductUpdateInput) {
   });
 
   if (!existing) {
-    return { error: { _form: ['ไม่พบสินค้า'] } };
+    return {
+      success: false,
+      message: 'ไม่พบสินค้า'
+    };
   }
 
   // Check duplicate SKU (if changed)
@@ -142,7 +165,11 @@ export async function updateProduct(id: string, input: ProductUpdateInput) {
       where: { sku: validated.data.sku, id: { not: id } },
     });
     if (duplicate) {
-      return { error: { sku: ['SKU นี้มีอยู่แล้ว'] } };
+      return {
+        success: false,
+        message: 'รหัสสินค้า (SKU) นี้มีอยู่แล้ว',
+        errors: { sku: ['SKU นี้มีอยู่แล้ว'] }
+      };
     }
   }
 
@@ -178,14 +205,22 @@ export async function updateProduct(id: string, input: ProductUpdateInput) {
 
     revalidatePath('/products');
     revalidatePath(`/products/${id}`);
-    return { data: product };
-  } catch (error) {
+    
+    return {
+      success: true,
+      message: 'อัปเดตสินค้าสำเร็จ',
+      data: product
+    };
+  } catch (error: any) {
     console.error('Update product error:', error);
-    return { error: { _form: ['เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง'] } };
+    return {
+      success: false,
+      message: error.message || 'เกิดข้อผิดพลาดในการอัปเดตสินค้า'
+    };
   }
 }
 
-export async function deleteProduct(id: string) {
+export async function deleteProduct(id: string): Promise<ActionResponse> {
   const userId = await getCurrentUserId();
 
   // Check ownership
@@ -194,7 +229,10 @@ export async function deleteProduct(id: string) {
   });
 
   if (!existing) {
-    return { error: 'ไม่พบสินค้า' };
+    return {
+      success: false,
+      message: 'ไม่พบสินค้า'
+    };
   }
 
   try {
@@ -205,10 +243,16 @@ export async function deleteProduct(id: string) {
     });
 
     revalidatePath('/products');
-    return { success: true };
-  } catch (error) {
+    return {
+      success: true,
+      message: 'ลบสินค้าสำเร็จ'
+    };
+  } catch (error: any) {
     console.error('Delete product error:', error);
-    return { error: 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง' };
+    return {
+      success: false,
+      message: error.message || 'เกิดข้อผิดพลาดในการลบสินค้า'
+    };
   }
 }
 
@@ -260,7 +304,7 @@ interface AdjustStockInput {
   note: string;
 }
 
-export async function adjustStock(productId: string, input: AdjustStockInput) {
+export async function adjustStock(productId: string, input: AdjustStockInput): Promise<ActionResponse> {
   const userId = await getCurrentUserId();
 
   try {
@@ -303,9 +347,15 @@ export async function adjustStock(productId: string, input: AdjustStockInput) {
     });
 
     revalidatePath(`/products/${productId}`);
-    return { success: true };
+    return {
+      success: true,
+      message: 'ปรับปรุงสต็อกสำเร็จ'
+    };
   } catch (error: any) {
     console.error('Adjust stock error:', error);
-    return { error: error.message || 'เกิดข้อผิดพลาด' };
+    return {
+      success: false,
+      message: error.message || 'เกิดข้อผิดพลาดในการปรับปรุงสต็อก'
+    };
   }
 }

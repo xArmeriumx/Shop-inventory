@@ -58,10 +58,11 @@ export function ProductsTable({ products, pagination }: ProductsTableProps) {
     setDeletingId(id);
     try {
       const result = await deleteProduct(id);
-      if (result.error) {
-        alert(result.error);
+      if (!result.success) {
+        alert(result.message);
+      } else {
+        router.refresh();
       }
-      router.refresh();
     } catch {
       alert('เกิดข้อผิดพลาด');
     } finally {

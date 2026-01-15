@@ -72,8 +72,8 @@ export function StockAdjustmentDialog({ productId, currentStock }: StockAdjustme
         note: reason,
       });
 
-      if (result.error) {
-        setError(result.error);
+      if (!result.success) {
+        setError(result.message || 'เกิดข้อผิดพลาด');
       } else {
         setOpen(false);
         router.refresh();
