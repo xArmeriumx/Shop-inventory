@@ -9,8 +9,8 @@ import { POSProductGrid } from './pos-product-grid';
 import { POSCartPanel } from './pos-cart';
 import { POSPaymentDialog } from './pos-payment-dialog';
 import { POSSuccessDialog } from './pos-success-dialog';
-import { createPOSSale, getProductBySKU, getProductsForPOS } from '@/lib/pos/pos-service';
-import type { POSProduct, POSCategory, POSCart, POSCartItem } from '@/lib/pos/types';
+import { createPOSSale, getProductBySKU, getProductsForPOS, getPOSCustomers } from '@/lib/pos/pos-service';
+import type { POSProduct, POSCategory, POSCart, POSCartItem, POSCustomer } from '@/lib/pos/types';
 
 interface POSInterfaceProps {
   initialProducts: POSProduct[];
@@ -36,6 +36,8 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
 
   // State
   const [products, setProducts] = useState<POSProduct[]>(initialProducts);
+  const [customers, setCustomers] = useState<POSCustomer[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<POSCustomer | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [scanInput, setScanInput] = useState('');
@@ -77,7 +79,21 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
     }, 3000); // 3 seconds - fast enough for real-time feel
 
     return () => clearInterval(refreshInterval);
+    return () => clearInterval(refreshInterval);
   }, [isPaymentOpen, isProcessing]);
+
+  // Fetch customers on mount
+  useEffect(() => {
+    const fetchCustomers = async () => {
+      try {
+        const data = await getPOSCustomers();
+        setCustomers(data);
+      } catch (error) {
+        console.error('Failed to fetch customers:', error);
+      }
+    };
+    fetchCustomers();
+  }, []);
 
   // ==================== Cart Operations ====================
 
@@ -215,6 +231,8 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
 
     try {
       const result = await createPOSSale({
+        customerId: selectedCustomer?.id.startsWith('temp-') ? undefined : selectedCustomer?.id,
+        customerName: selectedCustomer ? selectedCustomer.name : undefined,
         paymentMethod,
         items: cart.items.map((item) => ({
           productId: item.productId,
@@ -292,6 +310,9 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
             <div className="flex-1">
               <POSCartPanel
                 cart={cart}
+                customers={customers}
+                selectedCustomer={selectedCustomer}
+                onSelectCustomer={setSelectedCustomer}
                 onUpdateQuantity={updateQuantity}
                 onRemoveItem={removeItem}
                 onClearCart={clearCart}

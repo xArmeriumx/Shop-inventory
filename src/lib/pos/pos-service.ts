@@ -22,10 +22,40 @@ import type {
   POSProduct, 
   POSCategory, 
   POSCreateSaleInput, 
-  POSCreateSaleResult 
+  POSCreateSaleResult,
+  POSCustomer
 } from './types';
 
-// ==================== Product Operations ====================
+// ==================== Customer Operations ====================
+
+/**
+ * Get all active customers for POS selection
+ * Optimized query: only fetches id, name, phone
+ */
+export async function getPOSCustomers(): Promise<POSCustomer[]> {
+  const userId = await getCurrentUserId();
+
+  const customers = await db.customer.findMany({
+    where: {
+      userId,
+      deletedAt: null,
+    },
+    select: {
+      id: true,
+      name: true,
+      phone: true,
+    },
+    orderBy: {
+      name: 'asc',
+    },
+  });
+
+  return customers.map(c => ({
+    id: c.id,
+    name: c.name,
+    phone: c.phone,
+  }));
+}
 
 /**
  * Get all active products for POS display

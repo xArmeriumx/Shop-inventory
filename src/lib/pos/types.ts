@@ -16,6 +16,12 @@ export interface POSProduct {
   image: string | null;
 }
 
+export interface POSCustomer {
+  id: string;
+  name: string;
+  phone: string | null;
+}
+
 // ==================== Cart Types ====================
 
 export interface POSCartItem {
