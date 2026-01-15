@@ -46,8 +46,13 @@ export function CustomerForm({ customer }: CustomerFormProps) {
         ? await updateCustomer(customer.id, data)
         : await createCustomer(data);
 
-      if (result.error) {
-        setErrors(result.error as Record<string, string[]>);
+      if (!result.success) {
+        // Handle validation errors or string error
+        if (typeof result.errors === 'object') {
+          setErrors(result.errors as Record<string, string[]>);
+        } else if (result.message) {
+           setErrors({ _form: [result.message] });
+        }
       } else {
         router.push('/customers');
         router.refresh();

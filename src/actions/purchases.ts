@@ -5,7 +5,9 @@ import { db } from '@/lib/db';
 import { getCurrentUserId } from '@/lib/auth-guard';
 import { paginatedQuery, buildSearchFilter, buildDateRangeFilter } from '@/lib/pagination';
 import { purchaseSchema, type PurchaseInput } from '@/schemas/purchase';
+import type { Purchase } from '@prisma/client';
 import { StockService } from '@/lib/stock-service';
+import type { ActionResponse } from '@/types/action-response';
 
 interface GetPurchasesParams {
   page?: number;
@@ -80,15 +82,30 @@ export async function getPurchase(id: string) {
   return purchase;
 }
 
-export async function createPurchase(input: PurchaseInput) {
+// ... imports
+// ... imports
+
+// ... interfaces
+
+export async function createPurchase(input: PurchaseInput): Promise<ActionResponse<Purchase>> {
   const userId = await getCurrentUserId();
 
   const validated = purchaseSchema.safeParse(input);
   if (!validated.success) {
-    return { error: validated.error.flatten().fieldErrors };
+    return {
+      success: false,
+      errors: validated.error.flatten().fieldErrors,
+      message: 'ข้อมูลการสั่งซื้อไม่ถูกต้อง',
+    };
   }
 
   const { items, ...purchaseData } = validated.data;
+  if (items.length === 0) {
+    return {
+      success: false,
+      message: 'ต้องมีสินค้าอย่างน้อย 1 รายการ',
+    };
+  }
 
   try {
     const purchase = await db.$transaction(async (tx: any) => {
@@ -101,6 +118,7 @@ export async function createPurchase(input: PurchaseInput) {
       // Create purchase
       const newPurchase = await tx.purchase.create({
         data: {
+          ...purchaseData,
           date: purchaseData.date ? new Date(purchaseData.date) : new Date(),
           userId,
           supplierId: purchaseData.supplierId || null,
@@ -152,10 +170,18 @@ export async function createPurchase(input: PurchaseInput) {
     revalidatePath('/purchases');
     revalidatePath('/products');
     revalidatePath('/dashboard');
-    return { data: purchase };
+    
+    return {
+      success: true,
+      message: 'บันทึกการสั่งซื้อสำเร็จ',
+      data: purchase,
+    };
   } catch (error: any) {
     console.error('Create purchase error:', error);
-    return { error: { _form: [error.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง'] } };
+    return {
+      success: false,
+      message: error.message || 'เกิดข้อผิดพลาดในการบันทึกการสั่งซื้อ',
+    };
   }
 }
 
@@ -173,18 +199,24 @@ interface CancelPurchaseInput {
   reasonDetail?: string;
 }
 
-export async function cancelPurchase(input: CancelPurchaseInput) {
+export async function cancelPurchase(input: CancelPurchaseInput): Promise<ActionResponse> {
   const userId = await getCurrentUserId();
   const { id, reasonCode, reasonDetail } = input;
 
   // Validate: Cancel reason is required
   if (!reasonCode) {
-    return { error: 'กรุณาเลือกเหตุผลในการยกเลิก' };
+    return {
+      success: false,
+      message: 'กรุณาเลือกเหตุผลในการยกเลิก',
+    };
   }
 
   // Validate: If 'OTHER', reasonDetail is required
   if (reasonCode === 'OTHER' && !reasonDetail?.trim()) {
-    return { error: 'กรุณากรอกรายละเอียดเหตุผล' };
+    return {
+      success: false,
+      message: 'กรุณากรอกรายละเอียดเหตุผล',
+    };
   }
 
   const cancelReason = reasonCode === 'OTHER'
@@ -253,9 +285,16 @@ export async function cancelPurchase(input: CancelPurchaseInput) {
     revalidatePath('/purchases');
     revalidatePath('/products');
     revalidatePath('/dashboard');
-    return { success: true };
+    
+    return {
+      success: true,
+      message: 'ยกเลิกรายการซื้อสำเร็จ',
+    };
   } catch (error: any) {
     console.error('Cancel purchase error:', error);
-    return { error: error.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง' };
+    return {
+      success: false,
+      message: error.message || 'เกิดข้อผิดพลาดในการยกเลิกรายการ',
+    };
   }
 }

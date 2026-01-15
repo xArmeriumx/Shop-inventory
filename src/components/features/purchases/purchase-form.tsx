@@ -114,8 +114,12 @@ export function PurchaseForm() {
     startTransition(async () => {
       const result = await createPurchase(data);
 
-      if (result.error) {
-        setErrors(result.error as Record<string, string[]>);
+      if (!result.success) {
+        if (typeof result.errors === 'object') {
+          setErrors(result.errors as Record<string, string[]>);
+        } else if (result.message) {
+           setErrors({ _form: [result.message] });
+        }
       } else {
         router.push('/purchases');
         router.refresh();

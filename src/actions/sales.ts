@@ -7,6 +7,7 @@ import { paginatedQuery, buildSearchFilter, buildDateRangeFilter } from '@/lib/p
 import { saleSchema, type SaleInput } from '@/schemas/sale';
 import type { Sale, SaleItem } from '@prisma/client';
 import { StockService } from '@/lib/stock-service';
+import type { ActionResponse } from '@/types/action-response';
 
 interface GetSalesParams {
   page?: number;
@@ -93,25 +94,36 @@ export async function getSale(id: string) {
   return sale;
 }
 
-export async function createSale(input: SaleInput) {
+export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>> {
   const userId = await getCurrentUserId();
 
   // Validate input
   const validated = saleSchema.safeParse(input);
   if (!validated.success) {
-    return { error: validated.error.flatten().fieldErrors };
+    return {
+      success: false,
+      errors: validated.error.flatten().fieldErrors,
+      message: 'ข้อมูลการขายไม่ถูกต้อง',
+    };
   }
 
   const { items, ...saleData } = validated.data;
 
+  // Validate items
+  if (items.length === 0) {
+    return {
+      success: false,
+      message: 'ต้องมีสินค้าอย่างน้อย 1 รายการ',
+    };
+  }
+
   try {
-    // Start transaction
-    const sale = await db.$transaction(async (tx) => {
-      // Check stock availability
+    const result = await db.$transaction(async (tx) => {
+      // 1. Check stock for all items
       for (const item of items) {
         const product = await tx.product.findUnique({
           where: { id: item.productId },
-          select: { stock: true, costPrice: true, name: true },
+          select: { stock: true, name: true },
         });
 
         if (!product) {
@@ -123,7 +135,7 @@ export async function createSale(input: SaleInput) {
         }
       }
 
-      // Generate invoice number
+      // 2. Generate invoice number
       const lastSale = await tx.sale.findFirst({
         where: { userId },
         orderBy: { createdAt: 'desc' },
@@ -135,117 +147,115 @@ export async function createSale(input: SaleInput) {
         : 0;
       const invoiceNumber = `INV-${String(lastNumber + 1).padStart(5, '0')}`;
 
-      // Calculate totals
+      // 3. Calculate totals & Prepare items
       let totalAmount = 0;
       let totalCost = 0;
+      
+      const saleItemsToCreate = [];
 
-      const calculatedItems = await Promise.all(
-        items.map(async (item) => {
+      for (const item of items) {
           const product = await tx.product.findUnique({
             where: { id: item.productId },
             select: { costPrice: true },
           });
 
-          const costPrice = product!.costPrice;
+          const costPrice = Number(product?.costPrice || 0);
           const subtotal = item.salePrice * item.quantity;
-          const itemCost = Number(costPrice) * item.quantity;
+          const itemCost = costPrice * item.quantity;
           const profit = subtotal - itemCost;
 
           totalAmount += subtotal;
           totalCost += itemCost;
-
-          return {
-            ...item,
-            costPrice,
-            subtotal,
-            profit,
-          };
-        })
-      );
-
+          
+          saleItemsToCreate.push({
+              productId: item.productId,
+              quantity: item.quantity,
+              salePrice: item.salePrice,
+              costPrice: costPrice,
+              subtotal: subtotal,
+              profit: profit
+          });
+      }
+      
       const profit = totalAmount - totalCost;
 
-      // Handle customer: create if new name provided
+      // 4. Handle Customer
       let finalCustomerId = saleData.customerId;
       if (!finalCustomerId && saleData.customerName) {
-        // Check if customer with this name already exists
-        const existingCustomer = await tx.customer.findFirst({
-          where: {
-            userId,
-            name: saleData.customerName,
-            deletedAt: null,
-          },
-        });
-
-        if (existingCustomer) {
-          finalCustomerId = existingCustomer.id;
-        } else {
-          // Create new customer
-          const newCustomer = await tx.customer.create({
-            data: {
-              userId,
-              name: saleData.customerName,
-              address: saleData.customerAddress || null,
-            },
-          });
-          finalCustomerId = newCustomer.id;
-        }
+         const existing = await tx.customer.findFirst({
+            where: { userId, name: saleData.customerName, deletedAt: null }
+         });
+         
+         if (existing) {
+            finalCustomerId = existing.id;
+         } else {
+            const newC = await tx.customer.create({
+               data: {
+                  userId,
+                  name: saleData.customerName,
+                  address: saleData.customerAddress || null
+               }
+            });
+            finalCustomerId = newC.id;
+         }
       }
 
-      // Create sale
-      const newSale = await tx.sale.create({
+      // 5. Create Sale
+      const sale = await tx.sale.create({
         data: {
-          date: saleData.date ? new Date(saleData.date) : new Date(),
-          invoiceNumber,
-          userId,
+          ...saleData,
           customerId: finalCustomerId || null,
-          customerName: saleData.customerName || null,
-          paymentMethod: saleData.paymentMethod,
-          notes: saleData.notes || null,
-          receiptUrl: saleData.receiptUrl || null,
+          customerName: saleData.customerName || 'ลูกค้าทั่วไป',
+          userId,
+          invoiceNumber,
           totalAmount,
           totalCost,
           profit,
           items: {
-            create: calculatedItems.map((item) => ({
-              productId: item.productId,
-              quantity: item.quantity,
-              salePrice: item.salePrice,
-              costPrice: item.costPrice,
-              subtotal: item.subtotal,
-              profit: item.profit,
-            })),
+            create: saleItemsToCreate.map(item => ({
+                productId: item.productId,
+                quantity: item.quantity,
+                salePrice: item.salePrice,
+                costPrice: item.costPrice,
+                subtotal: item.subtotal,
+                profit: item.profit
+            }))
           },
         },
-        include: {
-          items: true,
-        },
+        include: { items: true },
       });
 
-      // Update stock using StockService
-      for (const item of calculatedItems) {
+      // 6. Record Stock Movements
+      for (const item of sale.items) {
         await StockService.recordMovement({
-          productId: item.productId,
-          type: 'SALE',
-          quantity: -item.quantity, // Sale reduces stock
-          userId,
-          referenceId: newSale.id,
-          referenceType: 'SALE',
-          note: `ขายสินค้า INV: ${newSale.invoiceNumber}`,
-          date: newSale.date,
-          tx,
-        });
+            productId: item.productId,
+            type: 'SALE',
+            quantity: item.quantity,
+            referenceId: sale.id,
+            referenceType: 'SALE',
+            note: `ขาย: ${sale.invoiceNumber}`,
+            date: sale.date,
+            tx,
+            userId,
+          });
       }
 
-      return newSale;
+      return sale;
     });
 
     revalidatePath('/sales');
     revalidatePath('/dashboard');
-    return { data: sale };
+    return {
+      success: true,
+      message: 'บันทึกการขายสำเร็จ',
+      data: result,
+    };
   } catch (error: any) {
     console.error('Create sale error:', error);
-    return { error: { _form: [error.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง'] } };
+    return {
+      success: false,
+      message: error.message || 'เกิดข้อผิดพลาดในการบันทึกการขาย',
+    };
   }
 }
 

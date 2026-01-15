@@ -170,6 +170,9 @@ export async function getCategories(): Promise<POSCategory[]> {
  * Create a new sale from POS
  * Wraps the existing createSale action
  */
+// ... imports
+
+// Update existing createPOSSale to handle new ActionResponse structure
 export async function createPOSSale(input: POSCreateSaleInput): Promise<POSCreateSaleResult> {
   try {
     const result = await createSaleAction({
@@ -180,18 +183,21 @@ export async function createPOSSale(input: POSCreateSaleInput): Promise<POSCreat
       items: input.items,
     });
 
-    // Check for error (result.error exists when validation fails or transaction fails)
-    if ('error' in result && result.error) {
-      // Handle field errors object or string
-      let errorMessage = 'เกิดข้อผิดพลาดในการบันทึกการขาย';
+    // Cast response to expected type to satisfy TS
+    const actionResult = result as unknown as { success: boolean, message?: string, errors?: any, data?: any };
+
+    if (!actionResult.success) {
+      let errorMessage = actionResult.message || 'เกิดข้อผิดพลาดในการบันทึกการขาย';
       
-      if (typeof result.error === 'object') {
-        // Field errors from Zod validation
-        const fieldErrors = result.error as Record<string, string[]>;
-        const firstError = Object.values(fieldErrors).flat()[0];
-        if (firstError) {
-          errorMessage = firstError;
+      // Type guard for errors object
+      if (actionResult.errors && typeof actionResult.errors === 'object') {
+        const fieldErrors = actionResult.errors as Record<string, string[]>;
+        const firstErrorKey = Object.keys(fieldErrors)[0];
+        if (firstErrorKey && fieldErrors[firstErrorKey]) {
+           errorMessage = fieldErrors[firstErrorKey][0];
         }
+      } else if (typeof actionResult.errors === 'string') {
+        errorMessage = actionResult.errors;
       }
       
       return {
@@ -201,15 +207,14 @@ export async function createPOSSale(input: POSCreateSaleInput): Promise<POSCreat
     }
 
     // Success case
-    if ('data' in result && result.data) {
+    if (actionResult.data) {
       return {
         success: true,
-        saleId: result.data.id,
-        invoiceNumber: result.data.invoiceNumber,
+        saleId: actionResult.data.id,
+        invoiceNumber: actionResult.data.invoiceNumber,
       };
     }
 
-    // Fallback error
     return {
       success: false,
       error: 'เกิดข้อผิดพลาดที่ไม่คาดคิด',

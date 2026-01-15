@@ -57,8 +57,8 @@ export function CustomersTable({ customers, pagination }: CustomersTableProps) {
     setDeletingId(id);
     try {
       const result = await deleteCustomer(id);
-      if (result.error) {
-        alert(result.error);
+      if (!result.success) {
+        alert(result.message);
       }
       router.refresh();
     } catch {

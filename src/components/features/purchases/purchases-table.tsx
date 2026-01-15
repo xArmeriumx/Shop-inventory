@@ -67,8 +67,8 @@ export function PurchasesTable({ purchases, pagination }: PurchasesTableProps) {
         reasonCode,
         reasonDetail,
       });
-      if (result.error) {
-        alert(result.error);
+      if (!result.success) {
+        alert(result.message);
       } else {
         setCancelDialogPurchase(null);
       }
