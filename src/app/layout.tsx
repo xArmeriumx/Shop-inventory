@@ -35,6 +35,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  viewportFit: 'cover', // Required for safe-area-inset-* on iPhone X+
 };
 
 import { AnnouncementPopup } from '@/components/features/announcements/announcement-popup';

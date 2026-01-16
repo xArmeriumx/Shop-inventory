@@ -15,16 +15,16 @@ import { Megaphone, Users, Shield, ShoppingCart, CheckCircle2 } from 'lucide-rea
 
 // Configuration for the latest announcement
 const CURRENT_ANNOUNCEMENT = {
-  id: 'update-v2.2-mobile-responsive',
+  id: 'update-v2.2-combined',
   version: 'v2.2.0',
   date: '16 มกราคม 2569',
-  title: 'อัปเดตระบบ v2.2 - Mobile Responsive UX',
-  description: 'ปรับปรุงหน้าจอให้รองรับการใช้งานบนมือถือและแท็บเล็ตได้ดียิ่งขึ้น',
+  title: 'อัปเดตระบบ v2.2 - Mobile UX & Performance',
+  description: 'ปรับปรุงหน้าจอรองรับมือถือ พร้อมเพิ่มประสิทธิภาพระบบจัดการสิทธิ์',
   features: [
     {
       icon: ShoppingCart,
       title: 'POS รองรับมือถือ',
-      description: 'ตะกร้าเลื่อนขึ้นจากด้านล่าง, ปุ่มลอยแสดงยอดรวม, สินค้ากดง่ายขึ้น',
+      description: 'ตะกร้าเลื่อนขึ้นจากด้านล่าง, ปุ่มลอยแสดงยอดรวม, รองรับบาร์โค้ด',
     },
     {
       icon: Megaphone,
@@ -32,14 +32,19 @@ const CURRENT_ANNOUNCEMENT = {
       description: 'เมนูด้านล่างสำหรับเข้าถึง Dashboard, สินค้า, POS, รายงาน ได้รวดเร็ว',
     },
     {
+      icon: Shield,
+      title: 'สิทธิ์อัปเดตแบบ Real-time',
+      description: 'เปลี่ยนบทบาทพนักงานแล้วมีผลทันที ไม่ต้องออกจากระบบใหม่',
+    },
+    {
       icon: Users,
-      title: 'Dashboard 2x2 Cards',
-      description: 'แสดงสถิติ 4 ช่องแบบ 2x2 บนมือถือ ดูง่ายในหน้าจอเล็ก',
+      title: 'ประหยัดทรัพยากร',
+      description: 'ลดการใช้เซิร์ฟเวอร์, หยุดอัตโนมัติเมื่อปิดหน้าจอ',
     },
     {
       icon: CheckCircle2,
-      title: 'ตารางสินค้า Responsive',
-      description: 'ซ่อนคอลัมน์ไม่จำเป็นบนมือถือ, แสดง Badge หมวดหมู่แบบ inline',
+      title: 'Dashboard & Table Responsive',
+      description: 'แสดงสถิติ 2x2 บนมือถือ, ตารางซ่อนคอลัมน์ไม่จำเป็น',
     },
   ],
 };
