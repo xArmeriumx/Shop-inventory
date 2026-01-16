@@ -126,7 +126,6 @@ export async function createPurchase(input: PurchaseInput): Promise<ActionRespon
           userId: ctx.userId,
           shopId: ctx.shopId,  // RBAC: Set shopId for new purchase
           supplierId: purchaseData.supplierId || null,
-          supplierName: purchaseData.supplierName || null,
           notes: purchaseData.notes || null,
           totalCost: totalCost,
           receiptUrl: purchaseData.receiptUrl || null,

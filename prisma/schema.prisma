@@ -162,6 +162,12 @@ enum Permission {
   CUSTOMER_EDIT
   CUSTOMER_DELETE
 
+  // Suppliers
+  SUPPLIER_VIEW
+  SUPPLIER_CREATE
+  SUPPLIER_EDIT
+  SUPPLIER_DELETE
+
   // Expenses
   EXPENSE_VIEW
   EXPENSE_CREATE
@@ -283,11 +289,20 @@ model Product {
 
 
 model Supplier {
-  id        String   @id @default(cuid())
-  name      String
-  phone     String?
-  address   String?
-  notes     String?
+  id          String   @id @default(cuid())
+  name        String   @db.VarChar(200)
+  code        String?  @db.VarChar(50)  // รหัสผู้จำหน่าย
+  
+  // Contact Info
+  contactName String?  @db.VarChar(100) // ชื่อผู้ติดต่อ
+  phone       String?  @db.VarChar(20)
+  email       String?  @db.VarChar(100)
+  address     String?  @db.Text
+  
+  // Tax Info
+  taxId       String?  @db.VarChar(20)  // เลขผู้เสียภาษี
+  
+  notes       String?  @db.Text
 
   // Ownership
   userId    String

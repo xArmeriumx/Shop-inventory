@@ -7,6 +7,7 @@ import {
   Package,
   ShoppingCart,
   Receipt,
+  Truck,
   Wallet,
   BarChart3,
   Settings,
@@ -44,6 +45,12 @@ const navItems = [
     href: '/purchases',
     icon: Receipt,
     permission: 'PURCHASE_VIEW' as Permission,
+  },
+  {
+    title: 'ผู้จำหน่าย',
+    href: '/suppliers',
+    icon: Truck,
+    permission: 'SUPPLIER_VIEW' as Permission,
   },
   {
     title: 'ลูกค้า',

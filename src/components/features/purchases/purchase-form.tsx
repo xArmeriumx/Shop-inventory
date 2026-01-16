@@ -13,6 +13,7 @@ import { createPurchase } from '@/actions/purchases';
 import { getProductsForSelect } from '@/actions/products';
 import { formatCurrency } from '@/lib/formatters';
 import { Plus, Trash2 } from 'lucide-react';
+import { SupplierCombobox } from '@/components/features/suppliers/supplier-combobox';
 
 interface Product {
   id: string;
@@ -37,6 +38,7 @@ export function PurchaseForm() {
   const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
   const [isBackdated, setIsBackdated] = useState(false);
   const [date, setDate] = useState<string>(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
+  const [supplierId, setSupplierId] = useState<string>(''); // Supplier selection
   const [items, setItems] = useState<PurchaseItem[]>([
     { productId: '', quantity: 1, costPrice: 0 },
   ]);
@@ -99,7 +101,7 @@ export function PurchaseForm() {
 
     const formData = new FormData(e.currentTarget);
     const data = {
-      supplierName: (formData.get('supplierName') as string) || null,
+      supplierId: supplierId || null,
       paymentMethod: formData.get('paymentMethod') as any,
       notes: (formData.get('notes') as string) || null,
       receiptUrl: receiptUrl,
@@ -173,12 +175,15 @@ export function PurchaseForm() {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="supplierName">ชื่อผู้จัดจำหน่าย</Label>
-              <Input
-                id="supplierName"
-                name="supplierName"
-                placeholder="ไม่ระบุ = ไม่ทราบ"
+              <Label htmlFor="supplierId">ผู้จำหน่าย</Label>
+              <SupplierCombobox
+                value={supplierId}
+                onChange={setSupplierId}
+                error={!!errors.supplierId}
               />
+              {errors.supplierId && (
+                <p className="text-sm text-destructive">{errors.supplierId[0]}</p>
+              )}
             </div>
 
             <div className="space-y-2">

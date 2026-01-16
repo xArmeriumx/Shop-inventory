@@ -13,11 +13,6 @@ const purchaseItemSchema = z.object({
 
 export const purchaseSchema = z.object({
   supplierId: z.string().optional().nullable(),
-  supplierName: z
-    .string()
-    .max(200, 'ชื่อผู้จัดจำหน่ายต้องไม่เกิน 200 ตัวอักษร')
-    .optional()
-    .nullable(),
   paymentMethod: z.enum(['CASH', 'TRANSFER', 'CREDIT'], {
     errorMap: () => ({ message: 'กรุณาเลือกวิธีชำระเงิน' }),
   }),
