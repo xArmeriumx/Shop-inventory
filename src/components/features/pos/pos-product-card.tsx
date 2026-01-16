@@ -25,10 +25,12 @@ export function POSProductCard({ product, onAdd, disabled }: POSProductCardProps
       onClick={() => !isDisabled && onAdd(product)}
       disabled={isDisabled}
       className={cn(
-        'relative flex flex-col rounded-lg border bg-card p-3 text-left transition-all',
-        'hover:border-primary hover:shadow-md active:scale-[0.98]',
+        'relative flex flex-col rounded-lg border bg-card p-2 sm:p-3 text-left transition-all min-h-[140px]',
+        'hover:border-primary hover:shadow-md',
+        'active:scale-[0.97] active:bg-muted/50',
         'focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2',
-        isDisabled && 'opacity-50 cursor-not-allowed hover:border-border hover:shadow-none'
+        'touch-manipulation', // Prevents 300ms delay on touch
+        isDisabled && 'opacity-50 cursor-not-allowed hover:border-border hover:shadow-none active:scale-100'
       )}
     >
       {/* Product Image */}

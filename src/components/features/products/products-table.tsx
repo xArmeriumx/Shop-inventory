@@ -90,78 +90,88 @@ export function ProductsTable({ products, pagination }: ProductsTableProps) {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border bg-card overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>สินค้า</TableHead>
-              <TableHead>หมวดหมู่</TableHead>
-              {canViewCost && <TableHead className="text-right">ราคาทุน</TableHead>}
-              <TableHead className="text-right">ราคาขาย</TableHead>
-              <TableHead className="text-right">สต็อก</TableHead>
-              <TableHead className="w-[100px]"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {products.map((product) => {
-              const isLowStock = product.stock <= product.minStock;
-              return (
-                <TableRow key={product.id}>
-                  <TableCell>
-                    <div>
-                      <p className="font-medium">{product.name}</p>
-                      {product.sku && (
-                        <p className="text-xs text-muted-foreground">
-                          SKU: {product.sku}
-                        </p>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="secondary">
-                      {getCategoryLabel(product.category)}
-                    </Badge>
-                  </TableCell>
-                  {canViewCost && (
-                    <TableCell className="text-right">
-                      {formatCurrency(product.costPrice.toString())}
+      {/* Table with better mobile scroll */}
+      <div className="rounded-lg border bg-card overflow-hidden">
+        <div className="overflow-x-auto -mx-px">
+          <Table className="min-w-[600px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead>สินค้า</TableHead>
+                <TableHead className="hidden sm:table-cell">หมวดหมู่</TableHead>
+                {canViewCost && <TableHead className="text-right hidden md:table-cell">ราคาทุน</TableHead>}
+                <TableHead className="text-right">ราคาขาย</TableHead>
+                <TableHead className="text-right">สต็อก</TableHead>
+                <TableHead className="w-[80px] sm:w-[100px]"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {products.map((product) => {
+                const isLowStock = product.stock <= product.minStock;
+                return (
+                  <TableRow key={product.id} className="group">
+                    <TableCell>
+                      <div>
+                        <p className="font-medium line-clamp-1">{product.name}</p>
+                        <div className="flex flex-wrap gap-1 mt-0.5">
+                          {product.sku && (
+                            <span className="text-xs text-muted-foreground">
+                              {product.sku}
+                            </span>
+                          )}
+                          {/* Show category on mobile as badge */}
+                          <Badge variant="secondary" className="sm:hidden text-[10px] px-1.5 py-0">
+                            {getCategoryLabel(product.category)}
+                          </Badge>
+                        </div>
+                      </div>
                     </TableCell>
-                  )}
-                  <TableCell className="text-right">
-                    {formatCurrency(product.salePrice.toString())}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <span className={isLowStock ? 'text-destructive font-medium' : ''}>
-                      {product.stock}
-                    </span>
-                    {isLowStock && (
-                      <span className="ml-1 text-xs text-destructive">!</span>
+                    <TableCell className="hidden sm:table-cell">
+                      <Badge variant="secondary">
+                        {getCategoryLabel(product.category)}
+                      </Badge>
+                    </TableCell>
+                    {canViewCost && (
+                      <TableCell className="text-right hidden md:table-cell">
+                        {formatCurrency(product.costPrice.toString())}
+                      </TableCell>
                     )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-end gap-1">
-                      <Button variant="ghost" size="icon" asChild>
-                        <Link href={`/products/${product.id}`}>
-                          <Edit className="h-4 w-4" />
-                        </Link>
-                      </Button>
-                      <Guard permission="PRODUCT_DELETE">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDelete(product.id, product.name)}
-                          disabled={deletingId === product.id}
-                        >
-                          <Trash2 className="h-4 w-4" />
+                    <TableCell className="text-right font-medium">
+                      {formatCurrency(product.salePrice.toString())}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span className={isLowStock ? 'text-destructive font-medium' : ''}>
+                        {product.stock}
+                      </span>
+                      {isLowStock && (
+                        <span className="ml-1 text-xs text-destructive">!</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center justify-end gap-0.5">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                          <Link href={`/products/${product.id}`}>
+                            <Edit className="h-4 w-4" />
+                          </Link>
                         </Button>
-                      </Guard>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+                        <Guard permission="PRODUCT_DELETE">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => handleDelete(product.id, product.name)}
+                            disabled={deletingId === product.id}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </Guard>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
       </div>
 
       {/* Pagination */}

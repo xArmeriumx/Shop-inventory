@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { Sidebar } from '@/components/layout/sidebar';
 import { Header } from '@/components/layout/header';
+import { BottomNav } from '@/components/layout/bottom-nav';
 
 interface ClientLayoutProps {
   children: React.ReactNode;
@@ -40,7 +41,7 @@ export function DashboardLayoutClient({ children, user }: ClientLayoutProps) {
           />
           
           {/* Drawer */}
-          <div className="relative flex h-full w-64 flex-col bg-background shadow-xl border-r transition-transform">
+          <div className="relative flex h-full w-64 flex-col bg-background shadow-xl border-r transition-transform animate-in slide-in-from-left duration-300">
             <Sidebar />
           </div>
         </div>
@@ -56,6 +57,9 @@ export function DashboardLayoutClient({ children, user }: ClientLayoutProps) {
           {children}
         </main>
       </div>
+
+      {/* Mobile Bottom Navigation */}
+      <BottomNav onMenuClick={() => setIsMobileOpen(true)} />
     </div>
   );
 }

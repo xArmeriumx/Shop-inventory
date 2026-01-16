@@ -2,8 +2,9 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ScanBarcode, Search } from 'lucide-react';
+import { ScanBarcode, Search, ShoppingCart, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { POSHeader } from './pos-header';
 import { POSProductGrid } from './pos-product-grid';
 import { POSCartPanel } from './pos-cart';
@@ -11,6 +12,8 @@ import { POSPaymentDialog } from './pos-payment-dialog';
 import { POSSuccessDialog } from './pos-success-dialog';
 import { createPOSSale, getProductBySKU, getProductsForPOS, getPOSCustomers } from '@/lib/pos/pos-service';
 import type { POSProduct, POSCategory, POSCart, POSCartItem, POSCustomer } from '@/lib/pos/types';
+import { cn } from '@/lib/utils';
+import { formatCurrency } from '@/lib/formatters';
 
 interface POSInterfaceProps {
   initialProducts: POSProduct[];
@@ -277,6 +280,9 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
     }
   }, [cart.items, clearCart, router, selectedCustomer]);
 
+  // Mobile cart sheet state
+  const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
+
   // ==================== Render ====================
 
   return (
@@ -286,8 +292,8 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left: Cart Panel */}
-        <div className="w-[380px] shrink-0">
+        {/* Left: Cart Panel - Hidden on mobile */}
+        <div className="hidden lg:block w-[380px] shrink-0">
           <div className="h-full flex flex-col">
             {/* Barcode Scanner Input */}
             <div className="p-4 border-b bg-card">
@@ -323,24 +329,24 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
           </div>
         </div>
 
-        {/* Right: Product Grid */}
+        {/* Right: Product Grid - Full width on mobile */}
         <div className="flex-1 flex flex-col bg-muted/20">
           {/* Search Bar */}
-          <div className="shrink-0 p-4 bg-card border-b">
-            <div className="relative max-w-md">
+          <div className="shrink-0 p-3 lg:p-4 bg-card border-b">
+            <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 type="text"
                 placeholder="ค้นหาสินค้า..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
+                className="pl-9 h-11"
               />
             </div>
           </div>
 
           {/* Product Grid */}
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 overflow-hidden pb-20 lg:pb-0">
             <POSProductGrid
               products={products}
               categories={categories}
@@ -352,6 +358,79 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
           </div>
         </div>
       </div>
+
+      {/* Mobile: Floating Cart Button */}
+      {cart.itemCount > 0 && (
+        <div className="lg:hidden fixed bottom-4 left-4 right-4 z-40">
+          <Button 
+            size="lg"
+            className="w-full h-14 text-lg shadow-lg"
+            onClick={() => setIsMobileCartOpen(true)}
+          >
+            <ShoppingCart className="h-5 w-5 mr-2" />
+            <span>ตะกร้า ({cart.itemCount})</span>
+            <span className="ml-auto font-bold">
+              {formatCurrency(cart.totalAmount.toString())}
+            </span>
+          </Button>
+        </div>
+      )}
+
+      {/* Mobile: Cart Sheet (Slide-up) */}
+      {isMobileCartOpen && (
+        <div className="lg:hidden fixed inset-0 z-50">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/50" 
+            onClick={() => setIsMobileCartOpen(false)}
+          />
+          
+          {/* Sheet */}
+          <div className="absolute bottom-0 left-0 right-0 max-h-[85vh] bg-card rounded-t-2xl shadow-2xl flex flex-col animate-in slide-in-from-bottom duration-300">
+            {/* Handle + Header */}
+            <div className="shrink-0 p-4 border-b bg-muted/30 rounded-t-2xl">
+              <div className="w-12 h-1.5 bg-muted-foreground/30 rounded-full mx-auto mb-3" />
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ShoppingCart className="h-5 w-5" />
+                  <span className="font-semibold">ตะกร้าสินค้า</span>
+                  <span className="bg-primary text-primary-foreground text-xs font-medium px-2 py-0.5 rounded-full">
+                    {cart.itemCount}
+                  </span>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  onClick={() => setIsMobileCartOpen(false)}
+                >
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
+            </div>
+            
+            {/* Cart Content */}
+            <div className="flex-1 overflow-hidden">
+              <POSCartPanel
+                cart={cart}
+                customers={customers}
+                selectedCustomer={selectedCustomer}
+                onSelectCustomer={setSelectedCustomer}
+                onUpdateQuantity={updateQuantity}
+                onRemoveItem={removeItem}
+                onClearCart={() => {
+                  clearCart();
+                  setIsMobileCartOpen(false);
+                }}
+                onCheckout={() => {
+                  setIsMobileCartOpen(false);
+                  handleCheckout();
+                }}
+                isProcessing={isProcessing}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Payment Dialog */}
       <POSPaymentDialog

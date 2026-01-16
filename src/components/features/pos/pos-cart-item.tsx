@@ -46,26 +46,26 @@ export function POSCartItemRow({ item, onUpdateQuantity, onRemove }: POSCartItem
         <Button
           variant="outline"
           size="icon"
-          className="h-8 w-8"
+          className="h-9 w-9 sm:h-8 sm:w-8 touch-manipulation"
           onClick={handleDecrement}
         >
           {item.quantity === 1 ? (
-            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+            <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5 text-destructive" />
           ) : (
-            <Minus className="h-3.5 w-3.5" />
+            <Minus className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
           )}
         </Button>
-        <span className="w-8 text-center font-medium tabular-nums">
+        <span className="w-8 text-center font-medium tabular-nums text-base">
           {item.quantity}
         </span>
         <Button
           variant="outline"
           size="icon"
-          className="h-8 w-8"
+          className="h-9 w-9 sm:h-8 sm:w-8 touch-manipulation"
           onClick={handleIncrement}
           disabled={item.quantity >= item.product.stock}
         >
-          <Plus className="h-3.5 w-3.5" />
+          <Plus className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
         </Button>
       </div>
 

@@ -69,18 +69,19 @@ export function POSPaymentDialog({
           {/* Payment Method Selection */}
           <div className="space-y-3">
             <Label className="text-base font-medium">เลือกวิธีชำระเงิน</Label>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
               {PAYMENT_OPTIONS.map((option) => (
                 <button
                   key={option.value}
                   type="button"
                   onClick={() => setSelectedMethod(option.value)}
                   className={cn(
-                    'flex flex-col items-center justify-center gap-2 p-4 rounded-lg border-2 transition-all',
+                    'flex flex-col items-center justify-center gap-2 p-3 sm:p-4 rounded-lg border-2 transition-all min-h-[80px]',
                     'focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2',
+                    'touch-manipulation active:scale-[0.97]',
                     selectedMethod === option.value
                       ? 'border-primary bg-primary/5'
-                      : 'border-border hover:border-primary/50'
+                      : 'border-border hover:border-primary/50 active:bg-muted/50'
                   )}
                 >
                   <div className={cn(
@@ -90,7 +91,7 @@ export function POSPaymentDialog({
                     {option.icon}
                   </div>
                   <span className={cn(
-                    'text-sm font-medium',
+                    'text-xs sm:text-sm font-medium',
                     selectedMethod === option.value && 'text-primary'
                   )}>
                     {option.label}

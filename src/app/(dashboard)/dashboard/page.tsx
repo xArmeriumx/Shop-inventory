@@ -46,20 +46,20 @@ async function DashboardContent() {
   ];
 
   return (
-    <div className="space-y-6">
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <div className="space-y-4 sm:space-y-6">
+      {/* Stats Cards - 2 columns on mobile */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {statsCards.map((stat, index) => (
           <Card key={index}>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
+            <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2 space-y-0">
+              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
                 {stat.title}
               </CardTitle>
-              <stat.icon className={`h-4 w-4 ${stat.iconColor}`} />
+              <stat.icon className={`h-4 w-4 ${stat.iconColor} shrink-0`} />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
-              <p className="text-xs text-muted-foreground">{stat.subtitle}</p>
+            <CardContent className="pt-0">
+              <div className="text-lg sm:text-2xl font-bold truncate">{stat.value}</div>
+              <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{stat.subtitle}</p>
             </CardContent>
           </Card>
         ))}
@@ -67,26 +67,26 @@ async function DashboardContent() {
 
       {/* Monthly Summary */}
       <Card>
-        <CardHeader>
-          <CardTitle>สรุปเดือนนี้</CardTitle>
+        <CardHeader className="pb-2 sm:pb-4">
+          <CardTitle className="text-base sm:text-lg">สรุปเดือนนี้</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-3">
-            <div>
-              <p className="text-sm text-muted-foreground">ยอดขายรวม</p>
-              <p className="text-2xl font-bold">
+          <div className="grid grid-cols-3 gap-2 sm:gap-4">
+            <div className="text-center sm:text-left">
+              <p className="text-[10px] sm:text-sm text-muted-foreground">ยอดขายรวม</p>
+              <p className="text-sm sm:text-2xl font-bold truncate">
                 {formatCurrency(monthlyStats.revenue.toString())}
               </p>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">กำไรรวม</p>
-              <p className="text-2xl font-bold text-green-600">
+            <div className="text-center sm:text-left">
+              <p className="text-[10px] sm:text-sm text-muted-foreground">กำไรรวม</p>
+              <p className="text-sm sm:text-2xl font-bold text-green-600 truncate">
                 {formatCurrency(monthlyStats.profit.toString())}
               </p>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">จำนวนรายการ</p>
-              <p className="text-2xl font-bold">{monthlyStats.count} บิล</p>
+            <div className="text-center sm:text-left">
+              <p className="text-[10px] sm:text-sm text-muted-foreground">จำนวนรายการ</p>
+              <p className="text-sm sm:text-2xl font-bold">{monthlyStats.count} บิล</p>
             </div>
           </div>
         </CardContent>
@@ -225,9 +225,9 @@ function DashboardSkeleton() {
 export default function DashboardPage() {
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">Dashboard</h1>
-        <p className="text-muted-foreground">ภาพรวมการดำเนินงาน</p>
+      <div className="mb-4 sm:mb-6">
+        <h1 className="text-2xl sm:text-3xl font-bold">Dashboard</h1>
+        <p className="text-sm sm:text-base text-muted-foreground">ภาพรวมการดำเนินงาน</p>
       </div>
 
       <Suspense fallback={<DashboardSkeleton />}>

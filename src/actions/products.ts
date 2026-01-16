@@ -75,6 +75,7 @@ export async function getProduct(id: string) {
       id,
       shopId: ctx.shopId,
       isActive: true,
+      deletedAt: null,
     },
   });
 
@@ -277,6 +278,7 @@ export async function getProductsForSelect() {
     where: {
       shopId: ctx.shopId,
       isActive: true,
+      deletedAt: null,
       stock: { gt: 0 },
     },
     select: {
@@ -299,6 +301,7 @@ export async function getLowStockProducts(limit: number = 5) {
     where: {
       shopId: ctx.shopId,
       isActive: true,
+      deletedAt: null,
     },
     orderBy: { stock: 'asc' },
     take: 50, // Get more to filter

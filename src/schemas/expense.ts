@@ -21,10 +21,7 @@ export const expenseSchema = z.object({
   amount: z
     .number({ invalid_type_error: 'กรุณากรอกจำนวนเงิน' })
     .min(0.01, 'จำนวนเงินต้องมากกว่า 0'),
-  category: z.enum(
-    ['RENT', 'UTILITIES', 'SALARY', 'SUPPLIES', 'TRANSPORTATION', 'MARKETING', 'MAINTENANCE', 'FOOD', 'OTHER'],
-    { errorMap: () => ({ message: 'กรุณาเลือกหมวดหมู่' }) }
-  ),
+  category: z.string().min(1, 'กรุณาเลือกหมวดหมู่'),
   date: z.coerce.date({ invalid_type_error: 'กรุณาเลือกวันที่' }),
   notes: z
     .string()
