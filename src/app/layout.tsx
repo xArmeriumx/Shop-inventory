@@ -4,28 +4,69 @@ import './globals.css';
 import { Toaster } from 'sonner';
 import { Providers } from '@/components/providers';
 import { auth } from '@/lib/auth';
+import { siteConfig } from '@/config/site';
 
 const inter = Inter({
   subsets: ['latin'],
   variable: '--font-inter',
 });
 
-
-
 export const metadata: Metadata = {
-  title: 'Shop Inventory | ระบบบริหารสต็อกและการขาย',
-  description: 'ระบบบริหารสต็อกและการซื้อขายสำหรับร้านค้าขนาดเล็ก',
-  manifest: '/manifest.json',
+  metadataBase: new URL(siteConfig.url),
+  title: {
+    default: siteConfig.name,
+    template: `%s | ${siteConfig.name}`,
+  },
+  description: siteConfig.description,
+  keywords: siteConfig.keywords,
+  authors: siteConfig.authors,
+  creator: siteConfig.creator,
+  icons: {
+    icon: '/icons/icon.svg',
+    apple: '/icons/icon.svg',
+  },
+  openGraph: {
+    type: 'website',
+    locale: 'th_TH',
+    url: siteConfig.url,
+    title: siteConfig.name,
+    description: siteConfig.description,
+    siteName: siteConfig.name,
+    images: [
+      {
+        url: siteConfig.ogImage,
+        width: 1200,
+        height: 630,
+        alt: siteConfig.name,
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: siteConfig.name,
+    description: siteConfig.description,
+    images: [siteConfig.ogImage],
+    creator: siteConfig.links.twitter,
+  },
+  manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'ShopInv',
+    title: siteConfig.name,
   },
   formatDetection: {
     telephone: false,
   },
   other: {
     'mobile-web-app-capable': 'yes',
+  },
+  robots: {
+    index: false,
+    follow: false,
+    googleBot: {
+      index: false,
+      follow: false,
+    },
   },
 };
 
@@ -35,7 +76,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  viewportFit: 'cover', // Required for safe-area-inset-* on iPhone X+
+  viewportFit: 'cover',
 };
 
 import { AnnouncementPopup } from '@/components/features/announcements/announcement-popup';

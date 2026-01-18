@@ -16,10 +16,30 @@ import Loading from '@/app/(dashboard)/loading';
 import { PrintButton } from '@/components/features/sales/print-button';
 import { ReceiptImage } from '@/components/features/receipts/receipt-image';
 
-interface SaleDetailsPageProps {
+export interface SaleDetailsPageProps {
   params: {
     id: string;
   };
+}
+
+import { Metadata } from 'next';
+export async function generateMetadata({ params }: SaleDetailsPageProps): Promise<Metadata> {
+  try {
+    const sale = await getSale(params.id);
+    if (!sale) {
+      return {
+        title: 'ไม่พบข้อมูลการขาย',
+      };
+    }
+    return {
+      title: `บิลเลขที่ ${sale.invoiceNumber}`,
+      description: `รายละเอียดการขาย ${sale.invoiceNumber} ลูกค้า ${sale.customerName || 'ทั่วไป'} ยอดรวม ${Number(sale.totalAmount).toFixed(2)} บาท`,
+    };
+  } catch (error) {
+    return {
+      title: 'รายละเอียดการขาย',
+    };
+  }
 }
 
 import { requirePermission } from '@/lib/auth-guard';
