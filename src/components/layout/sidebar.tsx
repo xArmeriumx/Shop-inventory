@@ -85,6 +85,12 @@ const secondaryNavItems = [
     href: '/help',
     icon: HelpCircle,
   },
+  {
+    title: 'สถานะระบบ',
+    href: '/system',
+    icon: require('lucide-react').Activity,
+    permission: 'SETTINGS_SHOP' as Permission,
+  },
 ];
 
 interface SidebarProps {
