@@ -38,7 +38,7 @@ export async function getPurchases(params: GetPurchasesParams = {}) {
     ...(dateFilter && { date: dateFilter }),
   };
 
-  return paginatedQuery(db.purchase, {
+  const result = await paginatedQuery(db.purchase, {
     where,
     include: {
       items: {
@@ -56,6 +56,19 @@ export async function getPurchases(params: GetPurchasesParams = {}) {
     limit,
     orderBy: { date: 'desc' },
   });
+
+  return {
+    ...result,
+    data: result.data.map((p: any) => ({
+      ...p,
+      totalCost: Number(p.totalCost),
+      items: p.items.map((i: any) => ({
+        ...i,
+        costPrice: Number(i.costPrice),
+        subtotal: Number(i.subtotal),
+      })),
+    })),
+  };
 }
 
 export async function getPurchase(id: string) {
@@ -79,7 +92,15 @@ export async function getPurchase(id: string) {
     throw new Error('ไม่พบข้อมูลการซื้อ');
   }
 
-  return purchase;
+  return {
+    ...purchase,
+    totalCost: Number(purchase.totalCost),
+    items: purchase.items.map((i: any) => ({
+      ...i,
+      costPrice: Number(i.costPrice),
+      subtotal: Number(i.subtotal),
+    })),
+  };
 }
 
 // ... imports
@@ -177,7 +198,15 @@ export async function createPurchase(input: PurchaseInput): Promise<ActionRespon
     return {
       success: true,
       message: 'บันทึกการสั่งซื้อสำเร็จ',
-      data: purchase,
+      data: {
+        ...purchase,
+        totalCost: Number(purchase.totalCost),
+        items: purchase.items.map((i: any) => ({
+          ...i,
+          costPrice: Number(i.costPrice),
+          subtotal: Number(i.subtotal),
+        })),
+      },
     };
   } catch (error: any) {
     console.error('Create purchase error:', error);

@@ -24,31 +24,43 @@ export async function getExpenses(params: GetExpensesParams = {}) {
 
   const where = {
     shopId: ctx.shopId,
+    deletedAt: null,
     ...(searchFilter && searchFilter),
     ...(category && { category }),
     ...(dateFilter && { date: dateFilter }),
   };
 
-  return paginatedQuery(db.expense, {
+  const result = await paginatedQuery(db.expense, {
     where,
     page,
     limit,
     orderBy: { date: 'desc' },
   });
+
+  return {
+    ...result,
+    data: result.data.map(expense => ({
+      ...expense,
+      amount: Number(expense.amount),
+    })),
+  };
 }
 
 export async function getExpense(id: string) {
   const ctx = await requirePermission('EXPENSE_VIEW');
 
   const expense = await db.expense.findFirst({
-    where: { id, shopId: ctx.shopId },
+    where: { id, shopId: ctx.shopId, deletedAt: null },
   });
 
   if (!expense) {
     throw new Error('ไม่พบข้อมูลค่าใช้จ่าย');
   }
 
-  return expense;
+  return {
+    ...expense,
+    amount: Number(expense.amount),
+  };
 }
 
 export async function createExpense(input: ExpenseInput) {
@@ -71,7 +83,12 @@ export async function createExpense(input: ExpenseInput) {
 
     revalidatePath('/expenses');
     revalidatePath('/dashboard');
-    return { data: expense };
+    return { 
+      data: {
+        ...expense,
+        amount: Number(expense.amount)
+      } 
+    };
   } catch (error) {
     console.error('Create expense error:', error);
     return { error: { _form: ['เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง'] } };
@@ -88,7 +105,7 @@ export async function updateExpense(id: string, input: ExpenseInput) {
   }
 
   const existing = await db.expense.findFirst({
-    where: { id, userId: ctx.userId },
+    where: { id, userId: ctx.userId, deletedAt: null },
   });
 
   if (!existing) {
@@ -105,7 +122,12 @@ export async function updateExpense(id: string, input: ExpenseInput) {
 
     revalidatePath('/expenses');
     revalidatePath(`/expenses/${id}`);
-    return { data: expense };
+    return { 
+      data: {
+        ...expense,
+        amount: Number(expense.amount)
+      } 
+    };
   } catch (error) {
     console.error('Update expense error:', error);
     return { error: { _form: ['เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง'] } };
@@ -117,7 +139,7 @@ export async function deleteExpense(id: string) {
   const ctx = await requirePermission('EXPENSE_DELETE');
 
   const existing = await db.expense.findFirst({
-    where: { id, userId: ctx.userId },
+    where: { id, userId: ctx.userId, deletedAt: null },
   });
 
   if (!existing) {
@@ -147,6 +169,7 @@ export async function getMonthlyExpenses() {
   const result = await db.expense.aggregate({
     where: {
       shopId: ctx.shopId,
+      deletedAt: null,
       date: {
         gte: firstDayOfMonth,
         lt: firstDayOfNextMonth,

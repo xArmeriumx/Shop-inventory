@@ -1,17 +1,10 @@
 'use client';
 
-import { usePermissions } from '@/hooks/use-permissions';
-import { Permission } from '@prisma/client';
-import { ReactNode } from 'react';
-
-interface GuardProps {
-  permission: Permission;
-  children: ReactNode;
-  fallback?: ReactNode;
-}
-
 /**
- * A wrapper component that only renders its children if the user has the required permission.
+ * Guard Component - Simplified Permission Guard
+ * 
+ * This is a convenience re-export of PermissionGuard for simple single-permission checks.
+ * For more complex permission logic (anyOf, allOf), use PermissionGuard directly.
  * 
  * Usage:
  * ```tsx
@@ -20,12 +13,24 @@ interface GuardProps {
  * </Guard>
  * ```
  */
-export function Guard({ permission, children, fallback = null }: GuardProps) {
-  const { hasPermission } = usePermissions();
-  
-  if (!hasPermission(permission)) {
-    return <>{fallback}</>;
-  }
-  
-  return <>{children}</>;
+
+import { PermissionGuard, withPermission } from './permission-guard';
+import type { Permission } from '@prisma/client';
+import type { ReactNode } from 'react';
+
+interface GuardProps {
+  permission: Permission;
+  children: ReactNode;
+  fallback?: ReactNode;
 }
+
+export function Guard({ permission, children, fallback = null }: GuardProps) {
+  return (
+    <PermissionGuard permission={permission} fallback={fallback}>
+      {children}
+    </PermissionGuard>
+  );
+}
+
+// Re-export for convenience
+export { PermissionGuard, withPermission };

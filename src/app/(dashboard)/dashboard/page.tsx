@@ -154,7 +154,7 @@ async function DashboardContent() {
                 สินค้าใกล้หมด
               </CardTitle>
               <Button variant="ghost" size="sm" asChild>
-                <Link href="/products">จัดการสินค้า</Link>
+                <Link href="/products/low-stock">ดูทั้งหมด</Link>
               </Button>
             </div>
           </CardHeader>

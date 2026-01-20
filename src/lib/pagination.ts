@@ -17,6 +17,18 @@ export interface PaginatedResult<T> {
   };
 }
 
+/**
+ * Generic paginated query helper
+ * 
+ * @param model - Prisma model to query
+ * @param options - Query options including where, select/include, orderBy, and pagination
+ * @returns Paginated result with data and pagination metadata
+ * 
+ * Performance tips:
+ * - Use `select` instead of `include` when you only need specific fields
+ * - Ensure `where` conditions use indexed fields
+ * - Keep `limit` reasonable (default 20, max 100)
+ */
 export async function paginatedQuery<T>(
   model: {
     findMany: (args: any) => Promise<T[]>;
@@ -25,6 +37,7 @@ export async function paginatedQuery<T>(
   options: {
     where?: object;
     include?: object;
+    select?: object;  // ✅ NEW: Selective field fetching for better performance
     orderBy?: object;
     page?: number;
     limit?: number;
@@ -34,14 +47,23 @@ export async function paginatedQuery<T>(
   const limit = Math.min(100, Math.max(1, options.limit || 20));
   const skip = (page - 1) * limit;
 
+  // Build query options - use select OR include, not both
+  const queryOptions: Record<string, unknown> = {
+    where: options.where,
+    orderBy: options.orderBy || { createdAt: 'desc' },
+    skip,
+    take: limit,
+  };
+
+  // Prefer select over include for better performance
+  if (options.select) {
+    queryOptions.select = options.select;
+  } else if (options.include) {
+    queryOptions.include = options.include;
+  }
+
   const [data, total] = await Promise.all([
-    model.findMany({
-      where: options.where,
-      include: options.include,
-      orderBy: options.orderBy || { createdAt: 'desc' },
-      skip,
-      take: limit,
-    }),
+    model.findMany(queryOptions),
     model.count({ where: options.where }),
   ]);
 

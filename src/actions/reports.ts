@@ -34,42 +34,79 @@ export async function getReportData(startDate?: string, endDate?: string): Promi
   start.setHours(0, 0, 0, 0);
   end.setHours(23, 59, 59, 999);
 
-  const [sales, expenses] = await Promise.all([
-    // Get Sales
+  const [salesData, expensesData, salesAggregate, expensesAggregate] = await Promise.all([
+    // ✅ OPTIMIZED: Select only needed fields for detailed sales list
     db.sale.findMany({
       where: {
         shopId: ctx.shopId,
         date: { gte: start, lte: end },
+        status: { not: 'CANCELLED' },
+      },
+      select: {
+        id: true,
+        invoiceNumber: true,
+        date: true,
+        totalAmount: true,
+        totalCost: true,
+        profit: true,
+        paymentMethod: true,
+        customerName: true,
       },
       orderBy: { date: 'asc' },
     }),
 
-    // Get Expenses
+    // ✅ OPTIMIZED: Select only needed fields for expenses list
     db.expense.findMany({
       where: {
         shopId: ctx.shopId,
         date: { gte: start, lte: end },
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        date: true,
+        category: true,
+        amount: true,
+        description: true,
       },
       orderBy: { date: 'asc' },
     }),
+
+    // ✅ OPTIMIZED: Use aggregate for summary (more efficient than reduce)
+    db.sale.aggregate({
+      where: {
+        shopId: ctx.shopId,
+        date: { gte: start, lte: end },
+        status: { not: 'CANCELLED' },
+      },
+      _sum: { totalAmount: true, totalCost: true },
+    }),
+
+    // ✅ OPTIMIZED: Use aggregate for expenses total
+    db.expense.aggregate({
+      where: {
+        shopId: ctx.shopId,
+        date: { gte: start, lte: end },
+        deletedAt: null,
+      },
+      _sum: { amount: true },
+    }),
   ]);
 
-  // Calculate Summary
-  const totalSales = sales.reduce((sum, s) => sum + Number(s.totalAmount), 0);
-  const totalCost = sales.reduce((sum, s) => sum + Number(s.totalCost), 0);
-  const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
+  // ✅ OPTIMIZED: Use aggregate results directly (no JS reduce needed)
+  const totalSales = Number(salesAggregate._sum.totalAmount || 0);
+  const totalCost = Number(salesAggregate._sum.totalCost || 0);
+  const totalExpenses = Number(expensesAggregate._sum.amount || 0);
   
   // Calculate Profit
   const grossProfit = totalSales - totalCost;
   const netProfit = grossProfit - totalExpenses;
 
   // Group by Date for Daily Stats
-  const dailyMap = new Map<string, any>();
+  const dailyMap = new Map<string, { sales: number; cost: number; expenses: number }>();
 
-  // Init days logic (optional: fill all days in range, or just days with data)
-  // Here we'll just map existing data
-  
-  sales.forEach(s => {
+  // Process sales data for daily stats
+  salesData.forEach(s => {
     const dateKey = s.date.toISOString().split('T')[0];
     const current = dailyMap.get(dateKey) || { sales: 0, cost: 0, expenses: 0 };
     current.sales += Number(s.totalAmount);
@@ -77,7 +114,8 @@ export async function getReportData(startDate?: string, endDate?: string): Promi
     dailyMap.set(dateKey, current);
   });
 
-  expenses.forEach(e => {
+  // Process expenses data for daily stats
+  expensesData.forEach(e => {
     const dateKey = e.date.toISOString().split('T')[0];
     const current = dailyMap.get(dateKey) || { sales: 0, cost: 0, expenses: 0 };
     current.expenses += Number(e.amount);
@@ -106,7 +144,15 @@ export async function getReportData(startDate?: string, endDate?: string): Promi
       netProfit
     },
     dailyStats,
-    sales,
-    expenses
+    sales: salesData.map(s => ({
+      ...s,
+      totalAmount: Number(s.totalAmount),
+      totalCost: Number(s.totalCost),
+      profit: Number(s.profit),
+    })),
+    expenses: expensesData.map(e => ({
+        ...e,
+        amount: Number(e.amount),
+    }))
   };
 }

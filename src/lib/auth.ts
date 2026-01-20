@@ -70,13 +70,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         trigger === 'update' || 
         !token.shopId;
 
-      console.log('JWT Callback:', { 
-        hasUser: !!user, 
-        trigger, 
-        hasShopId: !!token.shopId, 
-        sub: token.sub,
-        shouldFetch: shouldFetchMembership 
-      });
+
 
       if (shouldFetchMembership && token.sub) {
         if (user) {

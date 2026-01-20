@@ -8,6 +8,8 @@ import { productSchema, type ProductInput, type ProductUpdateInput } from '@/sch
 import { Product } from '@prisma/client';
 import { ActionResponse } from '@/types/action-response';
 import { StockService } from '@/lib/stock-service';
+import { Prisma } from '@prisma/client';
+import { Decimal } from '@prisma/client/runtime/library';
 
 interface GetProductsParams {
   page?: number;
@@ -59,12 +61,21 @@ export async function getProducts(params: GetProductsParams = {}) {
       }
     : where;
 
-  return paginatedQuery<Product>(db.product, {
+  const result = await paginatedQuery<Product>(db.product, {
     where: whereClause,
     page,
     limit,
     orderBy: { [sortBy]: sortOrder },
   });
+
+  return {
+    ...result,
+    data: result.data.map(product => ({
+      ...product,
+      costPrice: Number(product.costPrice),
+      salePrice: Number(product.salePrice),
+    }))
+  };
 }
 
 export async function getProduct(id: string) {
@@ -207,7 +218,7 @@ export async function updateProduct(id: string, input: ProductUpdateInput): Prom
       // 2. Update other fields (excluding stock, as it's handled by StockService)
       const { stock, ...otherData } = validated.data;
       
-      return tx.product.update({
+      const updatedProduct = await tx.product.update({
         where: { id },
         data: {
           ...otherData,
@@ -215,6 +226,26 @@ export async function updateProduct(id: string, input: ProductUpdateInput): Prom
           sku: otherData.sku || null,
         },
       });
+
+      // 3. (New) Check Low Stock Status if minStock changed
+      // (Stock change logic already updates it in recordMovement)
+      if (validated.data.minStock !== undefined) {
+         const isLow = updatedProduct.stock <= updatedProduct.minStock;
+         // We must update it again if it differs or just force update
+         // Since we are inside transaction, we can just do another update or optimize.
+         // Since Prisma update returns the object *after* update, we have the new minStock.
+         // But we assume recordMovement updated the stock correctly.
+         // Let's force set it to be sure.
+         await tx.product.update({
+           where: { id },
+           data: { isLowStock: isLow }
+         });
+         
+         // Update our specific local variable return
+         updatedProduct.isLowStock = isLow;
+      }
+
+      return updatedProduct;
     });
 
     revalidatePath('/products');
@@ -294,25 +325,26 @@ export async function getProductsForSelect() {
 }
 
 export async function getLowStockProducts(limit: number = 5) {
-  const ctx = await requirePermission('PRODUCT_VIEW'); // Or DASHBOARD_VIEW
+  const ctx = await requirePermission('PRODUCT_VIEW');
 
-  // Get products where stock <= minStock
+  // Optimized: Use Cached isLowStock Field
+  // Super fast, no calculation needed
   const products = await db.product.findMany({
     where: {
       shopId: ctx.shopId,
       isActive: true,
       deletedAt: null,
+      isLowStock: true, // Only this!
     },
     orderBy: { stock: 'asc' },
-    take: 50, // Get more to filter
+    take: limit,
   });
 
-  // Filter in JS since Prisma doesn't support comparing two columns directly
-  const lowStock = products
-    .filter((p: Product) => p.stock <= p.minStock)
-    .slice(0, limit);
-
-  return lowStock;
+  return products.map(p => ({
+    ...p,
+    stock: Number(p.stock),
+    minStock: Number(p.minStock),
+  }));
 }
 
 interface AdjustStockInput {
@@ -379,4 +411,36 @@ export async function adjustStock(productId: string, input: AdjustStockInput): P
       message: error.message || 'เกิดข้อผิดพลาดในการปรับปรุงสต็อก'
     };
   }
+}
+
+export async function getLowStockProductsPaginated(params: GetProductsParams = {}) {
+  const ctx = await requirePermission('PRODUCT_VIEW');
+  const { page = 1, limit = 20, search, category } = params;
+  
+  const searchFilter = buildSearchFilter(search, ['name', 'sku']);
+
+  const where = {
+    shopId: ctx.shopId,
+    isActive: true,
+    deletedAt: null,
+    isLowStock: true, // The Magic Filter
+    ...(searchFilter && searchFilter),
+    ...(category && { category }),
+  };
+
+  const result = await paginatedQuery<Product>(db.product, {
+    where,
+    page,
+    limit,
+    orderBy: { stock: 'asc' },
+  });
+
+  return {
+    ...result,
+    data: result.data.map(p => ({
+      ...p,
+      costPrice: Number(p.costPrice),
+      salePrice: Number(p.salePrice),
+    }))
+  };
 }

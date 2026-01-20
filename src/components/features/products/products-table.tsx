@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import type { Product } from '@prisma/client';
+import type { SerializedProduct } from '@/types/serialized';
 import {
   Table,
   TableBody,
@@ -22,7 +22,7 @@ import { usePermissions } from '@/hooks/use-permissions';
 import { Guard } from '@/components/auth/guard';
 
 interface ProductsTableProps {
-  products: Product[];
+  products: SerializedProduct[];
   pagination: {
     total: number;
     page: number;

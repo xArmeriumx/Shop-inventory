@@ -15,26 +15,31 @@ import { Megaphone, Users, Shield, ShoppingCart, CheckCircle2 } from 'lucide-rea
 
 // Configuration for the latest announcement
 const CURRENT_ANNOUNCEMENT = {
-  id: 'update-v2.2-combined',
-  version: 'v2.2.0',
-  date: '16 มกราคม 2569',
-  title: 'อัปเดตระบบ v2.2 - Mobile UX & Performance',
-  description: 'ปรับปรุงหน้าจอรองรับมือถือ พร้อมเพิ่มประสิทธิภาพระบบจัดการสิทธิ์',
+  id: 'update-v2.3-server-opt',
+  version: 'v2.3.0',
+  date: '20 มกราคม 2569',
+  title: 'อัปเดตระบบ v2.3 - Server Performance & Optimization',
+  description: 'ยกระดับความเร็วและความเสถียรของระบบ รองรับข้อมูลจำนวนมาก',
   features: [
     {
+      icon: Shield,
+      title: 'Server-Side Optimization',
+      description: 'ปรับปรุงโครงสร้าง Database และ Query ใหม่ ',
+    },
+    {
+      icon: CheckCircle2,
+      title: 'Enhanced RBAC & Security',
+      description: 'ระบบจัดการสิทธิ์แบบใหม่',
+    },
+    {
       icon: ShoppingCart,
-      title: 'POS รองรับมือถือ',
+      title: 'POS รองรับมือถือ (Previous)',
       description: 'ตะกร้าเลื่อนขึ้นจากด้านล่าง, ปุ่มลอยแสดงยอดรวม, รองรับบาร์โค้ด',
     },
     {
       icon: Megaphone,
-      title: 'Bottom Navigation',
+      title: 'Bottom Navigation (Previous)',
       description: 'เมนูด้านล่างสำหรับเข้าถึง Dashboard, สินค้า, POS, รายงาน ได้รวดเร็ว',
-    },
-    {
-      icon: Shield,
-      title: 'สิทธิ์อัปเดตแบบ Real-time',
-      description: 'เปลี่ยนบทบาทพนักงานแล้วมีผลทันที ไม่ต้องออกจากระบบใหม่',
     },
     {
       icon: Users,

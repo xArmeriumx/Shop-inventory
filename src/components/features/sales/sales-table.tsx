@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import type { Sale, Customer } from '@prisma/client';
+import type { Customer } from '@prisma/client';
+import type { SerializedSale } from '@/types/serialized';
 import {
   Table,
   TableBody,
@@ -22,7 +23,7 @@ import { CancelDialog } from '@/components/features/shared/cancel-dialog';
 import { usePermissions } from '@/hooks/use-permissions';
 import { Guard } from '@/components/auth/guard';
 
-type SaleWithCustomer = Sale & {
+type SaleWithCustomer = SerializedSale & {
   customer: Pick<Customer, 'name'> | null;
   status?: string;
 };

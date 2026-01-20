@@ -50,7 +50,19 @@ export class StockService {
         select: {
           id: true,
           stock: true,
+          minStock: true, // Need minStock to compare
         },
+      });
+
+      // 1.5 Calculation: Check if Low Stock
+      // We do this immediately to keep the flag in sync
+      const isLowStock = updatedProduct.stock <= updatedProduct.minStock;
+      
+      // Update the flag (Optimized: only if we want to be strict, or we can just always set it)
+      // To be safe and simple: Always set it.
+      await prisma.product.update({
+        where: { id: productId },
+        data: { isLowStock },
       });
 
       // 2. Create Stock Log with the NEW balance

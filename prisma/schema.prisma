@@ -257,6 +257,7 @@ model Product {
 
   images      String[]
   isActive    Boolean  @default(true)
+  isLowStock  Boolean  @default(false)
 
   // Ownership (keeping userId for audit, adding shopId for RBAC)
   userId      String
@@ -264,6 +265,10 @@ model Product {
   
   shopId      String?  // RBAC: Nullable during transition
   shop        Shop?    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  // Primary Supplier (for re-ordering)
+  supplierId  String?
+  supplier    Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   
   categoryRef LookupValue? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
@@ -281,6 +286,7 @@ model Product {
   @@index([userId])
   @@index([userId, deletedAt])
   @@index([shopId])  // RBAC index
+  @@index([shopId, isLowStock])
   @@index([category])
   @@index([categoryId])
   @@index([name])
@@ -312,6 +318,7 @@ model Supplier {
   shop      Shop?    @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
   purchases Purchase[]
+  products  Product[]
 
   // Soft Delete
   deletedAt DateTime?
@@ -376,6 +383,7 @@ model Purchase {
   shop        Shop?    @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
   items       PurchaseItem[]
+  stockLogs   StockLog[]
 
   // Cancel/Void (Audit-Ready)
   status        String    @default("ACTIVE")  // ACTIVE | CANCELLED
@@ -396,6 +404,10 @@ model Purchase {
   @@index([shopId])  // RBAC index
   @@index([date])
   @@index([supplierId])
+  
+  // ✅ NEW: Compound indexes for optimized queries
+  @@index([shopId, date, status])  // Purchases list with date range + status
+  @@index([shopId, status])        // Purchases filtered by status
 }
 
 model PurchaseItem {
@@ -440,6 +452,7 @@ model Sale {
   shop          Shop?    @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
   items         SaleItem[]
+  stockLogs     StockLog[]
 
   // Cancel/Void (Audit-Ready)
   status        String    @default("ACTIVE")  // ACTIVE | CANCELLED
@@ -461,6 +474,10 @@ model Sale {
   @@index([shopId])  // RBAC index
   @@index([date])
   @@index([customerId])
+  
+  // ✅ NEW: Compound indexes for optimized queries
+  @@index([shopId, date, status])  // Sales list with date range + status filter
+  @@index([shopId, status])        // Sales list filtered by status
 }
 
 model SaleItem {
@@ -513,6 +530,10 @@ model Expense {
   @@index([date])
   @@index([category])
   @@index([categoryId])
+  
+  // ✅ NEW: Compound indexes for optimized queries
+  @@index([shopId, date])            // Expense reports with date range
+  @@index([shopId, category, date])  // Filtered by category + date
 }
 
 
@@ -539,8 +560,16 @@ model StockLog {
   quantity      Int
   balance       Int              // Balance snapshot after movement
   
-  referenceId   String?           // Sale ID, Purchase ID, etc
+  referenceId   String?           // Legacy: Keep for flexibility
   referenceType String?           // "SALE", "PURCHASE"
+
+  // Explicit Relations for better integrity & reporting
+  saleId        String?
+  sale          Sale?             @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  
+  purchaseId    String?
+  purchase      Purchase?         @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
+
   note          String?
   
   date          DateTime          @default(now())
@@ -558,4 +587,6 @@ model StockLog {
   @@index([userId, date])
   @@index([shopId])  // RBAC index
   @@index([referenceId])
+  @@index([saleId])
+  @@index([purchaseId])
 }

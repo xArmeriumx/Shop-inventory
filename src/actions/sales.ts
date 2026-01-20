@@ -73,21 +73,23 @@ export async function getSales(params: GetSalesParams = {}) {
     orderBy: { date: 'desc' },
   });
 
-  // Mask sensitive data if no permission
-  if (!canViewProfit) {
-    result.data = result.data.map(sale => ({
+  // Transform data to plain objects
+  return {
+    ...result,
+    data: result.data.map(sale => ({
       ...sale,
-      totalCost: new Decimal(0),
-      profit: new Decimal(0),
+      totalAmount: Number(sale.totalAmount),
+      totalCost: canViewProfit ? Number(sale.totalCost) : 0,
+      profit: canViewProfit ? Number(sale.profit) : 0,
       items: sale.items.map(item => ({
         ...item,
-        costPrice: new Decimal(0),
-        profit: new Decimal(0)
+        salePrice: Number(item.salePrice),
+        costPrice: canViewProfit ? Number(item.costPrice) : 0,
+        subtotal: Number(item.subtotal),
+        profit: canViewProfit ? Number(item.profit) : 0,
       }))
-    }));
-  }
-
-  return result;
+    }))
+  };
 }
 
 export async function getSale(id: string) {
@@ -111,7 +113,21 @@ export async function getSale(id: string) {
     throw new Error('ไม่พบข้อมูลการขาย');
   }
 
-  return sale;
+  const canViewProfit = hasPermission(ctx, 'SALE_VIEW_PROFIT');
+
+  return {
+    ...sale,
+    totalAmount: Number(sale.totalAmount),
+    totalCost: canViewProfit ? Number(sale.totalCost) : 0,
+    profit: canViewProfit ? Number(sale.profit) : 0,
+    items: sale.items.map(item => ({
+      ...item,
+      salePrice: Number(item.salePrice),
+      costPrice: canViewProfit ? Number(item.costPrice) : 0,
+      subtotal: Number(item.subtotal),
+      profit: canViewProfit ? Number(item.profit) : 0,
+    }))
+  };
 }
 
 export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>> {
@@ -410,6 +426,7 @@ export async function getTodaySales() {
         gte: today,
         lt: tomorrow,
       },
+      status: { not: 'CANCELLED' },
     },
     _sum: {
       totalAmount: true,
@@ -431,7 +448,7 @@ export async function getTodaySales() {
 export async function getRecentSales(limit: number = 5) {
   const ctx = await requirePermission('SALE_VIEW');
 
-  return db.sale.findMany({
+  const sales = await db.sale.findMany({
     where: { shopId: ctx.shopId },
     include: {
       customer: {
@@ -441,4 +458,13 @@ export async function getRecentSales(limit: number = 5) {
     orderBy: { date: 'desc' },
     take: limit,
   });
+
+  const canViewProfit = hasPermission(ctx, 'SALE_VIEW_PROFIT');
+
+  return sales.map(sale => ({
+    ...sale,
+    totalAmount: Number(sale.totalAmount),
+    totalCost: canViewProfit ? Number(sale.totalCost) : 0,
+    profit: canViewProfit ? Number(sale.profit) : 0,
+  }));
 }
