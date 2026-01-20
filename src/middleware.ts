@@ -1,46 +1,131 @@
+'use server';
+
 import NextAuth from 'next-auth';
 import { authConfig } from './auth.config';
 import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
 
-// Simple in-memory counter for RPS (active per container/instance)
-// This resets when the middleware/container restarts
-let requestCount = 0;
-let lastReset = Date.now();
+// ==================== RATE LIMITER ====================
+// Protects the app from bots and spam attacks.
+// Allows normal users (1-2 clicks/sec) but blocks rapid automated requests.
 
-export const getRps = () => {
-  // This function might be called by the system action if in the same process
-  // But usually middleware runs in edge/separate context. 
-  // We'll expose it via a global variable hack or just accept it's per-instance.
-  return requestCount;
+interface RateLimitEntry {
+  count: number;
+  resetTime: number;
+}
+
+// In-memory storage for tracking IP requests
+const rateLimitMap = new Map<string, RateLimitEntry>();
+
+// SETTINGS (adjust as needed)
+const RATE_LIMIT = {
+  MAX_REQUESTS: 30,         // Max requests allowed per window
+  WINDOW_MS: 15 * 1000,     // Time window: 15 seconds
+  CLEANUP_INTERVAL: 60000,  // Clean old entries every 60 seconds
 };
 
-// Reset counter every second
-// Note: In a real serverless edge environment, verify if `setInterval` persists.
-// For Vercel Edge, it might not. We rely on the request passing through to update logic.
-
-export default NextAuth(authConfig).auth((req) => {
+// Cleanup expired entries to prevent memory leak
+let lastCleanup = Date.now();
+function cleanupExpiredEntries() {
   const now = Date.now();
-  if (now - lastReset > 60000) { // Reset every minute to keep numbers sane? 
-    // Actually, for RPS we want per second.
-    // Let's just increment and let the System Action read/reset or just use a rolling window?
-    // KEEP IT SIMPLE: Just count total requests. The System Action will measure delta.
+  if (now - lastCleanup < RATE_LIMIT.CLEANUP_INTERVAL) return;
+  
+  lastCleanup = now;
+  rateLimitMap.forEach((entry, ip) => {
+    if (now > entry.resetTime) {
+      rateLimitMap.delete(ip);
+    }
+  });
+}
+
+// Extract client IP from request headers (supports Vercel, Cloudflare, etc.)
+function getClientIP(request: NextRequest): string {
+  return (
+    request.headers.get('x-real-ip') ||
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    request.headers.get('cf-connecting-ip') ||
+    'unknown'
+  );
+}
+
+// Check if request is within rate limit
+function checkRateLimit(ip: string): { allowed: boolean; remaining: number; resetIn: number } {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  
+  // Case 1: New IP or window expired - reset counter
+  if (!entry || now > entry.resetTime) {
+    rateLimitMap.set(ip, {
+      count: 1,
+      resetTime: now + RATE_LIMIT.WINDOW_MS,
+    });
+    return { allowed: true, remaining: RATE_LIMIT.MAX_REQUESTS - 1, resetIn: RATE_LIMIT.WINDOW_MS };
   }
   
-  // NOTE: This global variable might not be shared with the Server Action running in Node.js
-  // Middleware runs on Edge (usually). Server Action runs in Node.js (Lambda).
-  // They are DIFFERENT environments. Creating a shared variable won't work.
-  // We need to store this in DB or Cache (Redis/KV).
-  // Since we don't have Redis, we'll skip writing to DB on every request (too slow).
+  // Case 2: Existing IP within window - increment counter
+  entry.count += 1;
   
-  // ALTERNATIVE: Use the simulated "Request Volume" we already had?
-  // OR: Log significant actions only? 
+  if (entry.count > RATE_LIMIT.MAX_REQUESTS) {
+    // BLOCKED: Over limit
+    const resetIn = Math.max(0, entry.resetTime - now);
+    return { allowed: false, remaining: 0, resetIn };
+  }
   
-  // Let's stick to the user Request: "Request Rate".
-  // If we can't do it accurately without Redis, we might simulate it specific to the metrics call
-  // OR: Log every 100th request to DB? No.
+  // ALLOWED: Still within limit
+  return { 
+    allowed: true, 
+    remaining: RATE_LIMIT.MAX_REQUESTS - entry.count,
+    resetIn: entry.resetTime - now 
+  };
+}
+
+// ==================== MAIN MIDDLEWARE ====================
+
+export default NextAuth(authConfig).auth((req) => {
+  const request = req as unknown as NextRequest;
   
-  return NextResponse.next();
+  // Step 1: Cleanup old entries periodically
+  cleanupExpiredEntries();
+  
+  // Step 2: Get client IP
+  const clientIP = getClientIP(request);
+  
+  // Step 3: Check rate limit
+  const { allowed, remaining, resetIn } = checkRateLimit(clientIP);
+  
+  if (!allowed) {
+    // BLOCKED: Return 429 Too Many Requests
+    const resetInSeconds = Math.ceil(resetIn / 1000);
+    
+    return new NextResponse(
+      JSON.stringify({
+        error: 'Too Many Requests',
+        message: `Please wait ${resetInSeconds} seconds before trying again.`,
+        retryAfter: resetInSeconds,
+      }),
+      {
+        status: 429,
+        headers: {
+          'Content-Type': 'application/json',
+          'Retry-After': String(resetInSeconds),
+          'X-RateLimit-Limit': String(RATE_LIMIT.MAX_REQUESTS),
+          'X-RateLimit-Remaining': '0',
+          'X-RateLimit-Reset': String(Math.ceil(resetIn / 1000)),
+        },
+      }
+    );
+  }
+  
+  // ALLOWED: Continue with rate limit headers
+  const response = NextResponse.next();
+  response.headers.set('X-RateLimit-Limit', String(RATE_LIMIT.MAX_REQUESTS));
+  response.headers.set('X-RateLimit-Remaining', String(remaining));
+  
+  return response;
 });
+
+// ==================== MATCHER CONFIG ====================
+// Apply rate limiting to all routes except static files
 
 export const config = {
   matcher: [
