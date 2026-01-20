@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
+import { logger } from '@/lib/logger';
 import { requirePermission, hasPermission } from '@/lib/auth-guard';
 import { paginatedQuery, buildSearchFilter, buildDateRangeFilter } from '@/lib/pagination';
 import { saleSchema, type SaleInput } from '@/schemas/sale';
@@ -167,6 +168,8 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>
           throw new Error(`ไม่พบสินค้า ID: ${item.productId}`);
         }
 
+
+
         if (product.stock < item.quantity) {
           throw new Error(`สินค้า "${product.name}" มีสต็อกไม่พอ (เหลือ ${product.stock})`);
         }
@@ -307,7 +310,11 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>
       data: result,
     };
   } catch (error: any) {
-    console.error('Create sale error:', error);
+    await logger.error('Failed to create sale', error, { 
+      path: 'createSale', 
+      userId: ctx.userId,
+      input 
+    });
     return {
       success: false,
       message: error.message || 'เกิดข้อผิดพลาดในการบันทึกการขาย',
@@ -406,7 +413,12 @@ export async function cancelSale(input: CancelSaleInput) {
     revalidatePath('/dashboard');
     return { success: true };
   } catch (error: any) {
-    console.error('Cancel sale error:', error);
+    await logger.error('Failed to cancel sale', error, { 
+      path: 'cancelSale', 
+      userId, 
+      saleId: id,
+      reason: cancelReason 
+    });
     return { error: error.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง' };
   }
 }

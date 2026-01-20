@@ -13,43 +13,42 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Megaphone, Users, Shield, ShoppingCart, CheckCircle2 } from 'lucide-react';
 
-// Configuration for the latest announcement
 const CURRENT_ANNOUNCEMENT = {
-  id: 'update-v2.3-server-opt',
-  version: 'v2.3.0',
-  date: '20 มกราคม 2569',
-  title: 'อัปเดตระบบ v2.3 - Server Performance & Optimization',
-  description: 'ยกระดับความเร็วและความเสถียรของระบบ รองรับข้อมูลจำนวนมาก',
+  id: 'update-v2.4-safety-and-logs-rev2', // Changed ID to trigger popup again
+  version: 'v2.4.0',
+  date: '21 มกราคม 2569',
+  title: 'อัปเดตระบบ v2.4 - ปรับปรุงความเสถียรและตรวจสอบระบบ',
+  description: 'เพิ่มความปลอดภัยของข้อมูล และเครื่องมือตรวจสอบปัญหาระบบ',
   features: [
     {
       icon: Shield,
-      title: 'Server-Side Optimization',
-      description: 'ปรับปรุงโครงสร้าง Database และ Query ใหม่ ',
-    },
-    {
-      icon: CheckCircle2,
-      title: 'Enhanced RBAC & Security',
-      description: 'ระบบจัดการสิทธิ์แบบใหม่',
-    },
-    {
-      icon: ShoppingCart,
-      title: 'POS รองรับมือถือ (Previous)',
-      description: 'ตะกร้าเลื่อนขึ้นจากด้านล่าง, ปุ่มลอยแสดงยอดรวม, รองรับบาร์โค้ด',
+      title: 'ระบบบันทึกข้อมูล',
+      description: 'แจ้งเตือนเมื่อเกิดข้อผิดพลาดขณะบันทึก',
     },
     {
       icon: Megaphone,
-      title: 'Bottom Navigation (Previous)',
-      description: 'เมนูด้านล่างสำหรับเข้าถึง Dashboard, สินค้า, POS, รายงาน ได้รวดเร็ว',
+      title: 'หน้าจอตรวจสอบสถานะระบบ',
+      description: 'ดูสถานะ Server และฐานข้อมูลได้ผ่านเมนู System (สำหรับเจ้าของร้าน)',
+    },
+     {
+      icon: Users,
+      title: 'บันทึกปัญหาอัตโนมัติ',
+      description: 'ระบบจะจดจำข้อผิดพลาดที่เกิดขึ้น',
     },
     {
-      icon: Users,
-      title: 'ประหยัดทรัพยากร',
-      description: 'ลดการใช้เซิร์ฟเวอร์, หยุดอัตโนมัติเมื่อปิดหน้าจอ',
+      icon: ShoppingCart,
+      title: 'POS รองรับมือถือ (v2.3)',
+      description: 'ใช้งานหน้าขายหน้าร้านบนมือถือได้สะดวกขึ้น',
     },
     {
       icon: CheckCircle2,
-      title: 'Dashboard & Table Responsive',
-      description: 'แสดงสถิติ 2x2 บนมือถือ, ตารางซ่อนคอลัมน์ไม่จำเป็น',
+      title: 'รองรับการใช้งานพร้อมกัน',
+      description: 'ปรับปรุงระบบหลังบ้าน ให้รองรับคนใช้งาน',
+    },
+    {
+      icon: CheckCircle2,
+      title: 'ปรับปรุงหน้าจอการใช้งาน',
+      description: 'แสดงผลตารางและข้อมูลต่างๆ',
     },
   ],
 };

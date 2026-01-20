@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
+import { logger } from '@/lib/logger';
 import { requireAuth, requirePermission, getCurrentUserId } from '@/lib/auth-guard';
 import { paginatedQuery, buildSearchFilter, buildDateRangeFilter } from '@/lib/pagination';
 import { purchaseSchema, type PurchaseInput } from '@/schemas/purchase';
@@ -209,7 +210,11 @@ export async function createPurchase(input: PurchaseInput): Promise<ActionRespon
       },
     };
   } catch (error: any) {
-    console.error('Create purchase error:', error);
+    await logger.error('Failed to create purchase', error, { 
+      path: 'createPurchase', 
+      userId: ctx.userId,
+      input 
+    });
     return {
       success: false,
       message: error.message || 'เกิดข้อผิดพลาดในการบันทึกการสั่งซื้อ',
@@ -324,7 +329,12 @@ export async function cancelPurchase(input: CancelPurchaseInput): Promise<Action
       message: 'ยกเลิกรายการซื้อสำเร็จ',
     };
   } catch (error: any) {
-    console.error('Cancel purchase error:', error);
+    await logger.error('Failed to cancel purchase', error, { 
+      path: 'cancelPurchase', 
+      userId: ctx.userId,
+      purchaseId: id,
+      reason: cancelReason 
+    });
     return {
       success: false,
       message: error.message || 'เกิดข้อผิดพลาดในการยกเลิกรายการ',

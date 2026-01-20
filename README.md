@@ -48,6 +48,13 @@ This application serves as a complete Point of Sale (POS) and inventory manageme
 - Daily breakdowns and downloadable CSV exports.
 - Printable report formats.
 
+### 7. System Stability & Monitoring (v2.4)
+
+- **System Health Dashboard**: Real-time server status, CPU/Memory usage, and active database connection monitoring.
+- **Smart Error Handling**: Automated try-catch protection on critical actions (Sales, Purchases, Inventory) to prevent data inconsistency.
+- **Auto-Logging System**: Captures system errors and warnings into a consolidated `SystemLog` for admin auditing.
+- **Performance Optimization**: Tuned generic connection pool settings for Serverless environments (Prisma + PgBouncer).
+
 ## Technical Architecture
 
 ### Technology Stack
