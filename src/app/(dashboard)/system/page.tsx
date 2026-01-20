@@ -1,20 +1,31 @@
 'use client';
 
-import { Suspense, useEffect, useState, useTransition } from 'react';
+import { Suspense, useEffect, useState, useTransition, useRef, useCallback } from 'react';
 import { 
   Activity, 
-  Database, 
-  Server, 
-  Cpu, 
-  RefreshCw, 
-  CheckCircle2, 
-  AlertTriangle 
+  Database,
+  Server,
+  RefreshCw,
+  AlertTriangle,
+  Users,
+  Cpu,
+  Zap,
+  FileWarning,
+  Bug
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { getSystemMetrics, type SystemMetrics } from '@/actions/system';
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from '@/components/ui/table';
+import { getSystemMetrics, generateTestLog, type SystemMetrics } from '@/actions/system'; // Import generateTestLog
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { 
   LineChart, 
@@ -27,6 +38,7 @@ import {
   AreaChart,
   Area
 } from 'recharts';
+
 
 function StatusCard({ 
   title, 
@@ -86,6 +98,7 @@ function StatusCard({
   );
 }
 
+
 function SystemDashboard() {
   const [metrics, setMetrics] = useState<SystemMetrics | null>(null);
   const [history, setHistory] = useState<any[]>([]);
@@ -93,26 +106,47 @@ function SystemDashboard() {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [isPaused, setIsPaused] = useState(false);
+  const [isTesting, setIsTesting] = useState(false); // State for test button
 
-  const fetchMetrics = () => {
+  // Refs for calculating QPS delta
+  const lastQueriesRef = useRef<{ total: number; time: number } | null>(null);
+  const [qps, setQps] = useState(0);
+
+  const fetchMetrics = useCallback(() => {
     startTransition(async () => {
       try {
         const data = await getSystemMetrics();
         setMetrics(data);
         setError(null);
 
+        // Calculate QPS
+        const now = Date.now();
+        let currentQps = 0;
+        
+        if (lastQueriesRef.current) {
+          const deltaSeconds = (now - lastQueriesRef.current.time) / 1000;
+          const deltaQueries = data.totalQueries - lastQueriesRef.current.total;
+          
+          if (deltaSeconds > 0 && deltaQueries >= 0) {
+            currentQps = Math.round(deltaQueries / deltaSeconds);
+          }
+        }
+        
+        setQps(currentQps);
+        lastQueriesRef.current = { total: data.totalQueries, time: now };
+
         // Add to history (keep last 30 points)
         setHistory(prev => {
-          const now = new Date();
-          const timeLabel = now.getHours().toString().padStart(2, '0') + ':' +
-                           now.getMinutes().toString().padStart(2, '0') + ':' +
-                           now.getSeconds().toString().padStart(2, '0');
+          const date = new Date();
+          const timeLabel = date.getHours().toString().padStart(2, '0') + ':' +
+                           date.getMinutes().toString().padStart(2, '0') + ':' +
+                           date.getSeconds().toString().padStart(2, '0');
 
           const newPoint = {
             time: timeLabel,
             memory: (data.process.memory.rss / 1024 / 1024).toFixed(1), // MB
             latency: data.db.latency,
-            requests: Math.floor(Math.random() * 50) + 10 // Simulated requests/sec
+            requests: currentQps // Real QPS
           };
 
           const newHistory = [...prev, newPoint];
@@ -127,16 +161,50 @@ function SystemDashboard() {
         setLoading(false);
       }
     });
+  }, []);
+
+  const handleTestError = async () => {
+    setIsTesting(true);
+    try {
+      await generateTestLog();
+      // Wait a bit for DB propagation then refresh
+      setTimeout(() => {
+        fetchMetrics();
+        setIsTesting(false);
+      }, 500);
+    } catch (e) {
+      console.error(e);
+      setIsTesting(false);
+    }
   };
 
   useEffect(() => {
+    // Handle visibility change for Auto-Pause
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        setIsPaused(true);
+      } else {
+        setIsPaused(false);
+        fetchMetrics(); // Fetch immediately when visible
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
     fetchMetrics();
     // Auto refresh every 2 seconds (Real-time)
-    const interval = setInterval(fetchMetrics, 2000);
-    return () => clearInterval(interval);
-  }, []);
+    const interval = setInterval(() => {
+      if (!isPaused && !document.hidden) fetchMetrics();
+    }, 2000);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isPaused, fetchMetrics]);
 
   if (loading && !metrics) {
+    // ... (Skeleton remains unchanged) ...
     return (
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 animate-pulse">
         {[1, 2, 3, 4].map(i => (
@@ -145,6 +213,8 @@ function SystemDashboard() {
       </div>
     );
   }
+
+  // ... (Error handling remains unchanged) ...
 
   if (error) {
     return (
@@ -158,7 +228,7 @@ function SystemDashboard() {
 
   if (!metrics) return null;
 
-  // Helpers
+  // ... (Helpers remain unchanged) ...
   const formatBytes = (bytes: number) => (bytes / 1024 / 1024).toFixed(0) + ' MB';
   const formatUptime = (sec: number) => {
     const d = Math.floor(sec / 86400);
@@ -169,7 +239,6 @@ function SystemDashboard() {
     return `${m}m ${Math.floor(sec % 60)}s`;
   };
 
-  const memUsagePercent = (metrics.process.memory.rss / metrics.os.totalMemory) * 100 * 10; // Scale up for visibility if serverless has huge host memory
   const dbStatus = metrics.db.latency < 200 ? 'success' : metrics.db.latency < 1000 ? 'warning' : 'error';
 
   return (
@@ -184,6 +253,15 @@ function SystemDashboard() {
         </div>
         <div className="flex gap-2">
           <Button
+            variant="ghost"
+            size="sm"
+            disabled={true} // Permanently disabled as per request
+            className="gap-2 text-muted-foreground opacity-50 cursor-not-allowed"
+          >
+            <Bug className="h-4 w-4" />
+            Test Error (Disabled)
+          </Button>
+             <Button
             variant="outline"
             size="sm"
             onClick={() => setIsPaused(!isPaused)}
@@ -213,6 +291,8 @@ function SystemDashboard() {
           </Button>
         </div>
       </div>
+      
+      {/* ... (Rest of dashboard remains unchanged) ... */}
 
       {/* Primary Stats Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -226,38 +306,44 @@ function SystemDashboard() {
           progress={Math.min((metrics.db.latency / 500) * 100, 100)}
         />
 
-        {/* Process Memory */}
+        {/* Request Rate (NEW) - Replaces DB Pool if space needed, or typically Pool is better. 
+            User asked for Request Rate. Let's add it. 
+            Actually let's keep Pool and replace User Online? No, Online is requested.
+            Let's Add a 5th card? The grid layout is lg:grid-cols-4. 
+            Let's replace "Process Uptime" (less useful) or just add it to the grid. 
+            The grid is dynamic. */}
         <StatusCard
-          title="Memory Usage (RSS)"
-          value={formatBytes(metrics.process.memory.rss)}
-          subValue={`Heap: ${formatBytes(metrics.process.memory.heapUsed)}`}
-          icon={Activity}
-          status={metrics.process.memory.rss > 512 * 1024 * 1024 ? 'warning' : 'default'} // Warn if > 512MB
-          progress={Math.min((metrics.process.memory.rss / (512 * 1024 * 1024)) * 100, 100)} // relative to 512MB standard limit
+          title="Request Rate (DB)"
+          value={`${qps} QPS`}
+          subValue="Queries per second"
+          icon={Zap}
+          status={qps > 100 ? 'warning' : 'success'}
+          progress={Math.min((qps / 100) * 100, 100)} 
         />
 
-        {/* Server Info */}
+        {/* Process CPU */}
         <StatusCard
-          title="Server Environment"
-          value={metrics.environment.region}
-          subValue={`Node ${metrics.process.nodeVersion}`}
-          icon={Server}
-          status="default"
-        />
-
-        {/* Uptime */}
-        <StatusCard
-          title="Process Uptime"
-          value={formatUptime(metrics.process.uptime)}
-          subValue={`System Uptime: ${formatUptime(metrics.uptime)}`}
+          title="Process CPU Usage"
+          value={`${metrics.process.cpuUsage}%`}
+          subValue={`System Load: ${metrics.os.loadAvg[0]?.toFixed(2) || '0.00'}`}
           icon={Cpu}
+          status={metrics.process.cpuUsage > 70 ? 'warning' : 'success'}
+          progress={metrics.process.cpuUsage} 
+        />
+
+        {/* Online Users */}
+        <StatusCard
+          title="Users Online"
+          value={`${metrics.onlineUsers}`}
+          subValue="Active in last 5m"
+          icon={Users} 
           status="success"
         />
       </div>
 
       {/* Real-time Charts Section */}
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
+         <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <Activity className="h-4 w-4 text-blue-500" />
@@ -329,6 +415,54 @@ function SystemDashboard() {
         </Card>
       </div>
 
+      {/* System Logs Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <FileWarning className="h-4 w-4 text-red-500" />
+            Recent Error Logs
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Time</TableHead>
+                <TableHead>Level</TableHead>
+                <TableHead>Message</TableHead>
+                <TableHead>Context (Path)</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {metrics.logs && metrics.logs.length > 0 ? (
+                metrics.logs.map((log: any) => (
+                  <TableRow key={log.id}>
+                    <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                      {new Date(log.createdAt).toLocaleString()}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={log.level === 'ERROR' ? 'destructive' : 'secondary'}>
+                        {log.level}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="font-medium">{log.message}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {log.path || '-'}
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                 <TableRow>
+                  <TableCell colSpan={4} className="text-center text-muted-foreground h-24">
+                    No recent errors found. System is running smoothly.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
@@ -342,10 +476,6 @@ function SystemDashboard() {
             <div className="flex justify-between border-b pb-2">
               <span className="text-muted-foreground">CPUs (Cores)</span>
               <span className="font-medium">{metrics.os.cpus} Cores</span>
-            </div>
-            <div className="flex justify-between border-b pb-2">
-              <span className="text-muted-foreground">Load Average</span>
-              <span className="font-medium">{metrics.os.loadAvg.map(n => n.toFixed(2)).join(', ')}</span>
             </div>
              <div className="flex justify-between border-b pb-2">
               <span className="text-muted-foreground">Free Memory (Host)</span>

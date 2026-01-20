@@ -1,6 +1,7 @@
 generator client {
   provider = "prisma-client-js"
   binaryTargets = ["native", "rhel-openssl-3.0.x"]
+  previewFeatures = ["metrics"]
 }
 
 datasource db {
@@ -19,6 +20,7 @@ model User {
 
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  lastActiveAt  DateTime  @default(now()) // Track online status
 
   // Relations
   shop          Shop?
@@ -589,4 +591,35 @@ model StockLog {
   @@index([referenceId])
   @@index([saleId])
   @@index([purchaseId])
+}
+
+// ==================== System Monitoring ====================
+
+enum LogLevel {
+  INFO
+  WARN
+  ERROR
+}
+
+model SystemLog {
+  id          String   @id @default(cuid())
+  level       LogLevel
+  message     String
+  stack       String?  @db.Text
+  
+  // Context
+  path        String?
+  method      String?
+  body        String?  @db.Text
+  
+  // User Context (Optional)
+  userId      String?
+  userName    String?
+  shopId      String?
+
+  createdAt   DateTime @default(now())
+
+  @@index([level])
+  @@index([createdAt])
+  @@index([shopId])
 }

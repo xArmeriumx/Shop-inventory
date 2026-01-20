@@ -21,6 +21,8 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Permission } from '@prisma/client';
 import { usePermissions } from '@/hooks/use-permissions';
+import { useSession } from 'next-auth/react';
+import { UserActivityTracker } from '@/components/features/system/user-activity-tracker';
 
 const navItems = [
   {
@@ -96,10 +98,12 @@ const secondaryNavItems = [
 interface SidebarProps {
   isCollapsed?: boolean;
   onToggle?: () => void;
+  className?: string; // Added className to SidebarProps
 }
 
-export function Sidebar({ isCollapsed = false, onToggle }: SidebarProps) {
+export function Sidebar({ isCollapsed = false, onToggle, className }: SidebarProps) {
   const pathname = usePathname();
+  const { data: session } = useSession();
   const { hasPermission } = usePermissions();
 
   return (
@@ -124,6 +128,7 @@ export function Sidebar({ isCollapsed = false, onToggle }: SidebarProps) {
             S
           </div>
         )}
+        <UserActivityTracker />
       </div>
 
       {/* Navigation */}
