@@ -16,11 +16,12 @@ async function SettingsContent() {
   }
 
   // Fetch all data in parallel
-  const [user, shop, productCategories, expenseCategories] = await Promise.all([
+  const [user, shop, productCategories, expenseCategories, incomeCategories] = await Promise.all([
     getUserProfile(),
     getShop(),
     getLookupValuesForSettings('PRODUCT_CATEGORY'),
     getLookupValuesForSettings('EXPENSE_CATEGORY'),
+    getLookupValuesForSettings('INCOME_CATEGORY'),
   ]);
 
   return (
@@ -29,6 +30,7 @@ async function SettingsContent() {
       shopData={shop} 
       productCategories={productCategories}
       expenseCategories={expenseCategories}
+      incomeCategories={incomeCategories}
     />
   );
 }

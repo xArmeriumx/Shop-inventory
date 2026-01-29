@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Mail, Store, MapPin, Phone, FileText, Package, Wallet, Users, Shield } from 'lucide-react';
+import { Mail, Store, MapPin, Phone, FileText, Package, Wallet, TrendingUp, Users, Shield } from 'lucide-react';
 import { CategoryManager } from '@/components/features/lookups/category-manager';
 import { usePermissions } from '@/hooks/use-permissions';
 
@@ -48,9 +48,10 @@ interface SettingsFormProps {
   } | null;
   productCategories: LookupValue[];
   expenseCategories: LookupValue[];
+  incomeCategories: LookupValue[];
 }
 
-export function SettingsForm({ initialData, shopData, productCategories, expenseCategories }: SettingsFormProps) {
+export function SettingsForm({ initialData, shopData, productCategories, expenseCategories, incomeCategories }: SettingsFormProps) {
   const [profileState, profileAction] = useFormState(updateProfile, initialProfileState);
   const [shopState, shopAction] = useFormState(updateShop, initialShopState);
   const { hasPermission } = usePermissions();
@@ -265,6 +266,25 @@ export function SettingsForm({ initialData, shopData, productCategories, expense
                   title="" 
                   typeCode="EXPENSE_CATEGORY" 
                   values={expenseCategories} 
+                />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5" />
+                  หมวดหมู่รายรับ
+                </CardTitle>
+                <CardDescription>
+                  จัดการหมวดหมู่สำหรับจัดกลุ่มรายรับอื่นๆ (บริการ, ค่าแรง)
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <CategoryManager 
+                  title="" 
+                  typeCode="INCOME_CATEGORY" 
+                  values={incomeCategories} 
                 />
               </CardContent>
             </Card>
