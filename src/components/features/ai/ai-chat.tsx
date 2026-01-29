@@ -3,8 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Send, Bot, User, Loader2, Sparkles, Zap, Check, X } from 'lucide-react';
+import { Send, Bot, User, Loader2, Sparkles, Zap, Check, X, MessageCircle, Lightbulb } from 'lucide-react';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -19,11 +18,11 @@ interface ConfirmationData {
 }
 
 const SUGGESTED_QUESTIONS = [
-  '📊 ยอดขายวันนี้?',
-  '📦 เช็คสต็อก Labubu',
-  '💰 บันทึกค่าไฟ 2500',
-  '📈 สรุปเดือนนี้',
-  '➕ เพิ่มสินค้าใหม่',
+  { text: 'ยอดขายวันนี้?', icon: '📊', color: 'from-blue-500 to-cyan-500' },
+  { text: 'เช็คสต็อก Labubu', icon: '📦', color: 'from-orange-500 to-amber-500' },
+  { text: 'บันทึกค่าไฟ 2500', icon: '💡', color: 'from-yellow-500 to-orange-500' },
+  { text: 'สรุปเดือนนี้', icon: '📈', color: 'from-green-500 to-emerald-500' },
+  { text: 'เพิ่มสินค้าใหม่', icon: '➕', color: 'from-purple-500 to-pink-500' },
 ];
 
 export function AIChat() {
@@ -78,7 +77,7 @@ export function AIChat() {
   const sendMessage = async (content: string) => {
     if (!content.trim() || isLoading) return;
 
-    const cleanContent = content.replace(/^[📊🏆⚠️📈💰📦➕]\s*/, '');
+    const cleanContent = content.replace(/^[📊🏆⚠️📈💰📦➕💡]\\s*/, '');
     
     const userMessage: Message = { role: 'user', content: cleanContent };
     setMessages(prev => [...prev, userMessage]);
@@ -126,22 +125,18 @@ export function AIChat() {
               try {
                 const parsed = JSON.parse(data);
                 
-                // Handle text content
                 if (parsed.content) {
                   fullContent += parsed.content;
                   setStreamingContent(fullContent);
                 }
                 
-                // Handle tool result
                 if (parsed.toolResult) {
                   hasToolResult = true;
                   
                   if (parsed.toolResult.requireConfirmation) {
-                    // Show confirmation dialog
                     setConfirmation(parsed.toolResult.confirmationData);
                     setStreamingContent('');
                   } else {
-                    // Direct result
                     setStreamingContent('');
                     setMessages(prev => [...prev, { role: 'assistant', content: parsed.toolResult.message }]);
                   }
@@ -154,7 +149,6 @@ export function AIChat() {
         }
       }
 
-      // Add final message if not tool result
       if (fullContent && !hasToolResult) {
         setMessages(prev => [...prev, { role: 'assistant', content: fullContent }]);
       }
@@ -173,100 +167,128 @@ export function AIChat() {
   };
 
   return (
-    <Card className="flex flex-col h-[calc(100vh-12rem)] overflow-hidden border-0 shadow-xl bg-gradient-to-b from-background to-muted/20">
-      {/* Header */}
-      <CardHeader className="border-b py-4 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent">
-        <CardTitle className="flex items-center gap-3 text-lg">
-          <div className="relative">
-            <div className="absolute inset-0 bg-primary/20 rounded-full blur-md animate-pulse" />
-            <div className="relative p-2 bg-gradient-to-br from-primary to-primary/80 rounded-full">
-              <Sparkles className="h-5 w-5 text-primary-foreground" />
+    <div className="flex flex-col h-[calc(100vh-8rem)] overflow-hidden">
+      {/* Glassmorphism Header */}
+      <div className="relative overflow-hidden rounded-t-2xl border border-white/10">
+        <div className="absolute inset-0 bg-gradient-to-r from-violet-600/20 via-purple-600/20 to-fuchsia-600/20 backdrop-blur-xl" />
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cGF0dGVybiBpZD0iYSIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiBwYXR0ZXJuVHJhbnNmb3JtPSJyb3RhdGUoNDUpIj48cGF0aCBkPSJNLTEwIDMwaDYwdi0ySDEweiIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjAzKSIvPjwvcGF0dGVybj48L2RlZnM+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNhKSIvPjwvc3ZnPg==')] opacity-50" />
+        
+        <div className="relative px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <div className="absolute -inset-1 bg-gradient-to-r from-violet-500 to-fuchsia-500 rounded-2xl blur-lg opacity-60 animate-pulse" />
+              <div className="relative p-3 bg-gradient-to-br from-violet-500 to-fuchsia-600 rounded-xl shadow-xl">
+                <Sparkles className="h-6 w-6 text-white" />
+              </div>
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-white flex items-center gap-2">
+                AI ผู้ช่วยอัจฉริยะ
+                <span className="px-2 py-0.5 text-[10px] font-medium bg-white/20 text-white rounded-full">BETA</span>
+              </h1>
+              <p className="text-sm text-white/60">พร้อมช่วยเหลือคุณตลอด 24 ชั่วโมง</p>
             </div>
           </div>
-          <div>
-            <span className="font-semibold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-              AI ผู้ช่วยร้านค้า
-            </span>
-            <p className="text-xs text-muted-foreground font-normal mt-0.5">
-              Powered by Groq • Llama 3.3 • Function Calling
-            </p>
+          
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/20 border border-emerald-500/30 rounded-full">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              </span>
+              <span className="text-xs font-medium text-emerald-400">Online</span>
+            </div>
           </div>
-          <div className="ml-auto flex items-center gap-1 text-xs text-green-500">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-            </span>
-            Online
-          </div>
-        </CardTitle>
-      </CardHeader>
+        </div>
+      </div>
       
-      <CardContent className="flex-1 flex flex-col p-0 overflow-hidden">
-        {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4" ref={scrollAreaRef}>
+      {/* Chat Messages Area */}
+      <div className="flex-1 overflow-hidden bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 border-x border-white/5">
+        <div className="h-full overflow-y-auto p-6 space-y-6" ref={scrollAreaRef}>
           {messages.length === 0 && !streamingContent && !confirmation ? (
-            <div className="h-full flex flex-col items-center justify-center text-center p-6 animate-in fade-in-0 zoom-in-95 duration-500">
-              <div className="relative mb-6">
-                <div className="absolute inset-0 bg-gradient-to-r from-primary/30 to-purple-500/30 rounded-full blur-2xl animate-pulse" />
-                <div className="relative p-6 bg-gradient-to-br from-primary/20 to-purple-500/20 rounded-full">
-                  <Bot className="h-16 w-16 text-primary animate-bounce" style={{ animationDuration: '2s' }} />
+            // Welcome Screen
+            <div className="h-full flex flex-col items-center justify-center text-center p-6 animate-in fade-in-0 zoom-in-95 duration-700">
+              {/* Animated Bot Icon */}
+              <div className="relative mb-8">
+                <div className="absolute inset-0 bg-gradient-to-r from-violet-500/40 via-purple-500/40 to-fuchsia-500/40 rounded-full blur-3xl animate-pulse" />
+                <div className="absolute inset-0 bg-gradient-to-t from-violet-500/20 to-transparent rounded-full blur-2xl" />
+                <div className="relative">
+                  <div className="w-28 h-28 rounded-3xl bg-gradient-to-br from-violet-500 via-purple-600 to-fuchsia-600 p-1 shadow-2xl shadow-purple-500/30 rotate-3 hover:rotate-0 transition-transform duration-500">
+                    <div className="w-full h-full rounded-[20px] bg-slate-900/90 backdrop-blur flex items-center justify-center">
+                      <Bot className="h-14 w-14 text-white" />
+                    </div>
+                  </div>
+                  <div className="absolute -bottom-2 -right-2 w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center shadow-lg shadow-emerald-500/30 animate-bounce">
+                    <MessageCircle className="h-5 w-5 text-white" />
+                  </div>
                 </div>
               </div>
               
-              <h3 className="text-2xl font-bold mb-2 bg-gradient-to-r from-primary to-purple-500 bg-clip-text text-transparent">
+              <h2 className="text-3xl font-bold mb-3 bg-gradient-to-r from-white via-purple-200 to-white bg-clip-text text-transparent">
                 สวัสดีครับ! 👋
-              </h3>
-              <p className="text-muted-foreground mb-8 max-w-md leading-relaxed">
-                ผมคือ AI ผู้ช่วยร้านค้า สามารถ<span className="text-primary font-medium">บันทึกข้อมูล</span>, 
-                <span className="text-primary font-medium"> เช็คสต็อก</span>, และ
-                <span className="text-primary font-medium"> สรุปรายงาน</span>ให้คุณได้
+              </h2>
+              <p className="text-white/50 mb-10 max-w-md leading-relaxed text-lg">
+                ผมคือ AI ผู้ช่วยร้านค้า พร้อมช่วย
+                <span className="text-violet-400 font-medium"> บันทึกข้อมูล</span>,
+                <span className="text-cyan-400 font-medium"> เช็คสต็อก</span> และ
+                <span className="text-emerald-400 font-medium"> สรุปรายงาน</span> ให้คุณ
               </p>
               
-              <div className="flex flex-wrap gap-2 justify-center max-w-lg">
-                {SUGGESTED_QUESTIONS.map((q, i) => (
-                  <Button
-                    key={q}
-                    variant="outline"
-                    size="sm"
-                    onClick={() => sendMessage(q)}
-                    className="text-sm hover:bg-primary/10 hover:border-primary/50 hover:scale-105 transition-all duration-200 animate-in fade-in-0 slide-in-from-bottom-2"
-                    style={{ animationDelay: `${i * 100}ms`, animationFillMode: 'both' }}
-                  >
-                    {q}
-                  </Button>
-                ))}
+              {/* Suggested Actions */}
+              <div className="w-full max-w-2xl">
+                <div className="flex items-center gap-2 mb-4 justify-center">
+                  <Lightbulb className="h-4 w-4 text-amber-500" />
+                  <span className="text-sm text-white/40">ลองถามคำถามเหล่านี้</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {SUGGESTED_QUESTIONS.map((q, i) => (
+                    <button
+                      key={q.text}
+                      onClick={() => sendMessage(q.text)}
+                      className="group relative overflow-hidden rounded-xl p-4 text-left transition-all duration-300 hover:scale-[1.02] animate-in fade-in-0 slide-in-from-bottom-4"
+                      style={{ animationDelay: `${i * 100}ms`, animationFillMode: 'both' }}
+                    >
+                      <div className={`absolute inset-0 bg-gradient-to-br ${q.color} opacity-10 group-hover:opacity-20 transition-opacity`} />
+                      <div className="absolute inset-0 border border-white/10 rounded-xl group-hover:border-white/20 transition-colors" />
+                      <div className="relative flex items-center gap-3">
+                        <span className="text-2xl">{q.icon}</span>
+                        <span className="text-sm font-medium text-white/80 group-hover:text-white transition-colors">{q.text}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-6">
               {messages.map((message, index) => (
                 <div
                   key={index}
-                  className={`flex gap-3 animate-in fade-in-0 slide-in-from-bottom-2 duration-300 ${
+                  className={`flex gap-4 animate-in fade-in-0 slide-in-from-bottom-4 duration-500 ${
                     message.role === 'user' ? 'justify-end' : 'justify-start'
                   }`}
                 >
                   {message.role === 'assistant' && (
-                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center flex-shrink-0 ring-2 ring-primary/10">
-                      <Bot className="h-5 w-5 text-primary" />
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-purple-500/20">
+                      <Bot className="h-5 w-5 text-white" />
                     </div>
                   )}
                   
                   <div
-                    className={`max-w-[80%] rounded-2xl px-4 py-3 shadow-sm ${
+                    className={`max-w-[75%] rounded-2xl px-5 py-3.5 ${
                       message.role === 'user'
-                        ? 'bg-gradient-to-r from-primary to-primary/90 text-primary-foreground rounded-br-sm'
-                        : 'bg-card border border-border/50 rounded-bl-sm'
+                        ? 'bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-lg shadow-purple-500/20'
+                        : 'bg-white/5 border border-white/10 text-white/90 backdrop-blur-sm'
                     }`}
                   >
-                    <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                    <div className="whitespace-pre-wrap text-[15px] leading-relaxed">
                       {message.content}
                     </div>
                   </div>
                   
                   {message.role === 'user' && (
-                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center flex-shrink-0 shadow-lg shadow-primary/25">
-                      <User className="h-5 w-5 text-primary-foreground" />
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center flex-shrink-0 shadow-lg border border-white/10">
+                      <User className="h-5 w-5 text-white" />
                     </div>
                   )}
                 </div>
@@ -274,14 +296,14 @@ export function AIChat() {
               
               {/* Streaming Message */}
               {streamingContent && (
-                <div className="flex gap-3 justify-start animate-in fade-in-0 slide-in-from-bottom-2">
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center flex-shrink-0 ring-2 ring-primary/10">
-                    <Bot className="h-5 w-5 text-primary" />
+                <div className="flex gap-4 justify-start animate-in fade-in-0 slide-in-from-bottom-4">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-purple-500/20">
+                    <Bot className="h-5 w-5 text-white" />
                   </div>
-                  <div className="max-w-[80%] bg-card border border-border/50 rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm">
-                    <div className="whitespace-pre-wrap text-sm leading-relaxed">
+                  <div className="max-w-[75%] bg-white/5 border border-white/10 rounded-2xl px-5 py-3.5 backdrop-blur-sm">
+                    <div className="whitespace-pre-wrap text-[15px] leading-relaxed text-white/90">
                       {streamingContent}
-                      <span className="inline-block w-2 h-4 bg-primary/60 ml-0.5 animate-pulse" />
+                      <span className="inline-block w-2 h-5 bg-violet-500 ml-1 animate-pulse rounded-sm" />
                     </div>
                   </div>
                 </div>
@@ -289,30 +311,30 @@ export function AIChat() {
 
               {/* Confirmation Dialog */}
               {confirmation && (
-                <div className="flex gap-3 justify-start animate-in fade-in-0 slide-in-from-bottom-2 zoom-in-95">
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center flex-shrink-0 ring-2 ring-primary/10">
-                    <Bot className="h-5 w-5 text-primary" />
+                <div className="flex gap-4 justify-start animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-4 duration-500">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-purple-500/20">
+                    <Bot className="h-5 w-5 text-white" />
                   </div>
-                  <div className="max-w-[85%] bg-gradient-to-br from-card to-muted/30 border-2 border-primary/30 rounded-2xl rounded-bl-sm px-5 py-4 shadow-lg">
-                    <h4 className="font-semibold text-base mb-3 flex items-center gap-2">
+                  <div className="max-w-[85%] bg-gradient-to-br from-white/10 to-white/5 border-2 border-violet-500/40 rounded-2xl px-6 py-5 backdrop-blur-sm shadow-xl shadow-purple-500/10">
+                    <h4 className="font-bold text-lg mb-4 text-white flex items-center gap-2">
                       {confirmation.title}
                     </h4>
                     
-                    <div className="space-y-2 mb-4">
+                    <div className="space-y-2 mb-5">
                       {confirmation.items.map((item, i) => (
-                        <div key={i} className="flex items-center gap-3 bg-background/50 rounded-lg px-3 py-2">
-                          <span className="text-lg">{item.icon}</span>
-                          <span className="text-muted-foreground text-sm">{item.label}:</span>
-                          <span className="font-medium text-sm">{item.value}</span>
+                        <div key={i} className="flex items-center gap-4 bg-white/5 rounded-xl px-4 py-3 border border-white/5">
+                          <span className="text-xl">{item.icon}</span>
+                          <span className="text-white/50 text-sm">{item.label}:</span>
+                          <span className="font-semibold text-white">{item.value}</span>
                         </div>
                       ))}
                     </div>
                     
-                    <div className="flex gap-2">
+                    <div className="flex gap-3">
                       <Button
                         onClick={handleConfirm}
                         disabled={isConfirming}
-                        className="flex-1 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 shadow-lg shadow-green-500/25"
+                        className="flex-1 bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-white border-0 shadow-lg shadow-emerald-500/25 h-11"
                       >
                         {isConfirming ? (
                           <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -325,7 +347,7 @@ export function AIChat() {
                         onClick={handleCancel}
                         variant="outline"
                         disabled={isConfirming}
-                        className="flex-1 border-red-500/50 text-red-500 hover:bg-red-500/10"
+                        className="flex-1 border-red-500/40 text-red-400 hover:bg-red-500/10 hover:text-red-300 h-11"
                       >
                         <X className="h-4 w-4 mr-2" />
                         ยกเลิก
@@ -337,18 +359,18 @@ export function AIChat() {
               
               {/* Loading */}
               {isLoading && !streamingContent && !confirmation && (
-                <div className="flex gap-3 justify-start animate-in fade-in-0 slide-in-from-bottom-2">
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center flex-shrink-0 ring-2 ring-primary/10">
-                    <Bot className="h-5 w-5 text-primary" />
+                <div className="flex gap-4 justify-start animate-in fade-in-0 slide-in-from-bottom-4">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-purple-500/20 animate-pulse">
+                    <Bot className="h-5 w-5 text-white" />
                   </div>
-                  <div className="bg-card border border-border/50 rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm">
-                    <div className="flex items-center gap-2">
-                      <div className="flex gap-1">
-                        <span className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                        <span className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                        <span className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  <div className="bg-white/5 border border-white/10 rounded-2xl px-5 py-4 backdrop-blur-sm">
+                    <div className="flex items-center gap-3">
+                      <div className="flex gap-1.5">
+                        <span className="w-2.5 h-2.5 bg-violet-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                        <span className="w-2.5 h-2.5 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                        <span className="w-2.5 h-2.5 bg-fuchsia-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                       </div>
-                      <span className="text-xs text-muted-foreground ml-1">กำลังประมวลผล...</span>
+                      <span className="text-sm text-white/40">กำลังคิด...</span>
                     </div>
                   </div>
                 </div>
@@ -356,23 +378,28 @@ export function AIChat() {
             </div>
           )}
         </div>
+      </div>
 
-        {/* Input Area */}
-        <div className="border-t bg-gradient-to-r from-background via-muted/30 to-background p-4 backdrop-blur-sm">
-          <form onSubmit={handleSubmit} className="flex gap-2">
-            <Input
-              ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="พิมพ์คำสั่ง เช่น 'บันทึกค่าไฟ 2500' หรือ 'สรุปยอดวันนี้'..."
-              disabled={isLoading || !!confirmation}
-              className="flex-1 py-5 rounded-xl border-2 focus:border-primary/50 transition-all bg-background/80"
-            />
+      {/* Input Area */}
+      <div className="relative overflow-hidden rounded-b-2xl border border-white/10 border-t-0">
+        <div className="absolute inset-0 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900" />
+        <div className="relative px-6 py-5">
+          <form onSubmit={handleSubmit} className="flex gap-3">
+            <div className="flex-1 relative">
+              <Input
+                ref={inputRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="พิมพ์คำสั่ง เช่น 'บันทึกค่าไฟ 2500' หรือ 'สรุปยอดวันนี้'..."
+                disabled={isLoading || !!confirmation}
+                className="w-full py-6 px-5 rounded-xl bg-white/5 border-2 border-white/10 focus:border-violet-500/50 text-white placeholder:text-white/30 text-[15px] transition-all focus:ring-2 focus:ring-violet-500/20"
+              />
+            </div>
             <Button 
               type="submit" 
               disabled={isLoading || !input.trim() || !!confirmation}
               size="lg"
-              className="rounded-xl px-5 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary shadow-lg shadow-primary/25 transition-all hover:scale-105 disabled:hover:scale-100"
+              className="h-[52px] px-6 rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 border-0 shadow-lg shadow-purple-500/25 transition-all hover:scale-105 hover:shadow-xl hover:shadow-purple-500/30 disabled:hover:scale-100 disabled:opacity-50"
             >
               {isLoading ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -381,12 +408,14 @@ export function AIChat() {
               )}
             </Button>
           </form>
-          <p className="text-center text-xs text-muted-foreground mt-2">
-            <Zap className="h-3 w-3 inline mr-1" />
-            AI สามารถบันทึกข้อมูล เช็คสต็อก และสร้างรายงานได้
-          </p>
+          <div className="flex items-center justify-center gap-2 mt-3">
+            <Zap className="h-3.5 w-3.5 text-amber-500" />
+            <span className="text-xs text-white/30">
+              Powered by Llama 3 • สามารถบันทึกข้อมูล เช็คสต็อก สร้างรายงานได้
+            </span>
+          </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

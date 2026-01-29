@@ -5,8 +5,8 @@ export const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
-// Default model - Llama 3.3 70B (replacement for deprecated 3.1)
-export const DEFAULT_MODEL = 'llama-3.3-70b-versatile';
+// Default model - Llama 3.1 8B (fastest, highest rate limits, cheapest)
+export const DEFAULT_MODEL = 'llama-3.1-8b-instant';
 
 // System prompt for Shop Inventory AI - Optimized for function calling
 export const SHOP_AI_SYSTEM_PROMPT = `คุณคือ AI ผู้ช่วยสำหรับระบบ Shop Inventory (ระบบจัดการร้านค้า/คลังสินค้า)
