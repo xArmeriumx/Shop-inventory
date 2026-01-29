@@ -1,9 +1,10 @@
 'use server';
 
 import { db } from '@/lib/db';
-import { getCurrentUserId, requirePermission } from '@/lib/auth-guard';
+import { requirePermission } from '@/lib/auth-guard';
 import { logger } from '@/lib/logger';
 
+// Interface สำหรับ Return Data ไปหน้าบ้าน
 export interface ReportData {
   period: { start: string; end: string };
   summary: {
@@ -19,30 +20,36 @@ export interface ReportData {
     expenses: number;
     profit: number;
   }[];
-  sales: any[]; // Detailed sales
-  expenses: any[]; // Detailed expenses
+  sales: any[]; 
+  expenses: any[]; 
 }
 
+// ฟังก์ชันหลักดึงรายงาน (ระบุช่วงวันที่ได้)
 export async function getReportData(startDate?: string, endDate?: string): Promise<ReportData> {
   try {
     const ctx = await requirePermission('REPORT_VIEW_SALES');
     
-    // Default to current month if no dates provided
+    // ตั้งค่าช่วงเวลา (ถ้าไม่ส่งมา ให้ใช้เดือนปัจจุบัน)
     const now = new Date();
     const start = startDate ? new Date(startDate) : new Date(now.getFullYear(), now.getMonth(), 1);
     const end = endDate ? new Date(endDate) : new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
     
-    // Ensure start has time 00:00:00 and end has 23:59:59
+    // บังคับเวลาเริ่มเป็น 00:00:00 และจบที่ 23:59:59
     start.setHours(0, 0, 0, 0);
     end.setHours(23, 59, 59, 999);
 
+    // =========================================================
+    // เริ่มยิง Database พร้อมกัน 4 Query (เพื่อความเร็ว)
+    // =========================================================
     const [salesData, expensesData, salesAggregate, expensesAggregate] = await Promise.all([
-      // ✅ OPTIMIZED: Select only needed fields for detailed sales list
+      
+      // Query 1: ดึงรายการขายทั้งหมดในช่วงเวลา
+      // ใช้ select เพื่อดึงเฉพาะ field ที่จำเป็น (ลดขนาดข้อมูล)
       db.sale.findMany({
         where: {
           shopId: ctx.shopId,
           date: { gte: start, lte: end },
-          status: { not: 'CANCELLED' },
+          status: { not: 'CANCELLED' }, // ไม่เอารายการที่ยกเลิก
         },
         select: {
           id: true,
@@ -57,12 +64,12 @@ export async function getReportData(startDate?: string, endDate?: string): Promi
         orderBy: { date: 'asc' },
       }),
 
-      // ✅ OPTIMIZED: Select only needed fields for expenses list
+      // Query 2: ดึงรายการค่าใช้จ่ายทั้งหมดในช่วงเวลา
       db.expense.findMany({
         where: {
           shopId: ctx.shopId,
           date: { gte: start, lte: end },
-          deletedAt: null,
+          deletedAt: null, // ไม่เอาที่ลบไปแล้ว
         },
         select: {
           id: true,
@@ -74,7 +81,8 @@ export async function getReportData(startDate?: string, endDate?: string): Promi
         orderBy: { date: 'asc' },
       }),
 
-      // ✅ OPTIMIZED: Use aggregate for summary (more efficient than reduce)
+      // Query 3: หาผลรวมยอดขายและต้นทุน (Server-side Calculation)
+      // ใช้ database บวกเลขให้เลย เร็วกว่าเอามาวน loop เอง
       db.sale.aggregate({
         where: {
           shopId: ctx.shopId,
@@ -84,7 +92,7 @@ export async function getReportData(startDate?: string, endDate?: string): Promi
         _sum: { totalAmount: true, totalCost: true },
       }),
 
-      // ✅ OPTIMIZED: Use aggregate for expenses total
+      // Query 4: หาผลรวมค่าใช้จ่าย
       db.expense.aggregate({
         where: {
           shopId: ctx.shopId,
@@ -95,28 +103,30 @@ export async function getReportData(startDate?: string, endDate?: string): Promi
       }),
     ]);
 
-    // ✅ OPTIMIZED: Use aggregate results directly (no JS reduce needed)
+    // แปลงข้อมูลจาก Aggregate (Decimal -> Number)
     const totalSales = Number(salesAggregate._sum.totalAmount || 0);
     const totalCost = Number(salesAggregate._sum.totalCost || 0);
     const totalExpenses = Number(expensesAggregate._sum.amount || 0);
     
-    // Calculate Profit
+    // คำนวณกำไรสุทธิ (ยอดขาย - ต้นทุน - ค่าใช้จ่าย)
     const grossProfit = totalSales - totalCost;
     const netProfit = grossProfit - totalExpenses;
 
-    // Group by Date for Daily Stats
+    // =========================================================
+    // การจัดกลุ่มข้อมูลรายวัน (Grouping Logic)
+    // =========================================================
     const dailyMap = new Map<string, { sales: number; cost: number; expenses: number }>();
 
-    // Process sales data for daily stats
+    // วนลูปยอดขายเพื่อใส่ลงใน Map รายวัน
     salesData.forEach(s => {
-      const dateKey = s.date.toISOString().split('T')[0];
+      const dateKey = s.date.toISOString().split('T')[0]; // ตัดเวลาออก เอาแค่วันที่
       const current = dailyMap.get(dateKey) || { sales: 0, cost: 0, expenses: 0 };
       current.sales += Number(s.totalAmount);
       current.cost += Number(s.totalCost);
       dailyMap.set(dateKey, current);
     });
 
-    // Process expenses data for daily stats
+    // วนลูปค่าใช้จ่ายเพื่อใส่ลงใน Map รายวัน
     expensesData.forEach(e => {
       const dateKey = e.date.toISOString().split('T')[0];
       const current = dailyMap.get(dateKey) || { sales: 0, cost: 0, expenses: 0 };
@@ -124,6 +134,7 @@ export async function getReportData(startDate?: string, endDate?: string): Promi
       dailyMap.set(dateKey, current);
     });
 
+    // แปลง Map เป็น Array เพื่อส่งกลับไปแสดงผลกราฟ
     const dailyStats = Array.from(dailyMap.entries())
       .map(([date, stats]) => ({
         date,
@@ -132,7 +143,7 @@ export async function getReportData(startDate?: string, endDate?: string): Promi
         expenses: stats.expenses,
         profit: (stats.sales - stats.cost) - stats.expenses
       }))
-      .sort((a, b) => a.date.localeCompare(b.date));
+      .sort((a, b) => a.date.localeCompare(b.date)); // เรียงวันที่
 
     return {
       period: {

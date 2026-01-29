@@ -7,7 +7,7 @@ import { Permission } from '@prisma/client';
 export type PermissionData = {
   shopId: string;
   roleId?: string;
-  permissions: Permission[];
+  permissions: Permission[]; 
   isOwner: boolean;
   version: number;  // Permission version for smart polling
 } | null;
@@ -16,15 +16,7 @@ export type PermissionVersionData = {
   version: number;
 } | null;
 
-/**
- * Lightweight version check - VERY fast, no JOINs
- * Client uses this to check if permissions changed before fetching full data
- * 
- * Flow:
- * 1. Client calls getPermissionVersion() every 30s
- * 2. If version changed → call getMyPermissions() for full data
- * 3. If version same → skip full fetch (save bandwidth + DB load)
- */
+
 export async function getPermissionVersion(): Promise<PermissionVersionData> {
   const session = await auth();
   
@@ -38,20 +30,13 @@ export async function getPermissionVersion(): Promise<PermissionVersionData> {
   });
 
   if (!membership) {
-    return null;
+    return null; // User not ShopMember
   }
 
   return { version: membership.permissionVersion };
 }
 
-/**
- * Fetch the current user's fresh permissions directly from the database.
- * This is used by the client-side `usePermissions` hook to keep UI in sync
- * without requiring a session refresh.
- * 
- * Optimized: Uses select instead of include to minimize JOIN overhead
- * Now includes version for client-side caching
- */
+// Permission Login
 export async function getMyPermissions(): Promise<PermissionData> {
   const session = await auth();
   
@@ -59,14 +44,14 @@ export async function getMyPermissions(): Promise<PermissionData> {
     return null;
   }
 
-  // Optimized query: select only needed fields, no unnecessary JOINs
+  //
   const membership = await db.shopMember.findFirst({
     where: { 
       userId: session.user.id 
     },
     select: {
-      shopId: true,
-      roleId: true,
+      shopId: true, //ID ร้าน
+      roleId: true, // ID Role
       isOwner: true,
       permissionVersion: true,
       role: {
@@ -81,6 +66,7 @@ export async function getMyPermissions(): Promise<PermissionData> {
     return null;
   }
 
+  //object to Client
   return {
     shopId: membership.shopId,
     roleId: membership.roleId ?? undefined,
@@ -101,7 +87,7 @@ export async function registerUser(data: {
   const bcrypt = await import('bcryptjs');
   
   try {
-    // Check if user already exists
+    // Check if  email user already exists
     const existingUser = await db.user.findUnique({
       where: { email: data.email },
     });

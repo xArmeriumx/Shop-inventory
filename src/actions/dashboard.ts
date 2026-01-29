@@ -7,17 +7,19 @@ import {
   requirePermission,
 } from "@/lib/auth-guard";
 
+
 export async function getDashboardStats() {
-  // Use a permission that represents general dashboard access, e.g., SALE_VIEW or just requireAuth if basic
-  // Since it shows sales and stock, let's use SALE_VIEW as a baseline or checks permissions context
-  // But for now, let's assume if you are a shop member you can see dashboard?
-  // Better to use specific permission if strict. Let's use SALE_VIEW for now.
+ 
+
   const ctx = await requirePermission("SALE_VIEW");
+
+  //Setup Date Range
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
 
+  // list dashboard stats
   const [
     todaySales,
     totalProducts,
@@ -25,7 +27,8 @@ export async function getDashboardStats() {
     recentSales,
     lowStockProducts,
   ] = await Promise.all([
-    // Today's sales summary (aggregate is already optimal)
+
+    // Today's sales summary (aggregate is already optimal) //Summarize today's sales
     db.sale.aggregate({
       where: {
         shopId: ctx.shopId,
@@ -36,14 +39,12 @@ export async function getDashboardStats() {
       _count: true,
     }),
 
-    // Total products count (simple indexed count)
+    // Total products count (simple indexed count) //Count total products 
     db.product.count({
       where: { shopId: ctx.shopId, isActive: true },
     }),
 
     // OPTIMIZED: Low stock count using indexed isLowStock field
-    // Before: O(n) fetch all → filter in JS
-    // After: O(1) indexed count
     db.product.count({
       where: {
         shopId: ctx.shopId,
@@ -52,7 +53,7 @@ export async function getDashboardStats() {
       },
     }),
 
-    // OPTIMIZED: Recent sales with select (only needed fields)
+    // OPTIMIZED: Recent sales with select 
     db.sale.findMany({
       where: { 
         shopId: ctx.shopId,
@@ -67,12 +68,10 @@ export async function getDashboardStats() {
         profit: true,
         customer: { select: { name: true } },
       },
-      orderBy: { date: "desc" },
+      orderBy: { date: "desc" }, //latest sales first
       take: 5,
     }),
 
-    // ✅ OPTIMIZED: Low stock products using indexed isLowStock field
-    // Before: fetch 10 → filter to 5 in JS
     // After: Direct indexed query with take 5
     db.product.findMany({
       where: {
@@ -87,11 +86,13 @@ export async function getDashboardStats() {
         stock: true,
         minStock: true,
       },
-      orderBy: { stock: "asc" },
+      orderBy: { stock: "asc" }, //Lowest stock first
       take: 5,
     }),
   ]);
 
+
+  //Return dashboard stats (object)
   return {
     todaySales: {
       revenue: Number(todaySales._sum.totalAmount || 0),
@@ -118,6 +119,7 @@ export async function getDashboardStats() {
   };
 }
 
+//Monthly stats
 export async function getMonthlyStats() {
   const ctx = await requirePermission("SALE_VIEW");
   const now = new Date();
@@ -128,6 +130,8 @@ export async function getMonthlyStats() {
     1,
   );
 
+
+  //Monthly sales summary
   const monthlySales = await db.sale.aggregate({
     where: {
       shopId: ctx.shopId,
@@ -148,6 +152,8 @@ export async function getMonthlyStats() {
   };
 }
 
+
+//Sales chart data
 export async function getSalesChartData(days = 7) {
   const ctx = await requirePermission("SALE_VIEW");
   const endDate = new Date();
@@ -199,6 +205,7 @@ export async function getSalesChartData(days = 7) {
     }
   });
 
+  //Return sales chart data (array of objects)
   return Object.entries(salesByDate).map(([date, revenue]) => ({
     date,
     revenue,

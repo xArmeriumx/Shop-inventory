@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import { supabase, RECEIPTS_BUCKET, getStoragePublicUrl } from '@/lib/supabase';
+import { 
+  supabase, 
+  RECEIPTS_BUCKET, 
+  PRODUCTS_BUCKET, 
+  getStoragePublicUrl, 
+  getProductImageUrl 
+} from '@/lib/supabase';
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,31 +19,42 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
     const folder = formData.get('folder') as string || 'misc';
+    const bucket = formData.get('bucket') as string || 'receipts';
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
-    // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+    // Determine target bucket and allowed types
+    const isProductUpload = bucket === 'products';
+    const targetBucket = isProductUpload ? PRODUCTS_BUCKET : RECEIPTS_BUCKET;
+    
+    // Validate file type based on bucket
+    const allowedTypes = isProductUpload 
+      ? ['image/jpeg', 'image/png', 'image/webp']  // Products: images only
+      : ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']; // Receipts: + PDF
+      
     if (!allowedTypes.includes(file.type)) {
       return NextResponse.json({ 
-        error: 'Invalid file type. Allowed: JPEG, PNG, WebP, PDF' 
+        error: isProductUpload 
+          ? 'Invalid file type. Allowed: JPEG, PNG, WebP' 
+          : 'Invalid file type. Allowed: JPEG, PNG, WebP, PDF'
       }, { status: 400 });
     }
 
-    // Validate file size (5MB max)
-    const maxSize = 5 * 1024 * 1024;
+    // Validate file size (2MB for products, 5MB for receipts)
+    const maxSize = isProductUpload ? 2 * 1024 * 1024 : 5 * 1024 * 1024;
     if (file.size > maxSize) {
       return NextResponse.json({ 
-        error: 'File too large. Max 5MB' 
+        error: `File too large. Max ${isProductUpload ? '2' : '5'}MB` 
       }, { status: 400 });
     }
 
-    // Generate unique filename
+    // Generate unique filename with random suffix for uniqueness
     const timestamp = Date.now();
-    const ext = file.name.split('.').pop() || 'jpg';
-    const fileName = `${folder}/${session.user.id}/${timestamp}.${ext}`;
+    const random = Math.random().toString(36).substring(2, 8);
+    const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+    const fileName = `${folder}/${session.user.id}/${timestamp}-${random}.${ext}`;
 
     // Convert File to ArrayBuffer
     const arrayBuffer = await file.arrayBuffer();
@@ -45,7 +62,7 @@ export async function POST(request: NextRequest) {
 
     // Upload to Supabase Storage
     const { data, error } = await supabase.storage
-      .from(RECEIPTS_BUCKET)
+      .from(targetBucket)
       .upload(fileName, buffer, {
         contentType: file.type,
         upsert: false,
@@ -58,13 +75,16 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    // Get public URL
-    const publicUrl = getStoragePublicUrl(data.path);
+    // Get public URL based on bucket
+    const publicUrl = isProductUpload 
+      ? getProductImageUrl(data.path)
+      : getStoragePublicUrl(data.path);
 
     return NextResponse.json({ 
       success: true, 
       url: publicUrl,
       path: data.path,
+      bucket: targetBucket,
     });
   } catch (error) {
     console.error('Upload error:', error);

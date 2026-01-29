@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import type { SerializedProduct } from '@/types/serialized';
@@ -15,7 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency } from '@/lib/formatters';
 import { PRODUCT_CATEGORIES } from '@/lib/constants';
-import { Edit, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Edit, Trash2, ChevronLeft, ChevronRight, Package } from 'lucide-react';
 import { deleteProduct } from '@/actions/products';
 import { useState, useTransition } from 'react';
 import { usePermissions } from '@/hooks/use-permissions';
@@ -96,6 +97,7 @@ export function ProductsTable({ products, pagination }: ProductsTableProps) {
           <Table className="min-w-[600px]">
             <TableHeader>
               <TableRow>
+                <TableHead className="w-12"></TableHead>
                 <TableHead>สินค้า</TableHead>
                 <TableHead className="hidden sm:table-cell">หมวดหมู่</TableHead>
                 {canViewCost && <TableHead className="text-right hidden md:table-cell">ราคาทุน</TableHead>}
@@ -107,8 +109,24 @@ export function ProductsTable({ products, pagination }: ProductsTableProps) {
             <TableBody>
               {products.map((product) => {
                 const isLowStock = product.stock <= product.minStock;
+                const productImage = product.images?.[0];
                 return (
                   <TableRow key={product.id} className="group">
+                    <TableCell className="p-2">
+                      <div className="relative w-10 h-10 rounded-md overflow-hidden bg-muted flex items-center justify-center">
+                        {productImage ? (
+                          <Image
+                            src={productImage}
+                            alt={product.name}
+                            fill
+                            className="object-cover"
+                            sizes="40px"
+                          />
+                        ) : (
+                          <Package className="w-5 h-5 text-muted-foreground" />
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <div>
                         <p className="font-medium line-clamp-1">{product.name}</p>

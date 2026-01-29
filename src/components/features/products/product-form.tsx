@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { createProduct, updateProduct } from '@/actions/products';
 import { StockAdjustmentDialog } from '@/components/features/products/stock-adjustment-dialog';
+import { ProductImageUpload } from '@/components/ui/product-image-upload';
 import { usePermissions } from '@/hooks/use-permissions';
 
 interface Category {
@@ -26,6 +27,7 @@ export function ProductForm({ product, categories }: ProductFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [errors, setErrors] = useState<Record<string, string[]>>({});
+  const [images, setImages] = useState<string[]>(product?.images || []);
   const { hasPermission } = usePermissions();
 
   const isEdit = !!product;
@@ -44,7 +46,7 @@ export function ProductForm({ product, categories }: ProductFormProps) {
       salePrice: parseFloat(formData.get('salePrice') as string) || 0,
       stock: isEdit ? undefined : (parseInt(formData.get('stock') as string) || 0),
       minStock: parseInt(formData.get('minStock') as string) || 5,
-      images: [] as string[],
+      images: images,
     };
     
     // Remove undefined keys
@@ -79,6 +81,17 @@ export function ProductForm({ product, categories }: ProductFormProps) {
               {errors._form.join(', ')}
             </div>
           )}
+
+          {/* Product Images Section */}
+          <div className="space-y-2">
+            <Label>รูปภาพสินค้า</Label>
+            <ProductImageUpload
+              value={images}
+              onChange={setImages}
+              maxImages={5}
+              disabled={isPending}
+            />
+          </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-2">

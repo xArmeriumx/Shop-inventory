@@ -31,6 +31,7 @@ type SaleWithItems = Sale & {
   } | null;
 };
 
+// ดึงข้อมูลการขายทั้งหมด (Pagination)
 export async function getSales(params: GetSalesParams = {}) {
   // Require View Permission
   const ctx = await requirePermission('SALE_VIEW');
@@ -93,6 +94,7 @@ export async function getSales(params: GetSalesParams = {}) {
   };
 }
 
+// ดึงข้อมูลการขายตาม ID
 export async function getSale(id: string) {
   const ctx = await requirePermission('SALE_VIEW');
 
@@ -116,6 +118,7 @@ export async function getSale(id: string) {
 
   const canViewProfit = hasPermission(ctx, 'SALE_VIEW_PROFIT');
 
+  // Transform data to plain objects
   return {
     ...sale,
     totalAmount: Number(sale.totalAmount),
@@ -131,6 +134,7 @@ export async function getSale(id: string) {
   };
 }
 
+// สร้างการขายใหม่
 export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>> {
   // RBAC: Require SALE_CREATE permission
   const ctx = await requirePermission('SALE_CREATE');
@@ -258,7 +262,7 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>
          }
       }
 
-      // 5. Create Sale
+      // 5. บันทึกข้อมูลการขายลง Database (Header + Items)
       const sale = await tx.sale.create({
         data: {
           ...saleData,
@@ -284,7 +288,7 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>
         include: { items: true },
       });
 
-      // 6. Record Stock Movements
+      // 6. ตัดสต็อกสินค้า (ผ่าน StockService)
       for (const item of sale.items) {
         await StockService.recordMovement({
             productId: item.productId,
@@ -322,7 +326,7 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>
   }
 }
 
-// Cancel Reasons for Audit (internal use only)
+// ยกเลิกการขาย (Soft Cancel + คืนสต็อก)
 const CANCEL_REASONS = {
   WRONG_ENTRY: 'บันทึกผิดพลาด',
   CUSTOMER_REQUEST: 'ลูกค้าขอยกเลิก',
@@ -381,7 +385,7 @@ export async function cancelSale(input: CancelSaleInput) {
         throw new Error('รายการนี้ถูกยกเลิกไปแล้ว');
       }
 
-      // Restore stock with movement log
+       // คืนสต็อกสินค้ากลับเข้าไป (Reverse Stock)
       for (const item of sale.items) {
         await StockService.recordMovement({
           productId: item.productId,
@@ -396,7 +400,7 @@ export async function cancelSale(input: CancelSaleInput) {
         });
       }
 
-      // Mark sale as cancelled (not delete)
+      // เปลี่ยนสถานะเป็น CANCELLED (ไม่ลบ Record)
       await tx.sale.update({
         where: { id },
         data: {
@@ -423,6 +427,7 @@ export async function cancelSale(input: CancelSaleInput) {
   }
 }
 
+// สรุปยอดขายวันนี้ (Aggregate)
 export async function getTodaySales() {
   const ctx = await requirePermission('SALE_VIEW');
   const today = new Date();

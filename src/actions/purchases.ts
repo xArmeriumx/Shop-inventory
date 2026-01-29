@@ -72,6 +72,7 @@ export async function getPurchases(params: GetPurchasesParams = {}) {
   };
 }
 
+// Get Purchase (ดึงข้อมูลการซื้อ)
 export async function getPurchase(id: string) {
   const ctx = await requirePermission('PURCHASE_VIEW');
 
@@ -104,11 +105,7 @@ export async function getPurchase(id: string) {
   };
 }
 
-// ... imports
-// ... imports
-
-// ... interfaces
-
+// Create Purchase (สร้างการซื้อ)
 export async function createPurchase(input: PurchaseInput): Promise<ActionResponse<Purchase>> {
   // RBAC: Require PURCHASE_CREATE permission
   const ctx = await requirePermission('PURCHASE_CREATE');
@@ -130,6 +127,9 @@ export async function createPurchase(input: PurchaseInput): Promise<ActionRespon
     };
   }
 
+  // 1. Create Purchase & PurchaseItems
+  // 2. Loop update Stock & Cost Price
+
   try {
     const purchase = await db.$transaction(async (tx: any) => {
       // Calculate total
@@ -138,8 +138,6 @@ export async function createPurchase(input: PurchaseInput): Promise<ActionRespon
         0
       );
 
-      // 2. Generate invoice number? No invoice number for purchases usually, unless supplier ref.
-      
       // Create purchase
       const newPurchase = await tx.purchase.create({
         data: {
@@ -184,7 +182,7 @@ export async function createPurchase(input: PurchaseInput): Promise<ActionRespon
         await tx.product.update({
           where: { id: item.productId },
           data: {
-            costPrice: item.costPrice, 
+            costPrice: item.costPrice, //ราคาต้นทุน
           },
         });
       }

@@ -29,6 +29,7 @@ model User {
   purchases     Purchase[]
   sales         Sale[]
   expenses      Expense[]
+  incomes       Income[]
   suppliers     Supplier[]
   customers     Customer[]
   lookupValues  LookupValue[]
@@ -40,6 +41,7 @@ model User {
 enum LookupTypeCode {
   PRODUCT_CATEGORY
   EXPENSE_CATEGORY
+  INCOME_CATEGORY
   PAYMENT_METHOD
   UNIT
 }
@@ -83,6 +85,7 @@ model LookupValue {
   // Reverse relations
   products     Product[]
   expenses     Expense[]
+  incomes      Income[]
 
   // Allow unique codes per shop, or per user (legacy), or system (nulls)
   // Note: Validation should handle enforcement preference
@@ -126,6 +129,7 @@ model Shop {
   purchases   Purchase[]
   sales       Sale[]
   expenses    Expense[]
+  incomes     Income[]
   stockLogs   StockLog[]
   lookupValues LookupValue[]
 
@@ -175,6 +179,12 @@ enum Permission {
   EXPENSE_CREATE
   EXPENSE_EDIT
   EXPENSE_DELETE
+
+  // Income (รายรับที่เพิ่มเอง)
+  INCOME_VIEW
+  INCOME_CREATE
+  INCOME_EDIT
+  INCOME_DELETE
 
   // Reports
   REPORT_VIEW_SALES
@@ -535,6 +545,44 @@ model Expense {
   
   // ✅ NEW: Compound indexes for optimized queries
   @@index([shopId, date])            // Expense reports with date range
+  @@index([shopId, category, date])  // Filtered by category + date
+}
+
+// ==================== Income (รายรับที่เพิ่มเอง) ====================
+
+model Income {
+  id          String   @id @default(cuid())
+  category    String   // Legacy field for backward compatibility
+  categoryId  String?  // FK to LookupValue
+  amount      Decimal  @db.Decimal(10, 2)
+  description String?
+  date        DateTime @default(now())
+  notes       String?
+  receiptUrl  String?
+
+  // Ownership
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  shopId      String?  // RBAC: Nullable during transition
+  shop        Shop?    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  
+  categoryRef LookupValue? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  // Soft Delete
+  deletedAt   DateTime?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([userId, deletedAt])
+  @@index([userId, date])
+  @@index([shopId])
+  @@index([date])
+  @@index([category])
+  @@index([categoryId])
+  @@index([shopId, date])            // Income reports with date range
   @@index([shopId, category, date])  // Filtered by category + date
 }
 

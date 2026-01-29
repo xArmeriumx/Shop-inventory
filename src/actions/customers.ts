@@ -8,25 +8,25 @@ import { customerSchema, type CustomerInput } from '@/schemas/customer';
 import type { Customer } from '@prisma/client';
 import type { ActionResponse } from '@/types/action-response';
 
-interface GetCustomersParams {
+interface GetCustomersParams { 
   page?: number;
   limit?: number;
   search?: string;
 }
 
 export async function getCustomers(params: GetCustomersParams = {}) {
-  const ctx = await requirePermission('CUSTOMER_VIEW');
+  const ctx = await requirePermission('CUSTOMER_VIEW'); //require permission
   const { page = 1, limit = 20, search } = params;
 
   const searchFilter = buildSearchFilter(search, ['name', 'phone', 'address']);
 
   const where = {
-    shopId: ctx.shopId,
+    shopId: ctx.shopId, 
     ...(searchFilter && searchFilter),
     deletedAt: null, // Only active customers
   };
 
-  return paginatedQuery<Customer>(db.customer, {
+  return paginatedQuery<Customer>(db.customer, { //Customer list
     where,
     page,
     limit,
@@ -34,11 +34,11 @@ export async function getCustomers(params: GetCustomersParams = {}) {
   });
 }
 
-export async function getCustomer(id: string) {
+export async function getCustomer(id: string) { 
   const ctx = await requirePermission('CUSTOMER_VIEW');
 
-  const customer = await db.customer.findFirst({
-    where: { id, shopId: ctx.shopId, deletedAt: null },
+  const customer = await db.customer.findFirst({ //select one customer
+    where: { id, shopId: ctx.shopId, deletedAt: null }, //ID,shopid,session,deletedAt
   });
 
   if (!customer) {
@@ -48,6 +48,7 @@ export async function getCustomer(id: string) {
   return customer;
 }
 
+//Create customer
 export async function createCustomer(input: CustomerInput): Promise<ActionResponse<Customer>> {
   // RBAC: Require CUSTOMER_CREATE permission
   const ctx = await requirePermission('CUSTOMER_CREATE');
@@ -90,6 +91,7 @@ export async function createCustomer(input: CustomerInput): Promise<ActionRespon
   }
 }
 
+//Update customer
 export async function updateCustomer(id: string, input: CustomerInput): Promise<ActionResponse<Customer>> {
   // RBAC: Require CUSTOMER_EDIT permission
   const ctx = await requirePermission('CUSTOMER_EDIT');
@@ -115,7 +117,7 @@ export async function updateCustomer(id: string, input: CustomerInput): Promise<
   }
 
   try {
-    const customer = await db.customer.update({
+    const customer = await db.customer.update({ //update customer
       where: { id },
       data: {
         ...validated.data,
@@ -144,6 +146,7 @@ export async function updateCustomer(id: string, input: CustomerInput): Promise<
   }
 }
 
+//Delete customer
 export async function deleteCustomer(id: string): Promise<ActionResponse> {
   // RBAC: Require CUSTOMER_DELETE permission
   const ctx = await requirePermission('CUSTOMER_DELETE');
@@ -160,7 +163,7 @@ export async function deleteCustomer(id: string): Promise<ActionResponse> {
   }
 
   try {
-    // Soft delete
+    // Soft delete (log deletedAt)
     await db.customer.update({
       where: { id },
       data: { deletedAt: new Date() },
@@ -180,7 +183,8 @@ export async function deleteCustomer(id: string): Promise<ActionResponse> {
   }
 }
 
-export async function getCustomersForSelect() {
+//Select customer (Dropdown)
+export async function getCustomersForSelect() { 
   const ctx = await requirePermission('CUSTOMER_VIEW');
 
   return db.customer.findMany({

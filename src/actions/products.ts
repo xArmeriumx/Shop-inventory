@@ -21,6 +21,7 @@ interface GetProductsParams {
   lowStockOnly?: boolean;
 }
 
+//get product (paginated)
 export async function getProducts(params: GetProductsParams = {}) {
   // RBAC: Require PRODUCT_VIEW permission for list
   const ctx = await requirePermission('PRODUCT_VIEW');
@@ -39,9 +40,12 @@ export async function getProducts(params: GetProductsParams = {}) {
   const where = {
     // userId, // Removed: Scope by Shop instead
     shopId: ctx.shopId,
+
     isActive: true,
+
     ...(searchFilter && searchFilter),
     ...(category && { category }),
+
     ...(lowStockOnly && {
       stock: {
         lte: db.product.fields.minStock,
@@ -61,6 +65,8 @@ export async function getProducts(params: GetProductsParams = {}) {
       }
     : where;
 
+
+//Paginated query
   const result = await paginatedQuery<Product>(db.product, {
     where: whereClause,
     page,
@@ -78,6 +84,7 @@ export async function getProducts(params: GetProductsParams = {}) {
   };
 }
 
+//get product by id 
 export async function getProduct(id: string) {
   const ctx = await requirePermission('PRODUCT_VIEW');
 
@@ -97,6 +104,7 @@ export async function getProduct(id: string) {
   return product;
 }
 
+//create product  
 export async function createProduct(input: ProductInput): Promise<ActionResponse<Product>> {
   // RBAC: Require PRODUCT_CREATE permission
   const ctx = await requirePermission('PRODUCT_CREATE');
@@ -128,6 +136,8 @@ export async function createProduct(input: ProductInput): Promise<ActionResponse
     }
   }
 
+  //create product  
+  //table product
   try {
     const product = await db.product.create({
       data: {
@@ -154,6 +164,7 @@ export async function createProduct(input: ProductInput): Promise<ActionResponse
   }
 }
 
+//update product  
 export async function updateProduct(id: string, input: ProductUpdateInput): Promise<ActionResponse<Product>> {
   // RBAC: Require PRODUCT_EDIT permission
   const ctx = await requirePermission('PRODUCT_EDIT');
@@ -198,13 +209,20 @@ export async function updateProduct(id: string, input: ProductUpdateInput): Prom
     }
   }
 
+
+    // Transaction
+    // 1. StockLog
+    // 2. Update Product
+    // 3. Calculate Low Stock
   try {
     const product = await db.$transaction(async (tx) => {
+
+
       // 1. Handle Stock Adjustment if changed
       if (validated.data.stock !== undefined && validated.data.stock !== existing.stock) {
         const diff = validated.data.stock - existing.stock;
         
-        // This helper records the movement AND updates the product stock
+        // เรียก StockService (ซึ่งจะ Create StockLog + Update Product ให้อัตโนมัติ)
         await StockService.recordMovement({
           productId: id,
           type: 'ADJUSTMENT',
@@ -215,7 +233,7 @@ export async function updateProduct(id: string, input: ProductUpdateInput): Prom
         });
       }
 
-      // 2. Update other fields (excluding stock, as it's handled by StockService)
+      // Step 2: อัปเดตข้อมูลอื่นๆ (ชื่อ, ราคา, หมวดหมู่)
       const { stock, ...otherData } = validated.data;
       
       const updatedProduct = await tx.product.update({
@@ -227,21 +245,16 @@ export async function updateProduct(id: string, input: ProductUpdateInput): Prom
         },
       });
 
-      // 3. (New) Check Low Stock Status if minStock changed
-      // (Stock change logic already updates it in recordMovement)
+       // Step 3: Re-Check Low Stock (ถ้ามีการแก้ MinStock)
       if (validated.data.minStock !== undefined) {
          const isLow = updatedProduct.stock <= updatedProduct.minStock;
-         // We must update it again if it differs or just force update
-         // Since we are inside transaction, we can just do another update or optimize.
-         // Since Prisma update returns the object *after* update, we have the new minStock.
-         // But we assume recordMovement updated the stock correctly.
-         // Let's force set it to be sure.
+       
+         // Update Low Stock Status
          await tx.product.update({
            where: { id },
            data: { isLowStock: isLow }
          });
-         
-         // Update our specific local variable return
+        
          updatedProduct.isLowStock = isLow;
       }
 
@@ -265,6 +278,7 @@ export async function updateProduct(id: string, input: ProductUpdateInput): Prom
   }
 }
 
+// Delete Product (Soft Delete  )
 export async function deleteProduct(id: string): Promise<ActionResponse> {
   // RBAC: Require PRODUCT_DELETE permission
   const ctx = await requirePermission('PRODUCT_DELETE');
@@ -302,6 +316,8 @@ export async function deleteProduct(id: string): Promise<ActionResponse> {
   }
 }
 
+
+// Get Products for Select (แสดงสินค้าใน Select)  
 export async function getProductsForSelect() {
   const ctx = await requirePermission('PRODUCT_VIEW'); // Assume needed
 
@@ -310,15 +326,15 @@ export async function getProductsForSelect() {
       shopId: ctx.shopId,
       isActive: true,
       deletedAt: null,
-      stock: { gt: 0 },
+      stock: { gt: 0 }, // ต้องมีสต็อกมากกว่า 0 
     },
     select: {
       id: true,
       name: true,
       sku: true,
-      salePrice: true,
-      costPrice: true,
-      stock: true,
+      salePrice: true, // ราคาขาย
+      costPrice: true, // ราคาต้นทุน
+      stock: true, // สต็อก
     },
     orderBy: { name: 'asc' },
   });
@@ -346,7 +362,8 @@ export async function getLowStockProducts(limit: number = 5) {
     minStock: Number(p.minStock),
   }));
 }
-
+  
+// Adjust Stock (เพิ่ม/ลดสต็อก)
 interface AdjustStockInput {
   type: 'ADD' | 'REMOVE' | 'SET';
   quantity: number;

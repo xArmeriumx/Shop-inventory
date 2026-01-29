@@ -9,6 +9,7 @@ import {
   Receipt,
   Truck,
   Wallet,
+  TrendingUp,
   BarChart3,
   Settings,
   LogOut,
@@ -65,6 +66,12 @@ const navItems = [
     href: '/expenses',
     icon: Wallet,
     permission: 'EXPENSE_VIEW' as Permission,
+  },
+  {
+    title: 'รายรับอื่นๆ',
+    href: '/incomes',
+    icon: TrendingUp,
+    permission: 'INCOME_VIEW' as Permission,
   },
 ];
 

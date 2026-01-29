@@ -15,21 +15,27 @@ interface GetExpensesParams {
   endDate?: string;
 }
 
+//Get expenses (paginated)
 export async function getExpenses(params: GetExpensesParams = {}) {
   const ctx = await requirePermission('EXPENSE_VIEW');
   const { page = 1, limit = 20, search, category, startDate, endDate } = params;
 
+  //Search filter
+
   const searchFilter = buildSearchFilter(search, ['description']);
   const dateFilter = buildDateRangeFilter(startDate, endDate);
 
+  //Where clause
   const where = {
     shopId: ctx.shopId,
     deletedAt: null,
+    //dynamic where clause
     ...(searchFilter && searchFilter),
     ...(category && { category }),
     ...(dateFilter && { date: dateFilter }),
   };
 
+  //Paginated query
   const result = await paginatedQuery(db.expense, {
     where,
     page,
@@ -46,6 +52,8 @@ export async function getExpenses(params: GetExpensesParams = {}) {
   };
 }
 
+
+//get expense by id
 export async function getExpense(id: string) {
   const ctx = await requirePermission('EXPENSE_VIEW');
 
@@ -63,6 +71,7 @@ export async function getExpense(id: string) {
   };
 }
 
+//create expense
 export async function createExpense(input: ExpenseInput) {
   // RBAC: Require EXPENSE_CREATE permission
   const ctx = await requirePermission('EXPENSE_CREATE');
@@ -82,7 +91,7 @@ export async function createExpense(input: ExpenseInput) {
     });
 
     revalidatePath('/expenses');
-    revalidatePath('/dashboard');
+    revalidatePath('/dashboard'); //update dashboard stats
     return { 
       data: {
         ...expense,
@@ -95,6 +104,8 @@ export async function createExpense(input: ExpenseInput) {
   }
 }
 
+
+//update expense (edit)
 export async function updateExpense(id: string, input: ExpenseInput) {
   // RBAC: Require EXPENSE_EDIT permission
   const ctx = await requirePermission('EXPENSE_EDIT');
@@ -104,6 +115,7 @@ export async function updateExpense(id: string, input: ExpenseInput) {
     return { error: validated.error.flatten().fieldErrors };
   }
 
+  //check if expense exists 
   const existing = await db.expense.findFirst({
     where: { id, userId: ctx.userId, deletedAt: null },
   });
@@ -134,6 +146,7 @@ export async function updateExpense(id: string, input: ExpenseInput) {
   }
 }
 
+//delete expense (soft delete)  
 export async function deleteExpense(id: string) {
   // RBAC: Require EXPENSE_DELETE permission
   const ctx = await requirePermission('EXPENSE_DELETE');
@@ -160,6 +173,7 @@ export async function deleteExpense(id: string) {
   }
 }
 
+// get monthly expenses (summary monthly expenses)
 export async function getMonthlyExpenses() {
   const ctx = await requirePermission('EXPENSE_VIEW'); // Or DASHBOARD_VIEW
   const now = new Date();

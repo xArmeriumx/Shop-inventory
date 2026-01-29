@@ -36,12 +36,31 @@ export const supabase = {
   },
 };
 
-// Storage bucket name
+// Storage bucket names
 export const RECEIPTS_BUCKET = 'receipts';
+export const PRODUCTS_BUCKET = 'products';
 
-// Helper function to get public URL
+// Helper function to get public URL for receipts
 export function getStoragePublicUrl(path: string): string {
   const client = getSupabaseAdmin();
   const { data } = client.storage.from(RECEIPTS_BUCKET).getPublicUrl(path);
   return data.publicUrl;
+}
+
+// Helper function to get public URL for product images
+export function getProductImageUrl(path: string): string {
+  const client = getSupabaseAdmin();
+  const { data } = client.storage.from(PRODUCTS_BUCKET).getPublicUrl(path);
+  return data.publicUrl;
+}
+
+// Delete file from storage
+export async function deleteStorageFile(bucket: string, path: string): Promise<boolean> {
+  try {
+    const client = getSupabaseAdmin();
+    const { error } = await client.storage.from(bucket).remove([path]);
+    return !error;
+  } catch {
+    return false;
+  }
 }
