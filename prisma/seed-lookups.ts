@@ -20,6 +20,12 @@ async function main() {
       isSystem: false,
     },
     {
+      code: 'INCOME_CATEGORY' as const,
+      name: 'หมวดหมู่รายรับ',
+      description: 'หมวดหมู่สำหรับจัดกลุ่มรายรับอื่นๆ',
+      isSystem: false,
+    },
+    {
       code: 'PAYMENT_METHOD' as const,
       name: 'วิธีชำระเงิน',
       description: 'วิธีการชำระเงินที่รองรับ',

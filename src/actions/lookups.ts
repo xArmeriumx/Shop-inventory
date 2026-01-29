@@ -319,6 +319,10 @@ export async function seedDefaultLookupValues() {
       where: { code: 'EXPENSE_CATEGORY' },
     });
 
+    const incomeCategoryType = await db.lookupType.findUnique({
+      where: { code: 'INCOME_CATEGORY' },
+    });
+
     if (!productCategoryType || !expenseCategoryType) {
       return { error: 'Lookup types not found. Please run seed first.' };
     }
@@ -337,26 +341,51 @@ export async function seedDefaultLookupValues() {
       { name: 'ค่าน้ำ/ค่าไฟ', code: 'utilities', color: '#f97316' },
       { name: 'ค่าจ้าง', code: 'salary', color: '#8b5cf6' },
       { name: 'ค่าขนส่ง', code: 'transport', color: '#06b6d4' },
-      { name: 'อื่นๆ', code: 'other', color: '#6b7280' },
+      { name: 'อื่นๆ', code: 'other_expense', color: '#6b7280' },
     ];
 
+    // Default income categories
+    const incomeCategories = [
+      { name: 'ค่าบริการ/ค่าซ่อม', code: 'service', color: '#22c55e' },
+      { name: 'ค่าติดตั้ง/ค่าแรง', code: 'installation', color: '#10b981' },
+      { name: 'ค่าเช่า', code: 'rental', color: '#3b82f6' },
+      { name: 'ค่าคอมมิชชั่น', code: 'commission', color: '#8b5cf6' },
+      { name: 'ค่าจัดส่ง', code: 'delivery', color: '#f59e0b' },
+      { name: 'อื่นๆ', code: 'other_income', color: '#6b7280' },
+    ];
+
+    const dataToCreate = [
+      ...productCategories.map((cat, i) => ({
+        lookupTypeId: productCategoryType.id,
+        shopId: ctx.shopId,
+        userId: ctx.userId,
+        ...cat,
+        order: i + 1,
+      })),
+      ...expenseCategories.map((cat, i) => ({
+        lookupTypeId: expenseCategoryType.id,
+        shopId: ctx.shopId,
+        userId: ctx.userId,
+        ...cat,
+        order: i + 1,
+      })),
+    ];
+
+    // Add income categories if lookup type exists
+    if (incomeCategoryType) {
+      dataToCreate.push(
+        ...incomeCategories.map((cat, i) => ({
+          lookupTypeId: incomeCategoryType.id,
+          shopId: ctx.shopId,
+          userId: ctx.userId,
+          ...cat,
+          order: i + 1,
+        }))
+      );
+    }
+
     await db.lookupValue.createMany({
-      data: [
-        ...productCategories.map((cat, i) => ({
-          lookupTypeId: productCategoryType.id,
-          shopId: ctx.shopId,
-          userId: ctx.userId,
-          ...cat,
-          order: i + 1,
-        })),
-        ...expenseCategories.map((cat, i) => ({
-          lookupTypeId: expenseCategoryType.id,
-          shopId: ctx.shopId,
-          userId: ctx.userId,
-          ...cat,
-          order: i + 1,
-        })),
-      ],
+      data: dataToCreate,
     });
 
     revalidatePath('/settings');
