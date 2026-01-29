@@ -14,41 +14,41 @@ import { Badge } from '@/components/ui/badge';
 import { Megaphone, Users, Shield, ShoppingCart, CheckCircle2 } from 'lucide-react';
 
 const CURRENT_ANNOUNCEMENT = {
-  id: 'update-v2.4-safety-and-logs-rev2', // Changed ID to trigger popup again
-  version: 'v2.4.0',
-  date: '21 มกราคม 2569',
-  title: 'อัปเดตระบบ v2.4 - ปรับปรุงความเสถียรและตรวจสอบระบบ',
-  description: 'เพิ่มความปลอดภัยของข้อมูล และเครื่องมือตรวจสอบปัญหาระบบ',
+  id: 'update-v2.5-ai-assistant', // New update ID
+  version: 'v2.5.0',
+  date: '29 มกราคม 2569',
+  title: 'อัปเดตระบบ v2.5 - AI ผู้ช่วยอัจฉริยะ',
+  description: 'เพิ่ม AI ผู้ช่วยที่สามารถทำงานแทนคุณได้ และปรับปรุงระบบการเงิน',
   features: [
     {
-      icon: Shield,
-      title: 'ระบบบันทึกข้อมูล',
-      description: 'แจ้งเตือนเมื่อเกิดข้อผิดพลาดขณะบันทึก',
-    },
-    {
       icon: Megaphone,
-      title: 'หน้าจอตรวจสอบสถานะระบบ',
-      description: 'ดูสถานะ Server และฐานข้อมูลได้ผ่านเมนู System (สำหรับเจ้าของร้าน)',
-    },
-     {
-      icon: Users,
-      title: 'บันทึกปัญหาอัตโนมัติ',
-      description: 'ระบบจะจดจำข้อผิดพลาดที่เกิดขึ้น',
+      title: '✨ AI ผู้ช่วยอัจฉริยะ',
+      description: 'พูดคุยกับ AI ได้ เช่น "บันทึกค่าไฟ 2500" "เช็คสต็อก" "สรุปเดือนนี้"',
     },
     {
       icon: ShoppingCart,
-      title: 'POS รองรับมือถือ (v2.3)',
-      description: 'ใช้งานหน้าขายหน้าร้านบนมือถือได้สะดวกขึ้น',
+      title: 'AI Function Calling',
+      description: 'AI สามารถบันทึกค่าใช้จ่าย, รายได้, เพิ่มสินค้า, เช็คสต็อก และสร้างรายงานได้',
+    },
+    {
+      icon: Shield,
+      title: 'แก้ไขการคำนวณรายได้',
+      description: 'รายได้อื่นๆ (Income) จะถูกรวมในกำไรสุทธิอย่างถูกต้องแล้ว',
     },
     {
       icon: CheckCircle2,
-      title: 'รองรับการใช้งานพร้อมกัน',
-      description: 'ปรับปรุงระบบหลังบ้าน ให้รองรับคนใช้งาน',
+      title: 'รายงานแสดงรายได้ครบถ้วน',
+      description: 'Dashboard และรายงานแสดงยอดขาย + รายได้อื่นๆ รวมกัน',
+    },
+    {
+      icon: Users,
+      title: 'อัปโหลดรูปสินค้าได้สูงสุด 10MB',
+      description: 'รองรับไฟล์รูปภาพขนาดใหญ่ขึ้น (จากเดิม 2MB)',
     },
     {
       icon: CheckCircle2,
-      title: 'ปรับปรุงหน้าจอการใช้งาน',
-      description: 'แสดงผลตารางและข้อมูลต่างๆ',
+      title: 'ปรับปรุงความเสถียร AI',
+      description: 'AI ตอบสนองได้แม่นยำขึ้น พร้อมระบบ Fallback อัตโนมัติ',
     },
   ],
 };

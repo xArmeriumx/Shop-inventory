@@ -22,6 +22,7 @@ export async function getDashboardStats() {
   // list dashboard stats
   const [
     todaySales,
+    todayIncomes,
     totalProducts,
     lowStockCount,
     recentSales,
@@ -36,6 +37,17 @@ export async function getDashboardStats() {
         status: { not: "CANCELLED" },
       },
       _sum: { totalAmount: true, profit: true },
+      _count: true,
+    }),
+
+    // Today's income (other revenue like service fees, repairs, etc.)
+    (db as any).income.aggregate({
+      where: {
+        shopId: ctx.shopId,
+        date: { gte: today, lt: tomorrow },
+        deletedAt: null,
+      },
+      _sum: { amount: true },
       _count: true,
     }),
 
@@ -91,13 +103,21 @@ export async function getDashboardStats() {
     }),
   ]);
 
+  // Calculate totals including income
+  const salesRevenue = Number(todaySales._sum.totalAmount || 0);
+  const incomeRevenue = Number(todayIncomes._sum.amount || 0);
+  const totalRevenue = salesRevenue + incomeRevenue;
+  const salesProfit = Number(todaySales._sum.profit || 0);
 
   //Return dashboard stats (object)
   return {
     todaySales: {
-      revenue: Number(todaySales._sum.totalAmount || 0),
-      profit: Number(todaySales._sum.profit || 0),
+      revenue: totalRevenue,  // Sales + Income
+      salesRevenue,           // Just sales
+      incomeRevenue,          // Just income/other revenue
+      profit: salesProfit,
       count: todaySales._count,
+      incomeCount: todayIncomes._count,
     },
     totalProducts,
     lowStockCount,
@@ -130,25 +150,49 @@ export async function getMonthlyStats() {
     1,
   );
 
-
-  //Monthly sales summary
-  const monthlySales = await db.sale.aggregate({
-    where: {
-      shopId: ctx.shopId,
-      date: {
-        gte: firstDayOfMonth,
-        lt: firstDayOfNextMonth,
+  // Fetch both sales and income
+  const [monthlySales, monthlyIncomes] = await Promise.all([
+    //Monthly sales summary
+    db.sale.aggregate({
+      where: {
+        shopId: ctx.shopId,
+        date: {
+          gte: firstDayOfMonth,
+          lt: firstDayOfNextMonth,
+        },
+        status: { not: "CANCELLED" },
       },
-      status: { not: "CANCELLED" },
-    },
-    _sum: { totalAmount: true, profit: true },
-    _count: true,
-  });
+      _sum: { totalAmount: true, profit: true },
+      _count: true,
+    }),
+    
+    //Monthly income summary
+    (db as any).income.aggregate({
+      where: {
+        shopId: ctx.shopId,
+        date: {
+          gte: firstDayOfMonth,
+          lt: firstDayOfNextMonth,
+        },
+        deletedAt: null,
+      },
+      _sum: { amount: true },
+      _count: true,
+    }),
+  ]);
+
+  // Calculate totals including income
+  const salesRevenue = Number(monthlySales._sum.totalAmount || 0);
+  const incomeRevenue = Number(monthlyIncomes._sum.amount || 0);
+  const totalRevenue = salesRevenue + incomeRevenue;
 
   return {
-    revenue: Number(monthlySales._sum.totalAmount || 0),
+    revenue: totalRevenue,    // Sales + Income
+    salesRevenue,             // Just sales
+    incomeRevenue,            // Just income
     profit: Number(monthlySales._sum.profit || 0),
     count: monthlySales._count,
+    incomeCount: monthlyIncomes._count,
   };
 }
 
@@ -163,24 +207,43 @@ export async function getSalesChartData(days = 7) {
   startDate.setDate(startDate.getDate() - days + 1);
   startDate.setHours(0, 0, 0, 0);
 
-  const sales = await db.sale.findMany({
-    where: {
-      shopId: ctx.shopId,
-      date: {
-        gte: startDate,
-        lte: endDate,
+  // Fetch both sales and income
+  const [sales, incomes] = await Promise.all([
+    db.sale.findMany({
+      where: {
+        shopId: ctx.shopId,
+        date: {
+          gte: startDate,
+          lte: endDate,
+        },
+        status: { not: "CANCELLED" },
       },
-      status: { not: "CANCELLED" },
-    },
-    select: {
-      date: true,
-      totalAmount: true,
-    },
-    orderBy: { date: "asc" },
-  });
+      select: {
+        date: true,
+        totalAmount: true,
+      },
+      orderBy: { date: "asc" },
+    }),
+    
+    (db as any).income.findMany({
+      where: {
+        shopId: ctx.shopId,
+        date: {
+          gte: startDate,
+          lte: endDate,
+        },
+        deletedAt: null,
+      },
+      select: {
+        date: true,
+        amount: true,
+      },
+      orderBy: { date: "asc" },
+    }),
+  ]);
 
   // Aggregate by date
-  const salesByDate: Record<string, number> = {};
+  const revenueByDate: Record<string, { sales: number; income: number }> = {};
 
   // Initialize all days with 0
   for (let i = 0; i < days; i++) {
@@ -191,7 +254,7 @@ export async function getSalesChartData(days = 7) {
       day: "2-digit",
       month: "2-digit",
     });
-    salesByDate[dateStr] = 0;
+    revenueByDate[dateStr] = { sales: 0, income: 0 };
   }
 
   // Sum up sales
@@ -200,14 +263,27 @@ export async function getSalesChartData(days = 7) {
       day: "2-digit",
       month: "2-digit",
     });
-    if (salesByDate[dateStr] !== undefined) {
-      salesByDate[dateStr] += Number(sale.totalAmount);
+    if (revenueByDate[dateStr] !== undefined) {
+      revenueByDate[dateStr].sales += Number(sale.totalAmount);
+    }
+  });
+
+  // Sum up incomes
+  incomes.forEach((inc: any) => {
+    const dateStr = inc.date.toLocaleDateString("th-TH", {
+      day: "2-digit",
+      month: "2-digit",
+    });
+    if (revenueByDate[dateStr] !== undefined) {
+      revenueByDate[dateStr].income += Number(inc.amount);
     }
   });
 
   //Return sales chart data (array of objects)
-  return Object.entries(salesByDate).map(([date, revenue]) => ({
+  return Object.entries(revenueByDate).map(([date, data]) => ({
     date,
-    revenue,
+    revenue: data.sales + data.income,  // Total revenue
+    salesRevenue: data.sales,
+    incomeRevenue: data.income,
   }));
 }

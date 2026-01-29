@@ -11,17 +11,21 @@ export interface ReportData {
     totalSales: number;
     totalCost: number;
     totalExpenses: number;
-    netProfit: number;
+    totalIncomes: number;  // Added: Income from other sources
+    grossProfit: number;   // Sales - Cost
+    netProfit: number;     // Gross - Expenses + Incomes
   };
   dailyStats: {
     date: string;
     sales: number;
     cost: number;
     expenses: number;
+    incomes: number;    // Added
     profit: number;
   }[];
   sales: any[]; 
-  expenses: any[]; 
+  expenses: any[];
+  incomes: any[];  // Added
 }
 
 // ฟังก์ชันหลักดึงรายงาน (ระบุช่วงวันที่ได้)
@@ -39,17 +43,16 @@ export async function getReportData(startDate?: string, endDate?: string): Promi
     end.setHours(23, 59, 59, 999);
 
     // =========================================================
-    // เริ่มยิง Database พร้อมกัน 4 Query (เพื่อความเร็ว)
+    // เริ่มยิง Database พร้อมกัน 6 Query (เพิ่ม Income Query)
     // =========================================================
-    const [salesData, expensesData, salesAggregate, expensesAggregate] = await Promise.all([
+    const [salesData, expensesData, incomesData, salesAggregate, expensesAggregate, incomesAggregate] = await Promise.all([
       
       // Query 1: ดึงรายการขายทั้งหมดในช่วงเวลา
-      // ใช้ select เพื่อดึงเฉพาะ field ที่จำเป็น (ลดขนาดข้อมูล)
       db.sale.findMany({
         where: {
           shopId: ctx.shopId,
           date: { gte: start, lte: end },
-          status: { not: 'CANCELLED' }, // ไม่เอารายการที่ยกเลิก
+          status: { not: 'CANCELLED' },
         },
         select: {
           id: true,
@@ -69,7 +72,7 @@ export async function getReportData(startDate?: string, endDate?: string): Promi
         where: {
           shopId: ctx.shopId,
           date: { gte: start, lte: end },
-          deletedAt: null, // ไม่เอาที่ลบไปแล้ว
+          deletedAt: null,
         },
         select: {
           id: true,
@@ -81,8 +84,24 @@ export async function getReportData(startDate?: string, endDate?: string): Promi
         orderBy: { date: 'asc' },
       }),
 
-      // Query 3: หาผลรวมยอดขายและต้นทุน (Server-side Calculation)
-      // ใช้ database บวกเลขให้เลย เร็วกว่าเอามาวน loop เอง
+      // Query 3: ดึงรายการรายได้อื่นๆ (Income)
+      (db as any).income.findMany({
+        where: {
+          shopId: ctx.shopId,
+          date: { gte: start, lte: end },
+          deletedAt: null,
+        },
+        select: {
+          id: true,
+          date: true,
+          category: true,
+          amount: true,
+          description: true,
+        },
+        orderBy: { date: 'asc' },
+      }),
+
+      // Query 4: หาผลรวมยอดขายและต้นทุน
       db.sale.aggregate({
         where: {
           shopId: ctx.shopId,
@@ -92,8 +111,18 @@ export async function getReportData(startDate?: string, endDate?: string): Promi
         _sum: { totalAmount: true, totalCost: true },
       }),
 
-      // Query 4: หาผลรวมค่าใช้จ่าย
+      // Query 5: หาผลรวมค่าใช้จ่าย
       db.expense.aggregate({
+        where: {
+          shopId: ctx.shopId,
+          date: { gte: start, lte: end },
+          deletedAt: null,
+        },
+        _sum: { amount: true },
+      }),
+
+      // Query 6: หาผลรวมรายได้อื่นๆ (Income)
+      (db as any).income.aggregate({
         where: {
           shopId: ctx.shopId,
           date: { gte: start, lte: end },
@@ -107,20 +136,21 @@ export async function getReportData(startDate?: string, endDate?: string): Promi
     const totalSales = Number(salesAggregate._sum.totalAmount || 0);
     const totalCost = Number(salesAggregate._sum.totalCost || 0);
     const totalExpenses = Number(expensesAggregate._sum.amount || 0);
+    const totalIncomes = Number(incomesAggregate._sum.amount || 0);
     
-    // คำนวณกำไรสุทธิ (ยอดขาย - ต้นทุน - ค่าใช้จ่าย)
-    const grossProfit = totalSales - totalCost;
-    const netProfit = grossProfit - totalExpenses;
+    // คำนวณกำไร
+    const grossProfit = totalSales - totalCost;  // กำไรขั้นต้น
+    const netProfit = grossProfit - totalExpenses + totalIncomes;  // กำไรสุทธิ (รวมรายได้อื่นๆ)
 
     // =========================================================
     // การจัดกลุ่มข้อมูลรายวัน (Grouping Logic)
     // =========================================================
-    const dailyMap = new Map<string, { sales: number; cost: number; expenses: number }>();
+    const dailyMap = new Map<string, { sales: number; cost: number; expenses: number; incomes: number }>();
 
     // วนลูปยอดขายเพื่อใส่ลงใน Map รายวัน
     salesData.forEach(s => {
-      const dateKey = s.date.toISOString().split('T')[0]; // ตัดเวลาออก เอาแค่วันที่
-      const current = dailyMap.get(dateKey) || { sales: 0, cost: 0, expenses: 0 };
+      const dateKey = s.date.toISOString().split('T')[0];
+      const current = dailyMap.get(dateKey) || { sales: 0, cost: 0, expenses: 0, incomes: 0 };
       current.sales += Number(s.totalAmount);
       current.cost += Number(s.totalCost);
       dailyMap.set(dateKey, current);
@@ -129,8 +159,16 @@ export async function getReportData(startDate?: string, endDate?: string): Promi
     // วนลูปค่าใช้จ่ายเพื่อใส่ลงใน Map รายวัน
     expensesData.forEach(e => {
       const dateKey = e.date.toISOString().split('T')[0];
-      const current = dailyMap.get(dateKey) || { sales: 0, cost: 0, expenses: 0 };
+      const current = dailyMap.get(dateKey) || { sales: 0, cost: 0, expenses: 0, incomes: 0 };
       current.expenses += Number(e.amount);
+      dailyMap.set(dateKey, current);
+    });
+
+    // วนลูปรายได้อื่นๆ (Income) เพื่อใส่ลงใน Map รายวัน
+    incomesData.forEach((inc: any) => {
+      const dateKey = inc.date.toISOString().split('T')[0];
+      const current = dailyMap.get(dateKey) || { sales: 0, cost: 0, expenses: 0, incomes: 0 };
+      current.incomes += Number(inc.amount);
       dailyMap.set(dateKey, current);
     });
 
@@ -141,9 +179,11 @@ export async function getReportData(startDate?: string, endDate?: string): Promi
         sales: stats.sales,
         cost: stats.cost,
         expenses: stats.expenses,
-        profit: (stats.sales - stats.cost) - stats.expenses
+        incomes: stats.incomes,
+        // กำไร = (ยอดขาย - ต้นทุน) - ค่าใช้จ่าย + รายได้อื่นๆ
+        profit: (stats.sales - stats.cost) - stats.expenses + stats.incomes
       }))
-      .sort((a, b) => a.date.localeCompare(b.date)); // เรียงวันที่
+      .sort((a, b) => a.date.localeCompare(b.date));
 
     return {
       period: {
@@ -154,6 +194,8 @@ export async function getReportData(startDate?: string, endDate?: string): Promi
         totalSales,
         totalCost,
         totalExpenses,
+        totalIncomes,
+        grossProfit,
         netProfit
       },
       dailyStats,
@@ -166,6 +208,10 @@ export async function getReportData(startDate?: string, endDate?: string): Promi
       expenses: expensesData.map(e => ({
           ...e,
           amount: Number(e.amount),
+      })),
+      incomes: incomesData.map((inc: any) => ({
+        ...inc,
+        amount: Number(inc.amount),
       }))
     };
   } catch (error: any) {

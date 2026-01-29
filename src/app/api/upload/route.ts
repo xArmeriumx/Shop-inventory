@@ -42,11 +42,11 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Validate file size (2MB for products, 5MB for receipts)
-    const maxSize = isProductUpload ? 2 * 1024 * 1024 : 5 * 1024 * 1024;
+    // Validate file size (10MB for products, 5MB for receipts)
+    const maxSize = isProductUpload ? 10 * 1024 * 1024 : 5 * 1024 * 1024;
     if (file.size > maxSize) {
       return NextResponse.json({ 
-        error: `File too large. Max ${isProductUpload ? '2' : '5'}MB` 
+        error: `File too large. Max ${isProductUpload ? '10' : '5'}MB` 
       }, { status: 400 });
     }
 

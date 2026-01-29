@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   Users,
   HelpCircle,
+  Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -72,6 +73,11 @@ const navItems = [
     href: '/incomes',
     icon: TrendingUp,
     permission: 'INCOME_VIEW' as Permission,
+  },
+  {
+    title: 'AI ผู้ช่วย',
+    href: '/ai',
+    icon: Sparkles,
   },
 ];
 
