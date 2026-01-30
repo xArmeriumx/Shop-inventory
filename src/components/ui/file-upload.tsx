@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { Upload, X, FileImage, Loader2 } from 'lucide-react';
+import { X, FileImage, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { uploadToStorage, RECEIPTS_BUCKET } from '@/lib/supabase-browser';
 
 interface FileUploadProps {
   value?: string;
@@ -40,25 +41,17 @@ export function FileUpload({
     }
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('folder', folder);
+      // Direct upload to Supabase (no Vercel limit!)
+      const result = await uploadToStorage(file, RECEIPTS_BUCKET, folder);
 
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Upload failed');
+      if ('error' in result) {
+        throw new Error(result.error);
       }
 
       onChange(result.url);
       setPreview(result.url);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Upload failed');
+      setError(err instanceof Error ? err.message : 'อัพโหลดไม่สำเร็จ');
       setPreview(null);
       onChange(null);
     } finally {
@@ -79,7 +72,7 @@ export function FileUpload({
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp,application/pdf"
+        accept="image/*,application/pdf"
         onChange={handleFileChange}
         className="hidden"
         disabled={disabled || isUploading}
