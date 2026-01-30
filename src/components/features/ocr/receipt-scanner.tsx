@@ -69,9 +69,14 @@ export function ReceiptScanner({ onScanComplete, onClose }: ReceiptScannerProps)
     const startTime = Date.now();
 
     try {
-      // Step 1: OCR on client-side
-      const ocrResult = await recognizeImage(file, ['tha', 'eng'], (progress) => {
-        setOcrProgress(progress);
+      // Step 1: OCR on client-side (with image preprocessing)
+      const ocrResult = await recognizeImage(file, {
+        languages: ['tha', 'eng'],
+        preprocess: true,
+        preset: 'receipt',
+        onProgress: (progress) => {
+          setOcrProgress(progress);
+        },
       });
 
       setOcrText(ocrResult.text);
