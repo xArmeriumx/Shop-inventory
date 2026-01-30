@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import Image from 'next/image';
-import { Upload, X, Loader2, GripVertical, ImagePlus } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Camera, X, Loader2, Star, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+// ==================== Types ====================
 interface ProductImageUploadProps {
   value: string[];
   onChange: (urls: string[]) => void;
@@ -13,61 +13,52 @@ interface ProductImageUploadProps {
   disabled?: boolean;
 }
 
-// Image compression settings
-const MAX_FILE_SIZE = 3 * 1024 * 1024; // 3MB target (safe for Vercel 4.5MB limit)
-const MAX_DIMENSION = 1920; // Max width/height
-const JPEG_QUALITY = 0.8; // 80% quality
+// ==================== Constants ====================
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_DIMENSION = 1600;
+const JPEG_QUALITY = 0.85;
 
-/**
- * Compress image using Canvas API (browser-native, no library needed)
- * - Resizes large images to max 1920px
- * - Converts to JPEG at 80% quality
- * - Reduces file size to under 3MB
- */
+// ==================== Image Compression ====================
 async function compressImage(file: File): Promise<File> {
-  // Skip if already small enough and is JPEG
   if (file.size <= MAX_FILE_SIZE && file.type === 'image/jpeg') {
     return file;
   }
 
   return new Promise((resolve, reject) => {
-    const img = new window.Image();
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-
+    const img = document.createElement('img');
+    
     img.onload = () => {
       try {
-        // Calculate new dimensions
-        let { width, height } = img;
+        let { naturalWidth: w, naturalHeight: h } = img;
         
-        if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
-          if (width > height) {
-            height = Math.round((height * MAX_DIMENSION) / width);
-            width = MAX_DIMENSION;
-          } else {
-            width = Math.round((width * MAX_DIMENSION) / height);
-            height = MAX_DIMENSION;
-          }
+        // Resize if needed
+        if (w > MAX_DIMENSION || h > MAX_DIMENSION) {
+          const ratio = Math.min(MAX_DIMENSION / w, MAX_DIMENSION / h);
+          w = Math.round(w * ratio);
+          h = Math.round(h * ratio);
         }
 
-        canvas.width = width;
-        canvas.height = height;
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Canvas error'));
+          return;
+        }
 
-        // Draw and compress
-        ctx?.drawImage(img, 0, 0, width, height);
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
         
         canvas.toBlob(
           (blob) => {
+            URL.revokeObjectURL(img.src);
             if (blob) {
-              // Create new file with original name but .jpg extension
-              const compressedFile = new File(
-                [blob],
-                file.name.replace(/\.[^.]+$/, '.jpg'),
-                { type: 'image/jpeg' }
-              );
-              resolve(compressedFile);
+              resolve(new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' }));
             } else {
-              reject(new Error('Failed to compress image'));
+              reject(new Error('Compression failed'));
             }
           },
           'image/jpeg',
@@ -78,15 +69,16 @@ async function compressImage(file: File): Promise<File> {
       }
     };
 
-    img.onerror = () => reject(new Error('Failed to load image'));
+    img.onerror = () => {
+      URL.revokeObjectURL(img.src);
+      reject(new Error('Failed to load image'));
+    };
+    
     img.src = URL.createObjectURL(file);
   });
 }
 
-/**
- * ProductImageUpload - Multi-image upload with drag & drop reordering
- * First image is used as main display in POS
- */
+// ==================== Main Component ====================
 export function ProductImageUpload({
   value = [],
   onChange,
@@ -94,270 +86,185 @@ export function ProductImageUpload({
   disabled = false,
 }: ProductImageUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [progress, setProgress] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const canAddMore = value.length < maxImages;
+  const canAddMore = value.length < maxImages && !disabled && !isUploading;
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
+  // Upload handler
+  const handleFiles = useCallback(async (files: File[]) => {
     if (files.length === 0) return;
 
-    // Limit files to remaining slots
-    const remainingSlots = maxImages - value.length;
-    const filesToUpload = files.slice(0, remainingSlots);
-
+    const slots = maxImages - value.length;
+    const toUpload = files.slice(0, slots);
+    
     setError(null);
     setIsUploading(true);
+    
+    const uploaded: string[] = [];
 
-    const uploadedUrls: string[] = [];
-
-    for (let i = 0; i < filesToUpload.length; i++) {
-      const file = filesToUpload[i];
-      
+    for (let i = 0; i < toUpload.length; i++) {
       try {
-        // Show compression status
-        setUploadStatus(`กำลังประมวลผลรูปที่ ${i + 1}/${filesToUpload.length}...`);
+        setProgress(`กำลังอัพโหลด ${i + 1}/${toUpload.length}...`);
         
-        // Compress image before upload
-        const compressedFile = await compressImage(file);
+        // Compress
+        const compressed = await compressImage(toUpload[i]);
         
-        // Show upload status
-        setUploadStatus(`กำลังอัพโหลดรูปที่ ${i + 1}/${filesToUpload.length}...`);
-        
+        // Upload
         const formData = new FormData();
-        formData.append('file', compressedFile);
+        formData.append('file', compressed);
         formData.append('folder', 'product-images');
         formData.append('bucket', 'products');
 
-        const response = await fetch('/api/upload', {
-          method: 'POST',
-          body: formData,
-        });
-
-        // Handle non-JSON response (server error)
-        const contentType = response.headers.get('content-type');
-        if (!contentType || !contentType.includes('application/json')) {
-          throw new Error('เซิร์ฟเวอร์มีปัญหา กรุณาลองใหม่อีกครั้ง');
+        const res = await fetch('/api/upload', { method: 'POST', body: formData });
+        
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || 'อัพโหลดไม่สำเร็จ');
         }
 
-        const result = await response.json();
-
-        if (!response.ok) {
-          throw new Error(result.error || 'Upload failed');
-        }
-
-        uploadedUrls.push(result.url);
+        const data = await res.json();
+        if (data.url) uploaded.push(data.url);
+        
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'อัพโหลดไม่สำเร็จ';
-        setError(message);
+        setError(err instanceof Error ? err.message : 'เกิดข้อผิดพลาด');
         break;
       }
     }
 
-    if (uploadedUrls.length > 0) {
-      onChange([...value, ...uploadedUrls]);
+    if (uploaded.length > 0) {
+      onChange([...value, ...uploaded]);
     }
-
+    
     setIsUploading(false);
-    setUploadStatus(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+    setProgress('');
+  }, [value, maxImages, onChange]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    handleFiles(Array.from(e.target.files || []));
+    e.target.value = '';
   };
 
-  const handleRemove = (index: number) => {
-    const newImages = value.filter((_, i) => i !== index);
-    onChange(newImages);
+  const removeImage = (index: number) => {
+    onChange(value.filter((_, i) => i !== index));
   };
 
-  // Drag and drop handlers
-  const handleDragStart = (e: React.DragEvent, index: number) => {
-    setDraggedIndex(index);
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', index.toString());
-  };
-
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    setDragOverIndex(index);
-  };
-
-  const handleDragLeave = () => {
-    setDragOverIndex(null);
-  };
-
-  const handleDrop = (e: React.DragEvent, dropIndex: number) => {
-    e.preventDefault();
-    setDragOverIndex(null);
-    
-    if (draggedIndex === null || draggedIndex === dropIndex) {
-      setDraggedIndex(null);
-      return;
-    }
-
+  const setAsPrimary = (index: number) => {
+    if (index === 0) return;
     const newImages = [...value];
-    const [draggedImage] = newImages.splice(draggedIndex, 1);
-    newImages.splice(dropIndex, 0, draggedImage);
-    
+    const [selected] = newImages.splice(index, 1);
+    newImages.unshift(selected);
     onChange(newImages);
-    setDraggedIndex(null);
   };
-
-  const handleDragEnd = () => {
-    setDraggedIndex(null);
-    setDragOverIndex(null);
-  };
-
-  // Touch-based reordering for mobile
-  const moveImage = useCallback((fromIndex: number, toIndex: number) => {
-    if (toIndex < 0 || toIndex >= value.length) return;
-    const newImages = [...value];
-    const [movedImage] = newImages.splice(fromIndex, 1);
-    newImages.splice(toIndex, 0, movedImage);
-    onChange(newImages);
-  }, [value, onChange]);
 
   return (
     <div className="space-y-3">
-      {/* Image Grid */}
-      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2">
+      {/* Hidden Input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        onChange={handleInputChange}
+        className="hidden"
+        disabled={!canAddMore}
+      />
+
+      {/* Image Grid - Simple and Clean */}
+      <div className="grid grid-cols-3 gap-2">
+        {/* Uploaded Images */}
         {value.map((url, index) => (
           <div
             key={url}
-            draggable={!disabled}
-            onDragStart={(e) => handleDragStart(e, index)}
-            onDragOver={(e) => handleDragOver(e, index)}
-            onDragLeave={handleDragLeave}
-            onDrop={(e) => handleDrop(e, index)}
-            onDragEnd={handleDragEnd}
             className={cn(
-              'relative aspect-square rounded-lg border-2 overflow-hidden group cursor-move',
-              'transition-all duration-200',
-              draggedIndex === index && 'opacity-50 scale-95',
-              dragOverIndex === index && draggedIndex !== index && 'border-primary border-dashed',
-              index === 0 && 'ring-2 ring-primary ring-offset-2'
+              'relative aspect-square rounded-xl overflow-hidden',
+              'border-2 group',
+              index === 0 ? 'border-primary' : 'border-transparent'
             )}
           >
             <Image
               src={url}
-              alt={`Product image ${index + 1}`}
+              alt={`รูป ${index + 1}`}
               fill
               className="object-cover"
-              sizes="(max-width: 640px) 33vw, 20vw"
+              sizes="33vw"
             />
             
-            {/* Main badge */}
+            {/* Primary Badge */}
             {index === 0 && (
-              <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-primary text-primary-foreground text-[10px] font-medium rounded">
+              <div className="absolute top-1.5 left-1.5 bg-primary text-white text-[10px] px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                <Star className="h-2.5 w-2.5 fill-current" />
                 หลัก
               </div>
             )}
-            
-            {/* Drag handle */}
-            <div className="absolute top-1 right-1 p-1 bg-black/50 rounded text-white opacity-0 group-hover:opacity-100 transition-opacity">
-              <GripVertical className="h-3 w-3" />
-            </div>
-            
-            {/* Remove button */}
-            {!disabled && (
-              <button
-                type="button"
-                onClick={() => handleRemove(index)}
-                className="absolute bottom-1 right-1 p-1 bg-destructive text-destructive-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/90"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            )}
 
-            {/* Mobile reorder buttons */}
-            <div className="absolute bottom-1 left-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity sm:hidden">
-              {index > 0 && (
+            {/* Simple Overlay - Tap to see actions */}
+            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 active:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5 p-2">
+              {/* Set as Primary */}
+              {index !== 0 && !disabled && (
                 <button
                   type="button"
-                  onClick={() => moveImage(index, index - 1)}
-                  className="p-1 bg-black/50 text-white rounded text-[10px]"
+                  onClick={() => setAsPrimary(index)}
+                  className="w-full py-1.5 bg-white text-black text-xs font-medium rounded-lg"
                 >
-                  ←
+                  ตั้งเป็นหลัก
                 </button>
               )}
-              {index < value.length - 1 && (
+              
+              {/* Delete */}
+              {!disabled && (
                 <button
                   type="button"
-                  onClick={() => moveImage(index, index + 1)}
-                  className="p-1 bg-black/50 text-white rounded text-[10px]"
+                  onClick={() => removeImage(index)}
+                  className="w-full py-1.5 bg-red-500 text-white text-xs font-medium rounded-lg flex items-center justify-center gap-1"
                 >
-                  →
+                  <X className="h-3 w-3" />
+                  ลบ
                 </button>
               )}
             </div>
           </div>
         ))}
 
-        {/* Add button */}
+        {/* Add Button - Big and Simple */}
         {canAddMore && (
-          <>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={handleFileChange}
-              className="hidden"
-              disabled={disabled || isUploading}
-            />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={disabled || isUploading}
-              className={cn(
-                'aspect-square rounded-lg border-2 border-dashed',
-                'flex flex-col items-center justify-center gap-1',
-                'text-muted-foreground hover:text-foreground hover:border-primary',
-                'transition-colors cursor-pointer',
-                (disabled || isUploading) && 'opacity-50 cursor-not-allowed'
-              )}
-            >
-              {isUploading ? (
-                <Loader2 className="h-6 w-6 animate-spin" />
-              ) : (
-                <>
-                  <ImagePlus className="h-6 w-6" />
-                  <span className="text-[10px]">เพิ่มรูป</span>
-                </>
-              )}
-            </button>
-          </>
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className={cn(
+              'aspect-square rounded-xl border-2 border-dashed border-muted-foreground/30',
+              'flex flex-col items-center justify-center gap-1',
+              'text-muted-foreground hover:border-primary hover:text-primary',
+              'transition-colors active:scale-95'
+            )}
+          >
+            {isUploading ? (
+              <Loader2 className="h-8 w-8 animate-spin" />
+            ) : (
+              <>
+                <Plus className="h-8 w-8" />
+                <span className="text-xs">เพิ่มรูป</span>
+              </>
+            )}
+          </button>
         )}
       </div>
 
-      {/* Helper text */}
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span>
-          {value.length}/{maxImages} รูป
-          {value.length > 0 && ' • ลากเพื่อเรียงลำดับ'}
-        </span>
-        <span className="text-[10px]">
-          รูปแรก = รูปหลัก (แสดงใน POS)
-        </span>
-      </div>
-
-      {/* Upload Status */}
-      {uploadStatus && (
-        <p className="text-sm text-muted-foreground flex items-center gap-2">
-          <Loader2 className="h-3 w-3 animate-spin" />
-          {uploadStatus}
-        </p>
+      {/* Status */}
+      {isUploading && progress && (
+        <p className="text-sm text-muted-foreground text-center">{progress}</p>
       )}
 
       {/* Error */}
       {error && (
-        <p className="text-sm text-destructive">{error}</p>
+        <p className="text-sm text-red-500 text-center">{error}</p>
       )}
+
+      {/* Helper */}
+      <p className="text-xs text-muted-foreground text-center">
+        {value.length}/{maxImages} รูป • แตะรูปเพื่อจัดการ
+      </p>
     </div>
   );
 }
