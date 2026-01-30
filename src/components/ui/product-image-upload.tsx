@@ -13,6 +13,76 @@ interface ProductImageUploadProps {
   disabled?: boolean;
 }
 
+// Image compression settings
+const MAX_FILE_SIZE = 3 * 1024 * 1024; // 3MB target (safe for Vercel 4.5MB limit)
+const MAX_DIMENSION = 1920; // Max width/height
+const JPEG_QUALITY = 0.8; // 80% quality
+
+/**
+ * Compress image using Canvas API (browser-native, no library needed)
+ * - Resizes large images to max 1920px
+ * - Converts to JPEG at 80% quality
+ * - Reduces file size to under 3MB
+ */
+async function compressImage(file: File): Promise<File> {
+  // Skip if already small enough and is JPEG
+  if (file.size <= MAX_FILE_SIZE && file.type === 'image/jpeg') {
+    return file;
+  }
+
+  return new Promise((resolve, reject) => {
+    const img = new window.Image();
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+
+    img.onload = () => {
+      try {
+        // Calculate new dimensions
+        let { width, height } = img;
+        
+        if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
+          if (width > height) {
+            height = Math.round((height * MAX_DIMENSION) / width);
+            width = MAX_DIMENSION;
+          } else {
+            width = Math.round((width * MAX_DIMENSION) / height);
+            height = MAX_DIMENSION;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        // Draw and compress
+        ctx?.drawImage(img, 0, 0, width, height);
+        
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              // Create new file with original name but .jpg extension
+              const compressedFile = new File(
+                [blob],
+                file.name.replace(/\.[^.]+$/, '.jpg'),
+                { type: 'image/jpeg' }
+              );
+              resolve(compressedFile);
+            } else {
+              reject(new Error('Failed to compress image'));
+            }
+          },
+          'image/jpeg',
+          JPEG_QUALITY
+        );
+      } catch (err) {
+        reject(err);
+      }
+    };
+
+    img.onerror = () => reject(new Error('Failed to load image'));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
 /**
  * ProductImageUpload - Multi-image upload with drag & drop reordering
  * First image is used as main display in POS
@@ -24,6 +94,7 @@ export function ProductImageUpload({
   disabled = false,
 }: ProductImageUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -44,10 +115,21 @@ export function ProductImageUpload({
 
     const uploadedUrls: string[] = [];
 
-    for (const file of filesToUpload) {
+    for (let i = 0; i < filesToUpload.length; i++) {
+      const file = filesToUpload[i];
+      
       try {
+        // Show compression status
+        setUploadStatus(`กำลังประมวลผลรูปที่ ${i + 1}/${filesToUpload.length}...`);
+        
+        // Compress image before upload
+        const compressedFile = await compressImage(file);
+        
+        // Show upload status
+        setUploadStatus(`กำลังอัพโหลดรูปที่ ${i + 1}/${filesToUpload.length}...`);
+        
         const formData = new FormData();
-        formData.append('file', file);
+        formData.append('file', compressedFile);
         formData.append('folder', 'product-images');
         formData.append('bucket', 'products');
 
@@ -55,6 +137,12 @@ export function ProductImageUpload({
           method: 'POST',
           body: formData,
         });
+
+        // Handle non-JSON response (server error)
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+          throw new Error('เซิร์ฟเวอร์มีปัญหา กรุณาลองใหม่อีกครั้ง');
+        }
 
         const result = await response.json();
 
@@ -64,7 +152,8 @@ export function ProductImageUpload({
 
         uploadedUrls.push(result.url);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Upload failed');
+        const message = err instanceof Error ? err.message : 'อัพโหลดไม่สำเร็จ';
+        setError(message);
         break;
       }
     }
@@ -74,6 +163,7 @@ export function ProductImageUpload({
     }
 
     setIsUploading(false);
+    setUploadStatus(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -214,7 +304,7 @@ export function ProductImageUpload({
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/jpeg,image/png,image/webp"
+              accept="image/*"
               multiple
               onChange={handleFileChange}
               className="hidden"
@@ -255,6 +345,14 @@ export function ProductImageUpload({
           รูปแรก = รูปหลัก (แสดงใน POS)
         </span>
       </div>
+
+      {/* Upload Status */}
+      {uploadStatus && (
+        <p className="text-sm text-muted-foreground flex items-center gap-2">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          {uploadStatus}
+        </p>
+      )}
 
       {/* Error */}
       {error && (

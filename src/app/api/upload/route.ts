@@ -30,16 +30,23 @@ export async function POST(request: NextRequest) {
     const targetBucket = isProductUpload ? PRODUCTS_BUCKET : RECEIPTS_BUCKET;
     
     // Validate file type based on bucket
-    const allowedTypes = isProductUpload 
-      ? ['image/jpeg', 'image/png', 'image/webp']  // Products: images only
-      : ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']; // Receipts: + PDF
-      
-    if (!allowedTypes.includes(file.type)) {
-      return NextResponse.json({ 
-        error: isProductUpload 
-          ? 'Invalid file type. Allowed: JPEG, PNG, WebP' 
-          : 'Invalid file type. Allowed: JPEG, PNG, WebP, PDF'
-      }, { status: 400 });
+    // For products: Accept all image types (client compresses to JPEG before upload)
+    // For receipts: images + PDF
+    const isImage = file.type.startsWith('image/');
+    const isPdf = file.type === 'application/pdf';
+    
+    if (isProductUpload) {
+      if (!isImage) {
+        return NextResponse.json({ 
+          error: 'ไฟล์ไม่ใช่รูปภาพ กรุณาอัพโหลดเฉพาะไฟล์รูปภาพ'
+        }, { status: 400 });
+      }
+    } else {
+      if (!isImage && !isPdf) {
+        return NextResponse.json({ 
+          error: 'ไฟล์ไม่ถูกต้อง กรุณาอัพโหลดรูปภาพหรือ PDF'
+        }, { status: 400 });
+      }
     }
 
     // Validate file size (10MB for products, 5MB for receipts)
