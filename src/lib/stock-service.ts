@@ -8,6 +8,7 @@ interface CreateStockMovementParams {
   type: StockMovementType;
   quantity: number; // Positive for add, Negative for remove
   userId: string;
+  shopId?: string;  // RBAC: Shop scope for multi-tenant isolation
   referenceId?: string;
   referenceType?: 'SALE' | 'PURCHASE' | 'SALE_CANCEL' | 'PURCHASE_CANCEL';
   note?: string;
@@ -25,6 +26,7 @@ export class StockService {
     type,
     quantity,
     userId,
+    shopId,
     referenceId,
     referenceType,
     note,
@@ -51,6 +53,7 @@ export class StockService {
           id: true,
           stock: true,
           minStock: true, // Need minStock to compare
+          shopId: true,   // Get shopId from product if not provided
         },
       });
 
@@ -66,6 +69,9 @@ export class StockService {
       });
 
       // 2. Create Stock Log with the NEW balance
+      // RBAC: Use provided shopId or fallback to product's shopId
+      const finalShopId = shopId || updatedProduct.shopId;
+      
       await prisma.stockLog.create({
         data: {
           type,
@@ -77,6 +83,7 @@ export class StockService {
           note,
           date: finalDate,
           userId,
+          shopId: finalShopId,  // RBAC: Set shopId for multi-tenant filtering
         },
       });
 

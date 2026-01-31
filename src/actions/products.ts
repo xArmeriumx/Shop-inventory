@@ -228,6 +228,7 @@ export async function updateProduct(id: string, input: ProductUpdateInput): Prom
           type: 'ADJUSTMENT',
           quantity: diff,
           userId: ctx.userId,
+          shopId: ctx.shopId,  // RBAC: Set shopId for stock log
           note: 'ปรับปรุงสต็อก (แก้ไขสินค้า)',
           tx,
         });
@@ -318,10 +319,11 @@ export async function deleteProduct(id: string): Promise<ActionResponse> {
 
 
 // Get Products for Select (แสดงสินค้าใน Select)  
+// ใช้สำหรับหน้า Sale - ต้องมีสต็อกมากกว่า 0 ถึงจะขายได้
 export async function getProductsForSelect() {
   const ctx = await requirePermission('PRODUCT_VIEW'); // Assume needed
 
-  return db.product.findMany({
+  const products = await db.product.findMany({
     where: {
       shopId: ctx.shopId,
       isActive: true,
@@ -338,6 +340,43 @@ export async function getProductsForSelect() {
     },
     orderBy: { name: 'asc' },
   });
+  
+  // Convert Decimal to Number for Client Components
+  return products.map((p) => ({
+    ...p,
+    salePrice: Number(p.salePrice),
+    costPrice: Number(p.costPrice),
+  }));
+}
+
+// Get Products for Purchase (แสดงสินค้าใน Select สำหรับหน้าซื้อสินค้า)
+// ใช้สำหรับหน้า Purchase - แสดงทุกสินค้า แม้สต็อกเป็น 0 เพราะกำลังจะซื้อเพิ่ม
+export async function getProductsForPurchase() {
+  const ctx = await requirePermission('PRODUCT_VIEW');
+
+  const products = await db.product.findMany({
+    where: {
+      shopId: ctx.shopId,
+      isActive: true,
+      deletedAt: null,
+      // ไม่ filter by stock - แสดงทุกสินค้าเพื่อให้สั่งซื้อเพิ่มได้
+    },
+    select: {
+      id: true,
+      name: true,
+      sku: true,
+      salePrice: true,
+      costPrice: true,
+      stock: true,
+    },
+    orderBy: { name: 'asc' },
+  });
+  
+  return products.map((p) => ({
+    ...p,
+    salePrice: Number(p.salePrice),
+    costPrice: Number(p.costPrice),
+  }));
 }
 
 export async function getLowStockProducts(limit: number = 5) {
@@ -411,6 +450,7 @@ export async function adjustStock(productId: string, input: AdjustStockInput): P
         type: 'ADJUSTMENT',
         quantity: change,
         userId: ctx.userId,
+        shopId: ctx.shopId,  // RBAC: Set shopId for stock log
         note: `${notePrefix} ${input.note}`,
         tx,
       });
@@ -461,3 +501,182 @@ export async function getLowStockProductsPaginated(params: GetProductsParams = {
     }))
   };
 }
+
+// Batch Create Products (สร้างสินค้าหลายรายการพร้อมกัน - ใช้ createMany)
+export interface BatchProductInput {
+  name: string;
+  sku?: string | null;
+  category: string;
+  costPrice: number;
+  salePrice: number;
+}
+
+export interface BatchCreateResult {
+  success: boolean;
+  created: Array<{ id: string; name: string; costPrice: number }>;
+  failed: Array<{ name: string; error: string }>;
+}
+
+export async function batchCreateProducts(
+  inputs: BatchProductInput[]
+): Promise<ActionResponse<BatchCreateResult>> {
+  console.log('[BatchCreate] ========== START ==========');
+  console.log('[BatchCreate] Received inputs:', inputs.length);
+  
+  const ctx = await requirePermission('PRODUCT_CREATE');
+  console.log('[BatchCreate] Auth context:', { userId: ctx.userId, shopId: ctx.shopId });
+
+  if (!inputs || inputs.length === 0) {
+    console.log('[BatchCreate] No inputs provided');
+    return {
+      success: false,
+      message: 'ไม่มีข้อมูลสินค้าที่จะสร้าง',
+    };
+  }
+
+  // 1. Validate inputs first
+  const validInputs: BatchProductInput[] = [];
+  const failed: BatchCreateResult['failed'] = [];
+
+  for (let i = 0; i < inputs.length; i++) {
+    const input = inputs[i];
+    console.log(`[BatchCreate][${i}] Validating:`, {
+      name: input.name,
+      category: input.category,
+      sku: input.sku,
+    });
+
+    if (!input.name || !input.name.trim()) {
+      console.log(`[BatchCreate][${i}] FAILED: Missing name`);
+      failed.push({ name: input.name || 'ไม่มีชื่อ', error: 'ไม่มีชื่อสินค้า' });
+      continue;
+    }
+
+    if (!input.category || !input.category.trim()) {
+      console.log(`[BatchCreate][${i}] FAILED: Missing category`);
+      failed.push({ name: input.name, error: 'ไม่มีหมวดหมู่' });
+      continue;
+    }
+
+    validInputs.push({
+      name: input.name.trim(),
+      sku: input.sku?.trim() || null,
+      category: input.category.trim(),
+      costPrice: input.costPrice || 0,
+      salePrice: input.salePrice || 0,
+    });
+  }
+
+  console.log('[BatchCreate] Valid inputs:', validInputs.length);
+  console.log('[BatchCreate] Failed validation:', failed.length);
+
+  if (validInputs.length === 0) {
+    console.log('[BatchCreate] No valid inputs after validation');
+    return {
+      success: false,
+      message: `ข้อมูลไม่ถูกต้อง ${failed.length} รายการ`,
+      data: { success: false, created: [], failed },
+    };
+  }
+
+  const created: BatchCreateResult['created'] = [];
+
+  try {
+    // 2. Check for existing products with same SKU (including inactive)
+    const skusToCheck = validInputs.filter(i => i.sku).map(i => i.sku as string);
+    
+    let existingProducts: { id: string; sku: string | null; isActive: boolean }[] = [];
+    if (skusToCheck.length > 0) {
+      existingProducts = await db.product.findMany({
+        where: {
+          shopId: ctx.shopId,  // RBAC: Use shopId for SKU uniqueness check
+          sku: { in: skusToCheck },
+        },
+        select: { id: true, sku: true, isActive: true },
+      });
+      console.log('[BatchCreate] Found existing products with SKUs:', existingProducts.length);
+    }
+
+    const existingSkuMap = new Map(existingProducts.map(p => [p.sku, p]));
+
+    // 3. Process each product - reactivate existing or create new
+    await db.$transaction(async (tx) => {
+      for (const input of validInputs) {
+        const existingProduct = input.sku ? existingSkuMap.get(input.sku) : null;
+
+        if (existingProduct) {
+          // Reactivate existing product
+          console.log('[BatchCreate] Reactivating existing product:', input.sku);
+          const reactivated = await tx.product.update({
+            where: { id: existingProduct.id },
+            data: {
+              name: input.name,
+              category: input.category,
+              costPrice: input.costPrice,
+              salePrice: input.salePrice,
+              isActive: true,
+              deletedAt: null,
+            },
+          });
+          created.push({
+            id: reactivated.id,
+            name: reactivated.name,
+            costPrice: Number(reactivated.costPrice),
+          });
+        } else {
+          // Create new product
+          console.log('[BatchCreate] Creating new product:', input.name);
+          const newProduct = await tx.product.create({
+            data: {
+              name: input.name,
+              sku: input.sku,
+              category: input.category,
+              costPrice: input.costPrice,
+              salePrice: input.salePrice,
+              stock: 0,
+              minStock: 5,
+              userId: ctx.userId,
+              shopId: ctx.shopId,
+            },
+          });
+          created.push({
+            id: newProduct.id,
+            name: newProduct.name,
+            costPrice: Number(newProduct.costPrice),
+          });
+        }
+      }
+    });
+
+    revalidatePath('/products');
+
+    console.log('[BatchCreate] ========== SUCCESS ==========');
+    console.log('[BatchCreate] Created/Reactivated:', created.length, 'Failed:', failed.length);
+
+    return {
+      success: true,
+      message: `สร้างสินค้าสำเร็จ ${created.length} รายการ${failed.length > 0 ? `, ข้าม ${failed.length} รายการ` : ''}`,
+      data: { success: true, created, failed },
+    };
+  } catch (error: any) {
+    console.error('[BatchCreate] ========== ERROR ==========');
+    console.error('[BatchCreate] Error:', error);
+    console.error('[BatchCreate] Error code:', error.code);
+    console.error('[BatchCreate] Error message:', error.message);
+
+    if (error.code === 'P2002') {
+      return {
+        success: false,
+        message: 'พบ SKU หรือชื่อซ้ำในระบบ',
+        data: { success: false, created: [], failed },
+      };
+    }
+
+    return {
+      success: false,
+      message: error.message || 'เกิดข้อผิดพลาดในการสร้างสินค้า',
+    };
+  }
+}
+
+

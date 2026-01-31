@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth-guard';
+import { logger } from '@/lib/logger';
 import { paginatedQuery, buildSearchFilter, buildDateRangeFilter } from '@/lib/pagination';
 import { incomeSchema, type IncomeInput } from '@/schemas/income';
 
@@ -102,7 +103,7 @@ export async function createIncome(input: IncomeInput) {
       } 
     };
   } catch (error) {
-    console.error('Create income error:', error);
+    await logger.error('Create income error', error as Error, { path: 'createIncome', userId: ctx.userId });
     return { error: { _form: ['เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง'] } };
   }
 }
@@ -145,7 +146,7 @@ export async function updateIncome(id: string, input: IncomeInput) {
       } 
     };
   } catch (error) {
-    console.error('Update income error:', error);
+    await logger.error('Update income error', error as Error, { path: 'updateIncome', userId: ctx.userId, incomeId: id });
     return { error: { _form: ['เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง'] } };
   }
 }
@@ -166,15 +167,17 @@ export async function deleteIncome(id: string) {
   }
 
   try {
-    await db.income.delete({
+    // Soft Delete: Set deletedAt instead of hard delete
+    await db.income.update({
       where: { id },
+      data: { deletedAt: new Date() },
     });
 
     revalidatePath('/incomes');
     revalidatePath('/dashboard');
     return { success: true };
   } catch (error) {
-    console.error('Delete income error:', error);
+    await logger.error('Delete income error', error as Error, { path: 'deleteIncome', userId: ctx.userId, incomeId: id });
     return { error: 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง' };
   }
 }

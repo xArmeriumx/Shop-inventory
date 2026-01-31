@@ -1,10 +1,8 @@
-import Link from 'next/link';
-import { Plus } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
-import { Button } from '@/components/ui/button';
 import { getPurchases } from '@/actions/purchases';
 import { PurchasesTable } from '@/components/features/purchases/purchases-table';
 import { PurchasesToolbar } from '@/components/features/purchases/purchases-toolbar';
+import { PurchasesHeaderActions } from '@/components/features/purchases/purchases-header-actions';
 
 interface PurchasesPageProps {
   searchParams: {
@@ -34,12 +32,7 @@ export default async function PurchasesPage({ searchParams }: PurchasesPageProps
   return (
     <div>
       <PageHeader title="ซื้อสินค้า" description="บันทึกการซื้อและเติมสต็อกสินค้า">
-        <Button asChild>
-          <Link href="/purchases/new">
-            <Plus className="mr-2 h-4 w-4" />
-            บันทึกการซื้อ
-          </Link>
-        </Button>
+        <PurchasesHeaderActions />
       </PageHeader>
 
       <div className="space-y-4">
@@ -54,3 +47,4 @@ export default async function PurchasesPage({ searchParams }: PurchasesPageProps
     </div>
   );
 }
+

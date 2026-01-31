@@ -6,10 +6,18 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Camera,
   Upload,
-  Loader2,
   FileText,
   Check,
   X,
@@ -21,94 +29,123 @@ import {
   Calendar,
   CreditCard,
   Tag,
+  Pencil,
+  Plus,
+  Trash2,
 } from 'lucide-react';
-import { recognizeImage } from '@/lib/ocr/client-ocr';
-import type { ReceiptData } from '@/lib/ocr/types';
+import type { ReceiptData, ReceiptItem } from '@/lib/ocr/types';
 
 interface ReceiptScannerProps {
   onScanComplete?: (data: ReceiptData) => void;
   onClose?: () => void;
 }
 
-type ScanState = 'idle' | 'ocr' | 'ai' | 'result' | 'error';
+type ScanState = 'idle' | 'ai' | 'result' | 'error';
+
+// Expense categories
+const CATEGORIES = [
+  { value: 'อาหาร', label: '🍔 อาหาร' },
+  { value: 'เดินทาง', label: '🚗 เดินทาง' },
+  { value: 'สาธารณูปโภค', label: '💡 สาธารณูปโภค' },
+  { value: 'สำนักงาน', label: '📎 สำนักงาน' },
+  { value: 'สินค้า', label: '📦 สินค้า' },
+  { value: 'อื่นๆ', label: '📋 อื่นๆ' },
+];
+
+// Payment methods
+const PAYMENT_METHODS = [
+  { value: 'CASH', label: 'เงินสด' },
+  { value: 'CARD', label: 'บัตรเครดิต/เดบิต' },
+  { value: 'TRANSFER', label: 'โอนเงิน' },
+  { value: 'QR', label: 'QR Code' },
+  { value: 'PROMPTPAY', label: 'PromptPay' },
+];
 
 export function ReceiptScanner({ onScanComplete, onClose }: ReceiptScannerProps) {
   const [state, setState] = useState<ScanState>('idle');
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [result, setResult] = useState<ReceiptData | null>(null);
-  const [ocrText, setOcrText] = useState<string>('');
+  const [originalResult, setOriginalResult] = useState<ReceiptData | null>(null);
   const [ocrConfidence, setOcrConfidence] = useState<number>(0);
   const [ocrProgress, setOcrProgress] = useState<number>(0);
   const [error, setError] = useState<string>('');
   const [processingTime, setProcessingTime] = useState<number>(0);
   
+  // Editable fields (separate from original result)
+  const [editedVendor, setEditedVendor] = useState('');
+  const [editedDate, setEditedDate] = useState('');
+  const [editedTime, setEditedTime] = useState('');
+  const [editedTotal, setEditedTotal] = useState<number>(0);
+  const [editedCategory, setEditedCategory] = useState('อื่นๆ');
+  const [editedPaymentMethod, setEditedPaymentMethod] = useState('CASH');
+  const [editedItems, setEditedItems] = useState<ReceiptItem[]>([]);
+  const [editedTaxId, setEditedTaxId] = useState('');
+  const [editedReceiptNumber, setEditedReceiptNumber] = useState('');
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  // Set edited fields from OCR result
+  const populateEditedFields = (data: ReceiptData) => {
+    setEditedVendor(data.vendor || '');
+    setEditedDate(data.date || new Date().toISOString().split('T')[0]);
+    setEditedTime(data.time || '');
+    setEditedTotal(data.total || 0);
+    setEditedCategory(data.suggestedCategory || 'อื่นๆ');
+    setEditedPaymentMethod(data.paymentMethod || 'CASH');
+    setEditedItems(data.items || []);
+    setEditedTaxId(data.taxId || '');
+    setEditedReceiptNumber(data.receiptNumber || '');
+  };
 
   // Handle file selection
   const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Preview image
     const reader = new FileReader();
     reader.onload = (e) => {
       setImagePreview(e.target?.result as string);
     };
     reader.readAsDataURL(file);
 
-    // Process image
     await processImage(file);
   }, []);
 
-  // Process image with OCR (client) + AI (server)
+  // Process image with Vision OCR
   const processImage = async (file: File) => {
-    setState('ocr');
+    setState('ai');
     setError('');
     setOcrProgress(0);
     const startTime = Date.now();
 
     try {
-      // Step 1: OCR on client-side (with image preprocessing)
-      const ocrResult = await recognizeImage(file, {
-        languages: ['tha', 'eng'],
-        preprocess: true,
-        preset: 'receipt',
-        onProgress: (progress) => {
-          setOcrProgress(progress);
-        },
-      });
-
-      setOcrText(ocrResult.text);
-      setOcrConfidence(ocrResult.confidence);
-
-      if (!ocrResult.text || ocrResult.text.trim().length < 10) {
-        setError('ไม่สามารถอ่านข้อความจากรูปได้ กรุณาลองถ่ายรูปใหม่ให้ชัดขึ้น');
-        setState('error');
-        return;
-      }
-
-      // Step 2: AI extraction on server
-      setState('ai');
-      const response = await fetch('/api/ocr/extract', {
+      const base64 = await fileToBase64(file);
+      setOcrProgress(30);
+      
+      const response = await fetch('/api/ocr/vision', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ocrText: ocrResult.text,
-          ocrConfidence: ocrResult.confidence,
+          imageBase64: base64,
+          mimeType: file.type || 'image/jpeg',
         }),
       });
 
+      setOcrProgress(80);
+      
       const data = await response.json();
       setProcessingTime(Date.now() - startTime);
+      setOcrProgress(100);
 
       if (!response.ok || !data.success) {
-        setError(data.error || 'เกิดข้อผิดพลาด');
+        setError(data.error || 'ไม่สามารถอ่านใบเสร็จได้');
         setState('error');
         return;
       }
 
-      setResult(data.data);
+      setOcrConfidence(data.data.confidence || 85);
+      setOriginalResult(data.data);
+      populateEditedFields(data.data);
       setState('result');
     } catch (err: any) {
       setError(err.message || 'ไม่สามารถประมวลผลได้');
@@ -116,22 +153,86 @@ export function ReceiptScanner({ onScanComplete, onClose }: ReceiptScannerProps)
     }
   };
 
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        const base64 = result.split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
   // Reset scanner
   const handleReset = () => {
     setState('idle');
     setImagePreview(null);
-    setResult(null);
-    setOcrText('');
+    setOriginalResult(null);
     setOcrProgress(0);
     setError('');
+    setEditedItems([]);
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (cameraInputRef.current) cameraInputRef.current.value = '';
   };
 
-  // Confirm and save
+  // Update item
+  const updateItem = (index: number, field: keyof ReceiptItem, value: any) => {
+    const newItems = [...editedItems];
+    newItems[index] = { ...newItems[index], [field]: value };
+    
+    // Recalculate item total if quantity or unitPrice changed
+    if (field === 'quantity' || field === 'unitPrice') {
+      newItems[index].total = (newItems[index].quantity || 1) * (newItems[index].unitPrice || 0);
+    }
+    
+    setEditedItems(newItems);
+    
+    // Recalculate total
+    const newTotal = newItems.reduce((sum, item) => sum + (item.total || 0), 0);
+    setEditedTotal(newTotal);
+  };
+
+  // Add new item
+  const addItem = () => {
+    setEditedItems([
+      ...editedItems,
+      { name: '', quantity: 1, unitPrice: 0, total: 0 } as ReceiptItem,
+    ]);
+  };
+
+  // Remove item
+  const removeItem = (index: number) => {
+    const newItems = editedItems.filter((_, i) => i !== index);
+    setEditedItems(newItems);
+    
+    // Recalculate total
+    const newTotal = newItems.reduce((sum, item) => sum + (item.total || 0), 0);
+    setEditedTotal(newTotal);
+  };
+
+  // Confirm and save with edited data
   const handleConfirm = () => {
-    if (result && onScanComplete) {
-      onScanComplete(result);
+    if (onScanComplete) {
+      const editedResult: ReceiptData = {
+        ...originalResult,
+        vendor: editedVendor,
+        date: editedDate,
+        time: editedTime,
+        total: editedTotal,
+        suggestedCategory: editedCategory,
+        paymentMethod: editedPaymentMethod,
+        items: editedItems,
+        taxId: editedTaxId,
+        receiptNumber: editedReceiptNumber,
+        // Keep original values for reference
+        subtotal: editedTotal,
+        confidence: ocrConfidence,
+      } as ReceiptData;
+      
+      onScanComplete(editedResult);
     }
   };
 
@@ -160,7 +261,6 @@ export function ReceiptScanner({ onScanComplete, onClose }: ReceiptScannerProps)
         {/* Upload Section */}
         {(state === 'idle' || state === 'error') && (
           <div className="space-y-4">
-            {/* Image Preview or Upload Area */}
             {imagePreview ? (
               <div className="relative rounded-lg overflow-hidden border">
                 <img 
@@ -185,7 +285,6 @@ export function ReceiptScanner({ onScanComplete, onClose }: ReceiptScannerProps)
                   ถ่ายรูปหรืออัปโหลดใบเสร็จ
                 </p>
                 <div className="flex gap-3 justify-center">
-                  {/* Camera Button */}
                   <Button
                     variant="outline"
                     onClick={() => cameraInputRef.current?.click()}
@@ -202,7 +301,6 @@ export function ReceiptScanner({ onScanComplete, onClose }: ReceiptScannerProps)
                     className="hidden"
                   />
 
-                  {/* Upload Button */}
                   <Button
                     variant="outline"
                     onClick={() => fileInputRef.current?.click()}
@@ -221,27 +319,13 @@ export function ReceiptScanner({ onScanComplete, onClose }: ReceiptScannerProps)
               </div>
             )}
 
-            {/* Error Message */}
             {state === 'error' && error && (
               <div className="flex items-start gap-3 p-4 bg-destructive/10 border border-destructive/30 rounded-lg">
                 <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-medium text-destructive">{error}</p>
-                  {ocrText && (
-                    <details className="mt-2">
-                      <summary className="text-sm text-muted-foreground cursor-pointer">
-                        ดู OCR Text ({ocrConfidence.toFixed(0)}% confidence)
-                      </summary>
-                      <pre className="mt-2 text-xs bg-muted p-2 rounded max-h-32 overflow-auto whitespace-pre-wrap">
-                        {ocrText}
-                      </pre>
-                    </details>
-                  )}
-                </div>
+                <p className="font-medium text-destructive">{error}</p>
               </div>
             )}
 
-            {/* Retry Button */}
             {state === 'error' && imagePreview && (
               <Button 
                 onClick={() => {
@@ -257,18 +341,6 @@ export function ReceiptScanner({ onScanComplete, onClose }: ReceiptScannerProps)
           </div>
         )}
 
-        {/* OCR Processing State */}
-        {state === 'ocr' && (
-          <div className="text-center py-8">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-primary/10 flex items-center justify-center">
-              <FileText className="h-8 w-8 text-primary animate-pulse" />
-            </div>
-            <p className="font-medium mb-2">กำลังอ่านข้อความ...</p>
-            <Progress value={ocrProgress} className="w-48 mx-auto" />
-            <p className="text-sm text-muted-foreground mt-2">{ocrProgress}%</p>
-          </div>
-        )}
-
         {/* AI Processing State */}
         {state === 'ai' && (
           <div className="text-center py-8">
@@ -279,11 +351,12 @@ export function ReceiptScanner({ onScanComplete, onClose }: ReceiptScannerProps)
             <p className="text-sm text-muted-foreground mt-1">
               กำลังดึงข้อมูลร้านค้า, วันที่, ยอดเงิน
             </p>
+            <Progress value={ocrProgress} className="w-48 mx-auto mt-4" />
           </div>
         )}
 
-        {/* Result State */}
-        {state === 'result' && result && (
+        {/* Result State with Editable Fields */}
+        {state === 'result' && originalResult && (
           <div className="space-y-4">
             {/* Confidence Badge */}
             <div className="flex items-center justify-between">
@@ -292,8 +365,8 @@ export function ReceiptScanner({ onScanComplete, onClose }: ReceiptScannerProps)
                 <span className="text-sm font-medium">ผลการวิเคราะห์</span>
               </div>
               <div className="flex items-center gap-2">
-                <Badge variant={result.confidence >= 70 ? 'default' : 'secondary'}>
-                  ความมั่นใจ {result.confidence}%
+                <Badge variant={ocrConfidence >= 70 ? 'default' : 'secondary'}>
+                  ความมั่นใจ {ocrConfidence}%
                 </Badge>
                 <Badge variant="outline" className="text-xs">
                   {(processingTime / 1000).toFixed(1)}s
@@ -303,88 +376,167 @@ export function ReceiptScanner({ onScanComplete, onClose }: ReceiptScannerProps)
 
             <Separator />
 
-            {/* Extracted Data */}
+            {/* Editable Form */}
             <div className="grid gap-4">
               {/* Vendor */}
-              {result.vendor && (
-                <div className="flex items-center gap-3">
+              <div className="grid gap-2">
+                <Label htmlFor="vendor" className="flex items-center gap-2">
                   <Store className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">ร้านค้า</p>
-                    <p className="font-medium">{result.vendor}</p>
-                  </div>
-                </div>
-              )}
+                  ร้านค้า
+                </Label>
+                <Input
+                  id="vendor"
+                  value={editedVendor}
+                  onChange={(e) => setEditedVendor(e.target.value)}
+                  placeholder="ชื่อร้านค้า"
+                />
+              </div>
 
-              {/* Date */}
-              {result.date && (
-                <div className="flex items-center gap-3">
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">วันที่</p>
-                    <p className="font-medium">
-                      {result.date} {result.time && `เวลา ${result.time}`}
-                    </p>
-                  </div>
+              {/* Date & Time */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="date" className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    วันที่
+                  </Label>
+                  <Input
+                    id="date"
+                    type="date"
+                    value={editedDate}
+                    onChange={(e) => setEditedDate(e.target.value)}
+                  />
                 </div>
-              )}
+                <div className="grid gap-2">
+                  <Label htmlFor="time">เวลา</Label>
+                  <Input
+                    id="time"
+                    type="time"
+                    value={editedTime}
+                    onChange={(e) => setEditedTime(e.target.value)}
+                  />
+                </div>
+              </div>
 
-              {/* Category */}
-              {result.suggestedCategory && (
-                <div className="flex items-center gap-3">
-                  <Tag className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">หมวดหมู่ที่แนะนำ</p>
-                    <Badge variant="secondary">{result.suggestedCategory}</Badge>
-                  </div>
+              {/* Category & Payment */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label className="flex items-center gap-2">
+                    <Tag className="h-4 w-4 text-muted-foreground" />
+                    หมวดหมู่
+                  </Label>
+                  <Select value={editedCategory} onValueChange={setEditedCategory}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CATEGORIES.map((cat) => (
+                        <SelectItem key={cat.value} value={cat.value}>
+                          {cat.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              )}
-
-              {/* Payment Method */}
-              {result.paymentMethod && (
-                <div className="flex items-center gap-3">
-                  <CreditCard className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-xs text-muted-foreground">ชำระเงินโดย</p>
-                    <p className="font-medium">{result.paymentMethod}</p>
-                  </div>
+                <div className="grid gap-2">
+                  <Label className="flex items-center gap-2">
+                    <CreditCard className="h-4 w-4 text-muted-foreground" />
+                    ชำระเงินโดย
+                  </Label>
+                  <Select value={editedPaymentMethod} onValueChange={setEditedPaymentMethod}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAYMENT_METHODS.map((pm) => (
+                        <SelectItem key={pm.value} value={pm.value}>
+                          {pm.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              )}
+              </div>
 
               <Separator />
 
               {/* Items */}
-              {result.items.length > 0 && (
-                <div>
-                  <p className="text-sm font-medium mb-2">รายการ ({result.items.length})</p>
-                  <div className="bg-muted/50 rounded-lg p-3 space-y-2 max-h-32 overflow-auto">
-                    {result.items.map((item, i) => (
-                      <div key={i} className="flex justify-between text-sm">
-                        <span>{item.name} x{item.quantity}</span>
-                        <span className="font-medium">฿{item.total.toLocaleString()}</span>
-                      </div>
-                    ))}
-                  </div>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <Label className="text-sm font-medium">รายการ ({editedItems.length})</Label>
+                  <Button variant="outline" size="sm" onClick={addItem}>
+                    <Plus className="h-3 w-3 mr-1" />
+                    เพิ่มรายการ
+                  </Button>
                 </div>
-              )}
+                <div className="space-y-2 max-h-48 overflow-auto">
+                  {editedItems.map((item, i) => (
+                    <div key={i} className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
+                      <Input
+                        value={item.name}
+                        onChange={(e) => updateItem(i, 'name', e.target.value)}
+                        placeholder="ชื่อสินค้า"
+                        className="flex-1 h-8 text-sm"
+                      />
+                      <Input
+                        type="number"
+                        value={item.quantity}
+                        onChange={(e) => updateItem(i, 'quantity', Number(e.target.value))}
+                        className="w-16 h-8 text-sm text-center"
+                        min={1}
+                      />
+                      <span className="text-muted-foreground text-sm">x</span>
+                      <Input
+                        type="number"
+                        value={item.unitPrice}
+                        onChange={(e) => updateItem(i, 'unitPrice', Number(e.target.value))}
+                        className="w-24 h-8 text-sm text-right"
+                        min={0}
+                      />
+                      <span className="text-sm font-medium w-20 text-right">
+                        ฿{item.total.toLocaleString()}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        onClick={() => removeItem(i)}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+                  {editedItems.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      ไม่มีรายการสินค้า
+                    </p>
+                  )}
+                </div>
+              </div>
 
               {/* Total */}
               <div className="flex items-center justify-between bg-primary/10 rounded-lg p-4">
                 <span className="font-bold text-lg">ยอดรวม</span>
-                <span className="font-bold text-2xl text-primary">
-                  ฿{result.total.toLocaleString()}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">฿</span>
+                  <Input
+                    type="number"
+                    value={editedTotal}
+                    onChange={(e) => setEditedTotal(Number(e.target.value))}
+                    className="w-32 h-10 text-xl font-bold text-right"
+                    min={0}
+                  />
+                </div>
               </div>
             </div>
 
-            {/* OCR Text (collapsible) */}
+            {/* OCR Raw Text (collapsible) */}
             <details className="text-sm">
               <summary className="text-muted-foreground cursor-pointer">
                 <FileText className="h-3 w-3 inline mr-1" />
                 ข้อความดิบจาก OCR ({ocrConfidence.toFixed(0)}%)
               </summary>
               <pre className="mt-2 text-xs bg-muted p-3 rounded max-h-32 overflow-auto whitespace-pre-wrap">
-                {ocrText}
+                {JSON.stringify(originalResult, null, 2)}
               </pre>
             </details>
 

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useTransition, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useTransition, useEffect, useCallback } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,10 +10,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FileUpload } from '@/components/ui/file-upload';
 import { PAYMENT_METHODS } from '@/lib/constants';
 import { createPurchase } from '@/actions/purchases';
-import { getProductsForSelect } from '@/actions/products';
+import { getProductsForPurchase } from '@/actions/products';
 import { formatCurrency } from '@/lib/formatters';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Camera } from 'lucide-react';
 import { SupplierCombobox } from '@/components/features/suppliers/supplier-combobox';
+import { ScanPurchaseButton } from '@/components/features/purchases/scan-purchase-button';
+import { QuickAddSupplierDialog } from '@/components/features/suppliers/quick-add-supplier-dialog';
+import { QuickAddProductDialog } from '@/components/features/products/quick-add-product-dialog';
+import { ScanReviewModal } from '@/components/features/ocr/scan-review-modal';
+import { getSuppliersForSelect } from '@/actions/suppliers';
+import { toast } from 'sonner';
+import { loadPendingScanResult, type ScanResult } from './use-purchase-scanner';
 
 interface Product {
   id: string;
@@ -32,6 +39,7 @@ interface PurchaseItem {
 
 export function PurchaseForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [errors, setErrors] = useState<Record<string, string[]>>({});
   const [products, setProducts] = useState<Product[]>([]);
@@ -42,16 +50,96 @@ export function PurchaseForm() {
   const [items, setItems] = useState<PurchaseItem[]>([
     { productId: '', quantity: 1, costPrice: 0 },
   ]);
+  
+  // Quick Add state
+  const [supplierRefreshKey, setSupplierRefreshKey] = useState(0);
+  const [pendingScanData, setPendingScanData] = useState<any>(null);
+  
+  // Review Modal state
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [suppliers, setSuppliers] = useState<Array<{ id: string; name: string; code: string | null }>>([]);
+
+  // Helper function to populate form from scan result
+  const populateFromScanResult = useCallback(async (result: ScanResult) => {
+    // Refresh products list first (may have new products from batch create)
+    const freshProducts = await getProductsForPurchase();
+    const mappedProducts = freshProducts.map((p: any) => ({
+      ...p,
+      costPrice: Number(p.costPrice),
+    }));
+    setProducts(mappedProducts);
+    
+    // Set supplier
+    if (result.supplierId) {
+      setSupplierId(result.supplierId);
+      setSupplierRefreshKey((k) => k + 1);
+    }
+    
+    // Set date
+    if (result.date) {
+      setIsBackdated(true);
+      setDate(result.date + 'T00:00');
+    }
+    
+    // Set items from review result (using fresh products)
+    if (result.items && result.items.length > 0) {
+      const mappedItems: PurchaseItem[] = result.items.map((item) => {
+        const product = mappedProducts.find((p: Product) => p.id === item.productId);
+        return {
+          productId: item.productId,
+          product,
+          quantity: item.quantity || 1,
+          costPrice: item.costPrice || product?.costPrice || 0,
+        };
+      });
+      
+      setItems(mappedItems.length > 0 ? mappedItems : [{ productId: '', quantity: 1, costPrice: 0 }]);
+    }
+    
+    // Set notes with document info
+    if (result.documentNumber || result.supplierName) {
+      const noteElement = document.getElementById('notes') as HTMLTextAreaElement;
+      if (noteElement) {
+        noteElement.value = `${result.supplierName || ''} - ${result.documentNumber || ''}`.trim();
+      }
+    }
+    
+    toast.success('นำเข้าข้อมูลสำเร็จ!');
+  }, []);
 
   useEffect(() => {
-    getProductsForSelect().then((data) => {
+    // Load products
+    getProductsForPurchase().then((data) => {
       const mappedProducts = data.map((p: any) => ({
         ...p,
         costPrice: Number(p.costPrice),
       }));
       setProducts(mappedProducts);
     });
-  }, []);
+    
+    // Load suppliers for matching
+    getSuppliersForSelect().then((data) => {
+      setSuppliers(data.map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        code: s.code,
+      })));
+    });
+    
+    // Check for pending scan result from list page
+    const fromScan = searchParams.get('fromScan');
+    if (fromScan === 'true') {
+      const pendingResult = loadPendingScanResult();
+      if (pendingResult) {
+        // Delay slightly to ensure products are loaded
+        setTimeout(() => {
+          populateFromScanResult(pendingResult);
+        }, 500);
+      }
+      // Clean URL
+      router.replace('/purchases/new', { scroll: false });
+    }
+  }, [searchParams, router, populateFromScanResult]);
 
   const handleAddItem = () => {
     setItems([...items, { productId: '', quantity: 1, costPrice: 0 }]);
@@ -93,6 +181,44 @@ export function PurchaseForm() {
       (sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.costPrice) || 0),
       0
     );
+  };
+
+  // Handle OCR scan result - open review modal
+  const handleScanComplete = (scanData: any) => {
+    if (!scanData) return;
+    
+    // Store scan data and open review modal
+    setPendingScanData(scanData);
+    setShowReviewModal(true);
+  };
+  
+  // Handle confirmed review result - fill form (reuses populateFromScanResult)
+  const handleReviewConfirm = async (result: any) => {
+    await populateFromScanResult(result);
+  };
+
+  // Refresh product list
+  const refreshProducts = async () => {
+    const data = await getProductsForPurchase();
+    const mappedProducts = data.map((p: any) => ({
+      ...p,
+      costPrice: Number(p.costPrice),
+    }));
+    setProducts(mappedProducts);
+  };
+
+  // Handle new supplier created via Quick Add
+  const handleSupplierCreated = (supplier: { id: string; name: string }) => {
+    setSupplierId(supplier.id);
+    setSupplierRefreshKey((k) => k + 1); // Trigger combobox refresh
+  };
+
+  // Handle new product created via Quick Add
+  const handleProductCreated = async (product: { id: string; name: string; costPrice: number }, itemIndex: number) => {
+    await refreshProducts();
+    // Auto-select the new product in the item row
+    handleItemChange(itemIndex, 'productId', product.id);
+    handleItemChange(itemIndex, 'costPrice', product.costPrice);
   };
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -142,7 +268,10 @@ export function PurchaseForm() {
       {/* Supplier Info & Date */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">ข้อมูลการซื้อ</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">ข้อมูลการซื้อ</CardTitle>
+            <ScanPurchaseButton onScanComplete={handleScanComplete} />
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
@@ -176,11 +305,20 @@ export function PurchaseForm() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="supplierId">ผู้จำหน่าย</Label>
-              <SupplierCombobox
-                value={supplierId}
-                onChange={setSupplierId}
-                error={!!errors.supplierId}
-              />
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <SupplierCombobox
+                    key={supplierRefreshKey}
+                    value={supplierId}
+                    onChange={setSupplierId}
+                    error={!!errors.supplierId}
+                  />
+                </div>
+                <QuickAddSupplierDialog
+                  defaultName={pendingScanData?.vendor || ''}
+                  onCreated={handleSupplierCreated}
+                />
+              </div>
               {errors.supplierId && (
                 <p className="text-sm text-destructive">{errors.supplierId[0]}</p>
               )}
@@ -248,22 +386,35 @@ export function PurchaseForm() {
             >
               <div className="flex-1 space-y-2">
                 <Label>สินค้า *</Label>
-                <select
-                  value={item.productId}
-                  onChange={(e) =>
-                    handleItemChange(index, 'productId', e.target.value)
-                  }
-                  required
-                  className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
-                >
-                  <option value="">เลือกสินค้า</option>
-                  {products.map((product) => (
-                    <option key={product.id} value={product.id}>
-                      {product.name} {product.sku && `(${product.sku})`} - สต็อก:{' '}
-                      {product.stock}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex gap-2">
+                  <select
+                    value={item.productId}
+                    onChange={(e) =>
+                      handleItemChange(index, 'productId', e.target.value)
+                    }
+                    required
+                    className="flex-1 h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                  >
+                    <option value="">เลือกสินค้า</option>
+                    {products.map((product) => (
+                      <option key={product.id} value={product.id}>
+                        {product.name} {product.sku && `(${product.sku})`} - สต็อก:{' '}
+                        {product.stock}
+                      </option>
+                    ))}
+                  </select>
+                  {/* Quick Add Product - show when no product selected */}
+                  {!item.productId && (
+                    <QuickAddProductDialog
+                      defaultData={{
+                        name: pendingScanData?.items?.[index]?.name || pendingScanData?.items?.[index]?.model || '',
+                        sku: pendingScanData?.items?.[index]?.code || pendingScanData?.items?.[index]?.model || '',
+                        costPrice: Number(item.costPrice) || pendingScanData?.items?.[index]?.unitPrice || 0,
+                      }}
+                      onCreated={(product) => handleProductCreated(product, index)}
+                    />
+                  )}
+                </div>
               </div>
 
               <div className="w-full sm:w-24 space-y-2">
@@ -345,6 +496,21 @@ export function PurchaseForm() {
           ยกเลิก
         </Button>
       </div>
+      
+      {/* Scan Review Modal */}
+      <ScanReviewModal
+        open={showReviewModal}
+        onOpenChange={setShowReviewModal}
+        scanData={pendingScanData}
+        products={products.map((p) => ({
+          id: p.id,
+          name: p.name,
+          sku: p.sku,
+          costPrice: p.costPrice,
+        }))}
+        suppliers={suppliers}
+        onConfirm={handleReviewConfirm}
+      />
     </form>
   );
 }

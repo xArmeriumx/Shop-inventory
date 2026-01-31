@@ -2,7 +2,8 @@
 
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
-import { requireAuth, requirePermission, getCurrentUserId } from '@/lib/auth-guard';
+import { requirePermission } from '@/lib/auth-guard';
+import { logger } from '@/lib/logger';
 import { paginatedQuery, buildSearchFilter, buildDateRangeFilter } from '@/lib/pagination';
 import { expenseSchema, type ExpenseInput } from '@/schemas/expense';
 
@@ -99,7 +100,7 @@ export async function createExpense(input: ExpenseInput) {
       } 
     };
   } catch (error) {
-    console.error('Create expense error:', error);
+    await logger.error('Create expense error', error as Error, { path: 'createExpense', userId: ctx.userId });
     return { error: { _form: ['เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง'] } };
   }
 }
@@ -115,9 +116,9 @@ export async function updateExpense(id: string, input: ExpenseInput) {
     return { error: validated.error.flatten().fieldErrors };
   }
 
-  //check if expense exists 
+  //check if expense exists - RBAC: Use shopId for multi-tenant isolation
   const existing = await db.expense.findFirst({
-    where: { id, userId: ctx.userId, deletedAt: null },
+    where: { id, shopId: ctx.shopId, deletedAt: null },
   });
 
   if (!existing) {
@@ -141,7 +142,7 @@ export async function updateExpense(id: string, input: ExpenseInput) {
       } 
     };
   } catch (error) {
-    console.error('Update expense error:', error);
+    await logger.error('Update expense error', error as Error, { path: 'updateExpense', userId: ctx.userId, expenseId: id });
     return { error: { _form: ['เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง'] } };
   }
 }
@@ -151,8 +152,9 @@ export async function deleteExpense(id: string) {
   // RBAC: Require EXPENSE_DELETE permission
   const ctx = await requirePermission('EXPENSE_DELETE');
 
+  // RBAC: Use shopId for multi-tenant isolation
   const existing = await db.expense.findFirst({
-    where: { id, userId: ctx.userId, deletedAt: null },
+    where: { id, shopId: ctx.shopId, deletedAt: null },
   });
 
   if (!existing) {
@@ -160,15 +162,17 @@ export async function deleteExpense(id: string) {
   }
 
   try {
-    await db.expense.delete({
+    // Soft Delete: Set deletedAt instead of hard delete
+    await db.expense.update({
       where: { id },
+      data: { deletedAt: new Date() },
     });
 
     revalidatePath('/expenses');
     revalidatePath('/dashboard');
     return { success: true };
   } catch (error) {
-    console.error('Delete expense error:', error);
+    await logger.error('Delete expense error', error as Error, { path: 'deleteExpense', userId: ctx.userId, expenseId: id });
     return { error: 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง' };
   }
 }

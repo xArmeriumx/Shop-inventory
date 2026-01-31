@@ -102,6 +102,86 @@ export async function getLookupValuesForSettings(typeCode: LookupTypeCode) {
   return values;
 }
 
+
+// ==================== Quick Add (for inline dropdowns) ====================
+
+/**
+ * Quick add a category without form data - for inline dropdowns
+ * Returns the created category with id and name
+ */
+export async function quickAddCategory(
+  typeCode: LookupTypeCode,
+  name: string
+): Promise<{ success: boolean; data?: { id: string; name: string }; error?: string }> {
+  const ctx = await requireAuth();
+  
+  if (!name || name.trim().length === 0) {
+    return { success: false, error: 'กรุณาระบุชื่อหมวดหมู่' };
+  }
+
+  const trimmedName = name.trim();
+
+  try {
+    const lookupType = await db.lookupType.findUnique({
+      where: { code: typeCode },
+    });
+
+    if (!lookupType) {
+      return { success: false, error: 'ไม่พบประเภทหมวดหมู่' };
+    }
+
+    // Generate code from name
+    const code = trimmedName
+      .toLowerCase()
+      .replace(/\s+/g, '_')
+      .replace(/[^a-z0-9_\u0E00-\u0E7F]/g, '');
+
+    // Check for duplicate by name (more user-friendly)
+    const existing = await db.lookupValue.findFirst({
+      where: {
+        lookupTypeId: lookupType.id,
+        deletedAt: null,
+        OR: [
+          { shopId: ctx.shopId, name: trimmedName },
+          { isSystem: true, name: trimmedName },
+        ],
+      },
+    });
+
+    if (existing) {
+      return { success: false, error: 'มีหมวดหมู่นี้อยู่แล้ว' };
+    }
+
+    // Get max order
+    const maxOrder = await db.lookupValue.aggregate({
+      where: {
+        lookupTypeId: lookupType.id,
+        shopId: ctx.shopId,
+      },
+      _max: { order: true },
+    });
+
+    const created = await db.lookupValue.create({
+      data: {
+        lookupTypeId: lookupType.id,
+        shopId: ctx.shopId,
+        userId: ctx.userId,
+        code: code || `custom_${Date.now()}`,
+        name: trimmedName,
+        order: (maxOrder._max.order || 0) + 1,
+      },
+    });
+
+    return { 
+      success: true, 
+      data: { id: created.id, name: created.name } 
+    };
+  } catch (error) {
+    console.error('Quick add category error:', error);
+    return { success: false, error: 'เกิดข้อผิดพลาดในการบันทึก' };
+  }
+}
+
 // ==================== Write Operations ====================
 
 export async function createLookupValue(
