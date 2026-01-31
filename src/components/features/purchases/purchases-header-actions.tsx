@@ -10,7 +10,7 @@ import { PurchaseScannerButton } from './purchase-scanner-button';
  */
 export function PurchasesHeaderActions() {
   return (
-    <div className="flex gap-2">
+    <div className="flex flex-wrap gap-2">
       <PurchaseScannerButton mode="list" variant="outline" />
       <Button asChild>
         <Link href="/purchases/new">

@@ -472,7 +472,7 @@ export function ScanReviewModal({
                     <Plus className="h-4 w-4" />
                     <span className="text-sm font-medium">สร้างผู้จำหน่ายใหม่</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <Label className="text-xs">ชื่อ</Label>
                       <Input

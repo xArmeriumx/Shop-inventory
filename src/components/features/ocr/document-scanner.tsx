@@ -251,7 +251,7 @@ export function DocumentScanner({
                 <p className="text-muted-foreground mb-4">
                   ถ่ายรูปหรืออัปโหลดเอกสาร
                 </p>
-                <div className="flex gap-3 justify-center">
+                <div className="flex flex-wrap gap-3 justify-center">
                   <Button
                     variant="outline"
                     onClick={() => cameraInputRef.current?.click()}
