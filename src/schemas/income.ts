@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { sanitizeText } from '@/lib/sanitize';
 
 export const INCOME_CATEGORIES = [
   { value: 'SERVICE', label: 'ค่าบริการ/ค่าซ่อม' },
@@ -16,7 +17,8 @@ export const incomeSchema = z.object({
     .string()
     .min(1, 'กรุณากรอกรายละเอียด')
     .max(500, 'รายละเอียดต้องไม่เกิน 500 ตัวอักษร')
-    .trim(),
+    .trim()
+    .transform(sanitizeText),
   amount: z
     .number({ invalid_type_error: 'กรุณากรอกจำนวนเงิน' })
     .min(0.01, 'จำนวนเงินต้องมากกว่า 0'),
@@ -26,7 +28,8 @@ export const incomeSchema = z.object({
     .string()
     .max(1000, 'หมายเหตุต้องไม่เกิน 1000 ตัวอักษร')
     .optional()
-    .nullable(),
+    .nullable()
+    .transform((val) => val ? sanitizeText(val) : val),
 });
 
 export type IncomeInput = z.infer<typeof incomeSchema>;

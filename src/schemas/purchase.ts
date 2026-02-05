@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { sanitizeText } from '@/lib/sanitize';
 
 const purchaseItemSchema = z.object({
   productId: z.string().min(1, 'กรุณาเลือกสินค้า'),
@@ -20,7 +21,8 @@ export const purchaseSchema = z.object({
     .string()
     .max(1000, 'หมายเหตุต้องไม่เกิน 1000 ตัวอักษร')
     .optional()
-    .nullable(),
+    .nullable()
+    .transform((val) => val ? sanitizeText(val) : val),
   receiptUrl: z.string().url().optional().nullable(),
   items: z
     .array(purchaseItemSchema)

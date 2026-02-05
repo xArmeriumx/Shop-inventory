@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { sanitizeText } from '@/lib/sanitize';
 
 const saleItemSchema = z.object({
   productId: z.string().min(1, 'กรุณาเลือกสินค้า'),
@@ -18,7 +19,8 @@ export const saleSchema = z.object({
     .string()
     .max(200, 'ชื่อลูกค้าต้องไม่เกิน 200 ตัวอักษร')
     .optional()
-    .nullable(),
+    .nullable()
+    .transform((val) => val ? sanitizeText(val) : val),
   paymentMethod: z.enum(['CASH', 'TRANSFER', 'CREDIT'], {
     errorMap: () => ({ message: 'กรุณาเลือกวิธีชำระเงิน' }),
   }),
@@ -26,12 +28,13 @@ export const saleSchema = z.object({
     .string()
     .max(1000, 'หมายเหตุต้องไม่เกิน 1000 ตัวอักษร')
     .optional()
-    .nullable(),
+    .nullable()
+    .transform((val) => val ? sanitizeText(val) : val),
   items: z
     .array(saleItemSchema)
     .min(1, 'กรุณาเพิ่มรายการสินค้าอย่างน้อย 1 รายการ'),
   receiptUrl: z.string().url().optional().nullable(),
-  customerAddress: z.string().max(500, 'ที่อยู่ต้องไม่เกิน 500 ตัวอักษร').optional().nullable(),
+  customerAddress: z.string().max(500, 'ที่อยู่ต้องไม่เกิน 500 ตัวอักษร').optional().nullable().transform((val) => val ? sanitizeText(val) : val),
   date: z.string().optional(),
 });
 

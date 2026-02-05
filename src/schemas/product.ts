@@ -1,16 +1,19 @@
 import { z } from 'zod';
+import { sanitizeText } from '@/lib/sanitize';
 
 export const productSchema = z.object({
   name: z
     .string()
     .min(1, 'กรุณากรอกชื่อสินค้า')
     .max(200, 'ชื่อสินค้าต้องไม่เกิน 200 ตัวอักษร')
-    .trim(),
+    .trim()
+    .transform(sanitizeText),
   description: z
     .string()
     .max(1000, 'รายละเอียดต้องไม่เกิน 1000 ตัวอักษร')
     .optional()
-    .nullable(),
+    .nullable()
+    .transform((val) => val ? sanitizeText(val) : val),
   sku: z
     .string()
     .max(50, 'SKU ต้องไม่เกิน 50 ตัวอักษร')
