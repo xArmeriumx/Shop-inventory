@@ -6,6 +6,7 @@ import { requirePermission } from '@/lib/auth-guard';
 import { logger } from '@/lib/logger';
 import { paginatedQuery, buildSearchFilter, buildDateRangeFilter } from '@/lib/pagination';
 import { expenseSchema, type ExpenseInput } from '@/schemas/expense';
+import { toNumber } from '@/lib/money';
 
 interface GetExpensesParams {
   page?: number;
@@ -48,7 +49,7 @@ export async function getExpenses(params: GetExpensesParams = {}) {
     ...result,
     data: result.data.map(expense => ({
       ...expense,
-      amount: Number(expense.amount),
+      amount: toNumber(expense.amount),
     })),
   };
 }
@@ -68,7 +69,7 @@ export async function getExpense(id: string) {
 
   return {
     ...expense,
-    amount: Number(expense.amount),
+    amount: toNumber(expense.amount),
   };
 }
 
@@ -198,7 +199,7 @@ export async function getMonthlyExpenses() {
   });
 
   return {
-    total: Number(result._sum.amount || 0),
+    total: toNumber(result._sum.amount),
     count: result._count,
   };
 }

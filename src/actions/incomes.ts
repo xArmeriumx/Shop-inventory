@@ -6,6 +6,7 @@ import { requirePermission } from '@/lib/auth-guard';
 import { logger } from '@/lib/logger';
 import { paginatedQuery, buildSearchFilter, buildDateRangeFilter } from '@/lib/pagination';
 import { incomeSchema, type IncomeInput } from '@/schemas/income';
+import { toNumber } from '@/lib/money';
 
 interface GetIncomesParams {
   page?: number;
@@ -48,7 +49,7 @@ export async function getIncomes(params: GetIncomesParams = {}) {
     ...result,
     data: result.data.map((income: any) => ({
       ...income,
-      amount: Number(income.amount),
+      amount: toNumber(income.amount),
     })),
   };
 }
@@ -99,7 +100,7 @@ export async function createIncome(input: IncomeInput) {
     return { 
       data: {
         ...income,
-        amount: Number(income.amount)
+        amount: toNumber(income.amount)
       } 
     };
   } catch (error) {
@@ -205,7 +206,7 @@ export async function getMonthlyIncomes() {
   });
 
   return {
-    total: Number(result._sum.amount || 0),
+    total: toNumber(result._sum.amount),
     count: result._count,
   };
 }

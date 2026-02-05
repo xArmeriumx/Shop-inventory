@@ -656,8 +656,8 @@ export async function getTodaySales() {
   const canViewProfit = hasPermission(ctx, 'SALE_VIEW_PROFIT');
 
   return {
-    totalAmount: Number(result._sum.totalAmount || 0),
-    profit: canViewProfit ? Number(result._sum.profit || 0) : 0,
+    totalAmount: toNumber(result._sum.totalAmount),
+    profit: canViewProfit ? toNumber(result._sum.profit) : 0,
     count: result._count,
   };
 }
