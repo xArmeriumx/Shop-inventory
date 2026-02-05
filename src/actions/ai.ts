@@ -1,14 +1,15 @@
 'use server';
 
 import { db } from '@/lib/db';
-import { requireAuth } from '@/lib/auth-guard';
+import { requireShop } from '@/lib/auth-guard';
 
 /**
  * Get shop context data for AI
  * This provides relevant data for the AI to answer questions
  */
 export async function getShopContextForAI() {
-  const ctx = await requireAuth();
+  // All shop members can use AI
+  const ctx = await requireShop();
   
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -27,8 +28,8 @@ export async function getShopContextForAI() {
       monthIncomes,
       recentSales,
     ] = await Promise.all([
-      // Shop info
-      db.shop.findUnique({ where: { id: ctx.shopId! } }),
+      // Shop info - no assertion needed
+      db.shop.findUnique({ where: { id: ctx.shopId } }),
       
       // Today's sales
       db.sale.aggregate({

@@ -2,18 +2,18 @@ import { NextRequest } from 'next/server';
 import { groq, DEFAULT_MODEL, SHOP_AI_SYSTEM_PROMPT, detectToolFromMessage } from '@/lib/groq';
 import { getShopContextForAI } from '@/actions/ai';
 import { getToolDefinitions, executeTool } from '@/lib/ai/tools';
-import { requireAuth } from '@/lib/auth-guard';
+import { requireShop } from '@/lib/auth-guard';
 
 export async function POST(request: NextRequest) {
   try {
-    // Check authentication and get context
-    const ctx = await requireAuth();
+    // Check authentication - all shop members can use AI
+    const ctx = await requireShop();
     
     const { messages, confirmTool, confirmParams } = await request.json();
 
     const context = {
       userId: ctx.userId,
-      shopId: ctx.shopId!,
+      shopId: ctx.shopId, // No assertion needed - ShopSessionContext guarantees this
     };
 
     // Handle tool confirmation

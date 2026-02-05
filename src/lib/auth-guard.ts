@@ -16,6 +16,14 @@ export interface SessionContext {
 }
 
 /**
+ * Session context with guaranteed shopId (after requirePermission)
+ * Use this type when you know the user has a shop membership
+ */
+export interface ShopSessionContext extends SessionContext {
+  shopId: string;
+}
+
+/**
  * Cached session context fetcher - memoized per request
  * This prevents duplicate DB queries when requireAuth() is called multiple times
  * in the same request (e.g., in layout + page + components)
@@ -92,15 +100,26 @@ export async function getCurrentUserId(): Promise<string> {
 }
 
 /**
- * Require a specific permission, throw if not authorized
+ * Require user to have a shop membership (no specific permission needed)
+ * Use for features that should be available to all shop members
+ * Returns ShopSessionContext with guaranteed shopId
  */
-export async function requirePermission(permission: Permission): Promise<SessionContext> {
+export async function requireShop(): Promise<ShopSessionContext> {
   const ctx = await requireAuth();
   
   if (!ctx.shopId) {
-    // If fully missing shopId (not even in DB), then redirect
     redirect('/onboarding');
   }
+  
+  return ctx as ShopSessionContext;
+}
+
+/**
+ * Require a specific permission, throw if not authorized
+ * Returns ShopSessionContext with guaranteed shopId
+ */
+export async function requirePermission(permission: Permission): Promise<ShopSessionContext> {
+  const ctx = await requireShop(); // Reuse requireShop for DRY
   
   if (!hasPermission(ctx, permission)) {
     redirect('/dashboard');

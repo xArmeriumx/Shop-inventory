@@ -275,8 +275,8 @@ model Product {
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  shopId      String?  // RBAC: Nullable during transition
-  shop        Shop?    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shopId      String   // Required for tenant isolation
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
   // Primary Supplier (for re-ordering)
   supplierId  String?
@@ -326,8 +326,8 @@ model Supplier {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  shopId    String?  // RBAC: Nullable during transition
-  shop      Shop?    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shopId    String   // Required for tenant isolation
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
   purchases Purchase[]
   products  Product[]
@@ -356,8 +356,8 @@ model Customer {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  shopId    String?  // RBAC: Nullable during transition
-  shop      Shop?    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shopId    String   // Required for tenant isolation
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
   sales     Sale[]
 
@@ -391,8 +391,8 @@ model Purchase {
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  shopId      String?  // RBAC: Nullable during transition
-  shop        Shop?    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shopId      String   // Required for tenant isolation
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
   items       PurchaseItem[]
   stockLogs   StockLog[]
@@ -460,8 +460,8 @@ model Sale {
   userId        String
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  shopId        String?  // RBAC: Nullable during transition
-  shop          Shop?    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shopId        String   // Required for tenant isolation
+  shop          Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
   items         SaleItem[]
   stockLogs     StockLog[]
@@ -524,8 +524,8 @@ model Expense {
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  shopId      String?  // RBAC: Nullable during transition
-  shop        Shop?    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shopId      String   // Required for tenant isolation
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
   
   categoryRef LookupValue? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
@@ -564,8 +564,8 @@ model Income {
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  shopId      String?  // RBAC: Nullable during transition
-  shop        Shop?    @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shopId      String   // Required for tenant isolation
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
   
   categoryRef LookupValue? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
@@ -628,8 +628,8 @@ model StockLog {
   userId        String
   user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  shopId        String?           // RBAC: Nullable during transition
-  shop          Shop?             @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shopId        String            // Required for tenant isolation
+  shop          Shop              @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
   createdAt     DateTime          @default(now())
 

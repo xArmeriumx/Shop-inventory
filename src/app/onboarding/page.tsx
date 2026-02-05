@@ -13,7 +13,7 @@ import { signOut } from 'next-auth/react';
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { data: session, status } = useSession();
+  const { data: session, status, update } = useSession();
   const [shopName, setShopName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
 
@@ -30,9 +30,11 @@ export default function OnboardingPage() {
       if (result.success) {
         toast.success('สร้างร้านค้าสำเร็จ');
         
-        // Force session update/reload to get new claims (shopId)
-        // We need to refresh the page/session to get the new cookie with shopId
-        // Using window.location.href to force full reload is safer here than router.push
+        // Trigger JWT refresh to get new shopId
+        // This calls jwt callback with trigger === 'update'
+        await update();
+        
+        // Redirect to dashboard - now session has shopId
         window.location.href = '/dashboard'; 
       } else {
         toast.error(result.message);
