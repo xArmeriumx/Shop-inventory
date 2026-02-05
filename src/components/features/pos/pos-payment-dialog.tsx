@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { CheckCircle, Loader2, CreditCard, Wallet, Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import {
   Dialog,
   DialogContent,
@@ -18,7 +19,7 @@ interface POSPaymentDialogProps {
   isOpen: boolean;
   onClose: () => void;
   cart: POSCart;
-  onConfirm: (paymentMethod: string) => Promise<void>;
+  onConfirm: (paymentMethod: string, amountReceived?: number, change?: number) => Promise<void>;
   isProcessing: boolean;
 }
 
@@ -28,8 +29,12 @@ const PAYMENT_OPTIONS: { value: POSPaymentMethod; label: string; icon: React.Rea
   { value: 'CREDIT', label: 'บัตรเครดิต', icon: <CreditCard className="h-5 w-5" /> },
 ];
 
+// Quick amount buttons for cash
+const QUICK_AMOUNTS = [20, 50, 100, 500, 1000];
+
 /**
  * POS Payment Dialog - Payment method selection and confirmation
+ * With cash amount input and change calculation
  */
 export function POSPaymentDialog({
   isOpen,
@@ -39,10 +44,39 @@ export function POSPaymentDialog({
   isProcessing,
 }: POSPaymentDialogProps) {
   const [selectedMethod, setSelectedMethod] = useState<POSPaymentMethod>('CASH');
+  const [amountReceived, setAmountReceived] = useState<string>('');
+  const [change, setChange] = useState<number>(0);
+
+  // Reset on dialog open
+  useEffect(() => {
+    if (isOpen) {
+      setAmountReceived('');
+      setChange(0);
+    }
+  }, [isOpen]);
+
+  // Calculate change when amount changes
+  useEffect(() => {
+    const received = parseFloat(amountReceived) || 0;
+    const changeAmount = received - cart.totalAmount;
+    setChange(changeAmount > 0 ? changeAmount : 0);
+  }, [amountReceived, cart.totalAmount]);
+
+  const handleQuickAmount = (amount: number) => {
+    setAmountReceived(amount.toString());
+  };
+
+  const handleExactAmount = () => {
+    setAmountReceived(cart.totalAmount.toString());
+  };
 
   const handleConfirm = async () => {
-    await onConfirm(selectedMethod);
+    const received = selectedMethod === 'CASH' ? parseFloat(amountReceived) || cart.totalAmount : undefined;
+    const changeAmount = selectedMethod === 'CASH' ? change : undefined;
+    await onConfirm(selectedMethod, received, changeAmount);
   };
+
+  const isCashValid = selectedMethod !== 'CASH' || (parseFloat(amountReceived) || 0) >= cart.totalAmount;
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -51,7 +85,7 @@ export function POSPaymentDialog({
           <DialogTitle className="text-xl">ชำระเงิน</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
+        <div className="space-y-5 py-4">
           {/* Order Summary */}
           <div className="bg-muted/50 rounded-lg p-4">
             <div className="flex justify-between items-baseline mb-2">
@@ -101,6 +135,67 @@ export function POSPaymentDialog({
             </div>
           </div>
 
+          {/* Cash Amount Input - Only show for CASH */}
+          {selectedMethod === 'CASH' && (
+            <div className="space-y-3 border-t pt-4">
+              <Label className="text-base font-medium">รับเงิน</Label>
+              
+              {/* Quick Amount Buttons */}
+              <div className="flex flex-wrap gap-2">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleExactAmount}
+                  className="text-xs"
+                >
+                  พอดี
+                </Button>
+                {QUICK_AMOUNTS.filter(a => a >= cart.totalAmount).slice(0, 4).map((amount) => (
+                  <Button
+                    key={amount}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleQuickAmount(amount)}
+                    className="text-xs"
+                  >
+                    ฿{amount.toLocaleString()}
+                  </Button>
+                ))}
+              </div>
+
+              {/* Amount Input */}
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">฿</span>
+                <Input
+                  type="number"
+                  value={amountReceived}
+                  onChange={(e) => setAmountReceived(e.target.value)}
+                  placeholder={cart.totalAmount.toString()}
+                  className="pl-8 text-lg h-12 text-right font-medium"
+                  min={0}
+                  step="0.01"
+                />
+              </div>
+
+              {/* Change Display */}
+              {change > 0 && (
+                <div className="bg-green-50 dark:bg-green-950/30 rounded-lg p-3 flex justify-between items-center">
+                  <span className="text-green-700 dark:text-green-400 font-medium">เงินทอน</span>
+                  <span className="text-2xl font-bold text-green-600 dark:text-green-400">
+                    ฿{change.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              )}
+
+              {/* Warning if not enough */}
+              {amountReceived && parseFloat(amountReceived) < cart.totalAmount && (
+                <p className="text-sm text-destructive">เงินไม่พอ</p>
+              )}
+            </div>
+          )}
+
           {/* Action Buttons */}
           <div className="flex gap-3 pt-2">
             <Button
@@ -114,7 +209,7 @@ export function POSPaymentDialog({
             <Button
               className="flex-1 h-12"
               onClick={handleConfirm}
-              disabled={isProcessing}
+              disabled={isProcessing || !isCashValid}
             >
               {isProcessing ? (
                 <>
@@ -134,3 +229,4 @@ export function POSPaymentDialog({
     </Dialog>
   );
 }
+

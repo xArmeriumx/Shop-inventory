@@ -11,6 +11,8 @@ import { createProduct, updateProduct } from '@/actions/products';
 import { StockAdjustmentDialog } from '@/components/features/products/stock-adjustment-dialog';
 import { ProductImageUpload } from '@/components/ui/product-image-upload';
 import { usePermissions } from '@/hooks/use-permissions';
+import { VERSION_CONFLICT_ERROR } from '@/lib/optimistic-lock';
+import { toast } from 'sonner';
 
 interface Category {
   id: string;
@@ -56,16 +58,44 @@ export function ProductForm({ product, categories }: ProductFormProps) {
 
     startTransition(async () => {
       const result = isEdit
-        ? await updateProduct(product.id, data)
+        ? await updateProduct(product.id, { 
+            ...data, 
+            version: (product as any).version  // Optimistic locking: send current version
+          })
         : await createProduct(data as any);
 
       if (!result.success) {
+        // Check for version conflict (optimistic locking)
+        const errors = result.errors;
+        const hasVersionConflict = 
+          errors && 
+          typeof errors === 'object' && 
+          '_form' in errors && 
+          Array.isArray(errors._form) && 
+          errors._form.includes(VERSION_CONFLICT_ERROR);
+        
+        if (hasVersionConflict) {
+          // Show toast with refresh action
+          toast.error('ข้อมูลถูกแก้ไขโดยผู้ใช้อื่น', {
+            description: 'กรุณารีเฟรชเพื่อดูข้อมูลล่าสุด',
+            action: {
+              label: 'รีเฟรช',
+              onClick: () => {
+                router.refresh();
+              },
+            },
+            duration: 10000,  // Show for 10 seconds
+          });
+          return;  // Don't set form errors, toast handles it
+        }
+        
         if (result.errors) {
           setErrors(result.errors as Record<string, string[]>);
         } else if (result.message) {
           setErrors({ _form: [result.message] });
         }
       } else {
+        toast.success(isEdit ? 'บันทึกการแก้ไขสำเร็จ' : 'เพิ่มสินค้าสำเร็จ');
         router.push('/products');
         router.refresh();
       }

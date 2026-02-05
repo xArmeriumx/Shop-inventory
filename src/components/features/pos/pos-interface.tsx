@@ -55,6 +55,9 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccessOpen, setIsSuccessOpen] = useState(false);
   const [successInvoiceNumber, setSuccessInvoiceNumber] = useState<string>('');
+  const [successSaleId, setSuccessSaleId] = useState<string>('');
+  const [successAmountReceived, setSuccessAmountReceived] = useState<number | undefined>(undefined);
+  const [successChange, setSuccessChange] = useState<number | undefined>(undefined);
 
   // Focus scan input on mount - only for non-touch devices (desktop with barcode scanner)
   useEffect(() => {
@@ -229,7 +232,7 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
     }
   }, [cart.items.length]);
 
-  const handlePaymentConfirm = useCallback(async (paymentMethod: string) => {
+  const handlePaymentConfirm = useCallback(async (paymentMethod: string, amountReceived?: number, change?: number) => {
     setIsProcessing(true);
 
     try {
@@ -265,6 +268,9 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
         
         // Show success dialog
         setSuccessInvoiceNumber(result.invoiceNumber || '');
+        setSuccessSaleId(result.saleId || '');
+        setSuccessAmountReceived(amountReceived);
+        setSuccessChange(change);
         setIsSuccessOpen(true);
         
         // Refresh to update stock (backup sync from server)
@@ -446,6 +452,9 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
         isOpen={isSuccessOpen}
         onClose={() => setIsSuccessOpen(false)}
         invoiceNumber={successInvoiceNumber}
+        saleId={successSaleId}
+        amountReceived={successAmountReceived}
+        change={successChange}
       />
     </div>
   );

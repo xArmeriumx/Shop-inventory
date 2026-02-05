@@ -38,7 +38,9 @@ export const productSchema = z.object({
   images: z.array(z.string().url()).optional().default([]),
 });
 
-export const productUpdateSchema = productSchema.partial();
+export const productUpdateSchema = productSchema.partial().extend({
+  version: z.number().int().optional(),  // Optimistic locking version
+});
 
 export type ProductInput = z.infer<typeof productSchema>;
 export type ProductUpdateInput = z.infer<typeof productUpdateSchema>;

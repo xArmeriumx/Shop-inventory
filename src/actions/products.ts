@@ -4,12 +4,13 @@ import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
 import { requirePermission, hasPermission } from '@/lib/auth-guard';
 import { paginatedQuery, buildSearchFilter } from '@/lib/pagination';
-import { productSchema, type ProductInput, type ProductUpdateInput } from '@/schemas/product';
+import { productSchema, productUpdateSchema, type ProductInput, type ProductUpdateInput } from '@/schemas/product';
 import { Product } from '@prisma/client';
 import { ActionResponse } from '@/types/action-response';
 import { StockService } from '@/lib/stock-service';
 import { Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
+import { VERSION_CONFLICT_ERROR } from '@/lib/optimistic-lock';
 
 interface GetProductsParams {
   page?: number;
@@ -169,8 +170,8 @@ export async function updateProduct(id: string, input: ProductUpdateInput): Prom
   // RBAC: Require PRODUCT_EDIT permission
   const ctx = await requirePermission('PRODUCT_EDIT');
 
-  // Validate input
-  const validated = productSchema.partial().safeParse(input);
+  // Validate input (use productUpdateSchema which includes version)
+  const validated = productUpdateSchema.safeParse(input);
   if (!validated.success) {
     return {
       success: false,
@@ -188,6 +189,15 @@ export async function updateProduct(id: string, input: ProductUpdateInput): Prom
     return {
       success: false,
       message: 'ไม่พบสินค้า'
+    };
+  }
+
+  // Optimistic Locking: Check version if provided
+  if (validated.data.version !== undefined && validated.data.version !== existing.version) {
+    return {
+      success: false,
+      message: 'ข้อมูลถูกแก้ไขโดยผู้ใช้อื่น กรุณารีเฟรชแล้วลองใหม่',
+      errors: { _form: [VERSION_CONFLICT_ERROR] }
     };
   }
 
@@ -235,7 +245,7 @@ export async function updateProduct(id: string, input: ProductUpdateInput): Prom
       }
 
       // Step 2: อัปเดตข้อมูลอื่นๆ (ชื่อ, ราคา, หมวดหมู่)
-      const { stock, ...otherData } = validated.data;
+      const { stock, version, ...otherData } = validated.data;
       
       const updatedProduct = await tx.product.update({
         where: { id },
@@ -243,6 +253,7 @@ export async function updateProduct(id: string, input: ProductUpdateInput): Prom
           ...otherData,
           description: otherData.description || null,
           sku: otherData.sku || null,
+          version: { increment: 1 },  // Optimistic locking: increment version
         },
       });
 

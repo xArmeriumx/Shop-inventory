@@ -270,6 +270,7 @@ model Product {
   images      String[]
   isActive    Boolean  @default(true)
   isLowStock  Boolean  @default(false)
+  version     Int      @default(1)  // Optimistic locking version
 
   // Ownership (keeping userId for audit, adding shopId for RBAC)
   userId      String
