@@ -6,6 +6,7 @@ import {
   getCurrentUserId,
   requirePermission,
 } from "@/lib/auth-guard";
+import { money, toNumber } from "@/lib/money";
 
 
 export async function getDashboardStats() {
@@ -104,10 +105,10 @@ export async function getDashboardStats() {
   ]);
 
   // Calculate totals including income
-  const salesRevenue = Number(todaySales._sum.totalAmount || 0);
-  const incomeRevenue = Number(todayIncomes._sum.amount || 0);
-  const totalRevenue = salesRevenue + incomeRevenue;
-  const salesProfit = Number(todaySales._sum.profit || 0);
+  const salesRevenue = toNumber(todaySales._sum.totalAmount);
+  const incomeRevenue = toNumber(todayIncomes._sum.amount);
+  const totalRevenue = money.add(salesRevenue, incomeRevenue);
+  const salesProfit = toNumber(todaySales._sum.profit);
 
   //Return dashboard stats (object)
   return {
@@ -126,8 +127,8 @@ export async function getDashboardStats() {
       invoiceNumber: sale.invoiceNumber,
       date: sale.date,
       customerName: sale.customer?.name || sale.customerName || "ลูกค้าทั่วไป",
-      totalAmount: Number(sale.totalAmount),
-      profit: Number(sale.profit),
+      totalAmount: toNumber(sale.totalAmount),
+      profit: toNumber(sale.profit),
     })),
     lowStockProducts: lowStockProducts.map((product) => ({
       id: product.id,
@@ -182,15 +183,15 @@ export async function getMonthlyStats() {
   ]);
 
   // Calculate totals including income
-  const salesRevenue = Number(monthlySales._sum.totalAmount || 0);
-  const incomeRevenue = Number(monthlyIncomes._sum.amount || 0);
-  const totalRevenue = salesRevenue + incomeRevenue;
+  const salesRevenue = toNumber(monthlySales._sum.totalAmount);
+  const incomeRevenue = toNumber(monthlyIncomes._sum.amount);
+  const totalRevenue = money.add(salesRevenue, incomeRevenue);
 
   return {
     revenue: totalRevenue,    // Sales + Income
     salesRevenue,             // Just sales
     incomeRevenue,            // Just income
-    profit: Number(monthlySales._sum.profit || 0),
+    profit: toNumber(monthlySales._sum.profit),
     count: monthlySales._count,
     incomeCount: monthlyIncomes._count,
   };
@@ -264,7 +265,7 @@ export async function getSalesChartData(days = 7) {
       month: "2-digit",
     });
     if (revenueByDate[dateStr] !== undefined) {
-      revenueByDate[dateStr].sales += Number(sale.totalAmount);
+      revenueByDate[dateStr].sales = money.add(revenueByDate[dateStr].sales, toNumber(sale.totalAmount));
     }
   });
 
@@ -275,14 +276,14 @@ export async function getSalesChartData(days = 7) {
       month: "2-digit",
     });
     if (revenueByDate[dateStr] !== undefined) {
-      revenueByDate[dateStr].income += Number(inc.amount);
+      revenueByDate[dateStr].income = money.add(revenueByDate[dateStr].income, toNumber(inc.amount));
     }
   });
 
   //Return sales chart data (array of objects)
   return Object.entries(revenueByDate).map(([date, data]) => ({
     date,
-    revenue: data.sales + data.income,  // Total revenue
+    revenue: money.add(data.sales, data.income),  // Total revenue
     salesRevenue: data.sales,
     incomeRevenue: data.income,
   }));

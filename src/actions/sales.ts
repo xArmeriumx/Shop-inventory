@@ -10,6 +10,7 @@ import type { Sale, SaleItem, Prisma } from '@prisma/client';
 import { StockService } from '@/lib/stock-service';
 import type { ActionResponse } from '@/types/action-response';
 import { Decimal } from '@prisma/client/runtime/library';
+import { money, toNumber, calcSubtotal, calcProfit } from '@/lib/money';
 
 // =============================================================================
 // RACE CONDITION PREVENTION UTILITIES
@@ -320,7 +321,7 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>
         productDataMap.set(item.productId, {
           id: product.id,
           name: product.name,
-          costPrice: Number(product.costPrice),
+          costPrice: toNumber(product.costPrice),
           stock: product.stock,
         });
       }
@@ -354,12 +355,12 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>
       for (const item of items) {
         const product = productDataMap.get(item.productId)!;
         const costPrice = product.costPrice;
-        const subtotal = item.salePrice * item.quantity;
-        const itemCost = costPrice * item.quantity;
-        const itemProfit = subtotal - itemCost;
+        const subtotal = calcSubtotal(item.quantity, item.salePrice);
+        const itemCost = calcSubtotal(item.quantity, costPrice);
+        const itemProfit = calcProfit(subtotal, itemCost);
 
-        totalAmount += subtotal;
-        totalCost += itemCost;
+        totalAmount = money.add(totalAmount, subtotal);
+        totalCost = money.add(totalCost, itemCost);
 
         saleItemsToCreate.push({
           productId: item.productId,
@@ -371,7 +372,7 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>
         });
       }
 
-      const profit = totalAmount - totalCost;
+      const profit = calcProfit(totalAmount, totalCost);
 
       // =================================================================
       // 5. Handle Customer

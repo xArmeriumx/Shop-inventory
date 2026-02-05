@@ -3,6 +3,7 @@
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth-guard';
 import { logger } from '@/lib/logger';
+import { money, toNumber, calcProfit } from '@/lib/money';
 
 // Interface สำหรับ Return Data ไปหน้าบ้าน
 export interface ReportData {
@@ -133,14 +134,14 @@ export async function getReportData(startDate?: string, endDate?: string): Promi
     ]);
 
     // แปลงข้อมูลจาก Aggregate (Decimal -> Number)
-    const totalSales = Number(salesAggregate._sum.totalAmount || 0);
-    const totalCost = Number(salesAggregate._sum.totalCost || 0);
-    const totalExpenses = Number(expensesAggregate._sum.amount || 0);
-    const totalIncomes = Number(incomesAggregate._sum.amount || 0);
+    const totalSales = toNumber(salesAggregate._sum.totalAmount);
+    const totalCost = toNumber(salesAggregate._sum.totalCost);
+    const totalExpenses = toNumber(expensesAggregate._sum.amount);
+    const totalIncomes = toNumber(incomesAggregate._sum.amount);
     
     // คำนวณกำไร
-    const grossProfit = totalSales - totalCost;  // กำไรขั้นต้น
-    const netProfit = grossProfit - totalExpenses + totalIncomes;  // กำไรสุทธิ (รวมรายได้อื่นๆ)
+    const grossProfit = calcProfit(totalSales, totalCost);  // กำไรขั้นต้น
+    const netProfit = money.add(calcProfit(grossProfit, totalExpenses), totalIncomes);  // กำไรสุทธิ (รวมรายได้อื่นๆ)
 
     // =========================================================
     // การจัดกลุ่มข้อมูลรายวัน (Grouping Logic)
@@ -151,8 +152,8 @@ export async function getReportData(startDate?: string, endDate?: string): Promi
     salesData.forEach(s => {
       const dateKey = s.date.toISOString().split('T')[0];
       const current = dailyMap.get(dateKey) || { sales: 0, cost: 0, expenses: 0, incomes: 0 };
-      current.sales += Number(s.totalAmount);
-      current.cost += Number(s.totalCost);
+      current.sales = money.add(current.sales, toNumber(s.totalAmount));
+      current.cost = money.add(current.cost, toNumber(s.totalCost));
       dailyMap.set(dateKey, current);
     });
 
@@ -160,7 +161,7 @@ export async function getReportData(startDate?: string, endDate?: string): Promi
     expensesData.forEach(e => {
       const dateKey = e.date.toISOString().split('T')[0];
       const current = dailyMap.get(dateKey) || { sales: 0, cost: 0, expenses: 0, incomes: 0 };
-      current.expenses += Number(e.amount);
+      current.expenses = money.add(current.expenses, toNumber(e.amount));
       dailyMap.set(dateKey, current);
     });
 
@@ -168,7 +169,7 @@ export async function getReportData(startDate?: string, endDate?: string): Promi
     incomesData.forEach((inc: any) => {
       const dateKey = inc.date.toISOString().split('T')[0];
       const current = dailyMap.get(dateKey) || { sales: 0, cost: 0, expenses: 0, incomes: 0 };
-      current.incomes += Number(inc.amount);
+      current.incomes = money.add(current.incomes, toNumber(inc.amount));
       dailyMap.set(dateKey, current);
     });
 
@@ -181,7 +182,7 @@ export async function getReportData(startDate?: string, endDate?: string): Promi
         expenses: stats.expenses,
         incomes: stats.incomes,
         // กำไร = (ยอดขาย - ต้นทุน) - ค่าใช้จ่าย + รายได้อื่นๆ
-        profit: (stats.sales - stats.cost) - stats.expenses + stats.incomes
+        profit: money.add(calcProfit(calcProfit(stats.sales, stats.cost), stats.expenses), stats.incomes)
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
@@ -201,17 +202,17 @@ export async function getReportData(startDate?: string, endDate?: string): Promi
       dailyStats,
       sales: salesData.map(s => ({
         ...s,
-        totalAmount: Number(s.totalAmount),
-        totalCost: Number(s.totalCost),
-        profit: Number(s.profit),
+        totalAmount: toNumber(s.totalAmount),
+        totalCost: toNumber(s.totalCost),
+        profit: toNumber(s.profit),
       })),
       expenses: expensesData.map(e => ({
           ...e,
-          amount: Number(e.amount),
+          amount: toNumber(e.amount),
       })),
       incomes: incomesData.map((inc: any) => ({
         ...inc,
-        amount: Number(inc.amount),
+        amount: toNumber(inc.amount),
       }))
     };
   } catch (error: any) {

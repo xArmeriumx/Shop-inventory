@@ -9,6 +9,7 @@ import { purchaseSchema, type PurchaseInput } from '@/schemas/purchase';
 import type { Purchase } from '@prisma/client';
 import { StockService } from '@/lib/stock-service';
 import type { ActionResponse } from '@/types/action-response';
+import { money, toNumber, calcSubtotal } from '@/lib/money';
 
 interface GetPurchasesParams {
   page?: number;
@@ -62,11 +63,11 @@ export async function getPurchases(params: GetPurchasesParams = {}) {
     ...result,
     data: result.data.map((p: any) => ({
       ...p,
-      totalCost: Number(p.totalCost),
+      totalCost: toNumber(p.totalCost),
       items: p.items.map((i: any) => ({
         ...i,
-        costPrice: Number(i.costPrice),
-        subtotal: Number(i.subtotal),
+        costPrice: toNumber(i.costPrice),
+        subtotal: toNumber(i.subtotal),
       })),
     })),
   };
@@ -96,11 +97,11 @@ export async function getPurchase(id: string) {
 
   return {
     ...purchase,
-    totalCost: Number(purchase.totalCost),
+    totalCost: toNumber(purchase.totalCost),
     items: purchase.items.map((i: any) => ({
       ...i,
-      costPrice: Number(i.costPrice),
-      subtotal: Number(i.subtotal),
+      costPrice: toNumber(i.costPrice),
+      subtotal: toNumber(i.subtotal),
     })),
   };
 }
@@ -134,7 +135,7 @@ export async function createPurchase(input: PurchaseInput): Promise<ActionRespon
     const purchase = await db.$transaction(async (tx: any) => {
       // Calculate total
       const totalCost = items.reduce(
-        (sum, item) => sum + item.quantity * item.costPrice,
+        (sum, item) => money.add(sum, calcSubtotal(item.quantity, item.costPrice)),
         0
       );
 
@@ -154,7 +155,7 @@ export async function createPurchase(input: PurchaseInput): Promise<ActionRespon
               productId: item.productId,
               quantity: item.quantity,
               costPrice: item.costPrice,
-              subtotal: item.quantity * item.costPrice,
+              subtotal: calcSubtotal(item.quantity, item.costPrice),
             })),
           },
         },
@@ -200,11 +201,11 @@ export async function createPurchase(input: PurchaseInput): Promise<ActionRespon
       message: 'บันทึกการสั่งซื้อสำเร็จ',
       data: {
         ...purchase,
-        totalCost: Number(purchase.totalCost),
+        totalCost: toNumber(purchase.totalCost),
         items: purchase.items.map((i: any) => ({
           ...i,
-          costPrice: Number(i.costPrice),
-          subtotal: Number(i.subtotal),
+          costPrice: toNumber(i.costPrice),
+          subtotal: toNumber(i.subtotal),
         })),
       },
     };

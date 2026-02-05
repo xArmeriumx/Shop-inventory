@@ -14,6 +14,7 @@ import { createPOSSale, getProductBySKU, getProductsForPOS, getPOSCustomers } fr
 import type { POSProduct, POSCategory, POSCart, POSCartItem, POSCustomer } from '@/lib/pos/types';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/formatters';
+import { money, calcSubtotal, calcProfit } from '@/lib/money';
 
 interface POSInterfaceProps {
   initialProducts: POSProduct[];
@@ -104,15 +105,15 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
   // ==================== Cart Operations ====================
 
   const recalculateCart = useCallback((items: POSCartItem[]): POSCart => {
-    const totalAmount = items.reduce((sum, item) => sum + item.subtotal, 0);
-    const totalCost = items.reduce((sum, item) => sum + (item.product.costPrice * item.quantity), 0);
+    const totalAmount = items.reduce((sum, item) => money.add(sum, item.subtotal), 0);
+    const totalCost = items.reduce((sum, item) => money.add(sum, calcSubtotal(item.quantity, item.product.costPrice)), 0);
     const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
     return {
       items,
       totalAmount,
       totalCost,
-      profit: totalAmount - totalCost,
+      profit: calcProfit(totalAmount, totalCost),
       itemCount,
     };
   }, []);
@@ -131,7 +132,7 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
             return {
               ...item,
               quantity: newQty,
-              subtotal: newQty * item.salePrice,
+              subtotal: calcSubtotal(newQty, item.salePrice),
             };
           }
           return item;
@@ -164,7 +165,7 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
           return {
             ...item,
             quantity,
-            subtotal: quantity * item.salePrice,
+            subtotal: calcSubtotal(quantity, item.salePrice),
           };
         }
         return item;
