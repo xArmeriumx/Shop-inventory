@@ -8,6 +8,7 @@ import {
   ShoppingCart,
   Receipt,
   Truck,
+  Send,
   Wallet,
   TrendingUp,
   BarChart3,
@@ -17,6 +18,7 @@ import {
   Users,
   HelpCircle,
   Sparkles,
+  RotateCcw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -37,6 +39,18 @@ const navItems = [
     href: '/sales',
     icon: ShoppingCart,
     permission: 'SALE_VIEW' as Permission,
+  },
+  {
+    title: 'จัดส่งสินค้า',
+    href: '/shipments',
+    icon: Send,
+    permission: 'SHIPMENT_VIEW' as Permission,
+  },
+  {
+    title: 'คืนสินค้า',
+    href: '/returns',
+    icon: RotateCcw,
+    permission: 'RETURN_VIEW' as Permission,
   },
   {
     title: 'สินค้า',
@@ -144,8 +158,8 @@ export function Sidebar({ isCollapsed = false, onToggle, className }: SidebarPro
         <UserActivityTracker />
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 space-y-1 p-2">
+      {/* Navigation — scrollable when many items */}
+      <nav className="flex-1 overflow-y-auto space-y-1 p-2">
         {/* POS Button - Prominent */}
         <Link
           href="/pos"

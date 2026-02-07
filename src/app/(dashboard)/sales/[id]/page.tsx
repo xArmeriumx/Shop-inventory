@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { format } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 import { th } from 'date-fns/locale';
-import { ArrowLeft, Store } from 'lucide-react';
+import { ArrowLeft, Send, Store, Truck, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,9 @@ import { formatCurrency } from '@/lib/formatters';
 import Loading from '@/app/(dashboard)/loading';
 import { PrintButton } from '@/components/features/sales/print-button';
 import { ReceiptImage } from '@/components/features/receipts/receipt-image';
+import { ShipmentStatusBadge } from '@/components/features/shipments/shipment-status-badge';
+import { PaymentSection } from '@/components/features/sales/payment-section';
+import { Guard } from '@/components/auth/guard';
 
 export interface SaleDetailsPageProps {
   params: {
@@ -33,7 +36,7 @@ export async function generateMetadata({ params }: SaleDetailsPageProps): Promis
     }
     return {
       title: `บิลเลขที่ ${sale.invoiceNumber}`,
-      description: `รายละเอียดการขาย ${sale.invoiceNumber} ลูกค้า ${sale.customerName || 'ทั่วไป'} ยอดรวม ${Number(sale.totalAmount).toFixed(2)} บาท`,
+      description: `รายละเอียดการขาย ${sale.invoiceNumber} ลูกค้า ${sale.customer?.name || sale.customerName || 'ทั่วไป'} ยอดรวม ${Number(sale.totalAmount).toFixed(2)} บาท`,
     };
   } catch (error) {
     return {
@@ -42,10 +45,11 @@ export async function generateMetadata({ params }: SaleDetailsPageProps): Promis
   }
 }
 
-import { requirePermission } from '@/lib/auth-guard';
+import { requirePermission, hasPermission } from '@/lib/auth-guard';
 
 async function SaleDetails({ id }: { id: string }) {
-  await requirePermission('SALE_VIEW');
+  const ctx = await requirePermission('SALE_VIEW');
+  const canVerifyPayment = hasPermission(ctx, 'PAYMENT_VERIFY');
 
   const [sale, shop] = await Promise.all([
     getSale(id),
@@ -135,6 +139,20 @@ async function SaleDetails({ id }: { id: string }) {
             </div>
           </div>
 
+          {/* G1: Payment Status */}
+          {sale.paymentMethod !== 'CASH' && (
+            <PaymentSection
+              saleId={sale.id}
+              invoiceNumber={sale.invoiceNumber}
+              paymentStatus={(sale as any).paymentStatus || 'VERIFIED'}
+              paymentMethod={sale.paymentMethod}
+              paymentProof={(sale as any).paymentProof}
+              paymentNote={(sale as any).paymentNote}
+              paymentVerifiedAt={(sale as any).paymentVerifiedAt}
+              canVerify={canVerifyPayment}
+            />
+          )}
+
           {/* Items Table */}
           <div className="rounded-md border mb-8 print:border-gray-200">
             <table className="w-full text-sm">
@@ -151,7 +169,14 @@ async function SaleDetails({ id }: { id: string }) {
                 {sale.items.map((item: any, index: number) => (
                   <tr key={item.id} className="border-b last:border-0 hover:bg-muted/50">
                     <td className="p-3">{index + 1}</td>
-                    <td className="p-3">{item.product.name}</td>
+                    <td className="p-3">
+                      {item.product.name}
+                      {Number(item.discountAmount) > 0 && (
+                        <span className="text-xs text-orange-600 ml-1">
+                          (ลด {formatCurrency(Number(item.discountAmount))}/ชิ้น)
+                        </span>
+                      )}
+                    </td>
                     <td className="p-3 text-right">{formatCurrency(Number(item.salePrice))}</td>
                     <td className="p-3 text-right">{item.quantity}</td>
                     <td className="p-3 text-right">{formatCurrency(Number(item.subtotal))}</td>
@@ -165,8 +190,21 @@ async function SaleDetails({ id }: { id: string }) {
           <div className="flex justify-end">
             <div className="w-64 space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">ยอดรวมทั้งหมด</span>
-                <span className="font-bold text-lg">{formatCurrency(Number(sale.totalAmount))}</span>
+                <span className="text-muted-foreground">ยอดรวมสินค้า</span>
+                <span>{formatCurrency(Number(sale.totalAmount))}</span>
+              </div>
+              {Number(sale.discountAmount) > 0 && (
+                <div className="flex justify-between text-sm text-orange-600">
+                  <span>
+                    ส่วนลดบิล
+                    {sale.discountType === 'PERCENT' && sale.discountValue ? ` (${Number(sale.discountValue)}%)` : ''}
+                  </span>
+                  <span>-{formatCurrency(Number(sale.discountAmount))}</span>
+                </div>
+              )}
+              <div className="flex justify-between border-t pt-2">
+                <span className="font-semibold">ยอดสุทธิ</span>
+                <span className="font-bold text-lg">{formatCurrency(Number(sale.netAmount) || Number(sale.totalAmount))}</span>
               </div>
             </div>
           </div>
@@ -185,6 +223,63 @@ async function SaleDetails({ id }: { id: string }) {
               alt="หลักฐานการขาย" 
             />
           )}
+
+          {/* Shipment Info */}
+          {(() => {
+            const activeShipment = (sale as any).shipments?.[0];
+            return activeShipment ? (
+            <div className="mt-8 border-t pt-4 print:hidden">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Truck className="h-4 w-4" />
+                  <h4 className="font-semibold text-sm">ข้อมูลจัดส่ง</h4>
+                </div>
+                <ShipmentStatusBadge status={activeShipment.status} />
+              </div>
+              <div className="grid gap-2 mt-2 sm:grid-cols-3 text-sm">
+                <div>
+                  <span className="text-muted-foreground">เลขจัดส่ง: </span>
+                  <Link href={`/shipments/${activeShipment.id}`} className="text-blue-600 hover:underline">
+                    {activeShipment.shipmentNumber}
+                  </Link>
+                </div>
+                {activeShipment.trackingNumber && (
+                  <div>
+                    <span className="text-muted-foreground">Tracking: </span>
+                    <span className="font-mono">{activeShipment.trackingNumber}</span>
+                  </div>
+                )}
+                {activeShipment.shippingProvider && (
+                  <div>
+                    <span className="text-muted-foreground">ขนส่ง: </span>
+                    {activeShipment.shippingProvider}
+                  </div>
+                )}
+              </div>
+            </div>
+            ) : sale.status !== 'CANCELLED' ? (
+              <Guard permission="SHIPMENT_CREATE">
+                <div className="mt-8 border-t pt-4 print:hidden">
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href={`/shipments/create?saleId=${sale.id}`}>
+                        <Send className="h-4 w-4 mr-2" />
+                        สร้างรายการจัดส่ง
+                      </Link>
+                    </Button>
+                    <Guard permission="RETURN_CREATE">
+                      <Button variant="outline" size="sm" asChild>
+                        <Link href={`/returns/create?saleId=${sale.id}`}>
+                          <RotateCcw className="h-4 w-4 mr-2" />
+                          คืนสินค้า
+                        </Link>
+                      </Button>
+                    </Guard>
+                  </div>
+                </div>
+              </Guard>
+            ) : null;
+          })()}
 
           {/* Footer */}
           <div className="mt-8 pt-4 border-t text-center text-sm text-muted-foreground print:mt-12">

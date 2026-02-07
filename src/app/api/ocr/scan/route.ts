@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate document type
-    const validDocTypes: DocumentType[] = ['receipt', 'purchase', 'invoice'];
+    const validDocTypes: DocumentType[] = ['receipt', 'purchase', 'invoice', 'shipment'];
     if (!validDocTypes.includes(documentType)) {
       return NextResponse.json(
         { success: false, error: `Invalid documentType. Must be one of: ${validDocTypes.join(', ')}` },

@@ -175,7 +175,7 @@ export async function createPurchase(input: PurchaseInput): Promise<ActionRespon
           shopId: ctx.shopId,  // RBAC: Set shopId for stock log
           referenceId: newPurchase.id,
           referenceType: 'PURCHASE',
-          note: `ซื้อสินค้า ${newPurchase.supplierName || ''}`,
+          note: `ซื้อสินค้า`,
           date: newPurchase.date,
           tx,
         });

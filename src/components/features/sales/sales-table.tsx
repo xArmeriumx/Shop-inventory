@@ -150,7 +150,7 @@ export function SalesTable({ sales, pagination }: SalesTableProps) {
                   </Badge>
                 </TableCell>
                 <TableCell className="text-right font-medium">
-                  {formatCurrency(sale.totalAmount.toString())}
+                  {formatCurrency(((sale as any).netAmount || sale.totalAmount).toString())}
                 </TableCell>
                 {canViewProfit && (
                   <TableCell className="text-right">

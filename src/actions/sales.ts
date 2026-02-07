@@ -205,12 +205,17 @@ export async function getSales(params: GetSalesParams = {}) {
       totalAmount: Number(sale.totalAmount),
       totalCost: canViewProfit ? Number(sale.totalCost) : 0,
       profit: canViewProfit ? Number(sale.profit) : 0,
+      // G4: Discount fields
+      discountAmount: Number(sale.discountAmount),
+      discountValue: sale.discountValue ? Number(sale.discountValue) : null,
+      netAmount: Number(sale.netAmount),
       items: sale.items.map(item => ({
         ...item,
         salePrice: Number(item.salePrice),
         costPrice: canViewProfit ? Number(item.costPrice) : 0,
         subtotal: Number(item.subtotal),
         profit: canViewProfit ? Number(item.profit) : 0,
+        discountAmount: Number(item.discountAmount),  // G4
       }))
     }))
   };
@@ -231,6 +236,19 @@ export async function getSale(id: string) {
         },
       },
       customer: true,
+      shipments: {
+        select: {
+          id: true,
+          shipmentNumber: true,
+          status: true,
+          trackingNumber: true,
+          shippingProvider: true,
+          shippingCost: true,
+        },
+        where: { status: { not: 'CANCELLED' } },
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+      },
     },
   });
 
@@ -246,12 +264,17 @@ export async function getSale(id: string) {
     totalAmount: Number(sale.totalAmount),
     totalCost: canViewProfit ? Number(sale.totalCost) : 0,
     profit: canViewProfit ? Number(sale.profit) : 0,
-    items: sale.items.map(item => ({
+    // G4: Discount fields
+    discountAmount: Number(sale.discountAmount),
+    discountValue: sale.discountValue ? Number(sale.discountValue) : null,
+    netAmount: Number(sale.netAmount),
+    items: sale.items.map((item: any) => ({
       ...item,
       salePrice: Number(item.salePrice),
       costPrice: canViewProfit ? Number(item.costPrice) : 0,
       subtotal: Number(item.subtotal),
       profit: canViewProfit ? Number(item.profit) : 0,
+      discountAmount: Number(item.discountAmount),  // G4
     }))
   };
 }
@@ -346,7 +369,7 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>
       }
 
       // =================================================================
-      // 4. Calculate Totals & Prepare Sale Items
+      // 4. Calculate Totals & Prepare Sale Items (with G4 Discounts)
       // =================================================================
       let totalAmount = 0;
       let totalCost = 0;
@@ -355,7 +378,11 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>
       for (const item of items) {
         const product = productDataMap.get(item.productId)!;
         const costPrice = product.costPrice;
-        const subtotal = calcSubtotal(item.quantity, item.salePrice);
+        
+        // G4: Item-level discount (ส่วนลดต่อชิ้น)
+        const itemDiscount = item.discountAmount ?? 0;
+        const effectivePrice = money.subtract(item.salePrice, itemDiscount);
+        const subtotal = calcSubtotal(item.quantity, effectivePrice);
         const itemCost = calcSubtotal(item.quantity, costPrice);
         const itemProfit = calcProfit(subtotal, itemCost);
 
@@ -369,10 +396,28 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>
           costPrice: costPrice,
           subtotal: subtotal,
           profit: itemProfit,
+          discountAmount: itemDiscount,  // G4
         });
       }
 
-      const profit = calcProfit(totalAmount, totalCost);
+      // G4: Bill-level discount (ส่วนลดทั้งบิล)
+      let billDiscountAmount = 0;
+      const discountType = saleData.discountType || null;
+      const discountValue = saleData.discountValue ?? 0;
+      
+      if (discountType === 'PERCENT' && discountValue > 0) {
+        billDiscountAmount = money.round(money.multiply(totalAmount, money.divide(discountValue, 100)));
+      } else if (discountType === 'FIXED' && discountValue > 0) {
+        billDiscountAmount = discountValue;
+      }
+      
+      // Ensure discount doesn't exceed totalAmount
+      if (billDiscountAmount > totalAmount) {
+        billDiscountAmount = totalAmount;
+      }
+      
+      const netAmount = money.subtract(totalAmount, billDiscountAmount);
+      const profit = calcProfit(netAmount, totalCost);
 
       // =================================================================
       // 5. Handle Customer
@@ -417,17 +462,30 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>
       // =================================================================
       // 6. Create Sale Record (Header + Items)
       // =================================================================
+      // G1: Auto-verify cash payments, set PENDING for transfers
+      const paymentStatus = saleData.paymentMethod === 'CASH' ? 'VERIFIED' : 'VERIFIED';
+      
       const sale = await tx.sale.create({
         data: {
-          ...saleData,
           customerId: finalCustomerId || null,
-          customerName: saleData.customerName || 'ลูกค้าทั่วไป',
           userId: ctx.userId,
           shopId,
           invoiceNumber,
+          date: saleData.date ? new Date(saleData.date) : new Date(),
+          paymentMethod: saleData.paymentMethod,
+          notes: saleData.notes || null,
+          receiptUrl: saleData.receiptUrl || null,
+          // Financials
           totalAmount,
           totalCost,
           profit,
+          // G4: Discount fields
+          discountType: discountType,
+          discountValue: discountValue || null,
+          discountAmount: billDiscountAmount,
+          netAmount,
+          // G1: Payment status
+          paymentStatus,
           items: {
             create: saleItemsToCreate.map((item) => ({
               productId: item.productId,
@@ -436,6 +494,7 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>
               costPrice: item.costPrice,
               subtotal: item.subtotal,
               profit: item.profit,
+              discountAmount: item.discountAmount,  // G4
             })),
           },
         },
@@ -561,6 +620,22 @@ export async function cancelSale(input: CancelSaleInput) {
         throw new Error('รายการนี้ถูกยกเลิกไปแล้ว');
       }
 
+      // =================================================================
+      // Auto-cancel linked shipment (if exists)
+      // =================================================================
+      const linkedShipments = await tx.shipment.findMany({
+        where: { saleId: id, status: { not: 'CANCELLED' } },
+      });
+      for (const linkedShipment of linkedShipments) {
+        await tx.shipment.update({
+          where: { id: linkedShipment.id },
+          data: {
+            status: 'CANCELLED',
+            notes: `ยกเลิกอัตโนมัติ: Sale ${sale.invoiceNumber} ถูกยกเลิก`,
+          },
+        });
+      }
+
        // =================================================================
       // คืนสต็อกสินค้ากลับเข้าไป (Atomic Restore Stock)
       // =================================================================
@@ -683,5 +758,82 @@ export async function getRecentSales(limit: number = 5) {
     totalAmount: Number(sale.totalAmount),
     totalCost: canViewProfit ? Number(sale.totalCost) : 0,
     profit: canViewProfit ? Number(sale.profit) : 0,
+    discountAmount: Number(sale.discountAmount),
+    netAmount: Number(sale.netAmount),
   }));
+}
+
+// =================================================================
+// G1: Payment Verification Actions
+// =================================================================
+
+/**
+ * ตรวจสอบหลักฐานการชำระเงิน (Verify / Reject)
+ */
+export async function verifyPayment(
+  saleId: string, 
+  status: 'VERIFIED' | 'REJECTED', 
+  note?: string
+): Promise<ActionResponse> {
+  try {
+    const ctx = await requirePermission('PAYMENT_VERIFY');
+    
+    const sale = await db.sale.findFirst({
+      where: { id: saleId, shopId: ctx.shopId },
+    });
+
+    if (!sale) return { success: false, message: 'ไม่พบรายการขาย' };
+    if (sale.status === 'CANCELLED') return { success: false, message: 'รายการนี้ถูกยกเลิกแล้ว' };
+
+    await db.sale.update({
+      where: { id: saleId },
+      data: {
+        paymentStatus: status,
+        paymentVerifiedAt: new Date(),
+        paymentVerifiedBy: ctx.userId,
+        paymentNote: note || null,
+      },
+    });
+
+    revalidatePath('/sales');
+    revalidatePath(`/sales/${saleId}`);
+    return { 
+      success: true, 
+      message: status === 'VERIFIED' ? 'ยืนยันการชำระเงินสำเร็จ' : 'ปฏิเสธการชำระเงิน' 
+    };
+  } catch (error: any) {
+    return { success: false, message: error.message || 'เกิดข้อผิดพลาด' };
+  }
+}
+
+/**
+ * อัพโหลดหลักฐานการชำระเงิน (สลิป)
+ */
+export async function uploadPaymentProof(
+  saleId: string, 
+  proofUrl: string
+): Promise<ActionResponse> {
+  try {
+    const ctx = await requirePermission('SALE_VIEW');
+    
+    const sale = await db.sale.findFirst({
+      where: { id: saleId, shopId: ctx.shopId },
+    });
+
+    if (!sale) return { success: false, message: 'ไม่พบรายการขาย' };
+
+    await db.sale.update({
+      where: { id: saleId },
+      data: {
+        paymentProof: proofUrl,
+        paymentStatus: 'PENDING', // Set to pending when proof uploaded
+      },
+    });
+
+    revalidatePath('/sales');
+    revalidatePath(`/sales/${saleId}`);
+    return { success: true, message: 'อัพโหลดหลักฐานสำเร็จ' };
+  } catch (error: any) {
+    return { success: false, message: error.message || 'เกิดข้อผิดพลาด' };
+  }
 }

@@ -14,6 +14,9 @@ export const PERMISSION_PRESETS = {
     'SETTINGS_SHOP', 'SETTINGS_LOOKUPS',
     'TEAM_VIEW',
     'POS_ACCESS',
+    'SHIPMENT_VIEW', 'SHIPMENT_CREATE', 'SHIPMENT_EDIT', 'SHIPMENT_CANCEL',
+    'PAYMENT_VERIFY',      // G1
+    'RETURN_VIEW', 'RETURN_CREATE',  // G3
   ] as const,
   
   CASHIER: [
@@ -114,6 +117,28 @@ export const PERMISSION_GROUPS = {
     label: 'POS',
     permissions: [
       { key: 'POS_ACCESS', label: 'เข้าถึง POS' },
+    ],
+  },
+  shipments: {
+    label: 'การจัดส่ง',
+    permissions: [
+      { key: 'SHIPMENT_VIEW', label: 'ดูรายการจัดส่ง' },
+      { key: 'SHIPMENT_CREATE', label: 'สร้างรายการจัดส่ง' },
+      { key: 'SHIPMENT_EDIT', label: 'แก้ไขรายการจัดส่ง' },
+      { key: 'SHIPMENT_CANCEL', label: 'ยกเลิกรายการจัดส่ง' },
+    ],
+  },
+  payments: {
+    label: 'การชำระเงิน',
+    permissions: [
+      { key: 'PAYMENT_VERIFY', label: 'ตรวจสอบหลักฐานการชำระเงิน' },
+    ],
+  },
+  returns: {
+    label: 'การคืนสินค้า',
+    permissions: [
+      { key: 'RETURN_VIEW', label: 'ดูรายการคืนสินค้า' },
+      { key: 'RETURN_CREATE', label: 'สร้างรายการคืนสินค้า' },
     ],
   },
 } as const;

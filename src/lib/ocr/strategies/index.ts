@@ -6,10 +6,12 @@
 export * from './base';
 export { receiptStrategy, ReceiptStrategy } from './receipt';
 export { purchaseStrategy, PurchaseStrategy } from './purchase';
+export { shipmentStrategy, ShipmentStrategy } from './shipment';
 
 import { DocumentType, OCRStrategy } from './base';
 import { receiptStrategy } from './receipt';
 import { purchaseStrategy } from './purchase';
+import { shipmentStrategy } from './shipment';
 
 /**
  * Get strategy by document type
@@ -22,6 +24,8 @@ export function getStrategy(docType: DocumentType): OCRStrategy {
       return purchaseStrategy;
     case 'invoice':
       return purchaseStrategy; // Use purchase strategy for invoices too
+    case 'shipment':
+      return shipmentStrategy;
     default:
       return receiptStrategy;
   }
@@ -34,4 +38,5 @@ export const strategies: Record<DocumentType, OCRStrategy> = {
   receipt: receiptStrategy,
   purchase: purchaseStrategy,
   invoice: purchaseStrategy,
+  shipment: shipmentStrategy,
 };

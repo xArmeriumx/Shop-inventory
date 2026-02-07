@@ -28,9 +28,12 @@ export async function getDashboardStats() {
     lowStockCount,
     recentSales,
     lowStockProducts,
+    pendingPayments,
+    pendingShipments,
+    todayExpenses,
   ] = await Promise.all([
 
-    // Today's sales summary (aggregate is already optimal) //Summarize today's sales
+    // Today's sales summary
     db.sale.aggregate({
       where: {
         shopId: ctx.shopId,
@@ -41,7 +44,7 @@ export async function getDashboardStats() {
       _count: true,
     }),
 
-    // Today's income (other revenue like service fees, repairs, etc.)
+    // Today's income
     (db as any).income.aggregate({
       where: {
         shopId: ctx.shopId,
@@ -52,25 +55,25 @@ export async function getDashboardStats() {
       _count: true,
     }),
 
-    // Total products count (simple indexed count) //Count total products 
+    // Total products count
     db.product.count({
       where: { shopId: ctx.shopId, isActive: true },
     }),
 
-    // OPTIMIZED: Low stock count using indexed isLowStock field
+    // Low stock count
     db.product.count({
       where: {
         shopId: ctx.shopId,
         isActive: true,
-        isLowStock: true,  // Uses @@index([shopId, isLowStock])
+        isLowStock: true,
       },
     }),
 
-    // OPTIMIZED: Recent sales with select 
+    // Recent sales
     db.sale.findMany({
       where: { 
         shopId: ctx.shopId,
-        status: { not: "CANCELLED" },  // Only show active sales
+        status: { not: "CANCELLED" },
       },
       select: {
         id: true,
@@ -81,16 +84,16 @@ export async function getDashboardStats() {
         profit: true,
         customer: { select: { name: true } },
       },
-      orderBy: { date: "desc" }, //latest sales first
+      orderBy: { date: "desc" },
       take: 5,
     }),
 
-    // After: Direct indexed query with take 5
+    // Low stock products
     db.product.findMany({
       where: {
         shopId: ctx.shopId,
         isActive: true,
-        isLowStock: true,  // Uses @@index([shopId, isLowStock])
+        isLowStock: true,
       },
       select: {
         id: true,
@@ -99,8 +102,38 @@ export async function getDashboardStats() {
         stock: true,
         minStock: true,
       },
-      orderBy: { stock: "asc" }, //Lowest stock first
+      orderBy: { stock: "asc" },
       take: 5,
+    }),
+
+    // NEW: Pending payment count + amount
+    db.sale.aggregate({
+      where: {
+        shopId: ctx.shopId,
+        paymentStatus: "PENDING",
+        status: { not: "CANCELLED" },
+      },
+      _sum: { totalAmount: true },
+      _count: true,
+    }),
+
+    // NEW: Pending shipments count
+    db.shipment.count({
+      where: {
+        shopId: ctx.shopId,
+        status: "PENDING",
+      },
+    }),
+
+    // NEW: Today's expenses
+    db.expense.aggregate({
+      where: {
+        shopId: ctx.shopId,
+        date: { gte: today, lt: tomorrow },
+        deletedAt: null,
+      },
+      _sum: { amount: true },
+      _count: true,
     }),
   ]);
 
@@ -113,9 +146,9 @@ export async function getDashboardStats() {
   //Return dashboard stats (object)
   return {
     todaySales: {
-      revenue: totalRevenue,  // Sales + Income
-      salesRevenue,           // Just sales
-      incomeRevenue,          // Just income/other revenue
+      revenue: totalRevenue,
+      salesRevenue,
+      incomeRevenue,
       profit: salesProfit,
       count: todaySales._count,
       incomeCount: todayIncomes._count,
@@ -126,7 +159,7 @@ export async function getDashboardStats() {
       id: sale.id,
       invoiceNumber: sale.invoiceNumber,
       date: sale.date,
-      customerName: sale.customer?.name || sale.customerName || "ลูกค้าทั่วไป",
+      customerName: sale.customer?.name || sale.customerName || "Walk-in",
       totalAmount: toNumber(sale.totalAmount),
       profit: toNumber(sale.profit),
     })),
@@ -137,6 +170,16 @@ export async function getDashboardStats() {
       stock: product.stock,
       minStock: product.minStock,
     })),
+    // NEW: Action items
+    pendingPayments: {
+      count: pendingPayments._count,
+      amount: toNumber(pendingPayments._sum.totalAmount),
+    },
+    pendingShipments,
+    todayExpenses: {
+      total: toNumber(todayExpenses._sum.amount),
+      count: todayExpenses._count,
+    },
   };
 }
 

@@ -3,7 +3,7 @@
  * Each document type has its own strategy with specific prompts
  */
 
-export type DocumentType = 'receipt' | 'purchase' | 'invoice';
+export type DocumentType = 'receipt' | 'purchase' | 'invoice' | 'shipment';
 
 export interface ScanResult {
   success: boolean;

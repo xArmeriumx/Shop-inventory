@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import { Package, TrendingUp, ShoppingCart, AlertCircle } from 'lucide-react';
+import { Package, TrendingUp, ShoppingCart, AlertCircle, CreditCard, Truck, Wallet } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getDashboardStats, getMonthlyStats } from '@/actions/dashboard';
@@ -7,6 +7,7 @@ import { formatCurrency, formatDate } from '@/lib/formatters';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+
 
 async function DashboardContent() {
   const [stats, monthlyStats] = await Promise.all([
@@ -16,100 +17,138 @@ async function DashboardContent() {
 
   const statsCards = [
     {
-      title: 'ยอดขายวันนี้',
+      title: 'Today Sales',
       value: formatCurrency(stats.todaySales.revenue.toString()),
-      subtitle: `${stats.todaySales.count} รายการ`,
+      subtitle: `${stats.todaySales.count} orders`,
       icon: ShoppingCart,
       iconColor: 'text-blue-600',
     },
     {
-      title: 'กำไรวันนี้',
+      title: 'Today Profit',
       value: formatCurrency(stats.todaySales.profit.toString()),
-      subtitle: `จากยอดขาย ${stats.todaySales.count} รายการ`,
+      subtitle: `from ${stats.todaySales.count} orders`,
       icon: TrendingUp,
       iconColor: 'text-green-600',
     },
     {
-      title: 'สินค้าทั้งหมด',
+      title: 'Products',
       value: stats.totalProducts.toString(),
-      subtitle: 'รายการสินค้า',
+      subtitle: 'active items',
       icon: Package,
       iconColor: 'text-purple-600',
     },
     {
-      title: 'สินค้าใกล้หมด',
+      title: 'Low Stock',
       value: stats.lowStockCount.toString(),
-      subtitle: 'รายการที่ต้องเติม',
+      subtitle: 'need restock',
       icon: AlertCircle,
       iconColor: 'text-red-600',
+    },
+    {
+      title: 'Pending Payments',
+      value: stats.pendingPayments.count.toString(),
+      subtitle: formatCurrency(stats.pendingPayments.amount.toString()),
+      icon: CreditCard,
+      iconColor: 'text-orange-600',
+      href: '/sales?paymentStatus=PENDING',
+    },
+    {
+      title: 'Pending Shipments',
+      value: stats.pendingShipments.toString(),
+      subtitle: 'awaiting dispatch',
+      icon: Truck,
+      iconColor: 'text-cyan-600',
+      href: '/shipments?status=PENDING',
     },
   ];
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      {/* Stats Cards - 2 columns on mobile */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-        {statsCards.map((stat, index) => (
-          <Card key={index}>
-            <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2 space-y-0">
-              <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
-                {stat.title}
-              </CardTitle>
-              <stat.icon className={`h-4 w-4 ${stat.iconColor} shrink-0`} />
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="text-lg sm:text-2xl font-bold truncate">{stat.value}</div>
-              <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{stat.subtitle}</p>
-            </CardContent>
-          </Card>
-        ))}
+      {/* Stats Cards - 2 columns on mobile, 3 on md, 6 on lg */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-6">
+        {statsCards.map((stat, index) => {
+          const content = (
+            <Card key={index} className={(stat as any).href ? 'hover:bg-muted/50 transition-colors cursor-pointer' : ''}>
+              <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2 space-y-0">
+                <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground">
+                  {stat.title}
+                </CardTitle>
+                <stat.icon className={`h-4 w-4 ${stat.iconColor} shrink-0`} />
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="text-lg sm:text-2xl font-bold truncate">{stat.value}</div>
+                <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{stat.subtitle}</p>
+              </CardContent>
+            </Card>
+          );
+          if ((stat as any).href) {
+            return <Link key={index} href={(stat as any).href}>{content}</Link>;
+          }
+          return content;
+        })}
       </div>
 
-      {/* Monthly Summary */}
-      <Card>
-        <CardHeader className="pb-2 sm:pb-4">
-          <CardTitle className="text-base sm:text-lg">สรุปเดือนนี้</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-3 gap-2 sm:gap-4">
-            <div className="text-center sm:text-left">
-              <p className="text-[10px] sm:text-sm text-muted-foreground">ยอดขายรวม</p>
-              <p className="text-sm sm:text-2xl font-bold truncate">
-                {formatCurrency(monthlyStats.revenue.toString())}
-              </p>
+      {/* Monthly Summary + Today Expenses */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader className="pb-2 sm:pb-4">
+            <CardTitle className="text-base sm:text-lg">Monthly Summary</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-2 sm:gap-4">
+              <div className="text-center sm:text-left">
+                <p className="text-[10px] sm:text-sm text-muted-foreground">Revenue</p>
+                <p className="text-sm sm:text-2xl font-bold truncate">
+                  {formatCurrency(monthlyStats.revenue.toString())}
+                </p>
+              </div>
+              <div className="text-center sm:text-left">
+                <p className="text-[10px] sm:text-sm text-muted-foreground">Profit</p>
+                <p className="text-sm sm:text-2xl font-bold text-green-600 truncate">
+                  {formatCurrency(monthlyStats.profit.toString())}
+                </p>
+              </div>
+              <div className="text-center sm:text-left">
+                <p className="text-[10px] sm:text-sm text-muted-foreground">Orders</p>
+                <p className="text-sm sm:text-2xl font-bold">{monthlyStats.count}</p>
+              </div>
             </div>
-            <div className="text-center sm:text-left">
-              <p className="text-[10px] sm:text-sm text-muted-foreground">กำไรรวม</p>
-              <p className="text-sm sm:text-2xl font-bold text-green-600 truncate">
-                {formatCurrency(monthlyStats.profit.toString())}
-              </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2 sm:pb-4">
+            <div className="flex items-center gap-2">
+              <Wallet className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-base sm:text-lg">Today Expenses</CardTitle>
             </div>
-            <div className="text-center sm:text-left">
-              <p className="text-[10px] sm:text-sm text-muted-foreground">จำนวนรายการ</p>
-              <p className="text-sm sm:text-2xl font-bold">{monthlyStats.count} บิล</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardHeader>
+          <CardContent>
+            <p className="text-lg sm:text-2xl font-bold text-red-600">
+              {formatCurrency(stats.todayExpenses.total.toString())}
+            </p>
+            <p className="text-xs text-muted-foreground">{stats.todayExpenses.count} items</p>
+          </CardContent>
+        </Card>
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Recent Sales */}
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle>รายการขายล่าสุด</CardTitle>
+              <CardTitle>Recent Sales</CardTitle>
               <Button variant="ghost" size="sm" asChild>
-                <Link href="/sales">ดูทั้งหมด</Link>
+                <Link href="/sales">View All</Link>
               </Button>
             </div>
           </CardHeader>
           <CardContent>
             {stats.recentSales.length === 0 ? (
               <div className="py-8 text-center text-sm text-muted-foreground">
-                ยังไม่มีรายการขาย
+                No sales yet
                 <br />
                 <Button asChild className="mt-4" size="sm">
-                  <Link href="/sales/new">บันทึกการขายแรก</Link>
+                  <Link href="/sales/new">Create First Sale</Link>
                 </Button>
               </div>
             ) : (
@@ -151,17 +190,17 @@ async function DashboardContent() {
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
                 <AlertCircle className="h-5 w-5 text-red-600" />
-                สินค้าใกล้หมด
+                Low Stock Alert
               </CardTitle>
               <Button variant="ghost" size="sm" asChild>
-                <Link href="/products/low-stock">ดูทั้งหมด</Link>
+                <Link href="/products/low-stock">View All</Link>
               </Button>
             </div>
           </CardHeader>
           <CardContent>
             {stats.lowStockProducts.length === 0 ? (
               <div className="py-8 text-center text-sm text-muted-foreground">
-                สินค้าทุกรายการมีสต็อกเพียงพอ
+                All products are well-stocked
               </div>
             ) : (
               <div className="space-y-3">
@@ -180,10 +219,10 @@ async function DashboardContent() {
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-bold text-red-600">
-                        เหลือ {product.stock}
+                        {product.stock} left
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        ขั้นต่ำ: {product.minStock}
+                        min: {product.minStock}
                       </p>
                     </div>
                   </div>

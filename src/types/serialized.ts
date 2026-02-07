@@ -19,20 +19,25 @@ export type SerializedProduct = Omit<Product, 'costPrice' | 'salePrice'> & {
 /**
  * Sale with Decimal fields converted to number
  */
-export type SerializedSale = Omit<Sale, 'totalAmount' | 'totalCost' | 'profit'> & {
+export type SerializedSale = Omit<Sale, 'totalAmount' | 'totalCost' | 'profit' | 'discountAmount' | 'discountValue' | 'netAmount'> & {
   totalAmount: number;
   totalCost: number;
   profit: number;
+  // G4: Discount fields
+  discountAmount: number;
+  discountValue: number | null;
+  netAmount: number;
 };
 
 /**
  * SaleItem with Decimal fields converted to number
  */
-export type SerializedSaleItem = Omit<SaleItem, 'salePrice' | 'costPrice' | 'subtotal' | 'profit'> & {
+export type SerializedSaleItem = Omit<SaleItem, 'salePrice' | 'costPrice' | 'subtotal' | 'profit' | 'discountAmount'> & {
   salePrice: number;
   costPrice: number;
   subtotal: number;
   profit: number;
+  discountAmount: number;  // G4
 };
 
 /**

@@ -12,7 +12,7 @@ import { createSale } from '@/actions/sales';
 import { getProductsForSelect } from '@/actions/products';
 import { getCustomersForSelect } from '@/actions/customers';
 import { formatCurrency } from '@/lib/formatters';
-import { Plus, Trash2, ScanBarcode } from 'lucide-react';
+import { Plus, Trash2, ScanBarcode, Tag, Percent } from 'lucide-react';
 import { CustomerCombobox } from '@/components/features/customers/customer-combobox';
 import { FileUpload } from '@/components/ui/file-upload';
 import { usePermissions } from '@/hooks/use-permissions';
@@ -31,6 +31,7 @@ interface SaleItem {
   product?: Product;
   quantity: number | string;
   salePrice: number | string;
+  discountAmount: number | string;  // G4: ส่วนลดต่อชิ้น
 }
 
 export function SaleForm() {
@@ -48,9 +49,13 @@ export function SaleForm() {
   const [isBackdated, setIsBackdated] = useState(false);
   const [date, setDate] = useState<string>(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
   const [items, setItems] = useState<SaleItem[]>([
-    { productId: '', quantity: 1, salePrice: 0 },
+    { productId: '', quantity: 1, salePrice: 0, discountAmount: 0 },
   ]);
   const [scanInput, setScanInput] = useState('');
+  // G4: Bill-level discount
+  const [showDiscount, setShowDiscount] = useState(false);
+  const [discountType, setDiscountType] = useState<'PERCENT' | 'FIXED'>('FIXED');
+  const [discountValue, setDiscountValue] = useState<number | string>(0);
 
   // Load products and customers
   useEffect(() => {
@@ -69,7 +74,7 @@ export function SaleForm() {
   }, []);
 
   const handleAddItem = () => {
-    setItems([...items, { productId: '', quantity: 1, salePrice: 0 }]);
+    setItems([...items, { productId: '', quantity: 1, salePrice: 0, discountAmount: 0 }]);
   };
 
   const handleRemoveItem = (index: number) => {
@@ -110,15 +115,30 @@ export function SaleForm() {
     items.forEach((item) => {
       const quantity = Number(item.quantity) || 0;
       const salePrice = Number(item.salePrice) || 0;
-      const subtotal = quantity * salePrice;
+      const itemDiscount = Number(item.discountAmount) || 0;
+      const effectivePrice = salePrice - itemDiscount;
+      const subtotal = quantity * effectivePrice;
       const cost = quantity * (item.product?.costPrice || 0);
       totalAmount += subtotal;
       totalCost += cost;
     });
 
-    const profit = totalAmount - totalCost;
+    // G4: Bill-level discount
+    let billDiscountAmount = 0;
+    const dv = Number(discountValue) || 0;
+    if (showDiscount && dv > 0) {
+      if (discountType === 'PERCENT') {
+        billDiscountAmount = Math.round((totalAmount * dv / 100) * 100) / 100;
+      } else {
+        billDiscountAmount = dv;
+      }
+    }
+    if (billDiscountAmount > totalAmount) billDiscountAmount = totalAmount;
+    
+    const netAmount = totalAmount - billDiscountAmount;
+    const profit = netAmount - totalCost;
 
-    return { totalAmount, totalCost, profit };
+    return { totalAmount, totalCost, profit, billDiscountAmount, netAmount };
   };
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -138,7 +158,11 @@ export function SaleForm() {
         productId: item.productId,
         quantity: Number(item.quantity) || 0,
         salePrice: Number(item.salePrice) || 0,
+        discountAmount: Number(item.discountAmount) || 0,  // G4
       })),
+      // G4: Bill-level discount
+      discountType: showDiscount && (Number(discountValue) || 0) > 0 ? discountType : null,
+      discountValue: showDiscount ? (Number(discountValue) || 0) : null,
     };
 
     startTransition(async () => {
@@ -187,6 +211,7 @@ export function SaleForm() {
               product,
               quantity: 1,
               salePrice: product.salePrice,
+              discountAmount: 0,
             }]);
           } else {
             setItems([
@@ -196,6 +221,7 @@ export function SaleForm() {
                 product,
                 quantity: 1,
                 salePrice: product.salePrice,
+                discountAmount: 0,
               },
             ]);
           }
@@ -209,7 +235,7 @@ export function SaleForm() {
     }
   };
 
-  const { totalAmount, totalCost, profit } = calculateTotals();
+  const { totalAmount, totalCost, profit, billDiscountAmount, netAmount } = calculateTotals();
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -434,11 +460,31 @@ export function SaleForm() {
                 />
               </div>
 
+              {/* G4: Item-level discount */}
+              <div className="w-full sm:w-28 space-y-2">
+                <Label className="flex items-center gap-1">
+                  <Tag className="h-3 w-3" />
+                  ส่วนลด
+                </Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0"
+                  value={item.discountAmount === 0 ? '' : item.discountAmount}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === '') handleItemChange(index, 'discountAmount', 0);
+                    else handleItemChange(index, 'discountAmount', parseFloat(val) || 0);
+                  }}
+                />
+              </div>
+
               <div className="flex items-end">
                 <div className="space-y-2">
                   <Label>รวม</Label>
                   <div className="text-sm font-medium">
-                    {formatCurrency(((Number(item.quantity) || 0) * (Number(item.salePrice) || 0)).toString())}
+                    {formatCurrency(((Number(item.quantity) || 0) * ((Number(item.salePrice) || 0) - (Number(item.discountAmount) || 0))).toString())}
                   </div>
                 </div>
               </div>
@@ -482,13 +528,62 @@ export function SaleForm() {
         <CardContent className="pt-6">
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">ยอดรวม</span>
+              <span className="text-muted-foreground">ยอดรวมสินค้า</span>
               <span className="font-medium">{formatCurrency(totalAmount.toString())}</span>
             </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">ยอดรวม</span>
-              <span className="font-medium">{formatCurrency(totalAmount.toString())}</span>
+
+            {/* G4: Bill-level Discount (collapsible) */}
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => setShowDiscount(!showDiscount)}
+                className="flex items-center gap-1 text-sm text-primary hover:underline"
+              >
+                <Tag className="h-3.5 w-3.5" />
+                {showDiscount ? 'ซ่อนส่วนลดบิล' : '▸ เพิ่มส่วนลดบิล'}
+              </button>
+
+              {showDiscount && (
+                <div className="animate-in fade-in slide-in-from-top-2 flex items-center gap-2 rounded-lg border border-dashed p-3 bg-muted/30">
+                  <select
+                    value={discountType}
+                    onChange={(e) => setDiscountType(e.target.value as 'PERCENT' | 'FIXED')}
+                    className="h-9 w-24 rounded-md border border-input bg-background px-2 text-sm"
+                  >
+                    <option value="FIXED">฿ บาท</option>
+                    <option value="PERCENT">% เปอร์เซ็นต์</option>
+                  </select>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max={discountType === 'PERCENT' ? 100 : undefined}
+                    value={discountValue === 0 ? '' : discountValue}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '') setDiscountValue(0);
+                      else setDiscountValue(parseFloat(val) || 0);
+                    }}
+                    placeholder={discountType === 'PERCENT' ? 'เช่น 10' : 'เช่น 50'}
+                    className="flex-1"
+                  />
+                  {discountType === 'PERCENT' && <Percent className="h-4 w-4 text-muted-foreground" />}
+                </div>
+              )}
             </div>
+
+            {billDiscountAmount > 0 && (
+              <div className="flex justify-between text-sm text-orange-600">
+                <span>ส่วนลดบิล {discountType === 'PERCENT' ? `(${discountValue}%)` : ''}</span>
+                <span>-{formatCurrency(billDiscountAmount.toString())}</span>
+              </div>
+            )}
+
+            <div className="flex justify-between border-t pt-2">
+              <span className="font-semibold">ยอดสุทธิ</span>
+              <span className="text-lg font-bold">{formatCurrency(netAmount.toString())}</span>
+            </div>
+
             {hasPermission('SALE_VIEW_PROFIT') && (
               <>
                 <div className="flex justify-between text-sm">

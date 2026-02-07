@@ -180,7 +180,7 @@ export async function createPOSSale(input: POSCreateSaleInput): Promise<POSCreat
       customerName: input.customerName || null,
       paymentMethod: input.paymentMethod as 'CASH' | 'TRANSFER' | 'CREDIT',
       notes: input.notes || null,
-      items: input.items,
+      items: input.items.map(item => ({ ...item, discountAmount: 0 })),
     });
 
     // Cast response to expected type to satisfy TS

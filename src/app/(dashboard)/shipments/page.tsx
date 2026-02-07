@@ -1,0 +1,76 @@
+import { Suspense } from 'react';
+import { getShipments } from '@/actions/shipments';
+import { ShipmentsTable } from '@/components/features/shipments/shipments-table';
+import { ShipmentsToolbar } from '@/components/features/shipments/shipments-toolbar';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { ShipmentStatsWidget } from '@/components/features/shipments/shipment-stats-widget';
+
+export const metadata = {
+  title: 'จัดส่งสินค้า | Shop Inventory',
+};
+
+interface ShipmentsPageProps {
+  searchParams: Promise<{
+    page?: string;
+    search?: string;
+    status?: string;
+    startDate?: string;
+    endDate?: string;
+  }>;
+}
+
+async function ShipmentsContent({ searchParams }: ShipmentsPageProps) {
+  const params = await searchParams;
+  const result = await getShipments({
+    page: params.page ? Number(params.page) : 1,
+    search: params.search,
+    status: params.status,
+    startDate: params.startDate,
+    endDate: params.endDate,
+  });
+
+  return (
+    <div className="space-y-4">
+      <ShipmentsToolbar
+        defaultSearch={params.search}
+        defaultStatus={params.status}
+      />
+      <ShipmentsTable
+        shipments={result.data as any}
+        pagination={result.pagination}
+      />
+    </div>
+  );
+}
+
+function ShipmentsSkeleton() {
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-3">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-10 w-40" />
+      </div>
+      <Skeleton className="h-96 w-full" />
+    </div>
+  );
+}
+
+export default function ShipmentsPage(props: ShipmentsPageProps) {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">จัดส่งสินค้า</h1>
+        <p className="text-muted-foreground">
+          จัดการรายการจัดส่งและติดตามพัสดุ
+        </p>
+      </div>
+
+      <ShipmentStatsWidget />
+
+      <Suspense fallback={<ShipmentsSkeleton />}>
+        <ShipmentsContent searchParams={props.searchParams} />
+      </Suspense>
+    </div>
+  );
+}

@@ -64,6 +64,7 @@ export async function getReportData(startDate?: string, endDate?: string): Promi
           profit: true,
           paymentMethod: true,
           customerName: true,
+          customer: { select: { name: true } },
         },
         orderBy: { date: 'asc' },
       }),
@@ -202,6 +203,7 @@ export async function getReportData(startDate?: string, endDate?: string): Promi
       dailyStats,
       sales: salesData.map(s => ({
         ...s,
+        customerName: s.customer?.name || s.customerName || 'ลูกค้าทั่วไป',
         totalAmount: toNumber(s.totalAmount),
         totalCost: toNumber(s.totalCost),
         profit: toNumber(s.profit),
@@ -223,4 +225,226 @@ export async function getReportData(startDate?: string, endDate?: string): Promi
     });
     throw new Error('ไม่สามารถดึงข้อมูลรายงานได้ กรุณาลองใหม่อีกครั้ง');
   }
+}
+
+// =============================================================================
+// ADVANCED REPORTS
+// =============================================================================
+
+/**
+ * Top selling products by revenue
+ */
+export async function getTopProducts(startDate?: string, endDate?: string, limit = 10) {
+  const ctx = await requirePermission('REPORT_VIEW_SALES');
+
+  const now = new Date();
+  const start = startDate ? new Date(startDate) : new Date(now.getFullYear(), now.getMonth(), 1);
+  const end = endDate ? new Date(endDate) : new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+  start.setHours(0, 0, 0, 0);
+  end.setHours(23, 59, 59, 999);
+
+  // Group sale items by product
+  const productStats = await db.saleItem.groupBy({
+    by: ['productId'],
+    where: {
+      sale: {
+        shopId: ctx.shopId,
+        date: { gte: start, lte: end },
+        status: { not: 'CANCELLED' },
+      },
+    },
+    _sum: {
+      subtotal: true,
+      quantity: true,
+    },
+    _count: true,
+    orderBy: { _sum: { subtotal: 'desc' } },
+    take: limit,
+  });
+
+  // Fetch product names
+  const productIds = productStats.map(p => p.productId);
+  const products = await db.product.findMany({
+    where: { id: { in: productIds } },
+    select: { id: true, name: true, sku: true, costPrice: true },
+  });
+
+  const productMap = new Map(products.map(p => [p.id, p]));
+
+  return productStats.map(stat => {
+    const product = productMap.get(stat.productId);
+    const revenue = toNumber(stat._sum.subtotal);
+    const qty = stat._sum.quantity || 0;
+    const costPrice = toNumber(product?.costPrice);
+    const estimatedProfit = revenue - (costPrice * qty);
+
+    return {
+      productId: stat.productId,
+      name: product?.name || 'Unknown',
+      sku: product?.sku || '',
+      quantity: qty,
+      revenue,
+      estimatedProfit,
+      orderCount: stat._count,
+    };
+  });
+}
+
+/**
+ * Profit breakdown by product
+ */
+export async function getProfitByProduct(startDate?: string, endDate?: string) {
+  const ctx = await requirePermission('REPORT_VIEW_SALES');
+
+  const now = new Date();
+  const start = startDate ? new Date(startDate) : new Date(now.getFullYear(), now.getMonth(), 1);
+  const end = endDate ? new Date(endDate) : new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+  start.setHours(0, 0, 0, 0);
+  end.setHours(23, 59, 59, 999);
+
+  // Get all sale items in period with product info
+  const saleItems = await db.saleItem.findMany({
+    where: {
+      sale: {
+        shopId: ctx.shopId,
+        date: { gte: start, lte: end },
+        status: { not: 'CANCELLED' },
+      },
+    },
+    select: {
+      productId: true,
+      quantity: true,
+      salePrice: true,
+      costPrice: true,
+      subtotal: true,
+      product: { select: { name: true, sku: true } },
+    },
+  });
+
+  // Aggregate in-memory by product
+  const profitMap = new Map<string, {
+    name: string;
+    sku: string;
+    totalQty: number;
+    totalRevenue: number;
+    totalCost: number;
+  }>();
+
+  saleItems.forEach(item => {
+    const key = item.productId;
+    const current = profitMap.get(key) || {
+      name: item.product?.name || 'Unknown',
+      sku: item.product?.sku || '',
+      totalQty: 0,
+      totalRevenue: 0,
+      totalCost: 0,
+    };
+    current.totalQty += item.quantity;
+    current.totalRevenue = money.add(current.totalRevenue, toNumber(item.subtotal));
+    current.totalCost = money.add(current.totalCost, money.multiply(toNumber(item.costPrice), item.quantity));
+    profitMap.set(key, current);
+  });
+
+  return Array.from(profitMap.entries())
+    .map(([productId, data]) => ({
+      productId,
+      ...data,
+      profit: calcProfit(data.totalRevenue, data.totalCost),
+      margin: data.totalRevenue > 0
+        ? Math.round(calcProfit(data.totalRevenue, data.totalCost) / data.totalRevenue * 100)
+        : 0,
+    }))
+    .sort((a, b) => b.profit - a.profit);
+}
+
+/**
+ * Compare two periods (e.g., this month vs last month)
+ */
+export async function getComparisonReport(
+  period1Start: string,
+  period1End: string,
+  period2Start: string,
+  period2End: string,
+) {
+  const ctx = await requirePermission('REPORT_VIEW_SALES');
+
+  const p1Start = new Date(period1Start);
+  const p1End = new Date(period1End);
+  const p2Start = new Date(period2Start);
+  const p2End = new Date(period2End);
+
+  p1Start.setHours(0, 0, 0, 0);
+  p1End.setHours(23, 59, 59, 999);
+  p2Start.setHours(0, 0, 0, 0);
+  p2End.setHours(23, 59, 59, 999);
+
+  const [period1Sales, period2Sales, period1Expenses, period2Expenses] = await Promise.all([
+    db.sale.aggregate({
+      where: {
+        shopId: ctx.shopId,
+        date: { gte: p1Start, lte: p1End },
+        status: { not: 'CANCELLED' },
+      },
+      _sum: { totalAmount: true, profit: true },
+      _count: true,
+    }),
+    db.sale.aggregate({
+      where: {
+        shopId: ctx.shopId,
+        date: { gte: p2Start, lte: p2End },
+        status: { not: 'CANCELLED' },
+      },
+      _sum: { totalAmount: true, profit: true },
+      _count: true,
+    }),
+    db.expense.aggregate({
+      where: {
+        shopId: ctx.shopId,
+        date: { gte: p1Start, lte: p1End },
+        deletedAt: null,
+      },
+      _sum: { amount: true },
+    }),
+    db.expense.aggregate({
+      where: {
+        shopId: ctx.shopId,
+        date: { gte: p2Start, lte: p2End },
+        deletedAt: null,
+      },
+      _sum: { amount: true },
+    }),
+  ]);
+
+  const p1Revenue = toNumber(period1Sales._sum.totalAmount);
+  const p2Revenue = toNumber(period2Sales._sum.totalAmount);
+  const p1Profit = toNumber(period1Sales._sum.profit);
+  const p2Profit = toNumber(period2Sales._sum.profit);
+  const p1Expenses = toNumber(period1Expenses._sum.amount);
+  const p2Expenses = toNumber(period2Expenses._sum.amount);
+
+  const pctChange = (current: number, previous: number) =>
+    previous > 0 ? Math.round(((current - previous) / previous) * 100) : current > 0 ? 100 : 0;
+
+  return {
+    period1: {
+      label: `${p1Start.toISOString().split('T')[0]} — ${p1End.toISOString().split('T')[0]}`,
+      revenue: p1Revenue,
+      profit: p1Profit,
+      expenses: p1Expenses,
+      orderCount: period1Sales._count,
+    },
+    period2: {
+      label: `${p2Start.toISOString().split('T')[0]} — ${p2End.toISOString().split('T')[0]}`,
+      revenue: p2Revenue,
+      profit: p2Profit,
+      expenses: p2Expenses,
+      orderCount: period2Sales._count,
+    },
+    changes: {
+      revenue: pctChange(p1Revenue, p2Revenue),
+      profit: pctChange(p1Profit, p2Profit),
+      expenses: pctChange(p1Expenses, p2Expenses),
+      orderCount: pctChange(period1Sales._count, period2Sales._count),
+    },
+  };
 }

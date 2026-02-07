@@ -1,27 +1,19 @@
 import { notFound } from 'next/navigation';
-import { PageHeader } from '@/components/layout/page-header';
-import { CustomerForm } from '@/components/features/customers/customer-form';
-import { getCustomer } from '@/actions/customers';
+import { getCustomerProfile } from '@/actions/customers';
+import { CustomerProfile } from '@/components/features/customers/customer-profile';
 
-interface EditCustomerPageProps {
+interface CustomerPageProps {
   params: { id: string };
 }
 
-export default async function EditCustomerPage({ params }: EditCustomerPageProps) {
-  let customer;
+export default async function CustomerPage({ params }: CustomerPageProps) {
+  let data;
 
   try {
-    customer = await getCustomer(params.id);
+    data = await getCustomerProfile(params.id);
   } catch {
     notFound();
   }
 
-  return (
-    <div>
-      <PageHeader title="แก้ไขลูกค้า" description={customer.name} />
-      <div className="max-w-2xl">
-        <CustomerForm customer={customer} />
-      </div>
-    </div>
-  );
+  return <CustomerProfile data={data} />;
 }

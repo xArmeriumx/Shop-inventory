@@ -7,6 +7,7 @@ import { paginatedQuery, buildSearchFilter } from '@/lib/pagination';
 import { supplierSchema, type SupplierInput } from '@/schemas/supplier';
 import type { ActionResponse } from '@/types/action-response';
 import type { Supplier } from '@prisma/client';
+import { toNumber } from '@/lib/money';
 
 // Get all suppliers for select/combobox
 export async function getSuppliersForSelect() {
@@ -201,4 +202,70 @@ export async function deleteSupplier(id: string): Promise<ActionResponse<void>> 
       message: 'เกิดข้อผิดพลาดในการลบผู้จำหน่าย',
     };
   }
+}
+
+// =============================================================================
+// SUPPLIER PROFILE (Full detail with purchases + stats)
+// =============================================================================
+
+export async function getSupplierProfile(id: string) {
+  const ctx = await requirePermission('SUPPLIER_VIEW');
+
+  const [supplier, purchases, stats] = await Promise.all([
+    // 1. Supplier info
+    db.supplier.findFirst({
+      where: { id, shopId: ctx.shopId, deletedAt: null },
+    }),
+
+    // 2. Recent purchases (latest 10)
+    db.purchase.findMany({
+      where: { supplierId: id, shopId: ctx.shopId },
+      select: {
+        id: true,
+        date: true,
+        totalCost: true,
+        status: true,
+        items: {
+          select: {
+            quantity: true,
+            product: { select: { name: true } },
+          },
+          take: 3,
+        },
+      },
+      orderBy: { date: 'desc' },
+      take: 10,
+    }),
+
+    // 3. Summary stats
+    db.purchase.aggregate({
+      where: {
+        supplierId: id,
+        shopId: ctx.shopId,
+        status: { not: 'CANCELLED' },
+      },
+      _sum: { totalCost: true },
+      _count: true,
+    }),
+  ]);
+
+  if (!supplier) {
+    throw new Error('ไม่พบข้อมูลผู้จำหน่าย');
+  }
+
+  // Get last purchase date
+  const lastPurchase = purchases.length > 0 ? purchases[0] : null;
+
+  return {
+    supplier,
+    purchases: purchases.map(p => ({
+      ...p,
+      totalCost: toNumber(p.totalCost),
+    })),
+    stats: {
+      totalSpend: toNumber(stats._sum?.totalCost),
+      orderCount: stats._count,
+      lastPurchaseDate: lastPurchase?.date || null,
+    },
+  };
 }

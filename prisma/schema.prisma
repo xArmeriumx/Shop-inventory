@@ -34,6 +34,8 @@ model User {
   customers     Customer[]
   lookupValues  LookupValue[]
   stockLogs     StockLog[]
+  shipments     Shipment[]
+  returns       Return[]      // G3: Returns
 }
 
 // ==================== Lookup System (Custom Dropdowns) ====================
@@ -113,6 +115,7 @@ model Shop {
   phone       String?  // เบอร์ติดต่อ
   logo        String?  // URL โลโก้
   taxId       String?  // เลขประจำตัวผู้เสียภาษี
+  invoicePrefix String? @default("INV")  // G2: prefix ใบกำกับภาษี
 
   // Original owner (for billing, cannot be removed)
   userId      String   @unique
@@ -132,6 +135,9 @@ model Shop {
   incomes     Income[]
   stockLogs   StockLog[]
   lookupValues LookupValue[]
+  shipments        Shipment[]
+  customerAddresses CustomerAddress[]
+  returns          Return[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -156,6 +162,13 @@ enum Permission {
   SALE_CREATE
   SALE_VIEW_PROFIT        // Sensitive: ดูกำไร
   SALE_CANCEL
+
+  // Returns (G3)
+  RETURN_VIEW
+  RETURN_CREATE
+
+  // Payment Verification (G1)
+  PAYMENT_VERIFY
 
   // Purchases
   PURCHASE_VIEW
@@ -203,6 +216,12 @@ enum Permission {
 
   // POS
   POS_ACCESS
+
+  // Shipments
+  SHIPMENT_VIEW
+  SHIPMENT_CREATE
+  SHIPMENT_EDIT
+  SHIPMENT_CANCEL
 }
 
 model Role {
@@ -259,7 +278,7 @@ model Product {
   name        String
   description String?
   sku         String?  // Compound unique below
-  category    String   // Legacy field for backward compatibility
+  category    String   // @deprecated — use categoryRef (categoryId) instead. Kept for legacy data.
   categoryId  String?  // FK to LookupValue
 
   costPrice   Decimal  @db.Decimal(10, 2)
@@ -288,6 +307,7 @@ model Product {
   purchaseItems PurchaseItem[]
   saleItems     SaleItem[]
   stockLogs     StockLog[]
+  returnItems   ReturnItem[]  // G3: Returns
 
   // Soft Delete
   deletedAt   DateTime?
@@ -361,6 +381,7 @@ model Customer {
   shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
   sales     Sale[]
+  addresses CustomerAddress[]
 
   // Soft Delete
   deletedAt DateTime?
@@ -382,7 +403,7 @@ model Purchase {
 
   supplierId  String?
   supplier    Supplier? @relation(fields: [supplierId], references: [id])
-  supplierName String? // Manual supplier name (when not using Supplier)
+  supplierName String? // @deprecated — use supplier (supplierId) instead. Kept for legacy data.
 
   totalCost   Decimal  @db.Decimal(10, 2)
   receiptUrl  String?
@@ -447,15 +468,31 @@ model Sale {
 
   customerId    String?
   customer      Customer? @relation(fields: [customerId], references: [id])
-  customerName  String?
+  customerName  String?  // @deprecated — use customer (customerId) instead. Kept for legacy data.
 
   totalAmount   Decimal  @db.Decimal(10, 2)
   totalCost     Decimal  @db.Decimal(10, 2)
   profit        Decimal  @db.Decimal(10, 2)
 
+  // G4: Discounts
+  discountType  String?   // "PERCENT" | "FIXED" | null (ไม่มีส่วนลด)
+  discountValue Decimal?  @db.Decimal(10, 2)  // ค่าที่ระบุ (% หรือจำนวนเงิน)
+  discountAmount Decimal  @default(0) @db.Decimal(10, 2)  // จำนวนเงินที่ลดจริง (คำนวณแล้ว)
+  netAmount     Decimal  @default(0) @db.Decimal(10, 2)  // ยอดสุทธิ = totalAmount - discountAmount
+
   paymentMethod String
   notes         String?
   receiptUrl    String?
+
+  // G1: Payment Verification
+  paymentStatus     String    @default("VERIFIED")  // PENDING | VERIFIED | REJECTED
+  paymentProof      String?   // Slip image URL
+  paymentVerifiedAt DateTime? // When payment was verified
+  paymentVerifiedBy String?   // UserId who verified
+  paymentNote       String?   // หมายเหตุ (เหตุผล reject, etc.)
+
+  // Sales Channel Tracking
+  channel           String    @default("WALK_IN")  // WALK_IN | SHOPEE | LAZADA | LINE | FACEBOOK | OTHER
 
   // Ownership
   userId        String
@@ -466,6 +503,8 @@ model Sale {
 
   items         SaleItem[]
   stockLogs     StockLog[]
+  shipments     Shipment[]
+  returns       Return[]     // G3: Returns
 
   // Cancel/Void (Audit-Ready)
   status        String    @default("ACTIVE")  // ACTIVE | CANCELLED
@@ -488,9 +527,11 @@ model Sale {
   @@index([date])
   @@index([customerId])
   
-  // ✅ NEW: Compound indexes for optimized queries
+  // Compound indexes for optimized queries
   @@index([shopId, date, status])  // Sales list with date range + status filter
   @@index([shopId, status])        // Sales list filtered by status
+  @@index([shopId, paymentStatus]) // G1: Filter by payment status
+  @@index([shopId, channel])       // Sales channel filtering
 }
 
 model SaleItem {
@@ -508,13 +549,19 @@ model SaleItem {
   subtotal    Decimal  @db.Decimal(10, 2)
   profit      Decimal  @db.Decimal(10, 2)
 
+  // G4: Item-level discount
+  discountAmount Decimal @default(0) @db.Decimal(10, 2)  // ส่วนลดต่อชิ้น (บาท)
+
+  // G3: Return tracking
+  returnItems ReturnItem[]
+
   @@index([saleId])
   @@index([productId])
 }
 
 model Expense {
   id          String   @id @default(cuid())
-  category    String   // Legacy field for backward compatibility
+  category    String   // @deprecated — use categoryRef (categoryId) instead. Kept for legacy data.
   categoryId  String?  // FK to LookupValue
   amount      Decimal  @db.Decimal(10, 2)
   description String?
@@ -553,7 +600,7 @@ model Expense {
 
 model Income {
   id          String   @id @default(cuid())
-  category    String   // Legacy field for backward compatibility
+  category    String   // @deprecated — use categoryRef (categoryId) instead. Kept for legacy data.
   categoryId  String?  // FK to LookupValue
   amount      Decimal  @db.Decimal(10, 2)
   description String?
@@ -611,8 +658,8 @@ model StockLog {
   quantity      Int
   balance       Int              // Balance snapshot after movement
   
-  referenceId   String?           // Legacy: Keep for flexibility
-  referenceType String?           // "SALE", "PURCHASE"
+  referenceId   String?           // @deprecated — use explicit saleId/purchaseId/returnId instead
+  referenceType String?           // @deprecated — use StockMovementType enum instead
 
   // Explicit Relations for better integrity & reporting
   saleId        String?
@@ -620,6 +667,9 @@ model StockLog {
   
   purchaseId    String?
   purchase      Purchase?         @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
+  
+  returnId      String?           // G3: Link to return
+  return        Return?           @relation(fields: [returnId], references: [id], onDelete: SetNull)
 
   note          String?
   
@@ -640,6 +690,143 @@ model StockLog {
   @@index([referenceId])
   @@index([saleId])
   @@index([purchaseId])
+  @@index([returnId])  // G3
+}
+
+// ==================== Returns (G3: คืนสินค้าบางส่วน) ====================
+
+model Return {
+  id              String       @id @default(cuid())
+  returnNumber    String       // RET-00001 (auto-gen per shop)
+  
+  saleId          String
+  sale            Sale         @relation(fields: [saleId], references: [id])
+  
+  reason          String       // เหตุผลการคืน
+  refundAmount    Decimal      @db.Decimal(10, 2)  // ยอดคืนรวม
+  refundMethod    String       // CASH | TRANSFER | CREDIT
+  
+  status          String       @default("COMPLETED")  // COMPLETED | CANCELLED
+  
+  // Ownership
+  userId          String
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shopId          String
+  shop            Shop         @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  
+  items           ReturnItem[]
+  stockLogs       StockLog[]
+  
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  
+  @@unique([shopId, returnNumber])
+  @@index([shopId])
+  @@index([saleId])
+  @@index([shopId, createdAt])
+}
+
+model ReturnItem {
+  id              String       @id @default(cuid())
+  
+  returnId        String
+  return          Return       @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  
+  saleItemId      String
+  saleItem        SaleItem     @relation(fields: [saleItemId], references: [id])
+  
+  productId       String
+  product         Product      @relation(fields: [productId], references: [id])
+  
+  quantity        Int          // จำนวนที่คืน
+  refundPerUnit   Decimal      @db.Decimal(10, 2)  // ราคาคืนต่อชิ้น (= net price)
+  refundAmount    Decimal      @db.Decimal(10, 2)  // = refundPerUnit × quantity
+  
+  @@index([returnId])
+  @@index([saleItemId])
+  @@index([productId])
+}
+
+// ==================== Shipments ====================
+
+enum ShipmentStatus {
+  PENDING
+  SHIPPED
+  DELIVERED
+  RETURNED
+  CANCELLED
+}
+
+model Shipment {
+  id               String         @id @default(cuid())
+  shipmentNumber   String         // SHP-00001 (race-safe auto-gen)
+
+  // Link to Sale (1:1 enforced)
+  saleId           String
+  sale             Sale           @relation(fields: [saleId], references: [id])
+
+  // Recipient
+  recipientName    String         @db.VarChar(200)
+  recipientPhone   String?        @db.VarChar(20)
+  shippingAddress  String         @db.Text
+
+  // Saved address (optional link)
+  customerAddressId String?
+  customerAddress   CustomerAddress? @relation(fields: [customerAddressId], references: [id])
+
+  // Tracking
+  trackingNumber   String?        @db.VarChar(100)
+  shippingProvider String?        @db.VarChar(100)
+  shippingCost     Decimal?       @db.Decimal(10, 2)
+
+  // Status
+  status           ShipmentStatus @default(PENDING)
+  shippedAt        DateTime?
+  deliveredAt      DateTime?
+  notes            String?        @db.Text
+
+  // Ownership
+  userId           String
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shopId           String
+  shop             Shop           @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  @@unique([shopId, shipmentNumber])
+  @@index([shopId, status])
+  @@index([shopId, createdAt])
+  @@index([trackingNumber])
+}
+
+model CustomerAddress {
+  id             String   @id @default(cuid())
+  
+  customerId     String
+  customer       Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  label          String?  @db.VarChar(50)   // "บ้าน", "ที่ทำงาน"
+  recipientName  String   @db.VarChar(200)  // ชื่อผู้รับ
+  phone          String?  @db.VarChar(20)
+  address        String   @db.Text
+  district       String?  @db.VarChar(100)
+  subDistrict    String?  @db.VarChar(100)
+  province       String?  @db.VarChar(100)
+  postalCode     String?  @db.VarChar(10)
+  isDefault      Boolean  @default(false)
+
+  shopId         String
+  shop           Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  shipments      Shipment[]
+
+  deletedAt      DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([shopId])
 }
 
 // ==================== System Monitoring ====================
