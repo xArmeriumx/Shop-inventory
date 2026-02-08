@@ -211,7 +211,7 @@ export async function deleteSupplier(id: string): Promise<ActionResponse<void>> 
 export async function getSupplierProfile(id: string) {
   const ctx = await requirePermission('SUPPLIER_VIEW');
 
-  const [supplier, purchases, stats] = await Promise.all([
+  const [supplier, purchases, stats, topProducts] = await Promise.all([
     // 1. Supplier info
     db.supplier.findFirst({
       where: { id, shopId: ctx.shopId, deletedAt: null },
@@ -246,6 +246,23 @@ export async function getSupplierProfile(id: string) {
       },
       _sum: { totalCost: true },
       _count: true,
+      _avg: { totalCost: true },
+    }),
+
+    // 4. Top products purchased from this supplier
+    db.purchaseItem.groupBy({
+      by: ['productId'],
+      where: {
+        purchase: {
+          supplierId: id,
+          shopId: ctx.shopId,
+          status: { not: 'CANCELLED' },
+        },
+      },
+      _sum: { quantity: true, subtotal: true },
+      _count: true,
+      orderBy: { _sum: { subtotal: 'desc' } },
+      take: 10,
     }),
   ]);
 
@@ -253,8 +270,43 @@ export async function getSupplierProfile(id: string) {
     throw new Error('ไม่พบข้อมูลผู้จำหน่าย');
   }
 
+  // Get product names for top products
+  let topProductsWithNames: any[] = [];
+  if (topProducts.length > 0) {
+    const productIds = topProducts.map((tp: any) => tp.productId);
+    const products = await db.product.findMany({
+      where: { id: { in: productIds } },
+      select: { id: true, name: true, sku: true },
+    });
+    const productMap = new Map(products.map(p => [p.id, p]));
+
+    topProductsWithNames = topProducts.map((tp: any) => {
+      const product = productMap.get(tp.productId);
+      return {
+        productId: tp.productId,
+        name: product?.name || 'สินค้าที่ลบแล้ว',
+        sku: product?.sku || null,
+        totalQuantity: tp._sum.quantity || 0,
+        totalCost: toNumber(tp._sum.subtotal),
+        orderCount: tp._count,
+      };
+    });
+  }
+
   // Get last purchase date
   const lastPurchase = purchases.length > 0 ? purchases[0] : null;
+
+  // Calculate purchase frequency (avg days between orders)
+  let avgDaysBetweenOrders = 0;
+  if (purchases.length >= 2) {
+    const activePurchases = purchases.filter(p => p.status !== 'CANCELLED');
+    if (activePurchases.length >= 2) {
+      const first = activePurchases[activePurchases.length - 1].date;
+      const last = activePurchases[0].date;
+      const daysDiff = Math.max(1, Math.round((last.getTime() - first.getTime()) / (1000 * 60 * 60 * 24)));
+      avgDaysBetweenOrders = Math.round(daysDiff / (activePurchases.length - 1));
+    }
+  }
 
   return {
     supplier,
@@ -265,7 +317,11 @@ export async function getSupplierProfile(id: string) {
     stats: {
       totalSpend: toNumber(stats._sum?.totalCost),
       orderCount: stats._count,
+      avgOrderValue: toNumber(stats._avg?.totalCost),
       lastPurchaseDate: lastPurchase?.date || null,
+      avgDaysBetweenOrders,
     },
+    topProducts: topProductsWithNames,
   };
 }
+

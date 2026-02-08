@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import { Package, TrendingUp, ShoppingCart, AlertCircle, CreditCard, Truck, Wallet } from 'lucide-react';
+import { Package, TrendingUp, ShoppingCart, AlertCircle, CreditCard, Truck, Wallet, Warehouse } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getDashboardStats, getMonthlyStats } from '@/actions/dashboard';
@@ -60,12 +60,20 @@ async function DashboardContent() {
       iconColor: 'text-cyan-600',
       href: '/shipments?status=PENDING',
     },
+    {
+      title: 'Stock Value',
+      value: formatCurrency(stats.stockValue.total.toString()),
+      subtitle: `${stats.stockValue.itemCount} items in stock`,
+      icon: Warehouse,
+      iconColor: 'text-indigo-600',
+      href: '/reports?tab=stock-value',
+    },
   ];
 
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Stats Cards - 2 columns on mobile, 3 on md, 6 on lg */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
         {statsCards.map((stat, index) => {
           const content = (
             <Card key={index} className={(stat as any).href ? 'hover:bg-muted/50 transition-colors cursor-pointer' : ''}>

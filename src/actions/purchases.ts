@@ -10,6 +10,54 @@ import type { Purchase } from '@prisma/client';
 import { StockService } from '@/lib/stock-service';
 import type { ActionResponse } from '@/types/action-response';
 import { money, toNumber, calcSubtotal } from '@/lib/money';
+import { Prisma } from '@prisma/client';
+
+// =============================================================================
+// PURCHASE NUMBER GENERATION (Race-condition safe)
+// =============================================================================
+
+const MAX_PURCHASE_RETRIES = 5;
+
+/**
+ * Generate a unique purchase number: PUR-00001, PUR-00002, ...
+ * Race-condition safe with retry + collision check.
+ */
+async function generatePurchaseNumber(
+  tx: Prisma.TransactionClient,
+  shopId: string
+): Promise<string> {
+  for (let attempt = 0; attempt < MAX_PURCHASE_RETRIES; attempt++) {
+    const lastPurchase = await tx.purchase.findFirst({
+      where: { shopId, purchaseNumber: { not: null } },
+      orderBy: { purchaseNumber: 'desc' },
+      select: { purchaseNumber: true },
+    });
+
+    const lastNumber = lastPurchase?.purchaseNumber
+      ? parseInt(lastPurchase.purchaseNumber.split('-')[1] || '0')
+      : 0;
+
+    const newNumber = lastNumber + 1 + attempt;
+    const purchaseNumber = `PUR-${String(newNumber).padStart(5, '0')}`;
+
+    const exists = await tx.purchase.findFirst({
+      where: { shopId, purchaseNumber },
+      select: { id: true },
+    });
+
+    if (!exists) {
+      return purchaseNumber;
+    }
+
+    await logger.warn('Purchase number collision, retrying', {
+      purchaseNumber,
+      attempt,
+      shopId,
+    });
+  }
+
+  throw new Error('ไม่สามารถสร้างเลข Purchase ได้ กรุณาลองใหม่');
+}
 
 interface GetPurchasesParams {
   page?: number;
@@ -139,10 +187,14 @@ export async function createPurchase(input: PurchaseInput): Promise<ActionRespon
         0
       );
 
+      // Generate purchase number
+      const purchaseNumber = await generatePurchaseNumber(tx, ctx.shopId);
+
       // Create purchase
       const newPurchase = await tx.purchase.create({
         data: {
           ...purchaseData,
+          purchaseNumber,
           date: purchaseData.date ? new Date(purchaseData.date) : new Date(),
           userId: ctx.userId,
           shopId: ctx.shopId,  // RBAC: Set shopId for new purchase
@@ -293,8 +345,9 @@ export async function cancelPurchase(input: CancelPurchaseInput): Promise<Action
         }
       }
 
-      // Reduce stock with movement log
+      // Reduce stock + revert costPrice for each item
       for (const item of purchase.items) {
+        // 1. Reduce stock with movement log
         await StockService.recordMovement({
           productId: item.productId,
           type: 'PURCHASE_CANCEL',
@@ -307,6 +360,30 @@ export async function cancelPurchase(input: CancelPurchaseInput): Promise<Action
           date: new Date(),
           tx,
         });
+
+        // 2. Revert costPrice to previous purchase's cost
+        // Find the most recent non-cancelled purchase item for this product
+        // (excluding the current purchase being cancelled)
+        const previousPurchaseItem = await tx.purchaseItem.findFirst({
+          where: {
+            productId: item.productId,
+            purchase: {
+              id: { not: purchase.id },
+              status: { not: 'CANCELLED' },
+              shopId: ctx.shopId,
+            },
+          },
+          orderBy: { purchase: { date: 'desc' } },
+          select: { costPrice: true },
+        });
+
+        if (previousPurchaseItem) {
+          await tx.product.update({
+            where: { id: item.productId },
+            data: { costPrice: previousPurchaseItem.costPrice },
+          });
+        }
+        // If no previous purchase exists, keep current costPrice as-is
       }
 
       // Mark purchase as cancelled (not delete)

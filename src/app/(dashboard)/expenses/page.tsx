@@ -6,6 +6,7 @@ import { getExpenses } from '@/actions/expenses';
 import { ExpensesTable } from '@/components/features/expenses/expenses-table';
 import { ExpensesToolbar } from '@/components/features/expenses/expenses-toolbar';
 import { ScanReceiptButton } from '@/components/features/expenses/scan-receipt-button';
+import { ExpensesExportButton } from '@/components/features/expenses/expenses-export-button';
 
 interface ExpensesPageProps {
   searchParams: {
@@ -36,6 +37,7 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
     <div>
       <PageHeader title="ค่าใช้จ่าย" description="บันทึกและจัดการค่าใช้จ่าย">
         <div className="flex items-center gap-2">
+          <ExpensesExportButton />
           <ScanReceiptButton />
           <Button asChild>
             <Link href="/expenses/new">

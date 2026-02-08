@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { getCustomers } from '@/actions/customers';
 import { CustomersTable } from '@/components/features/customers/customers-table';
 import { CustomersToolbar } from '@/components/features/customers/customers-toolbar';
+import { CustomersExportButton } from '@/components/features/customers/customers-export-button';
 
 interface CustomersPageProps {
   searchParams: {
@@ -25,12 +26,15 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
   return (
     <div>
       <PageHeader title="ลูกค้า" description="จัดการข้อมูลลูกค้า">
-        <Button asChild>
-          <Link href="/customers/new">
-            <Plus className="mr-2 h-4 w-4" />
-            เพิ่มลูกค้า
-          </Link>
-        </Button>
+        <div className="flex gap-2">
+          <CustomersExportButton />
+          <Button asChild>
+            <Link href="/customers/new">
+              <Plus className="mr-2 h-4 w-4" />
+              เพิ่มลูกค้า
+            </Link>
+          </Button>
+        </div>
       </PageHeader>
 
       <div className="space-y-4">
@@ -40,3 +44,4 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
     </div>
   );
 }
+

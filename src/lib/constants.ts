@@ -28,6 +28,22 @@ export const EXPENSE_CATEGORIES = [
   { value: 'OTHER', label: 'อื่นๆ' },
 ] as const;
 
+export const SALES_CHANNELS = [
+  { value: 'WALK_IN', label: 'หน้าร้าน' },
+  { value: 'SHOPEE', label: 'Shopee' },
+  { value: 'LAZADA', label: 'Lazada' },
+  { value: 'LINE', label: 'LINE' },
+  { value: 'FACEBOOK', label: 'Facebook' },
+  { value: 'OTHER', label: 'อื่นๆ' },
+] as const;
+
+export const SALES_STATUSES = [
+  { value: 'ACTIVE', label: 'ปกติ' },
+  { value: 'CANCELLED', label: 'ยกเลิก' },
+] as const;
+
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number]['value'];
 export type ProductCategory = (typeof PRODUCT_CATEGORIES)[number]['value'];
 export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number]['value'];
+export type SalesChannel = (typeof SALES_CHANNELS)[number]['value'];
+export type SalesStatus = (typeof SALES_STATUSES)[number]['value'];

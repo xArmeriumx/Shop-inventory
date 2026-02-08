@@ -6,6 +6,7 @@ import { logger } from '@/lib/logger';
 import { requirePermission, hasPermission } from '@/lib/auth-guard';
 import { paginatedQuery, buildSearchFilter, buildDateRangeFilter } from '@/lib/pagination';
 import { saleSchema, type SaleInput } from '@/schemas/sale';
+import { NotificationService } from '@/lib/notification-service';
 import type { Sale, SaleItem, Prisma } from '@prisma/client';
 import { StockService } from '@/lib/stock-service';
 import type { ActionResponse } from '@/types/action-response';
@@ -140,6 +141,8 @@ interface GetSalesParams {
   startDate?: string;
   endDate?: string;
   paymentMethod?: string;
+  channel?: string;
+  status?: string;
 }
 
 type SaleWithItems = Sale & {
@@ -166,6 +169,8 @@ export async function getSales(params: GetSalesParams = {}) {
     startDate,
     endDate,
     paymentMethod,
+    channel,
+    status,
   } = params;
 
   const searchFilter = buildSearchFilter(search, ['invoiceNumber', 'customerName', 'notes']);
@@ -176,6 +181,8 @@ export async function getSales(params: GetSalesParams = {}) {
     ...(searchFilter && searchFilter),
     ...(dateFilter && { date: dateFilter }),
     ...(paymentMethod && { paymentMethod }),
+    ...(channel && { channel }),
+    ...(status && { status }),
   };
 
   const result = await paginatedQuery<SaleWithItems>(db.sale as any, {
@@ -463,7 +470,7 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>
       // 6. Create Sale Record (Header + Items)
       // =================================================================
       // G1: Auto-verify cash payments, set PENDING for transfers
-      const paymentStatus = saleData.paymentMethod === 'CASH' ? 'VERIFIED' : 'VERIFIED';
+      const paymentStatus = saleData.paymentMethod === 'CASH' ? 'VERIFIED' : 'PENDING';
       
       const sale = await tx.sale.create({
         data: {
@@ -543,6 +550,17 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>
 
     revalidatePath('/sales');
     revalidatePath('/dashboard');
+
+    // Notification: New sale (non-blocking)
+    NotificationService.create({
+      shopId: ctx.shopId,
+      type: 'NEW_SALE',
+      severity: 'INFO',
+      title: `ยอดขายใหม่ ${result.invoiceNumber}`,
+      message: `ยอดรวม ${result.totalAmount} บาท`,
+      link: `/sales/${result.id}`,
+    }).catch(() => {});
+
     return {
       success: true,
       message: 'บันทึกการขายสำเร็จ',
@@ -605,10 +623,16 @@ export async function cancelSale(input: CancelSaleInput) {
     });
 
     await db.$transaction(async (tx) => {
-      // Get sale with items
+      // Get sale with items + their return history
       const sale = await tx.sale.findFirst({
         where: { id, shopId: ctx.shopId },
-        include: { items: true },
+        include: {
+          items: {
+            include: {
+              returnItems: { select: { quantity: true } },
+            },
+          },
+        },
       });
 
       if (!sale) {
@@ -621,10 +645,11 @@ export async function cancelSale(input: CancelSaleInput) {
       }
 
       // =================================================================
-      // Auto-cancel linked shipment (if exists)
+      // Auto-cancel linked shipments + cleanup auto-expenses
       // =================================================================
       const linkedShipments = await tx.shipment.findMany({
         where: { saleId: id, status: { not: 'CANCELLED' } },
+        select: { id: true, shipmentNumber: true },
       });
       for (const linkedShipment of linkedShipments) {
         await tx.shipment.update({
@@ -634,44 +659,64 @@ export async function cancelSale(input: CancelSaleInput) {
             notes: `ยกเลิกอัตโนมัติ: Sale ${sale.invoiceNumber} ถูกยกเลิก`,
           },
         });
+
+        // Delete auto-created shipping expense (matched by description pattern)
+        await tx.expense.deleteMany({
+          where: {
+            shopId: ctx.shopId,
+            category: 'ค่าจัดส่ง',
+            description: { contains: linkedShipment.shipmentNumber },
+          },
+        });
       }
 
-       // =================================================================
+      // =================================================================
       // คืนสต็อกสินค้ากลับเข้าไป (Atomic Restore Stock)
+      // CRITICAL: Deduct already-returned quantity to prevent double-restore
       // =================================================================
       for (const item of sale.items) {
-        // Atomic stock restoration
-        await atomicRestoreStock(tx, item.productId, item.quantity);
+        // Calculate how many were already returned for this item
+        const alreadyReturned = item.returnItems.reduce(
+          (sum: number, ri: { quantity: number }) => sum + ri.quantity, 0
+        );
+        // Only restore the non-returned portion
+        const restoreQty = item.quantity - alreadyReturned;
 
-        // Get updated stock balance for the log
-        const updatedProduct = await tx.product.findUnique({
-          where: { id: item.productId },
-          select: { stock: true, minStock: true },
-        });
+        if (restoreQty > 0) {
+          // Atomic stock restoration
+          await atomicRestoreStock(tx, item.productId, restoreQty);
 
-        if (updatedProduct) {
-          // Update isLowStock flag
-          const isLowStock = updatedProduct.stock <= updatedProduct.minStock;
-          await tx.product.update({
+          // Get updated stock balance for the log
+          const updatedProduct = await tx.product.findUnique({
             where: { id: item.productId },
-            data: { isLowStock },
+            select: { stock: true, minStock: true },
           });
 
-          // Create stock log entry
-          await tx.stockLog.create({
-            data: {
-              type: 'SALE_CANCEL',
-              productId: item.productId,
-              quantity: item.quantity, // Positive = restore
-              balance: updatedProduct.stock,
-              referenceId: sale.id,
-              referenceType: 'SALE_CANCEL',
-              note: `ยกเลิกการขาย ${sale.invoiceNumber} - ${cancelReason}`,
-              date: new Date(),
-              userId,
-              shopId: sale.shopId || ctx.shopId,
-            },
-          });
+          if (updatedProduct) {
+            // Update isLowStock flag
+            const isLowStock = updatedProduct.stock <= updatedProduct.minStock;
+            await tx.product.update({
+              where: { id: item.productId },
+              data: { isLowStock },
+            });
+
+            // Create stock log entry
+            await tx.stockLog.create({
+              data: {
+                type: 'SALE_CANCEL',
+                productId: item.productId,
+                quantity: restoreQty, // Only non-returned portion
+                balance: updatedProduct.stock,
+                referenceId: sale.id,
+                referenceType: 'SALE_CANCEL',
+                note: `ยกเลิกการขาย ${sale.invoiceNumber} - ${cancelReason}` +
+                  (alreadyReturned > 0 ? ` (คืนแล้ว ${alreadyReturned} ชิ้น)` : ''),
+                date: new Date(),
+                userId,
+                shopId: sale.shopId || ctx.shopId,
+              },
+            });
+          }
         }
       }
 
@@ -689,6 +734,8 @@ export async function cancelSale(input: CancelSaleInput) {
 
     revalidatePath('/sales');
     revalidatePath('/products');
+    revalidatePath('/expenses');
+    revalidatePath('/shipments');
     revalidatePath('/dashboard');
     return { success: true };
   } catch (error: any) {

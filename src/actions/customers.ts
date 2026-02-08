@@ -18,7 +18,7 @@ export async function getCustomers(params: GetCustomersParams = {}) {
   const ctx = await requirePermission('CUSTOMER_VIEW'); //require permission
   const { page = 1, limit = 20, search } = params;
 
-  const searchFilter = buildSearchFilter(search, ['name', 'phone', 'address']);
+  const searchFilter = buildSearchFilter(search, ['name', 'phone', 'address', 'email']);
 
   const where = {
     shopId: ctx.shopId, 
@@ -303,6 +303,7 @@ export async function getCustomerProfile(id: string) {
       id: customer.id,
       name: customer.name,
       phone: customer.phone,
+      email: customer.email,
       address: customer.address,
       taxId: customer.taxId,
       notes: customer.notes,

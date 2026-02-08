@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth-guard';
 import { StockService } from '@/lib/stock-service';
+import { NotificationService } from '@/lib/notification-service';
 import type { ActionResponse } from '@/types/action-response';
 import { money, toNumber, calcSubtotal } from '@/lib/money';
 import { z } from 'zod';
@@ -193,12 +194,47 @@ export async function createReturn(input: CreateReturnInput): Promise<ActionResp
         });
       }
 
+      // 2.6 Adjust original Sale financials (profit, netAmount, totalAmount)
+      // Calculate cost of returned items to properly adjust profit
+      let totalReturnCost = 0;
+      for (const item of data.items) {
+        const saleItem = sale.items.find(si => si.id === item.saleItemId);
+        if (saleItem) {
+          const costPerUnit = toNumber(saleItem.costPrice);
+          totalReturnCost = money.add(totalReturnCost, calcSubtotal(item.quantity, costPerUnit));
+        }
+      }
+
+      // profit adjustment = refund - cost (we're losing the revenue but recovering the cost)
+      const profitAdjustment = money.subtract(totalRefund, totalReturnCost);
+
+      await tx.sale.update({
+        where: { id: data.saleId },
+        data: {
+          totalAmount:  { decrement: totalRefund },
+          netAmount:    { decrement: totalRefund },
+          totalCost:    { decrement: totalReturnCost },
+          profit:       { decrement: profitAdjustment },
+        },
+      });
+
       return returnRecord;
     });
 
     revalidatePath('/sales');
     revalidatePath(`/sales/${data.saleId}`);
     revalidatePath('/returns');
+    revalidatePath('/dashboard');
+
+    // Notification: Return created (non-blocking)
+    NotificationService.create({
+      shopId: ctx.shopId,
+      type: 'RETURN_CREATED',
+      severity: 'WARNING',
+      title: `คืนสินค้า ${result.returnNumber}`,
+      message: `คืนเงิน ${result.refundAmount} บาท`,
+      link: `/returns/${result.id}`,
+    }).catch(() => {});
 
     return {
       success: true,

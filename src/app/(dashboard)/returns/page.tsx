@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Plus } from 'lucide-react';
 import { Guard } from '@/components/auth/guard';
+import { ReturnsExportButton } from '@/components/features/returns/returns-export-button';
 
 export const metadata = {
   title: 'คืนสินค้า | Shop Inventory',
@@ -52,14 +53,17 @@ export default function ReturnsPage(props: ReturnsPageProps) {
             จัดการรายการคืนสินค้าและคืนเงิน
           </p>
         </div>
-        <Guard permission="RETURN_CREATE">
-          <Button asChild>
-            <Link href="/returns/create">
-              <Plus className="h-4 w-4 mr-2" />
-              คืนสินค้า
-            </Link>
-          </Button>
-        </Guard>
+        <div className="flex gap-2">
+          <ReturnsExportButton />
+          <Guard permission="RETURN_CREATE">
+            <Button asChild>
+              <Link href="/returns/create">
+                <Plus className="h-4 w-4 mr-2" />
+                คืนสินค้า
+              </Link>
+            </Button>
+          </Guard>
+        </div>
       </div>
 
       <Suspense fallback={<ReturnsSkeleton />}>
@@ -68,3 +72,4 @@ export default function ReturnsPage(props: ReturnsPageProps) {
     </div>
   );
 }
+

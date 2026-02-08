@@ -4,7 +4,7 @@ import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Search, X, Calendar } from 'lucide-react';
-import { PAYMENT_METHODS } from '@/lib/constants';
+import { PAYMENT_METHODS, SALES_CHANNELS, SALES_STATUSES } from '@/lib/constants';
 import { useCallback, useState, useTransition } from 'react';
 
 interface SalesToolbarProps {
@@ -12,6 +12,8 @@ interface SalesToolbarProps {
   startDate?: string;
   endDate?: string;
   paymentMethod?: string;
+  channel?: string;
+  status?: string;
 }
 
 export function SalesToolbar({
@@ -19,6 +21,8 @@ export function SalesToolbar({
   startDate = '',
   endDate = '',
   paymentMethod = '',
+  channel = '',
+  status = '',
 }: SalesToolbarProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -71,7 +75,7 @@ export function SalesToolbar({
     router.push(pathname);
   };
 
-  const hasFilters = search || startDate || endDate || paymentMethod;
+  const hasFilters = search || startDate || endDate || paymentMethod || channel || status;
 
   return (
     <div className="space-y-4">
@@ -92,18 +96,46 @@ export function SalesToolbar({
           </Button>
         </div>
 
-        <select
-          value={paymentMethod}
-          onChange={(e) => updateParams({ paymentMethod: e.target.value })}
-          className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
-        >
-          <option value="">ทุกวิธีชำระ</option>
-          {PAYMENT_METHODS.map((method) => (
-            <option key={method.value} value={method.value}>
-              {method.label}
-            </option>
-          ))}
-        </select>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={channel}
+            onChange={(e) => updateParams({ channel: e.target.value })}
+            className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+          >
+            <option value="">ทุกช่องทาง</option>
+            {SALES_CHANNELS.map((ch) => (
+              <option key={ch.value} value={ch.value}>
+                {ch.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={paymentMethod}
+            onChange={(e) => updateParams({ paymentMethod: e.target.value })}
+            className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+          >
+            <option value="">ทุกวิธีชำระ</option>
+            {PAYMENT_METHODS.map((method) => (
+              <option key={method.value} value={method.value}>
+                {method.label}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={status}
+            onChange={(e) => updateParams({ status: e.target.value })}
+            className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+          >
+            <option value="">ทุกสถานะ</option>
+            {SALES_STATUSES.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </div>
 
         {hasFilters && (
           <Button variant="ghost" size="sm" onClick={clearFilters}>
@@ -141,3 +173,4 @@ export function SalesToolbar({
     </div>
   );
 }
+

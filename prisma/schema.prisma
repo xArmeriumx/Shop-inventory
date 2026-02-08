@@ -138,6 +138,7 @@ model Shop {
   shipments        Shipment[]
   customerAddresses CustomerAddress[]
   returns          Return[]
+  notifications    Notification[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -369,6 +370,7 @@ model Customer {
   id        String   @id @default(cuid())
   name      String
   phone     String?
+  email     String?
   address   String?
   taxId     String?
   notes     String?
@@ -398,8 +400,9 @@ model Customer {
 // ==================== Transactions ====================
 
 model Purchase {
-  id          String   @id @default(cuid())
-  date        DateTime @default(now())
+  id              String   @id @default(cuid())
+  purchaseNumber  String?  // PUR-00001 (auto-gen per shop)
+  date            DateTime @default(now())
 
   supplierId  String?
   supplier    Supplier? @relation(fields: [supplierId], references: [id])
@@ -431,6 +434,7 @@ model Purchase {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  @@unique([shopId, purchaseNumber])
   @@index([userId])
   @@index([userId, deletedAt])
   @@index([userId, date])
@@ -858,4 +862,28 @@ model SystemLog {
   @@index([level])
   @@index([createdAt])
   @@index([shopId])
+}
+
+// ==================== Notification System ====================
+
+model Notification {
+  id          String   @id @default(cuid())
+  shopId      String
+  shop        Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  userId      String?  // null = broadcast to all shop members
+  type        String   // LOW_STOCK | NEW_SALE | PAYMENT_PENDING | RETURN_CREATED
+  severity    String   @default("INFO")  // INFO | WARNING | CRITICAL
+  title       String
+  message     String
+  link        String?  // Deep link e.g. /products/xxx
+  metadata    Json?    // Extra context e.g. { productId, amount }
+  isRead      Boolean  @default(false)
+  readAt      DateTime?
+  groupKey    String?  // Dedup key e.g. "LOW_STOCK:productId123"
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime?
+
+  @@unique([shopId, groupKey])
+  @@index([shopId, userId, isRead, createdAt])
+  @@index([shopId, createdAt])
 }

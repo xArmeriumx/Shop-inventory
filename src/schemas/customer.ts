@@ -19,7 +19,13 @@ export const customerSchema = z.object({
     .max(13, 'เลขประจำตัวผู้เสียภาษีต้องไม่เกิน 13 ตัวอักษร')
     .optional()
     .nullable(),
-  // Note: email field removed - not in Prisma Customer model
+  email: z
+    .string()
+    .email('รูปแบบอีเมลไม่ถูกต้อง')
+    .max(254, 'อีเมลต้องไม่เกิน 254 ตัวอักษร')
+    .optional()
+    .nullable()
+    .transform((val) => val?.trim() || null),
   address: z
     .string()
     .max(500, 'ที่อยู่ต้องไม่เกิน 500 ตัวอักษร')

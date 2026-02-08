@@ -307,11 +307,26 @@ export async function createShipment(input: ShipmentInput): Promise<ActionRespon
         },
       });
 
+      // Auto-create Expense when shippingCost is provided
+      if (data.shippingCost && data.shippingCost > 0) {
+        await tx.expense.create({
+          data: {
+            category: 'ค่าจัดส่ง',
+            amount: data.shippingCost,
+            description: `ค่าส่ง ${shipmentNumber} (${sale.invoiceNumber || ''}) - ${data.recipientName}`,
+            date: new Date(),
+            userId: ctx.userId,
+            shopId: ctx.shopId,
+          },
+        });
+      }
+
       return shipment;
     });
 
     revalidatePath('/shipments');
     revalidatePath('/sales');
+    revalidatePath('/expenses');
     revalidatePath('/dashboard');
     return {
       success: true,

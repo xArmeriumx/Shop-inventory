@@ -1,6 +1,7 @@
 'use client';
 import { Button } from '@/components/ui/button';
 import { Menu } from 'lucide-react';
+import { NotificationBell } from '@/components/features/notifications/notification-bell';
 
 interface HeaderProps {
   user?: {
@@ -27,6 +28,9 @@ export function Header({ user, onMenuClick }: HeaderProps) {
 
       {/* Spacer */}
       <div className="flex-1" />
+
+      {/* Notification Bell */}
+      <NotificationBell />
 
       {/* User info */}
       {user && (

@@ -12,6 +12,9 @@ import {
   TrendingUp,
   Calendar,
   Plus,
+  Package,
+  Clock,
+  Wallet,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -37,7 +40,7 @@ export default async function SupplierProfilePage({ params }: { params: { id: st
     notFound();
   }
 
-  const { supplier, purchases, stats } = data;
+  const { supplier, purchases, stats, topProducts } = data;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -63,30 +66,50 @@ export default async function SupplierProfilePage({ params }: { params: { id: st
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-3 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <Card>
-          <CardContent className="pt-6">
+          <CardContent className="pt-5 pb-4">
             <div className="flex items-center gap-2 text-muted-foreground mb-1">
-              <TrendingUp className="h-4 w-4" />
-              <span className="text-xs sm:text-sm">Total Spend</span>
+              <TrendingUp className="h-4 w-4 text-blue-600" />
+              <span className="text-xs">ยอดซื้อรวม</span>
             </div>
-            <p className="text-lg sm:text-2xl font-bold">{formatCurrency(stats.totalSpend)}</p>
+            <p className="text-lg sm:text-xl font-bold">{formatCurrency(stats.totalSpend)}</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
+          <CardContent className="pt-5 pb-4">
             <div className="flex items-center gap-2 text-muted-foreground mb-1">
-              <ShoppingCart className="h-4 w-4" />
-              <span className="text-xs sm:text-sm">Orders</span>
+              <ShoppingCart className="h-4 w-4 text-green-600" />
+              <span className="text-xs">จำนวนออเดอร์</span>
             </div>
-            <p className="text-lg sm:text-2xl font-bold">{stats.orderCount}</p>
+            <p className="text-lg sm:text-xl font-bold">{stats.orderCount}</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
+          <CardContent className="pt-5 pb-4">
             <div className="flex items-center gap-2 text-muted-foreground mb-1">
-              <Calendar className="h-4 w-4" />
-              <span className="text-xs sm:text-sm">Last Order</span>
+              <Wallet className="h-4 w-4 text-purple-600" />
+              <span className="text-xs">เฉลี่ย/ออเดอร์</span>
+            </div>
+            <p className="text-lg sm:text-xl font-bold">{formatCurrency(stats.avgOrderValue)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-5 pb-4">
+            <div className="flex items-center gap-2 text-muted-foreground mb-1">
+              <Clock className="h-4 w-4 text-orange-600" />
+              <span className="text-xs">ความถี่สั่งซื้อ</span>
+            </div>
+            <p className="text-lg sm:text-xl font-bold">
+              {stats.avgDaysBetweenOrders > 0 ? `${stats.avgDaysBetweenOrders} วัน` : '—'}
+            </p>
+          </CardContent>
+        </Card>
+        <Card className="col-span-2 sm:col-span-1">
+          <CardContent className="pt-5 pb-4">
+            <div className="flex items-center gap-2 text-muted-foreground mb-1">
+              <Calendar className="h-4 w-4 text-teal-600" />
+              <span className="text-xs">สั่งล่าสุด</span>
             </div>
             <p className="text-sm sm:text-lg font-bold">
               {stats.lastPurchaseDate ? formatThaiDate(stats.lastPurchaseDate) : '—'}
@@ -94,6 +117,47 @@ export default async function SupplierProfilePage({ params }: { params: { id: st
           </CardContent>
         </Card>
       </div>
+
+      {/* Top Products */}
+      {topProducts && topProducts.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Package className="h-4 w-4 text-blue-600" />
+              สินค้าที่ซื้อบ่อย
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto -mx-4 sm:mx-0">
+              <table className="w-full text-sm min-w-[450px]">
+                <thead>
+                  <tr className="border-b-2 border-muted">
+                    <th className="text-left py-2 px-2 font-semibold">สินค้า</th>
+                    <th className="text-right py-2 px-2 font-semibold">จำนวนรวม</th>
+                    <th className="text-right py-2 px-2 font-semibold">มูลค่า</th>
+                    <th className="text-right py-2 px-2 font-semibold">ออเดอร์</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-muted">
+                  {topProducts.map((product: any) => (
+                    <tr key={product.productId} className="hover:bg-muted/50 transition-colors">
+                      <td className="py-2 px-2">
+                        <Link href={`/products/${product.productId}`} className="hover:underline">
+                          <div className="font-medium">{product.name}</div>
+                          {product.sku && <div className="text-xs text-muted-foreground">{product.sku}</div>}
+                        </Link>
+                      </td>
+                      <td className="text-right py-2 px-2">{product.totalQuantity}</td>
+                      <td className="text-right py-2 px-2 font-medium">{formatCurrency(product.totalCost)}</td>
+                      <td className="text-right py-2 px-2 text-muted-foreground">{product.orderCount}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Contact Info */}
       <Card>

@@ -3,36 +3,39 @@ import { ReportView } from '@/components/features/reports/report-view';
 import { ReportToolbar } from '@/components/features/reports/report-toolbar';
 import { ReportCharts } from '@/components/features/reports/report-charts';
 import { getReportData } from '@/actions/reports';
+import { ReportTabs } from '@/components/features/reports/report-tabs';
 
 interface ReportsPageProps {
   searchParams: {
     startDate?: string;
     endDate?: string;
+    tab?: string;
   };
 }
 
 export default async function ReportsPage({ searchParams }: ReportsPageProps) {
   const startDate = searchParams.startDate;
   const endDate = searchParams.endDate;
+  const activeTab = searchParams.tab || 'overview';
 
-  const data = await getReportData(startDate, endDate);
+  // Only fetch overview data for the overview tab (server-side)
+  const data = activeTab === 'overview' ? await getReportData(startDate, endDate) : null;
 
   return (
     <div className="space-y-6">
       <div className="print:hidden">
         <PageHeader 
           title="รายงานสรุป" 
-          description="ดูรายงานรายรับ รายจ่าย และกำไร" 
+          description="ดูรายงานรายรับ รายจ่าย กำไร และวิเคราะห์สินค้า" 
         />
       </div>
 
-      <ReportToolbar startDate={startDate} endDate={endDate} />
-      
-      <div className="print:hidden">
-        <ReportCharts data={data} />
-      </div>
-
-      <ReportView data={data} />
+      <ReportTabs
+        activeTab={activeTab}
+        startDate={startDate}
+        endDate={endDate}
+        overviewData={data}
+      />
     </div>
   );
 }

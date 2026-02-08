@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { Prisma } from '@prisma/client';
+import { NotificationService } from '@/lib/notification-service';
 
 export type StockMovementType = 'SALE' | 'PURCHASE' | 'ADJUSTMENT' | 'RETURN' | 'WASTE' | 'CANCEL' | 'SALE_CANCEL' | 'PURCHASE_CANCEL';
 
@@ -51,6 +52,7 @@ export class StockService {
         },
         select: {
           id: true,
+          name: true,
           stock: true,
           minStock: true, // Need minStock to compare
           shopId: true,   // Get shopId from product if not provided
@@ -71,6 +73,22 @@ export class StockService {
       // 2. Create Stock Log with the NEW balance
       // RBAC: Use provided shopId or fallback to product's shopId
       const finalShopId = shopId || updatedProduct.shopId;
+
+      // Notification: Low stock alert (non-blocking, fire-and-forget)
+      if (isLowStock && updatedProduct.stock > 0) {
+        NotificationService.create({
+          shopId: finalShopId,
+          type: 'LOW_STOCK',
+          severity: 'WARNING',
+          title: `สินค้าใกล้หมด: ${updatedProduct.name}`,
+          message: `เหลือ ${updatedProduct.stock} ชิ้น (ขั้นต่ำ ${updatedProduct.minStock})`,
+          link: `/products/${productId}`,
+          groupKey: `LOW_STOCK:${productId}`,
+        }).catch(() => {}); // Non-blocking
+      } else if (!isLowStock) {
+        // Stock restored: remove the low stock notification
+        NotificationService.removeByGroupKey(finalShopId, `LOW_STOCK:${productId}`).catch(() => {});
+      }
       
       await prisma.stockLog.create({
         data: {

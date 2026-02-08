@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { getIncomes } from '@/actions/incomes';
 import { IncomesTable } from '@/components/features/incomes/incomes-table';
 import { IncomesToolbar } from '@/components/features/incomes/incomes-toolbar';
+import { IncomesExportButton } from '@/components/features/incomes/incomes-export-button';
 
 interface IncomesPageProps {
   searchParams: {
@@ -34,12 +35,15 @@ export default async function IncomesPage({ searchParams }: IncomesPageProps) {
   return (
     <div>
       <PageHeader title="รายรับอื่นๆ" description="บันทึกรายรับจากบริการและรายได้อื่นที่ไม่ใช่การขายสินค้า">
-        <Button asChild>
-          <Link href="/incomes/new">
-            <Plus className="mr-2 h-4 w-4" />
-            เพิ่มรายรับ
-          </Link>
-        </Button>
+        <div className="flex gap-2">
+          <IncomesExportButton />
+          <Button asChild>
+            <Link href="/incomes/new">
+              <Plus className="mr-2 h-4 w-4" />
+              เพิ่มรายรับ
+            </Link>
+          </Button>
+        </div>
       </PageHeader>
 
       <div className="space-y-4">
@@ -54,3 +58,4 @@ export default async function IncomesPage({ searchParams }: IncomesPageProps) {
     </div>
   );
 }
+

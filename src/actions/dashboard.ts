@@ -31,6 +31,7 @@ export async function getDashboardStats() {
     pendingPayments,
     pendingShipments,
     todayExpenses,
+    stockProducts,
   ] = await Promise.all([
 
     // Today's sales summary
@@ -135,6 +136,16 @@ export async function getDashboardStats() {
       _sum: { amount: true },
       _count: true,
     }),
+
+    // NEW: Stock value at cost (Phase 3)
+    db.product.findMany({
+      where: {
+        shopId: ctx.shopId,
+        isActive: true,
+        stock: { gt: 0 },
+      },
+      select: { costPrice: true, stock: true },
+    }),
   ]);
 
   // Calculate totals including income
@@ -142,6 +153,12 @@ export async function getDashboardStats() {
   const incomeRevenue = toNumber(todayIncomes._sum.amount);
   const totalRevenue = money.add(salesRevenue, incomeRevenue);
   const salesProfit = toNumber(todaySales._sum.profit);
+
+  // Calculate total stock value at cost
+  const totalStockValue = stockProducts.reduce(
+    (sum: number, p: any) => money.add(sum, money.multiply(toNumber(p.costPrice), p.stock)),
+    0
+  );
 
   //Return dashboard stats (object)
   return {
@@ -179,6 +196,11 @@ export async function getDashboardStats() {
     todayExpenses: {
       total: toNumber(todayExpenses._sum.amount),
       count: todayExpenses._count,
+    },
+    // NEW: Stock value (Phase 3)
+    stockValue: {
+      total: totalStockValue,
+      itemCount: stockProducts.length,
     },
   };
 }

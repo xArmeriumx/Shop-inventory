@@ -13,6 +13,7 @@ import {
   Truck,
   MapPin,
   Phone,
+  Mail,
   FileText,
   CheckCircle2,
   XCircle,
@@ -28,6 +29,7 @@ interface CustomerProfileData {
     id: string;
     name: string;
     phone: string | null;
+    email: string | null;
     address: string | null;
     taxId: string | null;
     notes: string | null;
@@ -127,6 +129,12 @@ export function CustomerProfile({ data }: CustomerProfileProps) {
               <span className="flex items-center gap-1">
                 <Phone className="h-3.5 w-3.5" />
                 {customer.phone}
+              </span>
+            )}
+            {customer.email && (
+              <span className="flex items-center gap-1">
+                <Mail className="h-3.5 w-3.5" />
+                {customer.email}
               </span>
             )}
             {customer.taxId && (
