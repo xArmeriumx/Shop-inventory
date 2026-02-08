@@ -2,6 +2,7 @@
 
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { logger } from '@/lib/logger';
 
 export async function updateUserActivity() {
   const session = await auth();
@@ -14,6 +15,6 @@ export async function updateUserActivity() {
     });
   } catch (error) {
     // Fail silently - background task
-    console.error('Failed the update user activity', error);
+    logger.error('Failed to update user activity', error as Error, { path: 'updateUserActivity' }).catch(() => {});
   }
 }

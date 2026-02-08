@@ -65,8 +65,8 @@ export function ExpensesTable({ expenses, pagination }: ExpensesTableProps) {
     setDeletingId(id);
     try {
       const result = await deleteExpense(id);
-      if (result.error) {
-        alert(result.error);
+      if (!result.success) {
+        alert(result.message || 'เกิดข้อผิดพลาด');
       }
       router.refresh();
     } catch {
@@ -89,55 +89,64 @@ export function ExpensesTable({ expenses, pagination }: ExpensesTableProps) {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border bg-card overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>วันที่</TableHead>
-              <TableHead>รายละเอียด</TableHead>
-              <TableHead>หมวดหมู่</TableHead>
-              <TableHead className="text-right">จำนวนเงิน</TableHead>
-              <TableHead className="w-[100px]"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {expenses.map((expense) => (
-              <TableRow key={expense.id}>
-                <TableCell>
-                  <div className="text-sm">{formatDate(expense.date)}</div>
-                </TableCell>
-                <TableCell>
-                  <p className="font-medium">{expense.description}</p>
-                </TableCell>
-                <TableCell>
-                  <Badge variant="secondary">
-                    {getCategoryLabel(expense.category)}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right font-medium text-destructive">
-                  -{formatCurrency(expense.amount.toString())}
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center justify-end gap-1">
-                    <Button variant="ghost" size="icon" asChild>
-                      <Link href={`/expenses/${expense.id}`}>
-                        <Edit className="h-4 w-4" />
-                      </Link>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDelete(expense.id, expense.description)}
-                      disabled={deletingId === expense.id}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </TableCell>
+      <div className="rounded-lg border bg-card overflow-hidden">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>วันที่</TableHead>
+                <TableHead>รายละเอียด</TableHead>
+                <TableHead className="hidden sm:table-cell">หมวดหมู่</TableHead>
+                <TableHead className="text-right">จำนวนเงิน</TableHead>
+                <TableHead className="w-[80px] sm:w-[100px]"></TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {expenses.map((expense) => (
+                <TableRow key={expense.id}>
+                  <TableCell>
+                    <div className="text-sm">{formatDate(expense.date)}</div>
+                  </TableCell>
+                  <TableCell>
+                    <p className="font-medium line-clamp-1">{expense.description}</p>
+                    {/* Mobile: show category inline */}
+                    <div className="sm:hidden mt-0.5">
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                        {getCategoryLabel(expense.category)}
+                      </Badge>
+                    </div>
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell">
+                    <Badge variant="secondary">
+                      {getCategoryLabel(expense.category)}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right font-medium text-destructive">
+                    -{formatCurrency(expense.amount.toString())}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center justify-end gap-0.5">
+                      <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                        <Link href={`/expenses/${expense.id}`}>
+                          <Edit className="h-4 w-4" />
+                        </Link>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => handleDelete(expense.id, expense.description)}
+                        disabled={deletingId === expense.id}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </div>
 
       <div className="flex items-center justify-between">

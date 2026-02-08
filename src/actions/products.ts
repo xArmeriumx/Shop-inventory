@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
 import { requirePermission, hasPermission } from '@/lib/auth-guard';
+import { logger } from '@/lib/logger';
 import { paginatedQuery, buildSearchFilter } from '@/lib/pagination';
 import { productSchema, productUpdateSchema, type ProductInput, type ProductUpdateInput } from '@/schemas/product';
 import { Product } from '@prisma/client';
@@ -39,32 +40,15 @@ export async function getProducts(params: GetProductsParams = {}) {
   const searchFilter = buildSearchFilter(search, ['name', 'sku', 'description']);
 
   const where = {
-    // userId, // Removed: Scope by Shop instead
     shopId: ctx.shopId,
-
     isActive: true,
-
+    deletedAt: null,
     ...(searchFilter && searchFilter),
     ...(category && { category }),
-
-    ...(lowStockOnly && {
-      stock: {
-        lte: db.product.fields.minStock,
-      },
-    }),
+    ...(lowStockOnly && { isLowStock: true }),
   };
 
-  // For lowStockOnly, we need raw SQL or a different approach
-  // Simplified version without raw SQL comparison
-  const whereClause = lowStockOnly
-    ? {
-        // userId, // Removed
-        shopId: ctx.shopId,
-        isActive: true,
-        ...(searchFilter && searchFilter),
-        ...(category && { category }),
-      }
-    : where;
+  const whereClause = where;
 
 
 //Paginated query
@@ -126,6 +110,7 @@ export async function createProduct(input: ProductInput): Promise<ActionResponse
       where: { 
         sku: validated.data.sku,
         shopId: ctx.shopId,
+        isActive: true,
       },
     });
     if (existing) {
@@ -157,7 +142,7 @@ export async function createProduct(input: ProductInput): Promise<ActionResponse
       data: product
     };
   } catch (error: any) {
-    console.error('Create product error:', error);
+    await logger.error('Create product error', error as Error, { path: 'createProduct', userId: ctx.userId });
     return {
       success: false,
       message: error.message || 'เกิดข้อผิดพลาดในการสร้างสินค้า'
@@ -282,7 +267,7 @@ export async function updateProduct(id: string, input: ProductUpdateInput): Prom
       data: product
     };
   } catch (error: any) {
-    console.error('Update product error:', error);
+    await logger.error('Update product error', error as Error, { path: 'updateProduct', userId: ctx.userId, productId: id });
     return {
       success: false,
       message: error.message || 'เกิดข้อผิดพลาดในการอัปเดตสินค้า'
@@ -308,10 +293,13 @@ export async function deleteProduct(id: string): Promise<ActionResponse> {
   }
 
   try {
-    // Soft delete
+    // Soft delete: set both isActive + deletedAt for consistency with other models
     await db.product.update({
       where: { id },
-      data: { isActive: false },
+      data: {
+        isActive: false,
+        deletedAt: new Date(),
+      },
     });
 
     revalidatePath('/products');
@@ -320,7 +308,7 @@ export async function deleteProduct(id: string): Promise<ActionResponse> {
       message: 'ลบสินค้าสำเร็จ'
     };
   } catch (error: any) {
-    console.error('Delete product error:', error);
+    await logger.error('Delete product error', error as Error, { path: 'deleteProduct', userId: ctx.userId, productId: id });
     return {
       success: false,
       message: error.message || 'เกิดข้อผิดพลาดในการลบสินค้า'
@@ -473,7 +461,7 @@ export async function adjustStock(productId: string, input: AdjustStockInput): P
       message: 'ปรับปรุงสต็อกสำเร็จ'
     };
   } catch (error: any) {
-    console.error('Adjust stock error:', error);
+    await logger.error('Adjust stock error', error as Error, { path: 'adjustStock', userId: ctx.userId, productId });
     return {
       success: false,
       message: error.message || 'เกิดข้อผิดพลาดในการปรับปรุงสต็อก'
@@ -531,14 +519,9 @@ export interface BatchCreateResult {
 export async function batchCreateProducts(
   inputs: BatchProductInput[]
 ): Promise<ActionResponse<BatchCreateResult>> {
-  console.log('[BatchCreate] ========== START ==========');
-  console.log('[BatchCreate] Received inputs:', inputs.length);
-  
   const ctx = await requirePermission('PRODUCT_CREATE');
-  console.log('[BatchCreate] Auth context:', { userId: ctx.userId, shopId: ctx.shopId });
 
   if (!inputs || inputs.length === 0) {
-    console.log('[BatchCreate] No inputs provided');
     return {
       success: false,
       message: 'ไม่มีข้อมูลสินค้าที่จะสร้าง',
@@ -551,20 +534,13 @@ export async function batchCreateProducts(
 
   for (let i = 0; i < inputs.length; i++) {
     const input = inputs[i];
-    console.log(`[BatchCreate][${i}] Validating:`, {
-      name: input.name,
-      category: input.category,
-      sku: input.sku,
-    });
 
     if (!input.name || !input.name.trim()) {
-      console.log(`[BatchCreate][${i}] FAILED: Missing name`);
       failed.push({ name: input.name || 'ไม่มีชื่อ', error: 'ไม่มีชื่อสินค้า' });
       continue;
     }
 
     if (!input.category || !input.category.trim()) {
-      console.log(`[BatchCreate][${i}] FAILED: Missing category`);
       failed.push({ name: input.name, error: 'ไม่มีหมวดหมู่' });
       continue;
     }
@@ -578,11 +554,7 @@ export async function batchCreateProducts(
     });
   }
 
-  console.log('[BatchCreate] Valid inputs:', validInputs.length);
-  console.log('[BatchCreate] Failed validation:', failed.length);
-
   if (validInputs.length === 0) {
-    console.log('[BatchCreate] No valid inputs after validation');
     return {
       success: false,
       message: `ข้อมูลไม่ถูกต้อง ${failed.length} รายการ`,
@@ -593,19 +565,18 @@ export async function batchCreateProducts(
   const created: BatchCreateResult['created'] = [];
 
   try {
-    // 2. Check for existing products with same SKU (including inactive)
+    // 2. Check for existing products with same SKU (including inactive for reactivation)
     const skusToCheck = validInputs.filter(i => i.sku).map(i => i.sku as string);
     
     let existingProducts: { id: string; sku: string | null; isActive: boolean }[] = [];
     if (skusToCheck.length > 0) {
       existingProducts = await db.product.findMany({
         where: {
-          shopId: ctx.shopId,  // RBAC: Use shopId for SKU uniqueness check
+          shopId: ctx.shopId,
           sku: { in: skusToCheck },
         },
         select: { id: true, sku: true, isActive: true },
       });
-      console.log('[BatchCreate] Found existing products with SKUs:', existingProducts.length);
     }
 
     const existingSkuMap = new Map(existingProducts.map(p => [p.sku, p]));
@@ -617,7 +588,6 @@ export async function batchCreateProducts(
 
         if (existingProduct) {
           // Reactivate existing product
-          console.log('[BatchCreate] Reactivating existing product:', input.sku);
           const reactivated = await tx.product.update({
             where: { id: existingProduct.id },
             data: {
@@ -636,7 +606,6 @@ export async function batchCreateProducts(
           });
         } else {
           // Create new product
-          console.log('[BatchCreate] Creating new product:', input.name);
           const newProduct = await tx.product.create({
             data: {
               name: input.name,
@@ -661,19 +630,17 @@ export async function batchCreateProducts(
 
     revalidatePath('/products');
 
-    console.log('[BatchCreate] ========== SUCCESS ==========');
-    console.log('[BatchCreate] Created/Reactivated:', created.length, 'Failed:', failed.length);
-
     return {
       success: true,
       message: `สร้างสินค้าสำเร็จ ${created.length} รายการ${failed.length > 0 ? `, ข้าม ${failed.length} รายการ` : ''}`,
       data: { success: true, created, failed },
     };
   } catch (error: any) {
-    console.error('[BatchCreate] ========== ERROR ==========');
-    console.error('[BatchCreate] Error:', error);
-    console.error('[BatchCreate] Error code:', error.code);
-    console.error('[BatchCreate] Error message:', error.message);
+    await logger.error('Batch create products error', error as Error, {
+      path: 'batchCreateProducts',
+      userId: ctx.userId,
+      inputCount: inputs.length,
+    });
 
     if (error.code === 'P2002') {
       return {

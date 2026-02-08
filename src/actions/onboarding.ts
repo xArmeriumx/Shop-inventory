@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { auth } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { logger } from '@/lib/logger';
 import type { ActionResponse } from '@/types/action-response';
 import type { Permission } from '@prisma/client';
 
@@ -77,7 +78,7 @@ export async function createShop(shopName: string): Promise<ActionResponse> {
     
     return { success: true, message: 'สร้างร้านค้าสำเร็จ' };
   } catch (error) {
-    console.error('Create shop error:', error);
+    await logger.error('Create shop error', error as Error, { path: 'createShop' });
     return { success: false, message: 'เกิดข้อผิดพลาดในการสร้างร้านค้า' };
   }
 }

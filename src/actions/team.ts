@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
 import { requireAuth, requirePermission } from '@/lib/auth-guard';
+import { logger } from '@/lib/logger';
 import type { ActionResponse } from '@/types/action-response';
 
 // ==================== Types ====================
@@ -130,7 +131,7 @@ export async function updateMemberRole(memberId: string, roleId: string): Promis
     revalidatePath('/settings/team');
     return { success: true, message: 'อัปเดต Role สมาชิกสำเร็จ' };
   } catch (error) {
-    console.error('Update member role error:', error);
+    await logger.error('Update member role error', error as Error, { path: 'updateMemberRole', userId: ctx.userId, memberId });
     return { success: false, message: 'เกิดข้อผิดพลาดในการอัปเดต Role' };
   }
 }
@@ -172,7 +173,7 @@ export async function removeMember(memberId: string): Promise<ActionResponse> {
       message: `ลบ ${member.user.name || member.user.email} ออกจากทีมสำเร็จ` 
     };
   } catch (error) {
-    console.error('Remove member error:', error);
+    await logger.error('Remove member error', error as Error, { path: 'removeMember', userId: ctx.userId, memberId });
     return { success: false, message: 'เกิดข้อผิดพลาดในการลบสมาชิก' };
   }
 }
@@ -231,7 +232,7 @@ export async function inviteMember(input: InviteMemberInput): Promise<ActionResp
     revalidatePath('/settings/team');
     return { success: true, message: `เพิ่ม ${user.name || user.email} เข้าทีมสำเร็จ` };
   } catch (error) {
-    console.error('Invite member error:', error);
+    await logger.error('Invite member error', error as Error, { path: 'inviteMember', userId: ctx.userId });
     return { success: false, message: 'เกิดข้อผิดพลาดในการเพิ่มสมาชิก' };
   }
 }

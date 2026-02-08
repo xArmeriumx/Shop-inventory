@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { getCurrentUserId } from '@/lib/auth-guard';
+import { logger } from '@/lib/logger';
 
 const profileSchema = z.object({
   name: z.string().min(1, 'กรุณากรอกชื่อ'),
@@ -46,7 +47,7 @@ export async function updateProfile(prevState: ProfileState, formData: FormData)
     
     return { success: true };
   } catch (error) {
-    console.error('Update profile error:', error);
+    await logger.error('Update profile error', error as Error, { path: 'updateProfile', userId });
     return { error: 'เกิดข้อผิดพลาดในการบันทึกข้อมูล' };
   }
 }

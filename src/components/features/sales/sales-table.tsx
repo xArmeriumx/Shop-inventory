@@ -117,86 +117,100 @@ export function SalesTable({ sales, pagination }: SalesTableProps) {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border bg-card overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>เลขที่ใบเสร็จ</TableHead>
-              <TableHead>วันที่</TableHead>
-              <TableHead>ลูกค้า</TableHead>
-              <TableHead>วิธีชำระ</TableHead>
-              <TableHead className="text-right">ยอดรวม</TableHead>
-              {canViewProfit && <TableHead className="text-right">กำไร</TableHead>}
-              <TableHead className="w-[100px]"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {sales.map((sale) => (
-              <TableRow key={sale.id}>
-                <TableCell>
-                  <div className="font-medium">{sale.invoiceNumber}</div>
-                </TableCell>
-                <TableCell>
-                  <div className="text-sm">{formatDate(sale.date)}</div>
-                </TableCell>
-                <TableCell>
-                  {sale.customer?.name || sale.customerName || (
-                    <span className="text-muted-foreground">ลูกค้าทั่วไป</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <Badge variant={getPaymentVariant(sale.paymentMethod) as any}>
-                    {getPaymentMethodLabel(sale.paymentMethod)}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right font-medium">
-                  {formatCurrency(((sale as any).netAmount || sale.totalAmount).toString())}
-                </TableCell>
-                {canViewProfit && (
-                  <TableCell className="text-right">
-                    <span className={Number(sale.profit) >= 0 ? 'text-green-600' : 'text-destructive'}>
-                      {formatCurrency(sale.profit.toString())}
-                    </span>
-                  </TableCell>
-                )}
-                <TableCell>
-                  <div className="flex items-center justify-end gap-1">
-                    <Button variant="ghost" size="icon" asChild>
-                      <Link href={`/sales/${sale.id}`}>
-                        <Eye className="h-4 w-4" />
-                      </Link>
-                    </Button>
-                    <Guard permission="SALE_CANCEL">
-                      {sale.status !== 'CANCELLED' && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setCancelDialogSale(sale)}
-                          disabled={cancellingId === sale.id}
-                          title="ยกเลิกรายการ"
-                        >
-                          <XCircle className="h-4 w-4 text-destructive" />
-                        </Button>
-                      )}
-                    </Guard>
-                    {sale.status === 'CANCELLED' && (
-                      <Badge variant="outline" className="text-xs text-destructive border-destructive">
-                        ยกเลิกแล้ว
-                      </Badge>
-                    )}
-                  </div>
-                </TableCell>
+      <div className="rounded-lg border bg-card overflow-hidden">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>เลขที่ใบเสร็จ</TableHead>
+                <TableHead className="hidden sm:table-cell">วันที่</TableHead>
+                <TableHead className="hidden md:table-cell">ลูกค้า</TableHead>
+                <TableHead className="hidden sm:table-cell">วิธีชำระ</TableHead>
+                <TableHead className="text-right">ยอดรวม</TableHead>
+                {canViewProfit && <TableHead className="text-right hidden lg:table-cell">กำไร</TableHead>}
+                <TableHead className="w-[80px] sm:w-[100px]"></TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {sales.map((sale) => (
+                <TableRow key={sale.id}>
+                  <TableCell>
+                    <div className="font-medium">{sale.invoiceNumber}</div>
+                    {/* Mobile: show date + customer inline */}
+                    <div className="sm:hidden text-xs text-muted-foreground mt-0.5">
+                      {formatDate(sale.date)}
+                      {(sale.customer?.name || sale.customerName) && (
+                        <span> · {sale.customer?.name || sale.customerName}</span>
+                      )}
+                    </div>
+                    <div className="sm:hidden mt-1">
+                      <Badge variant={getPaymentVariant(sale.paymentMethod) as any} className="text-[10px] px-1.5 py-0">
+                        {getPaymentMethodLabel(sale.paymentMethod)}
+                      </Badge>
+                    </div>
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell">
+                    <div className="text-sm">{formatDate(sale.date)}</div>
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell">
+                    {sale.customer?.name || sale.customerName || (
+                      <span className="text-muted-foreground">ลูกค้าทั่วไป</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell">
+                    <Badge variant={getPaymentVariant(sale.paymentMethod) as any}>
+                      {getPaymentMethodLabel(sale.paymentMethod)}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right font-medium">
+                    {formatCurrency(((sale as any).netAmount || sale.totalAmount).toString())}
+                  </TableCell>
+                  {canViewProfit && (
+                    <TableCell className="text-right hidden lg:table-cell">
+                      <span className={Number(sale.profit) >= 0 ? 'text-green-600' : 'text-destructive'}>
+                        {formatCurrency(sale.profit.toString())}
+                      </span>
+                    </TableCell>
+                  )}
+                  <TableCell>
+                    <div className="flex items-center justify-end gap-0.5">
+                      <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                        <Link href={`/sales/${sale.id}`}>
+                          <Eye className="h-4 w-4" />
+                        </Link>
+                      </Button>
+                      <Guard permission="SALE_CANCEL">
+                        {sale.status !== 'CANCELLED' && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => setCancelDialogSale(sale)}
+                            disabled={cancellingId === sale.id}
+                            title="ยกเลิกรายการ"
+                          >
+                            <XCircle className="h-4 w-4 text-destructive" />
+                          </Button>
+                        )}
+                      </Guard>
+                      {sale.status === 'CANCELLED' && (
+                        <Badge variant="outline" className="text-[10px] text-destructive border-destructive">
+                          ยกเลิก
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </div>
 
       {/* Pagination */}
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          แสดง {((pagination.page - 1) * pagination.limit) + 1} -{' '}
-          {Math.min(pagination.page * pagination.limit, pagination.total)} จาก{' '}
+        <p className="text-xs sm:text-sm text-muted-foreground">
+          <span className="hidden sm:inline">แสดง {((pagination.page - 1) * pagination.limit) + 1} - {Math.min(pagination.page * pagination.limit, pagination.total)} จาก </span>
           {pagination.total} รายการ
         </p>
         <div className="flex items-center gap-2">
@@ -209,7 +223,7 @@ export function SalesTable({ sales, pagination }: SalesTableProps) {
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <span className="text-sm">
-            หน้า {pagination.page} / {pagination.totalPages}
+            {pagination.page}/{pagination.totalPages}
           </span>
           <Button
             variant="outline"

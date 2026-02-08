@@ -12,14 +12,14 @@ import { exportPurchasesData } from '@/actions/export';
  */
 export function PurchasesHeaderActions() {
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap gap-2 w-full sm:w-auto">
       <DataExportPanel
         exportFn={exportPurchasesData}
         filename="purchases"
         label="Export"
       />
       <PurchaseScannerButton mode="list" variant="outline" />
-      <Button asChild>
+      <Button asChild className="flex-1 sm:flex-none">
         <Link href="/purchases/new">
           <Plus className="mr-2 h-4 w-4" />
           บันทึกการซื้อ

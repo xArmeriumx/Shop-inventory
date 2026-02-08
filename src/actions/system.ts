@@ -57,7 +57,7 @@ export async function getSystemMetrics(): Promise<SystemMetrics> {
     await db.$queryRaw`SELECT 1`;
     dbStatus = 'connected';
   } catch (error) {
-    console.error('DB Health Check Failed:', error);
+    await logger.error('DB Health Check Failed', error as Error, { path: 'getSystemMetrics' });
     dbStatus = 'disconnected';
   }
   const dbEnd = performance.now();
@@ -88,7 +88,7 @@ export async function getSystemMetrics(): Promise<SystemMetrics> {
        poolStats = { active: poolBusy, idle: poolIdle };
     }
   } catch (e) {
-    console.warn('Prisma metrics not available:', e);
+    // Prisma metrics not available - non-critical
   }
 
   // Active Users (Last 5 minutes)

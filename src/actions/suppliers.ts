@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
 import { requirePermission, getCurrentUserId } from '@/lib/auth-guard';
+import { logger } from '@/lib/logger';
 import { paginatedQuery, buildSearchFilter } from '@/lib/pagination';
 import { supplierSchema, type SupplierInput } from '@/schemas/supplier';
 import type { ActionResponse } from '@/types/action-response';
@@ -111,7 +112,7 @@ export async function createSupplier(input: SupplierInput): Promise<ActionRespon
       message: 'เพิ่มผู้จำหน่ายสำเร็จ',
     };
   } catch (error) {
-    console.error('Create supplier error:', error);
+    await logger.error('Create supplier error', error as Error, { path: 'createSupplier', userId: ctx.userId });
     return {
       success: false,
       message: 'เกิดข้อผิดพลาดในการเพิ่มผู้จำหน่าย',
@@ -154,7 +155,7 @@ export async function updateSupplier(
       message: 'อัปเดตข้อมูลผู้จำหน่ายสำเร็จ',
     };
   } catch (error) {
-    console.error('Update supplier error:', error);
+    await logger.error('Update supplier error', error as Error, { path: 'updateSupplier', userId: ctx.userId, supplierId: id });
     return {
       success: false,
       message: 'เกิดข้อผิดพลาดในการอัปเดตข้อมูล',
@@ -196,7 +197,7 @@ export async function deleteSupplier(id: string): Promise<ActionResponse<void>> 
       message: 'ลบผู้จำหน่ายสำเร็จ',
     };
   } catch (error) {
-    console.error('Delete supplier error:', error);
+    await logger.error('Delete supplier error', error as Error, { path: 'deleteSupplier', userId: ctx.userId, supplierId: id });
     return {
       success: false,
       message: 'เกิดข้อผิดพลาดในการลบผู้จำหน่าย',

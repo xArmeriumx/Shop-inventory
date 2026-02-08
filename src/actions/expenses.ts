@@ -80,7 +80,7 @@ export async function createExpense(input: ExpenseInput) {
 
   const validated = expenseSchema.safeParse(input);
   if (!validated.success) {
-    return { error: validated.error.flatten().fieldErrors };
+    return { success: false, error: validated.error.flatten().fieldErrors };
   }
 
   try {
@@ -95,6 +95,7 @@ export async function createExpense(input: ExpenseInput) {
     revalidatePath('/expenses');
     revalidatePath('/dashboard'); //update dashboard stats
     return { 
+      success: true,
       data: {
         ...expense,
         amount: Number(expense.amount)
@@ -102,7 +103,7 @@ export async function createExpense(input: ExpenseInput) {
     };
   } catch (error) {
     await logger.error('Create expense error', error as Error, { path: 'createExpense', userId: ctx.userId });
-    return { error: { _form: ['เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง'] } };
+    return { success: false, error: { _form: ['เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง'] } };
   }
 }
 
@@ -114,7 +115,7 @@ export async function updateExpense(id: string, input: ExpenseInput) {
 
   const validated = expenseSchema.safeParse(input);
   if (!validated.success) {
-    return { error: validated.error.flatten().fieldErrors };
+    return { success: false, error: validated.error.flatten().fieldErrors };
   }
 
   //check if expense exists - RBAC: Use shopId for multi-tenant isolation
@@ -123,7 +124,7 @@ export async function updateExpense(id: string, input: ExpenseInput) {
   });
 
   if (!existing) {
-    return { error: { _form: ['ไม่พบข้อมูลค่าใช้จ่าย'] } };
+    return { success: false, error: { _form: ['ไม่พบข้อมูลค่าใช้จ่าย'] } };
   }
 
   try {
@@ -137,6 +138,7 @@ export async function updateExpense(id: string, input: ExpenseInput) {
     revalidatePath('/expenses');
     revalidatePath(`/expenses/${id}`);
     return { 
+      success: true,
       data: {
         ...expense,
         amount: Number(expense.amount)
@@ -144,7 +146,7 @@ export async function updateExpense(id: string, input: ExpenseInput) {
     };
   } catch (error) {
     await logger.error('Update expense error', error as Error, { path: 'updateExpense', userId: ctx.userId, expenseId: id });
-    return { error: { _form: ['เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง'] } };
+    return { success: false, error: { _form: ['เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง'] } };
   }
 }
 
@@ -159,7 +161,7 @@ export async function deleteExpense(id: string) {
   });
 
   if (!existing) {
-    return { error: 'ไม่พบข้อมูลค่าใช้จ่าย' };
+    return { success: false, message: 'ไม่พบข้อมูลค่าใช้จ่าย' };
   }
 
   try {
@@ -171,10 +173,10 @@ export async function deleteExpense(id: string) {
 
     revalidatePath('/expenses');
     revalidatePath('/dashboard');
-    return { success: true };
+    return { success: true, message: 'ลบค่าใช้จ่ายสำเร็จ' };
   } catch (error) {
     await logger.error('Delete expense error', error as Error, { path: 'deleteExpense', userId: ctx.userId, expenseId: id });
-    return { error: 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง' };
+    return { success: false, message: 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง' };
   }
 }
 

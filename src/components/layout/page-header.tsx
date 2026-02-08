@@ -22,7 +22,7 @@ export function PageHeader({
         )}
       </div>
       {children && (
-        <div className="flex flex-wrap items-center gap-2">{children}</div>
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">{children}</div>
       )}
     </div>
   );

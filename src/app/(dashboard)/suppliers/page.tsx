@@ -26,10 +26,10 @@ async function SuppliersContent({ searchParams }: PageProps) {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <CardTitle>รายการผู้จำหน่าย</CardTitle>
           <Link href="/suppliers/new">
-            <Button>
+            <Button className="w-full sm:w-auto">
               <Plus className="h-4 w-4 mr-2" />
               เพิ่มผู้จำหน่าย
             </Button>
@@ -131,7 +131,7 @@ export default function SuppliersPage({ searchParams }: PageProps) {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">ผู้จำหน่าย</h1>
+        <h1 className="text-2xl font-bold tracking-tight">ผู้จำหน่าย</h1>
         <p className="text-muted-foreground">จัดการข้อมูลผู้จำหน่ายและประวัติการสั่งซื้อ</p>
       </div>
       

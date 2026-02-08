@@ -83,7 +83,7 @@ export async function createIncome(input: IncomeInput) {
 
   const validated = incomeSchema.safeParse(input);
   if (!validated.success) {
-    return { error: validated.error.flatten().fieldErrors };
+    return { success: false, error: validated.error.flatten().fieldErrors };
   }
 
   try {
@@ -98,6 +98,7 @@ export async function createIncome(input: IncomeInput) {
     revalidatePath('/incomes');
     revalidatePath('/dashboard');
     return { 
+      success: true,
       data: {
         ...income,
         amount: toNumber(income.amount)
@@ -105,7 +106,7 @@ export async function createIncome(input: IncomeInput) {
     };
   } catch (error) {
     await logger.error('Create income error', error as Error, { path: 'createIncome', userId: ctx.userId });
-    return { error: { _form: ['เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง'] } };
+    return { success: false, error: { _form: ['เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง'] } };
   }
 }
 
@@ -118,7 +119,7 @@ export async function updateIncome(id: string, input: IncomeInput) {
 
   const validated = incomeSchema.safeParse(input);
   if (!validated.success) {
-    return { error: validated.error.flatten().fieldErrors };
+    return { success: false, error: validated.error.flatten().fieldErrors };
   }
 
   // Check if income exists and belongs to shop
@@ -127,7 +128,7 @@ export async function updateIncome(id: string, input: IncomeInput) {
   });
 
   if (!existing) {
-    return { error: { _form: ['ไม่พบข้อมูลรายรับ'] } };
+    return { success: false, error: { _form: ['ไม่พบข้อมูลรายรับ'] } };
   }
 
   try {
@@ -141,6 +142,7 @@ export async function updateIncome(id: string, input: IncomeInput) {
     revalidatePath('/incomes');
     revalidatePath(`/incomes/${id}`);
     return { 
+      success: true,
       data: {
         ...income,
         amount: Number(income.amount)
@@ -148,7 +150,7 @@ export async function updateIncome(id: string, input: IncomeInput) {
     };
   } catch (error) {
     await logger.error('Update income error', error as Error, { path: 'updateIncome', userId: ctx.userId, incomeId: id });
-    return { error: { _form: ['เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง'] } };
+    return { success: false, error: { _form: ['เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง'] } };
   }
 }
 
@@ -164,7 +166,7 @@ export async function deleteIncome(id: string) {
   });
 
   if (!existing) {
-    return { error: 'ไม่พบข้อมูลรายรับ' };
+    return { success: false, message: 'ไม่พบข้อมูลรายรับ' };
   }
 
   try {
@@ -176,10 +178,10 @@ export async function deleteIncome(id: string) {
 
     revalidatePath('/incomes');
     revalidatePath('/dashboard');
-    return { success: true };
+    return { success: true, message: 'ลบรายรับสำเร็จ' };
   } catch (error) {
     await logger.error('Delete income error', error as Error, { path: 'deleteIncome', userId: ctx.userId, incomeId: id });
-    return { error: 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง' };
+    return { success: false, message: 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง' };
   }
 }
 

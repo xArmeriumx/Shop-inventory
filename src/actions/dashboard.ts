@@ -41,7 +41,7 @@ export async function getDashboardStats() {
         date: { gte: today, lt: tomorrow },
         status: { not: "CANCELLED" },
       },
-      _sum: { totalAmount: true, profit: true },
+      _sum: { netAmount: true, profit: true },  // ✅ Revenue = เงินที่ได้รับจริง
       _count: true,
     }),
 
@@ -114,7 +114,7 @@ export async function getDashboardStats() {
         paymentStatus: "PENDING",
         status: { not: "CANCELLED" },
       },
-      _sum: { totalAmount: true },
+      _sum: { netAmount: true },  // ✅ ยอดรอตรวจสอบ = เงินที่ลูกค้าต้องจ่ายจริง
       _count: true,
     }),
 
@@ -149,7 +149,7 @@ export async function getDashboardStats() {
   ]);
 
   // Calculate totals including income
-  const salesRevenue = toNumber(todaySales._sum.totalAmount);
+  const salesRevenue = toNumber(todaySales._sum.netAmount);  // ✅ Revenue = เงินที่ได้รับจริง
   const incomeRevenue = toNumber(todayIncomes._sum.amount);
   const totalRevenue = money.add(salesRevenue, incomeRevenue);
   const salesProfit = toNumber(todaySales._sum.profit);
@@ -190,7 +190,7 @@ export async function getDashboardStats() {
     // NEW: Action items
     pendingPayments: {
       count: pendingPayments._count,
-      amount: toNumber(pendingPayments._sum.totalAmount),
+      amount: toNumber(pendingPayments._sum.netAmount),  // ✅ ยอดรอตรวจสอบจริง
     },
     pendingShipments,
     todayExpenses: {
@@ -228,7 +228,7 @@ export async function getMonthlyStats() {
         },
         status: { not: "CANCELLED" },
       },
-      _sum: { totalAmount: true, profit: true },
+      _sum: { netAmount: true, profit: true },  // ✅ ใช้ netAmount
       _count: true,
     }),
     
@@ -248,7 +248,7 @@ export async function getMonthlyStats() {
   ]);
 
   // Calculate totals including income
-  const salesRevenue = toNumber(monthlySales._sum.totalAmount);
+  const salesRevenue = toNumber(monthlySales._sum.netAmount);  // ✅ ใช้ netAmount
   const incomeRevenue = toNumber(monthlyIncomes._sum.amount);
   const totalRevenue = money.add(salesRevenue, incomeRevenue);
 
@@ -286,7 +286,7 @@ export async function getSalesChartData(days = 7) {
       },
       select: {
         date: true,
-        totalAmount: true,
+        netAmount: true,  // ✅ ใช้ netAmount แทน totalAmount
       },
       orderBy: { date: "asc" },
     }),
@@ -330,7 +330,7 @@ export async function getSalesChartData(days = 7) {
       month: "2-digit",
     });
     if (revenueByDate[dateStr] !== undefined) {
-      revenueByDate[dateStr].sales = money.add(revenueByDate[dateStr].sales, toNumber(sale.totalAmount));
+      revenueByDate[dateStr].sales = money.add(revenueByDate[dateStr].sales, toNumber(sale.netAmount));  // ✅ netAmount
     }
   });
 

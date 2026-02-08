@@ -12,6 +12,7 @@ import { StockService } from '@/lib/stock-service';
 import type { ActionResponse } from '@/types/action-response';
 import { Decimal } from '@prisma/client/runtime/library';
 import { money, toNumber, calcSubtotal, calcProfit } from '@/lib/money';
+import { z } from 'zod';
 
 // =============================================================================
 // RACE CONDITION PREVENTION UTILITIES
@@ -509,14 +510,14 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>
       });
 
       // =================================================================
-      // 7. Record Stock Movements (Audit Trail)
-      // Note: Stock already decremented in step 3, this is just for logging
+      // 7. Record Stock Movements (Audit Trail + isLowStock flag)
+      // Note: Stock already decremented atomically in step 3 (safe check).
+      //       This step: creates audit log + updates isLowStock flag.
       // =================================================================
       for (const item of sale.items) {
-        // Get updated stock balance for the log
         const updatedProduct = await tx.product.findUnique({
           where: { id: item.productId },
-          select: { stock: true, minStock: true, shopId: true },
+          select: { stock: true, minStock: true, name: true },
         });
 
         if (updatedProduct) {
@@ -542,6 +543,19 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>
               shopId,
             },
           });
+
+          // Low stock notification (matches StockService behavior)
+          if (isLowStock && updatedProduct.stock > 0) {
+            NotificationService.create({
+              shopId,
+              type: 'LOW_STOCK',
+              severity: 'WARNING',
+              title: `สินค้าใกล้หมด: ${updatedProduct.name}`,
+              message: `เหลือ ${updatedProduct.stock} ชิ้น (ขั้นต่ำ ${updatedProduct.minStock})`,
+              link: `/products/${item.productId}`,
+              groupKey: `LOW_STOCK:${item.productId}`,
+            }).catch(() => {});
+          }
         }
       }
 
@@ -671,6 +685,14 @@ export async function cancelSale(input: CancelSaleInput) {
       }
 
       // =================================================================
+      // Auto-cancel linked returns (data integrity)
+      // =================================================================
+      await tx.return.updateMany({
+        where: { saleId: id, status: { not: 'CANCELLED' } },
+        data: { status: 'CANCELLED' },
+      });
+
+      // =================================================================
       // คืนสต็อกสินค้ากลับเข้าไป (Atomic Restore Stock)
       // CRITICAL: Deduct already-returned quantity to prevent double-restore
       // =================================================================
@@ -699,6 +721,14 @@ export async function cancelSale(input: CancelSaleInput) {
               where: { id: item.productId },
               data: { isLowStock },
             });
+
+            // Clear low stock notification if product is no longer low stock
+            if (!isLowStock) {
+              NotificationService.removeByGroupKey(
+                sale.shopId || ctx.shopId,
+                `LOW_STOCK:${item.productId}`
+              ).catch(() => {});
+            }
 
             // Create stock log entry
             await tx.stockLog.create({
@@ -768,7 +798,7 @@ export async function getTodaySales() {
       status: { not: 'CANCELLED' },
     },
     _sum: {
-      totalAmount: true,
+      netAmount: true,  // ✅ Revenue = เงินที่ได้รับจริง
       profit: true,
     },
     _count: true,
@@ -778,7 +808,7 @@ export async function getTodaySales() {
   const canViewProfit = hasPermission(ctx, 'SALE_VIEW_PROFIT');
 
   return {
-    totalAmount: toNumber(result._sum.totalAmount),
+    totalAmount: toNumber(result._sum.netAmount),  // ✅ ใช้ netAmount
     profit: canViewProfit ? toNumber(result._sum.profit) : 0,
     count: result._count,
   };
@@ -824,9 +854,19 @@ export async function verifyPayment(
 ): Promise<ActionResponse> {
   try {
     const ctx = await requirePermission('PAYMENT_VERIFY');
+
+    // L3: Input sanitization
+    const sanitizedSaleId = z.string().uuid().safeParse(saleId);
+    if (!sanitizedSaleId.success) {
+      return { success: false, message: 'รหัสรายการขายไม่ถูกต้อง' };
+    }
+    const sanitizedNote = note ? z.string().max(500).safeParse(note.trim()) : undefined;
+    if (sanitizedNote && !sanitizedNote.success) {
+      return { success: false, message: 'หมายเหตุยาวเกินไป (สูงสุด 500 ตัวอักษร)' };
+    }
     
     const sale = await db.sale.findFirst({
-      where: { id: saleId, shopId: ctx.shopId },
+      where: { id: sanitizedSaleId.data, shopId: ctx.shopId },
     });
 
     if (!sale) return { success: false, message: 'ไม่พบรายการขาย' };
@@ -838,7 +878,7 @@ export async function verifyPayment(
         paymentStatus: status,
         paymentVerifiedAt: new Date(),
         paymentVerifiedBy: ctx.userId,
-        paymentNote: note || null,
+        paymentNote: sanitizedNote?.data || null,
       },
     });
 
@@ -862,9 +902,19 @@ export async function uploadPaymentProof(
 ): Promise<ActionResponse> {
   try {
     const ctx = await requirePermission('SALE_VIEW');
+
+    // L3: Input sanitization
+    const sanitizedSaleId = z.string().uuid().safeParse(saleId);
+    if (!sanitizedSaleId.success) {
+      return { success: false, message: 'รหัสรายการขายไม่ถูกต้อง' };
+    }
+    const sanitizedUrl = z.string().url().max(2048).safeParse(proofUrl);
+    if (!sanitizedUrl.success) {
+      return { success: false, message: 'URL หลักฐานไม่ถูกต้อง' };
+    }
     
     const sale = await db.sale.findFirst({
-      where: { id: saleId, shopId: ctx.shopId },
+      where: { id: sanitizedSaleId.data, shopId: ctx.shopId },
     });
 
     if (!sale) return { success: false, message: 'ไม่พบรายการขาย' };
@@ -872,7 +922,7 @@ export async function uploadPaymentProof(
     await db.sale.update({
       where: { id: saleId },
       data: {
-        paymentProof: proofUrl,
+        paymentProof: sanitizedUrl.data,
         paymentStatus: 'PENDING', // Set to pending when proof uploaded
       },
     });

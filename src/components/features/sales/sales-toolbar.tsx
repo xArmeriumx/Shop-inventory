@@ -96,11 +96,11 @@ export function SalesToolbar({
           </Button>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid grid-cols-3 sm:flex sm:flex-wrap items-center gap-2">
           <select
             value={channel}
             onChange={(e) => updateParams({ channel: e.target.value })}
-            className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+            className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm w-full sm:w-auto"
           >
             <option value="">ทุกช่องทาง</option>
             {SALES_CHANNELS.map((ch) => (
@@ -113,7 +113,7 @@ export function SalesToolbar({
           <select
             value={paymentMethod}
             onChange={(e) => updateParams({ paymentMethod: e.target.value })}
-            className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+            className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm w-full sm:w-auto"
           >
             <option value="">ทุกวิธีชำระ</option>
             {PAYMENT_METHODS.map((method) => (
@@ -126,7 +126,7 @@ export function SalesToolbar({
           <select
             value={status}
             onChange={(e) => updateParams({ status: e.target.value })}
-            className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+            className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm w-full sm:w-auto"
           >
             <option value="">ทุกสถานะ</option>
             {SALES_STATUSES.map((s) => (
@@ -146,26 +146,29 @@ export function SalesToolbar({
       </div>
 
       {/* Date Range Filter */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Calendar className="h-4 w-4 text-muted-foreground" />
-        <Input
-          type="date"
-          value={dateRange.start}
-          onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-          className="w-auto"
-        />
-        <span className="text-sm text-muted-foreground">ถึง</span>
-        <Input
-          type="date"
-          value={dateRange.end}
-          onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-          className="w-auto"
-        />
+      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <Calendar className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+          <Input
+            type="date"
+            value={dateRange.start}
+            onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
+            className="flex-1 min-w-0"
+          />
+          <span className="text-sm text-muted-foreground flex-shrink-0">ถึง</span>
+          <Input
+            type="date"
+            value={dateRange.end}
+            onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
+            className="flex-1 min-w-0"
+          />
+        </div>
         <Button
           onClick={handleDateFilter}
           variant="outline"
           size="sm"
           disabled={isPending}
+          className="w-full sm:w-auto"
         >
           กรอง
         </Button>

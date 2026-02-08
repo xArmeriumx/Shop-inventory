@@ -100,67 +100,74 @@ export function PurchasesTable({ purchases, pagination }: PurchasesTableProps) {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border bg-card overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>วันที่</TableHead>
-              <TableHead>ผู้จัดจำหน่าย</TableHead>
-              <TableHead>หมายเหตุ</TableHead>
-              <TableHead className="text-right">ยอดรวม</TableHead>
-              <TableHead className="w-[100px]"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {purchases.map((purchase) => (
-              <TableRow key={purchase.id}>
-                <TableCell>
-                  <div className="text-sm">{formatDate(purchase.date)}</div>
-                </TableCell>
-                <TableCell>
-                  {purchase.supplier?.name || purchase.supplierName || (
-                    <span className="text-muted-foreground">-</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {purchase.notes ? (
-                    <span className="text-sm">{purchase.notes}</span>
-                  ) : (
-                    <span className="text-muted-foreground text-sm">-</span>
-                  )}
-                </TableCell>
-                <TableCell className="text-right font-medium">
-                  {formatCurrency(purchase.totalCost.toString())}
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center justify-end gap-1">
-                    <Button variant="ghost" size="icon" asChild>
-                      <Link href={`/purchases/${purchase.id}`}>
-                        <Eye className="h-4 w-4" />
-                      </Link>
-                    </Button>
-                    {canCancelPurchase && purchase.status !== 'CANCELLED' && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setCancelDialogPurchase(purchase)}
-                        disabled={cancellingId === purchase.id}
-                        title="ยกเลิกรายการ"
-                      >
-                        <XCircle className="h-4 w-4 text-destructive" />
-                      </Button>
-                    )}
-                    {purchase.status === 'CANCELLED' && (
-                      <Badge variant="outline" className="text-xs text-destructive border-destructive">
-                        ยกเลิกแล้ว
-                      </Badge>
-                    )}
-                  </div>
-                </TableCell>
+      <div className="rounded-lg border bg-card overflow-hidden">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>วันที่</TableHead>
+                <TableHead className="hidden sm:table-cell">ผู้จัดจำหน่าย</TableHead>
+                <TableHead className="hidden md:table-cell">หมายเหตุ</TableHead>
+                <TableHead className="text-right">ยอดรวม</TableHead>
+                <TableHead className="w-[80px] sm:w-[100px]"></TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {purchases.map((purchase) => (
+                <TableRow key={purchase.id}>
+                  <TableCell>
+                    <div className="text-sm">{formatDate(purchase.date)}</div>
+                    {/* Mobile: show supplier inline */}
+                    <div className="sm:hidden text-xs text-muted-foreground mt-0.5">
+                      {purchase.supplier?.name || purchase.supplierName || '-'}
+                    </div>
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell">
+                    {purchase.supplier?.name || purchase.supplierName || (
+                      <span className="text-muted-foreground">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell">
+                    {purchase.notes ? (
+                      <span className="text-sm">{purchase.notes}</span>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right font-medium">
+                    {formatCurrency(purchase.totalCost.toString())}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center justify-end gap-0.5">
+                      <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                        <Link href={`/purchases/${purchase.id}`}>
+                          <Eye className="h-4 w-4" />
+                        </Link>
+                      </Button>
+                      {canCancelPurchase && purchase.status !== 'CANCELLED' && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setCancelDialogPurchase(purchase)}
+                          disabled={cancellingId === purchase.id}
+                          title="ยกเลิกรายการ"
+                        >
+                          <XCircle className="h-4 w-4 text-destructive" />
+                        </Button>
+                      )}
+                      {purchase.status === 'CANCELLED' && (
+                        <Badge variant="outline" className="text-[10px] text-destructive border-destructive">
+                          ยกเลิก
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </div>
 
       <div className="flex items-center justify-between">

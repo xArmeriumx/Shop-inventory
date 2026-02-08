@@ -109,6 +109,12 @@
   .safe-area-pb {
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
+
+  /* Mobile-first: prevent horizontal scrolling on body */
+  .mobile-scroll-lock {
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 @media print {

@@ -35,23 +35,40 @@ type CreateReturnInput = z.infer<typeof createReturnSchema>;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+const MAX_RETURN_RETRIES = 5;
+
 /**
  * Auto-gen return number: RET-00001, RET-00002, ...
+ * Race-condition safe with retry + collision check.
  */
 async function generateReturnNumber(tx: any, shopId: string): Promise<string> {
-  const lastReturn = await tx.return.findFirst({
-    where: { shopId },
-    orderBy: { createdAt: 'desc' },
-    select: { returnNumber: true },
-  });
+  for (let attempt = 0; attempt < MAX_RETURN_RETRIES; attempt++) {
+    const lastReturn = await tx.return.findFirst({
+      where: { shopId },
+      orderBy: { returnNumber: 'desc' },
+      select: { returnNumber: true },
+    });
 
-  let nextNum = 1;
-  if (lastReturn?.returnNumber) {
-    const match = lastReturn.returnNumber.match(/RET-(\d+)/);
-    if (match) nextNum = parseInt(match[1], 10) + 1;
+    const lastNumber = lastReturn?.returnNumber
+      ? parseInt(lastReturn.returnNumber.split('-')[1] || '0')
+      : 0;
+
+    const newNumber = lastNumber + 1 + attempt;
+    const returnNumber = `RET-${String(newNumber).padStart(5, '0')}`;
+
+    // Collision check
+    const exists = await tx.return.findFirst({
+      where: { shopId, returnNumber },
+      select: { id: true },
+    });
+
+    if (!exists) {
+      return returnNumber;
+    }
   }
 
-  return `RET-${String(nextNum).padStart(5, '0')}`;
+  // Fallback: timestamp-based
+  return `RET-${Date.now()}`;
 }
 
 // ── Actions ──────────────────────────────────────────────────────────────────
@@ -65,7 +82,9 @@ export async function getReturnableSaleItems(saleId: string) {
 
   const sale = await db.sale.findFirst({
     where: { id: saleId, shopId: ctx.shopId, status: { not: 'CANCELLED' } },
-    include: {
+    select: {
+      totalAmount: true,      // ✅ ใช้คำนวณ bill discount ratio
+      discountAmount: true,   // ✅ ส่วนลดบิล
       items: {
         include: {
           product: { select: { id: true, name: true, sku: true } },
@@ -77,16 +96,25 @@ export async function getReturnableSaleItems(saleId: string) {
 
   if (!sale) return null;
 
+  // ✅ คำนวณ bill discount ratio (เช่น ส่วนลด 10% → ratio = 0.90)
+  const saleTotal = toNumber(sale.totalAmount);
+  const saleDiscount = toNumber(sale.discountAmount);
+  const billDiscountRatio = saleTotal > 0
+    ? money.divide(money.subtract(saleTotal, saleDiscount), saleTotal)
+    : 1;
+
   return sale.items.map(item => {
     const alreadyReturned = item.returnItems.reduce((sum, ri) => sum + ri.quantity, 0);
     const maxReturnable = item.quantity - alreadyReturned;
     
-    // Net price per unit = (subtotal - discountAmount) / quantity
+    // Net price per unit = ((subtotal - itemDiscount) / quantity) × billDiscountRatio
     const subtotal = toNumber(item.subtotal);
     const discount = toNumber(item.discountAmount);
-    const netPerUnit = item.quantity > 0
+    const itemNetPerUnit = item.quantity > 0
       ? money.round(money.divide(money.subtract(subtotal, discount), item.quantity))
       : 0;
+    // ✅ ปรับด้วย bill discount ratio → ได้ราคาที่ลูกค้าจ่ายจริงต่อชิ้น
+    const netPerUnit = money.round(money.multiply(itemNetPerUnit, billDiscountRatio));
 
     return {
       saleItemId: item.id,
@@ -97,7 +125,7 @@ export async function getReturnableSaleItems(saleId: string) {
       alreadyReturned,
       maxReturnable,
       salePrice: toNumber(item.salePrice),
-      netPerUnit, // ราคาคืนต่อชิ้น (หลังส่วนลด)
+      netPerUnit, // ราคาคืนต่อชิ้น (หลังส่วนลดรายชิ้น + ส่วนลดบิล)
     };
   }).filter(item => item.maxReturnable > 0);
 }
@@ -188,7 +216,7 @@ export async function createReturn(input: CreateReturnInput): Promise<ActionResp
           userId: ctx.userId,
           shopId,
           referenceId: returnRecord.id,
-          referenceType: 'SALE', // Related to original sale
+          referenceType: 'SALE',
           note: `คืนสินค้า ${returnNumber} (${data.reason})`,
           tx,
         });
@@ -208,10 +236,11 @@ export async function createReturn(input: CreateReturnInput): Promise<ActionResp
       // profit adjustment = refund - cost (we're losing the revenue but recovering the cost)
       const profitAdjustment = money.subtract(totalRefund, totalReturnCost);
 
+      // totalAmount = pre-discount gross → must NOT change on return
+      // Only netAmount (actual revenue), totalCost, and profit are adjusted
       await tx.sale.update({
         where: { id: data.saleId },
         data: {
-          totalAmount:  { decrement: totalRefund },
           netAmount:    { decrement: totalRefund },
           totalCost:    { decrement: totalReturnCost },
           profit:       { decrement: profitAdjustment },

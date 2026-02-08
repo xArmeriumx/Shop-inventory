@@ -82,64 +82,82 @@ export function CustomersTable({ customers, pagination }: CustomersTableProps) {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border bg-card overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>ชื่อลูกค้า</TableHead>
-              <TableHead>ติดต่อ</TableHead>
-              <TableHead>ที่อยู่</TableHead>
-              <TableHead className="w-[100px]"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {customers.map((customer) => (
-              <TableRow key={customer.id}>
-                <TableCell>
-                  <p className="font-medium">{customer.name}</p>
-                </TableCell>
-                <TableCell>
-                  <div className="space-y-1 text-sm">
-                    {customer.phone && (
-                      <div className="flex items-center gap-1 text-muted-foreground">
-                        <Phone className="h-3 w-3" />
-                        {customer.phone}
-                      </div>
-                    )}
-                    {customer.email && (
-                      <div className="flex items-center gap-1 text-muted-foreground">
-                        <Mail className="h-3 w-3" />
-                        {customer.email}
-                      </div>
-                    )}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <p className="text-sm text-muted-foreground truncate max-w-[200px]">
-                    {customer.address || '-'}
-                  </p>
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center justify-end gap-1">
-                    <Button variant="ghost" size="icon" asChild>
-                      <Link href={`/customers/${customer.id}`}>
-                        <Edit className="h-4 w-4" />
-                      </Link>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDelete(customer.id, customer.name)}
-                      disabled={deletingId === customer.id}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </TableCell>
+      <div className="rounded-lg border bg-card overflow-hidden">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>ชื่อลูกค้า</TableHead>
+                <TableHead className="hidden sm:table-cell">ติดต่อ</TableHead>
+                <TableHead className="hidden md:table-cell">ที่อยู่</TableHead>
+                <TableHead className="w-[80px] sm:w-[100px]"></TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {customers.map((customer) => (
+                <TableRow key={customer.id}>
+                  <TableCell>
+                    <p className="font-medium">{customer.name}</p>
+                    {/* Mobile: show contact inline */}
+                    <div className="sm:hidden text-xs text-muted-foreground mt-0.5 space-y-0.5">
+                      {customer.phone && (
+                        <div className="flex items-center gap-1">
+                          <Phone className="h-3 w-3" />
+                          {customer.phone}
+                        </div>
+                      )}
+                      {customer.email && (
+                        <div className="flex items-center gap-1">
+                          <Mail className="h-3 w-3" />
+                          <span className="truncate">{customer.email}</span>
+                        </div>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell">
+                    <div className="space-y-1 text-sm">
+                      {customer.phone && (
+                        <div className="flex items-center gap-1 text-muted-foreground">
+                          <Phone className="h-3 w-3" />
+                          {customer.phone}
+                        </div>
+                      )}
+                      {customer.email && (
+                        <div className="flex items-center gap-1 text-muted-foreground">
+                          <Mail className="h-3 w-3" />
+                          {customer.email}
+                        </div>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell">
+                    <p className="text-sm text-muted-foreground truncate max-w-[200px]">
+                      {customer.address || '-'}
+                    </p>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center justify-end gap-0.5">
+                      <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                        <Link href={`/customers/${customer.id}`}>
+                          <Edit className="h-4 w-4" />
+                        </Link>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => handleDelete(customer.id, customer.name)}
+                        disabled={deletingId === customer.id}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </div>
 
       <div className="flex items-center justify-between">

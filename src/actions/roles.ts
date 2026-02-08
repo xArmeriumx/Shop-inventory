@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
 import { requireAuth, requirePermission } from '@/lib/auth-guard';
+import { logger } from '@/lib/logger';
 import type { Permission } from '@prisma/client';
 import type { ActionResponse } from '@/types/action-response';
 
@@ -102,7 +103,7 @@ export async function createRole(input: RoleInput): Promise<ActionResponse<{ id:
     revalidatePath('/settings/roles');
     return { success: true, data: { id: role.id }, message: 'สร้าง Role สำเร็จ' };
   } catch (error) {
-    console.error('Create role error:', error);
+    await logger.error('Create role error', error as Error, { path: 'createRole', userId: ctx.userId });
     return { success: false, message: 'เกิดข้อผิดพลาดในการสร้าง Role' };
   }
 }
@@ -153,7 +154,7 @@ export async function updateRole(id: string, input: RoleInput): Promise<ActionRe
     revalidatePath('/settings/roles');
     return { success: true, message: 'อัปเดต Role สำเร็จ' };
   } catch (error) {
-    console.error('Update role error:', error);
+    await logger.error('Update role error', error as Error, { path: 'updateRole', userId: ctx.userId, roleId: id });
     return { success: false, message: 'เกิดข้อผิดพลาดในการอัปเดต Role' };
   }
 }
@@ -190,7 +191,7 @@ export async function deleteRole(id: string): Promise<ActionResponse> {
     revalidatePath('/settings/roles');
     return { success: true, message: 'ลบ Role สำเร็จ' };
   } catch (error) {
-    console.error('Delete role error:', error);
+    await logger.error('Delete role error', error as Error, { path: 'deleteRole', userId: ctx.userId, roleId: id });
     return { success: false, message: 'เกิดข้อผิดพลาดในการลบ Role' };
   }
 }

@@ -2,6 +2,7 @@
 
 import { db } from '@/lib/db';
 import { requireShop } from '@/lib/auth-guard';
+import { logger } from '@/lib/logger';
 
 /**
  * Get shop context data for AI
@@ -34,14 +35,14 @@ export async function getShopContextForAI() {
       // Today's sales
       db.sale.aggregate({
         where: { shopId: ctx.shopId, createdAt: { gte: startOfToday } },
-        _sum: { totalAmount: true, profit: true },
+        _sum: { netAmount: true, profit: true },  // ✅ Revenue = เงินที่ได้รับจริง
         _count: true,
       }),
       
       // This month's sales
       db.sale.aggregate({
         where: { shopId: ctx.shopId, createdAt: { gte: startOfMonth } },
-        _sum: { totalAmount: true, profit: true },
+        _sum: { netAmount: true, profit: true },  // ✅ ใช้ netAmount
         _count: true,
       }),
       
@@ -137,12 +138,12 @@ export async function getShopContextForAI() {
 
 ## ยอดขายวันนี้
 - จำนวนบิล: ${todaySales._count} บิล
-- ยอดขาย: ฿${Number(todaySales._sum.totalAmount || 0).toLocaleString()}
+- ยอดขาย: ฿${Number(todaySales._sum.netAmount || 0).toLocaleString()}
 - กำไร: ฿${Number(todaySales._sum.profit || 0).toLocaleString()}
 
 ## ยอดขายเดือนนี้
 - จำนวนบิล: ${monthSales._count} บิล
-- ยอดขาย: ฿${Number(monthSales._sum.totalAmount || 0).toLocaleString()}
+- ยอดขาย: ฿${Number(monthSales._sum.netAmount || 0).toLocaleString()}
 - กำไร: ฿${Number(monthSales._sum.profit || 0).toLocaleString()}
 
 ## สินค้า
@@ -173,7 +174,7 @@ ${recentSalesStr || '(ยังไม่มีข้อมูล)'}
 
     return context;
   } catch (error) {
-    console.error('Error getting shop context for AI:', error);
+    await logger.error('Error getting shop context for AI', error as Error, { path: 'getShopContextForAI' });
     return `## ข้อมูลร้าน
 เกิดข้อผิดพลาดในการโหลดข้อมูล กรุณาลองใหม่อีกครั้ง`;
   }

@@ -46,10 +46,10 @@ export default async function SalesPage({ searchParams }: SalesPageProps) {
   return (
     <div>
       <PageHeader title="ขายสินค้า" description="จัดการข้อมูลการขายและออกใบเสร็จ">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
           <SalesExportButton />
           <Guard permission="SALE_CREATE">
-            <Button asChild>
+            <Button asChild className="flex-1 sm:flex-none">
               <Link href="/sales/new">
                 <Plus className="mr-2 h-4 w-4" />
                 บันทึกการขาย

@@ -60,6 +60,7 @@ export async function getReportData(startDate?: string, endDate?: string): Promi
           invoiceNumber: true,
           date: true,
           totalAmount: true,
+          netAmount: true,     // ✅ ใช้สำหรับ revenue aggregate (เงินที่ได้รับจริง)
           totalCost: true,
           profit: true,
           paymentMethod: true,
@@ -110,7 +111,7 @@ export async function getReportData(startDate?: string, endDate?: string): Promi
           date: { gte: start, lte: end },
           status: { not: 'CANCELLED' },
         },
-        _sum: { totalAmount: true, totalCost: true },
+        _sum: { netAmount: true, totalCost: true },  // ✅ ใช้ netAmount (หลังส่วนลดบิล)
       }),
 
       // Query 5: หาผลรวมค่าใช้จ่าย
@@ -135,7 +136,7 @@ export async function getReportData(startDate?: string, endDate?: string): Promi
     ]);
 
     // แปลงข้อมูลจาก Aggregate (Decimal -> Number)
-    const totalSales = toNumber(salesAggregate._sum.totalAmount);
+    const totalSales = toNumber(salesAggregate._sum.netAmount);  // ✅ Revenue = เงินที่ได้รับจริง
     const totalCost = toNumber(salesAggregate._sum.totalCost);
     const totalExpenses = toNumber(expensesAggregate._sum.amount);
     const totalIncomes = toNumber(incomesAggregate._sum.amount);
@@ -153,7 +154,7 @@ export async function getReportData(startDate?: string, endDate?: string): Promi
     salesData.forEach(s => {
       const dateKey = s.date.toISOString().split('T')[0];
       const current = dailyMap.get(dateKey) || { sales: 0, cost: 0, expenses: 0, incomes: 0 };
-      current.sales = money.add(current.sales, toNumber(s.totalAmount));
+      current.sales = money.add(current.sales, toNumber(s.netAmount));  // ✅ ใช้ netAmount
       current.cost = money.add(current.cost, toNumber(s.totalCost));
       dailyMap.set(dateKey, current);
     });
@@ -244,6 +245,7 @@ export async function getTopProducts(startDate?: string, endDate?: string, limit
   end.setHours(23, 59, 59, 999);
 
   // Group sale items by product
+  // Use SaleItem.profit (snapshotted at sale time) instead of current Product.costPrice
   const productStats = await db.saleItem.groupBy({
     by: ['productId'],
     where: {
@@ -256,17 +258,18 @@ export async function getTopProducts(startDate?: string, endDate?: string, limit
     _sum: {
       subtotal: true,
       quantity: true,
+      profit: true,  // ✅ ใช้ profit ที่คำนวณไว้ตอน createSale (snapshot)
     },
     _count: true,
     orderBy: { _sum: { subtotal: 'desc' } },
     take: limit,
   });
 
-  // Fetch product names
+  // Fetch product names (no longer need costPrice)
   const productIds = productStats.map(p => p.productId);
   const products = await db.product.findMany({
     where: { id: { in: productIds } },
-    select: { id: true, name: true, sku: true, costPrice: true },
+    select: { id: true, name: true, sku: true },
   });
 
   const productMap = new Map(products.map(p => [p.id, p]));
@@ -275,8 +278,8 @@ export async function getTopProducts(startDate?: string, endDate?: string, limit
     const product = productMap.get(stat.productId);
     const revenue = toNumber(stat._sum.subtotal);
     const qty = stat._sum.quantity || 0;
-    const costPrice = toNumber(product?.costPrice);
-    const estimatedProfit = revenue - (costPrice * qty);
+    // ✅ ใช้ profit จาก SaleItem โดยตรง — ถูกต้องตามต้นทุน ณ เวลาที่ขายจริง
+    const profit = toNumber(stat._sum.profit);
 
     return {
       productId: stat.productId,
@@ -284,7 +287,7 @@ export async function getTopProducts(startDate?: string, endDate?: string, limit
       sku: product?.sku || '',
       quantity: qty,
       revenue,
-      estimatedProfit,
+      profit,
       orderCount: stat._count,
     };
   });
@@ -385,7 +388,7 @@ export async function getComparisonReport(
         date: { gte: p1Start, lte: p1End },
         status: { not: 'CANCELLED' },
       },
-      _sum: { totalAmount: true, profit: true },
+      _sum: { netAmount: true, profit: true },  // ✅ ใช้ netAmount
       _count: true,
     }),
     db.sale.aggregate({
@@ -394,7 +397,7 @@ export async function getComparisonReport(
         date: { gte: p2Start, lte: p2End },
         status: { not: 'CANCELLED' },
       },
-      _sum: { totalAmount: true, profit: true },
+      _sum: { netAmount: true, profit: true },  // ✅ ใช้ netAmount
       _count: true,
     }),
     db.expense.aggregate({
@@ -415,8 +418,8 @@ export async function getComparisonReport(
     }),
   ]);
 
-  const p1Revenue = toNumber(period1Sales._sum.totalAmount);
-  const p2Revenue = toNumber(period2Sales._sum.totalAmount);
+  const p1Revenue = toNumber(period1Sales._sum.netAmount);  // ✅ Revenue = เงินที่ได้รับจริง
+  const p2Revenue = toNumber(period2Sales._sum.netAmount);
   const p1Profit = toNumber(period1Sales._sum.profit);
   const p2Profit = toNumber(period2Sales._sum.profit);
   const p1Expenses = toNumber(period1Expenses._sum.amount);

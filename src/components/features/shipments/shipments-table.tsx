@@ -70,83 +70,95 @@ export function ShipmentsTable({ shipments, pagination }: ShipmentsTableProps) {
 
   return (
     <div>
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[130px]">เลขจัดส่ง</TableHead>
-              <TableHead>ผู้รับ</TableHead>
-              <TableHead>เลข Invoice</TableHead>
-              <TableHead>Tracking</TableHead>
-              <TableHead>ขนส่ง</TableHead>
-              <TableHead className="text-right">ค่าส่ง</TableHead>
-              <TableHead>สถานะ</TableHead>
-              <TableHead>วันที่</TableHead>
-              <TableHead className="w-[70px]"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {shipments.map((shipment) => (
-              <TableRow key={shipment.id}>
-                <TableCell className="font-mono text-sm">
-                  {shipment.shipmentNumber}
-                </TableCell>
-                <TableCell>
-                  <div>
-                    <p className="font-medium">{shipment.recipientName}</p>
-                    {shipment.recipientPhone && (
-                      <p className="text-xs text-muted-foreground">
-                        {shipment.recipientPhone}
-                      </p>
-                    )}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  {shipment.sale ? (
-                    <Link
-                      href={`/sales/${shipment.sale.id}`}
-                      className="text-blue-600 hover:underline"
-                    >
-                      {shipment.sale.invoiceNumber}
-                    </Link>
-                  ) : (
-                    '-'
-                  )}
-                </TableCell>
-                <TableCell className="font-mono text-sm">
-                  {shipment.trackingNumber || '-'}
-                </TableCell>
-                <TableCell>{shipment.shippingProvider || '-'}</TableCell>
-                <TableCell className="text-right">
-                  {shipment.shippingCost
-                    ? formatCurrency(shipment.shippingCost)
-                    : '-'}
-                </TableCell>
-                <TableCell>
-                  <ShipmentStatusBadge status={shipment.status} />
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {formatDate(shipment.createdAt)}
-                </TableCell>
-                <TableCell>
-                  <Button variant="ghost" size="icon" asChild>
-                    <Link href={`/shipments/${shipment.id}`}>
-                      <Eye className="h-4 w-4" />
-                    </Link>
-                  </Button>
-                </TableCell>
+      <div className="rounded-md border overflow-hidden">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>เลขจัดส่ง</TableHead>
+                <TableHead className="hidden sm:table-cell">ผู้รับ</TableHead>
+                <TableHead className="hidden md:table-cell">Invoice</TableHead>
+                <TableHead className="hidden lg:table-cell">Tracking</TableHead>
+                <TableHead className="hidden lg:table-cell">ขนส่ง</TableHead>
+                <TableHead className="hidden md:table-cell text-right">ค่าส่ง</TableHead>
+                <TableHead>สถานะ</TableHead>
+                <TableHead className="hidden sm:table-cell">วันที่</TableHead>
+                <TableHead className="w-[50px]"></TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {shipments.map((shipment) => (
+                <TableRow key={shipment.id}>
+                  <TableCell>
+                    <span className="font-mono text-sm">{shipment.shipmentNumber}</span>
+                    {/* Mobile: show recipient + date inline */}
+                    <div className="sm:hidden text-xs text-muted-foreground mt-0.5">
+                      {shipment.recipientName}
+                    </div>
+                    <div className="sm:hidden text-xs text-muted-foreground">
+                      {formatDate(shipment.createdAt)}
+                    </div>
+                    {shipment.trackingNumber && (
+                      <div className="lg:hidden text-xs text-muted-foreground mt-0.5">
+                        📦 {shipment.trackingNumber}
+                      </div>
+                    )}
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell">
+                    <div>
+                      <p className="font-medium">{shipment.recipientName}</p>
+                      {shipment.recipientPhone && (
+                        <p className="text-xs text-muted-foreground">
+                          {shipment.recipientPhone}
+                        </p>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell">
+                    {shipment.sale ? (
+                      <Link
+                        href={`/sales/${shipment.sale.id}`}
+                        className="text-blue-600 hover:underline"
+                      >
+                        {shipment.sale.invoiceNumber}
+                      </Link>
+                    ) : (
+                      '-'
+                    )}
+                  </TableCell>
+                  <TableCell className="hidden lg:table-cell font-mono text-sm">
+                    {shipment.trackingNumber || '-'}
+                  </TableCell>
+                  <TableCell className="hidden lg:table-cell">{shipment.shippingProvider || '-'}</TableCell>
+                  <TableCell className="hidden md:table-cell text-right">
+                    {shipment.shippingCost
+                      ? formatCurrency(shipment.shippingCost)
+                      : '-'}
+                  </TableCell>
+                  <TableCell>
+                    <ShipmentStatusBadge status={shipment.status} />
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">
+                    {formatDate(shipment.createdAt)}
+                  </TableCell>
+                  <TableCell>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                      <Link href={`/shipments/${shipment.id}`}>
+                        <Eye className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </div>
 
       {/* Pagination */}
       {pagination.totalPages > 1 && (
         <div className="flex items-center justify-between mt-4">
-          <p className="text-sm text-muted-foreground">
-            แสดง {(pagination.page - 1) * pagination.limit + 1}-
-            {Math.min(pagination.page * pagination.limit, pagination.total)} จาก{' '}
+          <p className="text-xs sm:text-sm text-muted-foreground">
             {pagination.total} รายการ
           </p>
           <div className="flex gap-2">

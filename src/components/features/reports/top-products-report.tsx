@@ -65,7 +65,7 @@ export function TopProductsReport({ startDate, endDate }: TopProductsReportProps
   const chartData = products.map(p => ({
     name: p.name.length > 15 ? p.name.substring(0, 15) + '...' : p.name,
     revenue: p.revenue,
-    profit: p.estimatedProfit,
+    profit: p.profit,
   }));
 
   // Pie data for categories
@@ -158,7 +158,7 @@ export function TopProductsReport({ startDate, endDate }: TopProductsReportProps
                   <th className="text-left py-2 px-2 font-semibold">สินค้า</th>
                   <th className="text-right py-2 px-2 font-semibold">จำนวนขาย</th>
                   <th className="text-right py-2 px-2 font-semibold">รายรับ</th>
-                  <th className="text-right py-2 px-2 font-semibold">กำไรโดยประมาณ</th>
+                  <th className="text-right py-2 px-2 font-semibold">กำไร</th>
                   <th className="text-right py-2 px-2 font-semibold">จำนวนออร์เดอร์</th>
                 </tr>
               </thead>
@@ -172,7 +172,7 @@ export function TopProductsReport({ startDate, endDate }: TopProductsReportProps
                     </td>
                     <td className="text-right py-2 px-2">{formatNumber(p.quantity)}</td>
                     <td className="text-right py-2 px-2 font-medium text-blue-600">{formatCurrency(p.revenue)}</td>
-                    <td className="text-right py-2 px-2 font-medium text-green-600">{formatCurrency(p.estimatedProfit)}</td>
+                    <td className="text-right py-2 px-2 font-medium text-green-600">{formatCurrency(p.profit)}</td>
                     <td className="text-right py-2 px-2">{p.orderCount}</td>
                   </tr>
                 ))}

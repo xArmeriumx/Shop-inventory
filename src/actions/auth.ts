@@ -2,6 +2,7 @@
 
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
+import { logger } from '@/lib/logger';
 import { Permission } from '@prisma/client';
 
 export type PermissionData = {
@@ -110,7 +111,7 @@ export async function registerUser(data: {
 
     return { success: true };
   } catch (error) {
-    console.error('Registration error:', error);
+    await logger.error('Registration error', error as Error, { path: 'registerUser', email: data.email });
     return { error: 'เกิดข้อผิดพลาดในการสมัครสมาชิก' };
   }
 }

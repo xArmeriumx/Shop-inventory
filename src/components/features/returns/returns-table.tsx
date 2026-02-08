@@ -82,68 +82,80 @@ export function ReturnsTable({ returns, pagination }: ReturnsTableProps) {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border bg-card overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>เลขที่คืน</TableHead>
-              <TableHead>บิลขาย</TableHead>
-              <TableHead>วันที่</TableHead>
-              <TableHead>สินค้า</TableHead>
-              <TableHead>เหตุผล</TableHead>
-              <TableHead className="text-right">คืนเงิน</TableHead>
-              <TableHead>วิธีคืน</TableHead>
-              <TableHead>สถานะ</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {returns.map((ret) => (
-              <TableRow key={ret.id}>
-                <TableCell>
-                  <Link href={`/returns/${ret.id}`} className="font-medium text-blue-600 hover:underline">
-                    {ret.returnNumber}
-                  </Link>
-                </TableCell>
-                <TableCell>
-                  <Link href={`/sales/${ret.id}`} className="text-muted-foreground hover:underline">
-                    {ret.sale.invoiceNumber}
-                  </Link>
-                </TableCell>
-                <TableCell className="text-sm">
-                  {formatDate(ret.createdAt)}
-                </TableCell>
-                <TableCell>
-                  <div className="text-sm">
-                    {ret.items.map((item, i) => (
-                      <div key={item.id}>
-                        {item.product.name} x{item.quantity}
-                      </div>
-                    ))}
-                  </div>
-                </TableCell>
-                <TableCell className="max-w-[200px] truncate text-sm">
-                  {ret.reason}
-                </TableCell>
-                <TableCell className="text-right font-medium">
-                  {formatCurrency(ret.refundAmount)}
-                </TableCell>
-                <TableCell>
-                  <Badge variant="outline">{getRefundMethodLabel(ret.refundMethod)}</Badge>
-                </TableCell>
-                <TableCell>
-                  {getStatusBadge(ret.status)}
-                </TableCell>
+      <div className="rounded-lg border bg-card overflow-hidden">
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>เลขที่คืน</TableHead>
+                <TableHead className="hidden sm:table-cell">บิลขาย</TableHead>
+                <TableHead className="hidden md:table-cell">วันที่</TableHead>
+                <TableHead className="hidden lg:table-cell">สินค้า</TableHead>
+                <TableHead className="hidden lg:table-cell">เหตุผล</TableHead>
+                <TableHead className="text-right">คืนเงิน</TableHead>
+                <TableHead className="hidden sm:table-cell">สถานะ</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {returns.map((ret) => (
+                <TableRow key={ret.id}>
+                  <TableCell>
+                    <Link href={`/returns/${ret.id}`} className="font-medium text-blue-600 hover:underline">
+                      {ret.returnNumber}
+                    </Link>
+                    {/* Mobile: show sale + date + status inline */}
+                    <div className="sm:hidden text-xs text-muted-foreground mt-0.5">
+                      {ret.sale.invoiceNumber} · {formatDate(ret.createdAt)}
+                    </div>
+                    <div className="sm:hidden mt-1 flex items-center gap-1">
+                      {getStatusBadge(ret.status)}
+                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                        {getRefundMethodLabel(ret.refundMethod)}
+                      </Badge>
+                    </div>
+                    {/* Mobile: show product names */}
+                    <div className="lg:hidden text-xs text-muted-foreground mt-0.5">
+                      {ret.items.map(item => `${item.product.name} x${item.quantity}`).join(', ')}
+                    </div>
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell">
+                    <Link href={`/sales/${ret.id}`} className="text-muted-foreground hover:underline">
+                      {ret.sale.invoiceNumber}
+                    </Link>
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell text-sm">
+                    {formatDate(ret.createdAt)}
+                  </TableCell>
+                  <TableCell className="hidden lg:table-cell">
+                    <div className="text-sm">
+                      {ret.items.map((item) => (
+                        <div key={item.id}>
+                          {item.product.name} x{item.quantity}
+                        </div>
+                      ))}
+                    </div>
+                  </TableCell>
+                  <TableCell className="hidden lg:table-cell max-w-[200px] truncate text-sm">
+                    {ret.reason}
+                  </TableCell>
+                  <TableCell className="text-right font-medium">
+                    {formatCurrency(ret.refundAmount)}
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell">
+                    {getStatusBadge(ret.status)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </div>
 
       {/* Pagination */}
       {pagination.totalPages > 1 && (
         <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            ทั้งหมด {pagination.total} รายการ (หน้า {pagination.page}/{pagination.totalPages})
+          <p className="text-xs sm:text-sm text-muted-foreground">
+            {pagination.total} รายการ
           </p>
           <div className="flex gap-2">
             <Button

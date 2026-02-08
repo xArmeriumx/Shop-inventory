@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { requireAuth, requirePermission, getCurrentUserId } from '@/lib/auth-guard';
+import { logger } from '@/lib/logger';
 import { LookupTypeCode } from '@prisma/client';
 
 // ==================== Schemas ====================
@@ -177,7 +178,7 @@ export async function quickAddCategory(
       data: { id: created.id, name: created.name } 
     };
   } catch (error) {
-    console.error('Quick add category error:', error);
+    await logger.error('Quick add category error', error as Error, { path: 'quickAddCategory', typeCode });
     return { success: false, error: 'เกิดข้อผิดพลาดในการบันทึก' };
   }
 }
@@ -261,7 +262,7 @@ export async function createLookupValue(
     revalidatePath('/settings');
     return { success: true };
   } catch (error) {
-    console.error('Create lookup value error:', error);
+    await logger.error('Create lookup value error', error as Error, { path: 'createLookupValue', typeCode });
     return { error: 'เกิดข้อผิดพลาดในการบันทึก' };
   }
 }
@@ -319,7 +320,7 @@ export async function updateLookupValue(
     revalidatePath('/settings');
     return { success: true };
   } catch (error) {
-    console.error('Update lookup value error:', error);
+    await logger.error('Update lookup value error', error as Error, { path: 'updateLookupValue', lookupId: id });
     return { error: 'เกิดข้อผิดพลาดในการบันทึก' };
   }
 }
@@ -370,7 +371,7 @@ export async function deleteLookupValue(id: string): Promise<LookupValueState> {
     revalidatePath('/settings');
     return { success: true };
   } catch (error) {
-    console.error('Delete lookup value error:', error);
+    await logger.error('Delete lookup value error', error as Error, { path: 'deleteLookupValue', lookupId: id });
     return { error: 'เกิดข้อผิดพลาดในการลบ' };
   }
 }
@@ -471,7 +472,7 @@ export async function seedDefaultLookupValues() {
     revalidatePath('/settings');
     return { success: true };
   } catch (error) {
-    console.error('Seed default values error:', error);
+    await logger.error('Seed default values error', error as Error, { path: 'seedDefaultLookupValues' });
     return { error: 'เกิดข้อผิดพลาด' };
   }
 }

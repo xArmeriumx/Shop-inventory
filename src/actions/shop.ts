@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { requireAuth, requirePermission, getCurrentUserId } from '@/lib/auth-guard';
+import { logger } from '@/lib/logger';
 
 const shopSchema = z.object({
   name: z.string().min(1, 'กรุณากรอกชื่อร้าน'),
@@ -91,7 +92,7 @@ export async function updateShop(prevState: ShopState, formData: FormData): Prom
     
     return { success: true };
   } catch (error) {
-    console.error('Update shop error:', error);
+    await logger.error('Update shop error', error as Error, { path: 'updateShop', userId: ctx.userId });
     return { error: 'เกิดข้อผิดพลาดในการบันทึกข้อมูล' };
   }
 }

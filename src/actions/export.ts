@@ -280,6 +280,7 @@ export async function exportSalesData(startDate: string, endDate: string) {
     where: {
       shopId: ctx.shopId,
       date: { gte: start, lte: end },
+      status: { not: 'CANCELLED' },  // ✅ ไม่รวมบิลที่ยกเลิก
     },
     select: {
       invoiceNumber: true,

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth-guard';
+import { logger } from '@/lib/logger';
 import { paginatedQuery, buildSearchFilter } from '@/lib/pagination';
 import { customerSchema, type CustomerInput } from '@/schemas/customer';
 import type { Customer } from '@prisma/client';
@@ -83,7 +84,7 @@ export async function createCustomer(input: CustomerInput): Promise<ActionRespon
       data: customer,
     };
   } catch (error) {
-    console.error('Create customer error:', error);
+    await logger.error('Create customer error', error as Error, { path: 'createCustomer', userId: ctx.userId });
     return {
       success: false,
       message: 'เกิดข้อผิดพลาดในการบันทึกข้อมูล กรุณาลองใหม่อีกครั้ง',
@@ -138,7 +139,7 @@ export async function updateCustomer(id: string, input: CustomerInput): Promise<
       data: customer,
     };
   } catch (error) {
-    console.error('Update customer error:', error);
+    await logger.error('Update customer error', error as Error, { path: 'updateCustomer', userId: ctx.userId, customerId: id });
     return {
       success: false,
       message: 'เกิดข้อผิดพลาดในการอัปเดตข้อมูล',
@@ -175,7 +176,7 @@ export async function deleteCustomer(id: string): Promise<ActionResponse> {
       message: 'ลบข้อมูลลูกค้าสำเร็จ',
     };
   } catch (error) {
-    console.error('Delete customer error:', error);
+    await logger.error('Delete customer error', error as Error, { path: 'deleteCustomer', userId: ctx.userId, customerId: id });
     return {
       success: false,
       message: 'เกิดข้อผิดพลาดในการลบข้อมูล (อาจมีการใช้งานลูกค้ารายนี้ในรายการขาย)',
@@ -303,7 +304,7 @@ export async function getCustomerProfile(id: string) {
       id: customer.id,
       name: customer.name,
       phone: customer.phone,
-      email: customer.email,
+      email: (customer as any).email as string | null,  // Prisma type inference issue with nested select
       address: customer.address,
       taxId: customer.taxId,
       notes: customer.notes,
