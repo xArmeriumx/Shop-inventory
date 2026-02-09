@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shop Inventory — Deployment Guide</title>
+    <link rel="stylesheet" href="doc-styles.css">
+</head>
+<body>
+
+<div class="cover-page">
+    <span class="cover-label">Document 06 — Deployment Guide</span>
+    <h1>Shop Inventory</h1>
+    <p class="cover-subtitle">Step-by-step instructions for setting up, deploying and maintaining the application in development and production environments.</p>
+    <dl class="cover-meta">
+        <div><dt>Version</dt><dd>1.0</dd></div>
+        <div><dt>Date</dt><dd>9 February 2026</dd></div>
+        <div><dt>Classification</dt><dd>DevOps / Developer Guide</dd></div>
+        <div><dt>Audience</dt><dd>Developer, System Administrator</dd></div>
+    </dl>
+</div>
+
+<div class="doc-container">
+
+<p class="doc-inline-nav" style="margin:1.5rem 0 0;font-size:0.78rem;color:var(--ink-muted);">
+    <a href="index.html" style="color:var(--accent);text-decoration:none;">&larr; Back to Documentation Hub</a>
+    &nbsp;|&nbsp;
+    <a href="06-deployment-guide-th.html" style="color:var(--accent);text-decoration:none;">ภาษาไทย</a>
+</p>
+
+<nav class="toc-section">
+    <h2>Contents</h2>
+    <ol class="toc-list">
+        <li><span class="toc-num">1</span><a href="#s1">Prerequisites</a></li>
+        <li><span class="toc-num">2</span><a href="#s2">Environment Variables</a></li>
+        <li><span class="toc-num">3</span><a href="#s3">Local Development Setup</a></li>
+        <li><span class="toc-num">4</span><a href="#s4">Database Setup</a></li>
+        <li><span class="toc-num">5</span><a href="#s5">Supabase Storage</a></li>
+        <li><span class="toc-num">6</span><a href="#s6">Production Deployment</a></li>
+        <li><span class="toc-num">7</span><a href="#s7">CI/CD Pipeline</a></li>
+        <li><span class="toc-num">8</span><a href="#s8">Monitoring and Logging</a></li>
+        <li><span class="toc-num">9</span><a href="#s9">Backup and Recovery</a></li>
+        <li><span class="toc-num">10</span><a href="#s10">Troubleshooting</a></li>
+    </ol>
+</nav>
+
+<!-- 1 -->
+<h2 id="s1"><span class="section-num">1.</span> Prerequisites</h2>
+
+<table>
+    <thead><tr><th>Requirement</th><th>Version</th><th>Notes</th></tr></thead>
+    <tbody>
+        <tr><td>Node.js</td><td>18.x or 20.x LTS</td><td>Required for Next.js 14</td></tr>
+        <tr><td>npm</td><td>9.x+</td><td>Included with Node.js</td></tr>
+        <tr><td>PostgreSQL</td><td>14+</td><td>Via Supabase or self-hosted</td></tr>
+        <tr><td>Git</td><td>2.x+</td><td></td></tr>
+        <tr><td>Supabase Account</td><td>—</td><td>For storage and hosted PostgreSQL</td></tr>
+        <tr><td>Groq API Key</td><td>—</td><td>Optional. For AI receipt scanning only.</td></tr>
+    </tbody>
+</table>
+
+<!-- 2 -->
+<h2 id="s2"><span class="section-num">2.</span> Environment Variables</h2>
+
+<p>Copy <code>.env.example</code> to <code>.env</code> and fill in values:</p>
+
+<table>
+    <thead><tr><th>Variable</th><th>Required</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td><code>DATABASE_URL</code></td><td>Yes</td><td>PostgreSQL connection string. For Supabase: use the pooled connection URL with <code>?pgbouncer=true&connect_timeout=30</code>.</td></tr>
+        <tr><td><code>AUTH_SECRET</code></td><td>Yes</td><td>NextAuth.js secret. Generate with <code>openssl rand -base64 32</code>.</td></tr>
+        <tr><td><code>AUTH_URL</code></td><td>Yes</td><td>Full app URL. <code>http://localhost:3000</code> for local, production domain for deploy.</td></tr>
+        <tr><td><code>NEXT_PUBLIC_SUPABASE_URL</code></td><td>Yes</td><td>Supabase project URL (from dashboard → Settings → API).</td></tr>
+        <tr><td><code>SUPABASE_SERVICE_ROLE_KEY</code></td><td>Yes</td><td>Supabase service role key (server-side only, bypasses RLS).</td></tr>
+        <tr><td><code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code></td><td>Yes</td><td>Supabase anon key (for client-side storage uploads).</td></tr>
+        <tr><td><code>GROQ_API_KEY</code></td><td>No</td><td>Groq API key. Only required for AI receipt scanner feature.</td></tr>
+    </tbody>
+</table>
+
+<div class="callout callout-warning">
+    <p><strong>⚠️ Security Warning:</strong> Never commit <code>.env</code> to Git. The <code>.gitignore</code> already excludes it. For production, use your hosting provider's secret management (Vercel Environment Variables, etc.).</p>
+</div>
+
+<!-- 3 -->
+<h2 id="s3"><span class="section-num">3.</span> Local Development Setup</h2>
+
+<h3>Step 1: Clone and Install</h3>
+<pre><code>git clone https://github.com/your-org/shop-inventory.git
+cd shop-inventory
+npm install</code></pre>
+<p><code>postinstall</code> automatically runs <code>prisma generate</code> to create the Prisma client.</p>
+
+<h3>Step 2: Configure Environment</h3>
+<pre><code>cp .env.example .env
+# Edit .env with your database credentials and keys</code></pre>
+
+<h3>Step 3: Setup Database</h3>
+<pre><code># Push schema to database (creates tables)
+npm run db:push
+
+# Seed initial data (optional)
+npm run db:seed</code></pre>
+
+<h3>Step 4: Start Development Server</h3>
+<pre><code>npm run dev
+# App runs at http://localhost:3000</code></pre>
+
+<h3>Useful Scripts</h3>
+<table>
+    <thead><tr><th>Command</th><th>Purpose</th></tr></thead>
+    <tbody>
+        <tr><td><code>npm run dev</code></td><td>Start dev server with hot reload</td></tr>
+        <tr><td><code>npm run build</code></td><td>Build production bundle</td></tr>
+        <tr><td><code>npm run start</code></td><td>Start production server</td></tr>
+        <tr><td><code>npm run lint</code></td><td>Run ESLint</td></tr>
+        <tr><td><code>npm run test</code></td><td>Run Vitest in watch mode</td></tr>
+        <tr><td><code>npm run test:run</code></td><td>Run tests once</td></tr>
+        <tr><td><code>npm run test:coverage</code></td><td>Run tests with coverage report</td></tr>
+        <tr><td><code>npm run db:generate</code></td><td>Regenerate Prisma client</td></tr>
+        <tr><td><code>npm run db:push</code></td><td>Push schema changes to database</td></tr>
+        <tr><td><code>npm run db:studio</code></td><td>Open Prisma Studio (visual DB editor)</td></tr>
+        <tr><td><code>npm run db:seed</code></td><td>Seed database with initial data</td></tr>
+        <tr><td><code>npm run db:migrate-rbac</code></td><td>Run RBAC migration script</td></tr>
+    </tbody>
+</table>
+
+<!-- 4 -->
+<h2 id="s4"><span class="section-num">4.</span> Database Setup</h2>
+
+<h3>4.1 Supabase (Recommended)</h3>
+<ol>
+    <li>Create a new project at <a href="https://supabase.com">supabase.com</a></li>
+    <li>Go to <strong>Settings → Database</strong> and copy the <strong>Connection string (URI)</strong></li>
+    <li>Use the <strong>pooled</strong> (port 6543) connection for the app: add <code>?pgbouncer=true&connect_timeout=30</code></li>
+    <li>Set <code>DATABASE_URL</code> in your <code>.env</code></li>
+    <li>Run <code>npm run db:push</code> to create all tables</li>
+</ol>
+
+<h3>4.2 Self-Hosted PostgreSQL</h3>
+<pre><code># Create database
+createdb shop_inventory
+
+# Set connection string
+DATABASE_URL="postgresql://user:pass@localhost:5432/shop_inventory"
+
+# Push schema
+npm run db:push</code></pre>
+
+<h3>4.3 Schema Management</h3>
+<p>This project uses <strong>Prisma db push</strong> (not migrations) for schema management. Changes to <code>prisma/schema.prisma</code> are pushed directly:</p>
+<pre><code># After editing schema.prisma
+npm run db:push      # Apply changes to database
+npm run db:generate  # Regenerate TypeScript types</code></pre>
+
+<!-- 5 -->
+<h2 id="s5"><span class="section-num">5.</span> Supabase Storage</h2>
+
+<h3>5.1 Required Buckets</h3>
+<p>Create these two storage buckets in the Supabase dashboard (<strong>Storage → New bucket</strong>):</p>
+<table>
+    <thead><tr><th>Bucket Name</th><th>Public</th><th>Purpose</th></tr></thead>
+    <tbody>
+        <tr><td><code>receipts</code></td><td>Yes</td><td>Payment slips and receipt images</td></tr>
+        <tr><td><code>products</code></td><td>Yes</td><td>Product images</td></tr>
+    </tbody>
+</table>
+
+<h3>5.2 RLS Policies</h3>
+<p>Because the app uses the <strong>Service Role Key</strong> for server-side uploads, RLS is bypassed. However, for public read access, ensure the <code>SELECT</code> policy allows anonymous reads on both buckets.</p>
+
+<!-- 6 -->
+<h2 id="s6"><span class="section-num">6.</span> Production Deployment</h2>
+
+<h3>6.1 Vercel (Recommended)</h3>
+<ol>
+    <li>Connect your Git repository to <a href="https://vercel.com">Vercel</a></li>
+    <li>Set all environment variables in Vercel dashboard (<strong>Settings → Environment Variables</strong>)</li>
+    <li>Vercel auto-detects Next.js and configures build settings</li>
+    <li>Deploy triggers automatically on push to <code>main</code></li>
+</ol>
+
+<h3>6.2 Build Settings</h3>
+<table>
+    <thead><tr><th>Setting</th><th>Value</th></tr></thead>
+    <tbody>
+        <tr><td>Framework</td><td>Next.js</td></tr>
+        <tr><td>Build Command</td><td><code>npm run build</code></td></tr>
+        <tr><td>Output Directory</td><td><code>.next</code></td></tr>
+        <tr><td>Install Command</td><td><code>npm install</code></td></tr>
+        <tr><td>Node.js Version</td><td>20.x</td></tr>
+    </tbody>
+</table>
+
+<h3>6.3 Custom Server / VPS</h3>
+<pre><code># Build
+npm ci --production=false
+npm run build
+
+# Start with PM2
+pm2 start npm --name "shop-inventory" -- start
+
+# Or with Docker
+docker build -t shop-inventory .
+docker run -p 3000:3000 --env-file .env shop-inventory</code></pre>
+
+<h3>6.4 Post-Deploy Checklist</h3>
+<ul>
+    <li>☐ All environment variables set</li>
+    <li>☐ <code>npm run db:push</code> executed against production database</li>
+    <li>☐ Supabase storage buckets created with correct policies</li>
+    <li>☐ <code>AUTH_URL</code> set to production domain (e.g. <code>https://shop.example.com</code>)</li>
+    <li>☐ HTTPS enabled (automatic on Vercel, configure on VPS)</li>
+    <li>☐ First user registered and shop created</li>
+</ul>
+
+<!-- 7 -->
+<h2 id="s7"><span class="section-num">7.</span> CI/CD Pipeline</h2>
+
+<h3>Recommended GitHub Actions Workflow</h3>
+<pre><code>name: CI
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run test:run
+      - run: npm run build</code></pre>
+
+<!-- 8 -->
+<h2 id="s8"><span class="section-num">8.</span> Monitoring and Logging</h2>
+
+<h3>8.1 Built-in SystemLog</h3>
+<p>The app logs errors to the <code>SystemLog</code> database table with structured fields: level, message, stack trace, request path, user context. View these in Prisma Studio:</p>
+<pre><code>npm run db:studio
+# Navigate to the SystemLog table</code></pre>
+
+<h3>8.2 Health Check</h3>
+<p>Call the <code>getSystemHealth()</code> server action to verify database connectivity.</p>
+
+<h3>8.3 Recommended Monitoring</h3>
+<table>
+    <thead><tr><th>Tool</th><th>Purpose</th></tr></thead>
+    <tbody>
+        <tr><td>Vercel Analytics</td><td>Web vitals, page load times</td></tr>
+        <tr><td>Supabase Dashboard</td><td>Database metrics, storage usage</td></tr>
+        <tr><td>Sentry</td><td>Error tracking (optional integration)</td></tr>
+        <tr><td>UptimeRobot</td><td>Uptime monitoring</td></tr>
+    </tbody>
+</table>
+
+<!-- 9 -->
+<h2 id="s9"><span class="section-num">9.</span> Backup and Recovery</h2>
+
+<h3>9.1 Database Backups</h3>
+<ul>
+    <li><strong>Supabase:</strong> Automatic daily backups (Pro plan) or use <code>pg_dump</code> manually</li>
+    <li><strong>Self-hosted:</strong> Schedule <code>pg_dump</code> via cron</li>
+</ul>
+<pre><code># Manual backup
+pg_dump $DATABASE_URL > backup_$(date +%Y%m%d).sql
+
+# Restore
+psql $DATABASE_URL < backup_20260209.sql</code></pre>
+
+<h3>9.2 Storage Backups</h3>
+<p>Use the Supabase CLI or API to periodically download all files from the <code>receipts</code> and <code>products</code> buckets.</p>
+
+<!-- 10 -->
+<h2 id="s10"><span class="section-num">10.</span> Troubleshooting</h2>
+
+<h3>Common Issues</h3>
+<table>
+    <thead><tr><th>Problem</th><th>Cause</th><th>Solution</th></tr></thead>
+    <tbody>
+        <tr><td>Build fails: "Prisma Client not generated"</td><td>Missing postinstall</td><td>Run <code>npx prisma generate</code></td></tr>
+        <tr><td>Database connection timeout</td><td>Missing pgbouncer param</td><td>Add <code>?pgbouncer=true&connect_timeout=30</code> to DATABASE_URL</td></tr>
+        <tr><td>Upload fails: "Missing Supabase env"</td><td>Missing env vars</td><td>Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY</td></tr>
+        <tr><td>"Invalid AUTH_SECRET"</td><td>Secret too short or missing</td><td>Run <code>openssl rand -base64 32</code> and set AUTH_SECRET</td></tr>
+        <tr><td>Styles broken in production</td><td>Tailwind purge issue</td><td>Ensure <code>content</code> in tailwind.config includes all component paths</td></tr>
+        <tr><td>AI scanner not working</td><td>Missing GROQ_API_KEY</td><td>Set GROQ_API_KEY in .env. Feature is optional.</td></tr>
+        <tr><td>Permission denied errors</td><td>RBAC misconfigured</td><td>Check user's role has required permissions. Use the Role Management page in Settings.</td></tr>
+        <tr><td>Stock goes negative</td><td>Should not happen</td><td>Atomic stock operations prevent this. If seen, check for direct DB edits bypassing the app.</td></tr>
+    </tbody>
+</table>
+
+<h3>Key Technology Versions</h3>
+<table>
+    <thead><tr><th>Package</th><th>Version</th></tr></thead>
+    <tbody>
+        <tr><td>Next.js</td><td>14.2.21</td></tr>
+        <tr><td>React</td><td>18.3.1</td></tr>
+        <tr><td>Prisma</td><td>6.2.1</td></tr>
+        <tr><td>NextAuth.js</td><td>5.0.0-beta.25</td></tr>
+        <tr><td>TypeScript</td><td>5.7.3</td></tr>
+        <tr><td>Tailwind CSS</td><td>3.4.17</td></tr>
+        <tr><td>Zod</td><td>3.24.1</td></tr>
+        <tr><td>Decimal.js</td><td>10.6.0</td></tr>
+        <tr><td>Tesseract.js</td><td>7.0.0</td></tr>
+        <tr><td>Groq SDK</td><td>0.37.0</td></tr>
+        <tr><td>Vitest</td><td>4.0.18</td></tr>
+    </tbody>
+</table>
+
+<div class="doc-footer">
+    <p><strong>Shop Inventory</strong> &mdash; Deployment Guide v1.0</p>
+    <p>9 February 2026 &middot; <a href="index.html" style="color:var(--accent);text-decoration:none;">Documentation Hub</a></p>
+</div>
+
+</div>
+<script src="doc-nav.js"></script></body>
+</html>

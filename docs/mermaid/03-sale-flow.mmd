@@ -1,0 +1,128 @@
+flowchart TD
+    subgraph INVOICE["Step 1: Invoice Number Generation"]
+        S1["Receive validated sale input<br>items, paymentMethod, customerId"] --> S2["Begin DB Transaction<br>db.dollar-sign.transaction"]
+        S2 --> S3["Query last invoice number<br>ORDER BY invoiceNumber DESC"]
+        S3 --> S4["Parse last number<br>e.g. INV-00042 -> 42"]
+        S4 --> S5["Generate next number<br>INV-00043 + attempt offset"]
+        S5 --> S6{"Number already exists?"}
+        S6 -->|Yes, retry| S5
+        S6 -->|No| S7["Invoice number confirmed"]
+    end
+
+    subgraph VALIDATE["Step 2: Product Validation"]
+        S7 --> V1["Fetch all products by ID<br>with current stock and prices"]
+        V1 --> V2{"All products found<br>and active?"}
+        V2 -->|No| V3["Throw Error:<br>Product not found or inactive"]
+        V2 -->|Yes| V4["Products validated"]
+    end
+
+    subgraph STOCK_RESERVE["Step 3: Atomic Stock Reservation"]
+        V4 --> SR1["For each sale item:"]
+        SR1 --> SR2["atomicReserveStock()<br>updateMany WHERE<br>id = productId AND<br>stock >= requestedQty"]
+        SR2 --> SR3["Decrement stock atomically<br>stock = stock - qty"]
+        SR3 --> SR4{"updateMany.count === 0?"}
+        SR4 -->|Yes| SR5["Throw Error:<br>Insufficient stock<br>or concurrent sale"]
+        SR4 -->|No| SR6["Stock reserved successfully"]
+    end
+
+    subgraph CALC["Step 4: Financial Calculation"]
+        SR6 --> C1["For each item:<br>subtotal = qty x salePrice"]
+        C1 --> C2["For each item:<br>profit = subtotal - qty x costPrice"]
+        C2 --> C3["Apply G4 item-level discount<br>reduce subtotal per item"]
+        C3 --> C4["Sum: totalAmount = all subtotals"]
+        C4 --> C5{"Bill-level discount?"}
+        C5 -->|PERCENT| C6["discountAmount = totalAmount x percent / 100"]
+        C5 -->|FIXED| C7["discountAmount = fixed value"]
+        C5 -->|None| C8["discountAmount = 0"]
+        C6 --> C9["netAmount = totalAmount - discountAmount"]
+        C7 --> C9
+        C8 --> C9
+        C9 --> C10["totalCost = sum of qty x costPrice"]
+        C10 --> C11["profit = netAmount - totalCost"]
+    end
+
+    subgraph CREATE_RECORD["Step 5: Persist to Database"]
+        C11 --> CR1["Create Sale record<br>with all calculated fields"]
+        CR1 --> CR2["Create SaleItems<br>nested create in transaction"]
+        CR2 --> CR3{"Has customerId?"}
+        CR3 -->|Yes| CR4["Link customer to sale"]
+        CR3 -->|No| CR5["Skip customer link"]
+    end
+
+    subgraph AUDIT["Step 6: Audit Trail"]
+        CR4 --> AU1["StockService.recordMovement()<br>for each item"]
+        CR5 --> AU1
+        AU1 --> AU2["Create StockLog entries<br>type: SALE<br>quantity: -N<br>balanceAfter: snapshot"]
+        AU2 --> AU3["Check isLowStock flag<br>stock <= minStock?"]
+        AU3 --> AU4{"Newly low stock?"}
+        AU4 -->|Yes| AU5["Create LOW_STOCK notification<br>severity: WARNING"]
+        AU4 -->|No| AU6["Skip notification"]
+    end
+
+    subgraph PAYMENT_FLOW["Step 7: Payment Status"]
+        AU5 --> PF1{"paymentMethod?"}
+        AU6 --> PF1
+        PF1 -->|CASH| PF2["Set paymentStatus = VERIFIED<br>immediate confirmation"]
+        PF1 -->|TRANSFER| PF3["Set paymentStatus = PENDING<br>awaiting proof upload"]
+        PF3 --> PF4["uploadPaymentProof()<br>save slip image URL"]
+        PF4 --> PF5["verifyPayment()<br>requires PAYMENT_VERIFY permission"]
+        PF5 --> PF6{"Approve or Reject?"}
+        PF6 -->|Approve| PF7["paymentStatus = VERIFIED<br>set verifiedAt, verifiedBy"]
+        PF6 -->|Reject| PF8["paymentStatus = REJECTED<br>set paymentNote reason"]
+    end
+
+    subgraph SHIPMENT_FLOW["Step 8: Shipment Creation"]
+        PF2 --> SH1["createShipment()"]
+        PF7 --> SH1
+        SH1 --> SH2["Generate SHP-00001<br>with retry collision check"]
+        SH2 --> SH3["Save recipient details<br>name, phone, address"]
+        SH3 --> SH4{"shippingCost > 0?"}
+        SH4 -->|Yes| SH5["Auto-create Expense record<br>category: TRANSPORT"]
+        SH4 -->|No| SH6["Skip expense creation"]
+    end
+
+    subgraph STATUS_FSM["Shipment Status Machine"]
+        FSM1["PENDING"] -->|updateStatus: SHIPPED| FSM2["SHIPPED<br>set shippedAt timestamp"]
+        FSM2 -->|updateStatus: DELIVERED| FSM3["DELIVERED<br>set deliveredAt timestamp"]
+        FSM2 -->|updateStatus: RETURNED| FSM4["RETURNED<br>parcel sent back"]
+        FSM4 -->|updateStatus: PENDING| FSM1
+        FSM1 -->|cancelShipment| FSM5["CANCELLED"]
+        FSM2 -->|cancelShipment| FSM5
+    end
+
+    subgraph RETURN_FLOW["Step 9: Partial Return"]
+        PF2 --> RT1["createReturn()"]
+        PF7 --> RT1
+        RT1 --> RT2["Generate RET-00001"]
+        RT2 --> RT3["For each return item:<br>validate returnQty"]
+        RT3 --> RT4{"returnQty <= originalQty<br>minus alreadyReturnedQty?"}
+        RT4 -->|No| RT5["Throw Error:<br>Return quantity exceeds limit"]
+        RT4 -->|Yes| RT6["Calculate proportional refund<br>ratio = billDiscount / totalAmount"]
+        RT6 --> RT7["refundPerUnit =<br>salePrice x (1 - discountRatio)"]
+        RT7 --> RT8["refundAmount =<br>returnQty x refundPerUnit"]
+        RT8 --> RT9["Restore stock via StockService<br>type: RETURN, qty: +N"]
+        RT9 --> RT10["Adjust Sale record:<br>netAmount -= totalRefund<br>totalCost -= returnCost<br>profit -= returnProfit"]
+        RT10 --> RT11["Update SaleItem.returnedQty<br>+= returnQty"]
+    end
+
+    subgraph CANCEL_FLOW["Cancel Sale"]
+        PF2 --> CS1["cancelSale()"]
+        CS1 --> CS2["Find all active shipments<br>for this sale"]
+        CS2 --> CS3["Cancel each shipment<br>set status: CANCELLED"]
+        CS3 --> CS4["For each SaleItem:<br>restoreQty = quantity - returnedQty"]
+        CS4 --> CS5["Restore stock via StockService<br>type: SALE_CANCEL, qty: +restoreQty"]
+        CS5 --> CS6["Delete auto-created expenses<br>shipping costs"]
+        CS6 --> CS7["Update Sale record:<br>status = CANCELLED<br>cancelledAt = now<br>cancelledBy = currentUser<br>cancelReason = input reason"]
+    end
+
+    style INVOICE fill:#1a1a2e,color:#e0e0e0
+    style VALIDATE fill:#16213e,color:#e0e0e0
+    style STOCK_RESERVE fill:#0f3460,color:#e0e0e0
+    style CALC fill:#1b2d4e,color:#e0e0e0
+    style CREATE_RECORD fill:#1a1a2e,color:#e0e0e0
+    style AUDIT fill:#16213e,color:#e0e0e0
+    style PAYMENT_FLOW fill:#0f3460,color:#e0e0e0
+    style SHIPMENT_FLOW fill:#1b2d4e,color:#e0e0e0
+    style STATUS_FSM fill:#1a1a2e,color:#e0e0e0
+    style RETURN_FLOW fill:#2d1b3d,color:#e0e0e0
+    style CANCEL_FLOW fill:#3d1b1b,color:#e0e0e0

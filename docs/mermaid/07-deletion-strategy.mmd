@@ -1,0 +1,65 @@
+flowchart TD
+    subgraph CASCADE["onDelete: Cascade - Hard Delete Chains"]
+        direction TB
+        HD1["DELETE Shop"] --> HD2["All Products deleted"]
+        HD1 --> HD3["All Sales deleted"]
+        HD1 --> HD4["All Purchases deleted"]
+        HD1 --> HD5["All ShopMembers deleted"]
+        HD1 --> HD6["All Roles deleted"]
+        HD1 --> HD7["All Notifications deleted"]
+        HD1 --> HD8["All Expenses deleted"]
+        HD1 --> HD9["All Incomes deleted"]
+        HD1 --> HD10["All Suppliers deleted"]
+        HD1 --> HD11["All Customers deleted"]
+        HD1 --> HD12["All Shipments deleted"]
+        HD1 --> HD13["All Returns deleted"]
+        HD1 --> HD14["All StockLogs deleted"]
+        HD1 --> HD15["All CustomerAddresses deleted"]
+
+        HD3 --> HD3A["All SaleItems deleted<br>(Cascade from Sale)"]
+        HD4 --> HD4A["All PurchaseItems deleted<br>(Cascade from Purchase)"]
+        HD13 --> HD13A["All ReturnItems deleted<br>(Cascade from Return)"]
+
+        HD16["DELETE User (non-owner)"] --> HD17["All User records cascade<br>Products, Sales, Purchases,<br>Expenses, Incomes created by user"]
+    end
+
+    subgraph RESTRICT["onDelete: Restrict - Protected Relations"]
+        RS1["User owns a Shop"]
+        RS1 --> RS2["BLOCKED: Cannot delete User<br>Must transfer ownership first<br>or delete Shop explicitly"]
+
+        RS3["Product has SaleItems"]
+        RS3 --> RS4["BLOCKED: Cannot hard-delete Product<br>Use soft delete instead:<br>isActive = false, deletedAt = now"]
+
+        RS5["Customer has Sales"]
+        RS5 --> RS6["BLOCKED: Cannot hard-delete Customer<br>Use soft delete instead:<br>deletedAt = now"]
+
+        RS7["Supplier has Purchases"]
+        RS7 --> RS8["BLOCKED: Cannot hard-delete Supplier<br>Use soft delete instead:<br>deletedAt = now"]
+    end
+
+    subgraph SETNULL["onDelete: SetNull - Nullable References"]
+        SN1["DELETE Sale"] --> SN2["StockLog.saleId = NULL<br>Log preserved, reference cleared"]
+        SN3["DELETE Purchase"] --> SN4["StockLog.purchaseId = NULL<br>Log preserved, reference cleared"]
+        SN5["DELETE Return"] --> SN6["StockLog.returnId = NULL<br>Log preserved, reference cleared"]
+    end
+
+    subgraph SOFT["Soft Delete - Application Layer"]
+        SD1["Product:<br>isActive = false<br>deletedAt = timestamp<br>Excluded from active queries<br>Still visible in history"]
+        SD2["Customer:<br>deletedAt = timestamp<br>Excluded from dropdown lists<br>Still visible on past sales"]
+        SD3["Supplier:<br>deletedAt = timestamp<br>Excluded from dropdown lists<br>Still visible on past purchases"]
+        SD4["Expense:<br>deletedAt = timestamp<br>Excluded from reports<br>Recoverable if needed"]
+        SD5["Income:<br>deletedAt = timestamp<br>Same pattern as Expense"]
+        SD6["CustomerAddress:<br>deletedAt = timestamp<br>Excluded from address picker"]
+    end
+
+    subgraph STATUS_VOID["Status-Based Void - Business Logic"]
+        SV1["Sale Cancellation:<br>status: ACTIVE -> CANCELLED<br>cancelledAt = timestamp<br>cancelledBy = user name<br>cancelReason = text<br>Side effects: restore stock,<br>cancel shipments, delete expenses"]
+        SV2["Purchase Cancellation:<br>status: ACTIVE -> CANCELLED<br>cancelledAt = timestamp<br>cancelledBy = user name<br>cancelReason = text<br>Side effects: reverse stock,<br>revert cost prices"]
+        SV3["Key Principle:<br>Financial records are NEVER deleted<br>They are voided via status change<br>for complete audit trail"]
+    end
+
+    style CASCADE fill:#3d1b1b,color:#e0e0e0
+    style RESTRICT fill:#1b3d1b,color:#e0e0e0
+    style SETNULL fill:#1b1b3d,color:#e0e0e0
+    style SOFT fill:#1a1a2e,color:#e0e0e0
+    style STATUS_VOID fill:#3d3d1b,color:#e0e0e0

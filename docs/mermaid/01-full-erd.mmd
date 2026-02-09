@@ -1,0 +1,316 @@
+erDiagram
+    User {
+        string id PK "cuid"
+        string email UK "unique"
+        string name "optional"
+        string password "optional"
+        string image "optional"
+        datetime lastActiveAt "track online"
+    }
+
+    Shop {
+        string id PK "cuid"
+        string name "shop name"
+        string address "optional"
+        string phone "optional"
+        string logo "URL optional"
+        string taxId "optional"
+        string invoicePrefix "default INV"
+        string userId FK "owner - Restrict"
+    }
+
+    Role {
+        string id PK "cuid"
+        string name "role name"
+        string shopId FK "tenant"
+        string permissions "Permission enum array"
+        boolean isDefault "default role flag"
+    }
+
+    ShopMember {
+        string id PK "cuid"
+        string userId FK "member user"
+        string shopId FK "member shop"
+        string roleId FK "assigned role"
+    }
+
+    LookupType {
+        string id PK "cuid"
+        string code "PRODUCT_CATEGORY etc"
+        string label "display name"
+    }
+
+    LookupValue {
+        string id PK "cuid"
+        string lookupTypeId FK "parent type"
+        string code "value code"
+        string label "display name"
+        int sortOrder "ordering"
+        string shopId FK "tenant"
+        string userId FK "creator"
+    }
+
+    Product {
+        string id PK "cuid"
+        string name "product name"
+        string sku UK "unique per shop"
+        string category "category string"
+        string categoryRefId FK "LookupValue ref"
+        decimal costPrice "Decimal 10-2"
+        decimal salePrice "Decimal 10-2"
+        int stock "current balance"
+        int minStock "default 5"
+        boolean isLowStock "cached flag"
+        boolean isActive "soft delete flag"
+        string supplierId FK "primary supplier"
+        string imageUrl "optional"
+        int version "optimistic lock"
+        string shopId FK "tenant"
+        string userId FK "creator"
+        datetime deletedAt "soft delete"
+    }
+
+    Supplier {
+        string id PK "cuid"
+        string name "supplier name"
+        string code UK "unique code"
+        string contactName "optional"
+        string phone "optional"
+        string email "optional"
+        string address "optional"
+        string taxId "optional"
+        string shopId FK "tenant"
+        string userId FK "creator"
+        datetime deletedAt "soft delete"
+    }
+
+    Customer {
+        string id PK "cuid"
+        string name "customer name"
+        string phone "optional"
+        string email "optional"
+        string address "optional"
+        string taxId "optional"
+        string notes "optional"
+        string shopId FK "tenant"
+        string userId FK "creator"
+        datetime deletedAt "soft delete"
+    }
+
+    CustomerAddress {
+        string id PK "cuid"
+        string customerId FK "parent customer"
+        string label "optional label"
+        string recipientName "receiver name"
+        string phone "optional"
+        string address "full address"
+        string district "optional"
+        string province "optional"
+        string postalCode "optional"
+        boolean isDefault "default address"
+        string shopId FK "tenant"
+        datetime deletedAt "soft delete"
+    }
+
+    Purchase {
+        string id PK "cuid"
+        string purchaseNumber UK "PUR-00001"
+        datetime date "purchase date"
+        string supplierId FK "supplier ref"
+        string supplierName "deprecated"
+        decimal totalCost "Decimal 10-2"
+        string paymentMethod "CASH TRANSFER CREDIT"
+        string receiptUrl "optional"
+        string notes "optional"
+        string status "ACTIVE or CANCELLED"
+        string cancelReason "optional"
+        string shopId FK "tenant"
+        string userId FK "creator"
+        datetime deletedAt "soft delete"
+    }
+
+    PurchaseItem {
+        string id PK "cuid"
+        string purchaseId FK "Cascade delete"
+        string productId FK "product ref"
+        int quantity "item qty"
+        decimal costPrice "Decimal 10-2"
+        decimal subtotal "Decimal 10-2"
+    }
+
+    Sale {
+        string id PK "cuid"
+        string invoiceNumber UK "INV-00001"
+        datetime date "sale date"
+        string customerId FK "customer ref"
+        string customerName "deprecated"
+        decimal totalAmount "Decimal 10-2"
+        decimal totalCost "Decimal 10-2"
+        decimal profit "Decimal 10-2"
+        string discountType "PERCENT or FIXED"
+        decimal discountValue "Decimal 10-2"
+        decimal discountAmount "Decimal 10-2"
+        decimal netAmount "Decimal 10-2"
+        string paymentMethod "CASH TRANSFER CREDIT"
+        string paymentStatus "PENDING VERIFIED REJECTED"
+        string paymentProof "slip URL optional"
+        string channel "WALK_IN SHOPEE etc"
+        string status "ACTIVE or CANCELLED"
+        string cancelReason "optional"
+        string shopId FK "tenant"
+        string userId FK "creator"
+    }
+
+    SaleItem {
+        string id PK "cuid"
+        string saleId FK "Cascade delete"
+        string productId FK "product ref"
+        int quantity "item qty"
+        decimal salePrice "Decimal 10-2"
+        decimal costPrice "Decimal 10-2"
+        decimal subtotal "Decimal 10-2"
+        decimal profit "Decimal 10-2"
+        decimal discountPercent "G4 item discount"
+        decimal discountAmount "G4 discount value"
+        int returnedQty "G3 return tracking"
+    }
+
+    Shipment {
+        string id PK "cuid"
+        string shipmentNumber UK "SHP-00001"
+        string saleId FK "linked sale"
+        string recipientName "receiver"
+        string recipientPhone "optional"
+        string shippingAddress "full address"
+        string customerAddressId FK "address ref"
+        string trackingNumber "optional"
+        string shippingProvider "optional"
+        decimal shippingCost "Decimal 10-2"
+        string status "FSM 5 states"
+        string notes "optional"
+        datetime shippedAt "optional"
+        datetime deliveredAt "optional"
+        string shopId FK "tenant"
+        string userId FK "creator"
+    }
+
+    Return {
+        string id PK "cuid"
+        string returnNumber UK "RET-00001"
+        string saleId FK "original sale"
+        decimal totalRefund "Decimal 10-2"
+        string reason "return reason"
+        string notes "optional"
+        string status "COMPLETED or CANCELLED"
+        string shopId FK "tenant"
+        string userId FK "creator"
+    }
+
+    ReturnItem {
+        string id PK "cuid"
+        string returnId FK "Cascade delete"
+        string saleItemId FK "original sale item"
+        string productId FK "product ref"
+        int quantity "returned qty"
+        decimal refundAmount "Decimal 10-2"
+        decimal costPrice "Decimal 10-2"
+    }
+
+    StockLog {
+        string id PK "cuid"
+        string productId FK "product ref"
+        string type "SALE PURCHASE RETURN etc"
+        int quantity "movement qty"
+        int balanceAfter "snapshot after move"
+        string note "optional"
+        string saleId FK "SetNull on delete"
+        string purchaseId FK "SetNull on delete"
+        string returnId FK "SetNull on delete"
+        string shopId FK "tenant"
+        string userId FK "who performed"
+    }
+
+    Expense {
+        string id PK "cuid"
+        string category "category string"
+        string categoryRefId FK "LookupValue ref"
+        decimal amount "Decimal 10-2"
+        string description "detail"
+        datetime date "expense date"
+        string shopId FK "tenant"
+        string userId FK "creator"
+        datetime deletedAt "soft delete"
+    }
+
+    Income {
+        string id PK "cuid"
+        string category "category string"
+        string categoryRefId FK "LookupValue ref"
+        decimal amount "Decimal 10-2"
+        string description "detail"
+        datetime date "income date"
+        string shopId FK "tenant"
+        string userId FK "creator"
+        datetime deletedAt "soft delete"
+    }
+
+    Notification {
+        string id PK "cuid"
+        string type "LOW_STOCK NEW_SALE etc"
+        string severity "INFO WARNING CRITICAL"
+        string title "notification title"
+        string message "notification body"
+        boolean isRead "read status"
+        string link "optional URL"
+        string shopId FK "Cascade delete"
+    }
+
+    User ||--o| Shop : "owns - Restrict"
+    User ||--o{ ShopMember : "memberships"
+    Shop ||--o{ ShopMember : "members"
+    Shop ||--o{ Role : "custom roles"
+    ShopMember }o--|| Role : "assigned"
+
+    Shop ||--o{ Product : "has"
+    Shop ||--o{ Supplier : "has"
+    Shop ||--o{ Customer : "has"
+    Shop ||--o{ Purchase : "has"
+    Shop ||--o{ Sale : "has"
+    Shop ||--o{ Expense : "has"
+    Shop ||--o{ Income : "has"
+    Shop ||--o{ StockLog : "has"
+    Shop ||--o{ Shipment : "has"
+    Shop ||--o{ Return : "has"
+    Shop ||--o{ Notification : "has"
+    Shop ||--o{ CustomerAddress : "has"
+    Shop ||--o{ LookupValue : "custom values"
+
+    LookupType ||--o{ LookupValue : "defines"
+    Product }o--o| LookupValue : "categoryRef"
+    Product }o--o| Supplier : "primary supplier"
+
+    Supplier ||--o{ Purchase : "supplies"
+    Customer ||--o{ Sale : "buys"
+    Customer ||--o{ CustomerAddress : "addresses"
+
+    Purchase ||--o{ PurchaseItem : "items - Cascade"
+    PurchaseItem }o--|| Product : "product"
+
+    Sale ||--o{ SaleItem : "items - Cascade"
+    SaleItem }o--|| Product : "product"
+    Sale ||--o{ Shipment : "shipments"
+    Sale ||--o{ Return : "returns"
+
+    Return ||--o{ ReturnItem : "items - Cascade"
+    ReturnItem }o--|| SaleItem : "from sale item"
+    ReturnItem }o--|| Product : "product"
+
+    Shipment }o--o| CustomerAddress : "deliver to"
+
+    StockLog }o--|| Product : "product"
+    StockLog }o--o| Sale : "saleId - SetNull"
+    StockLog }o--o| Purchase : "purchaseId - SetNull"
+    StockLog }o--o| Return : "returnId - SetNull"
+
+    Expense }o--o| LookupValue : "categoryRef"
+    Income }o--o| LookupValue : "categoryRef"

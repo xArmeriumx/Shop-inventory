@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shop Inventory — API Reference</title>
+    <link rel="stylesheet" href="doc-styles.css">
+</head>
+<body>
+
+<!-- COVER -->
+<div class="cover-page">
+    <span class="cover-label">Document 04 — API Reference</span>
+    <h1>Shop Inventory</h1>
+    <p class="cover-subtitle">Complete reference for all Next.js Server Actions. Each function lists the required permission, input schema, side effects, and return type.</p>
+    <dl class="cover-meta">
+        <div><dt>Version</dt><dd>1.0</dd></div>
+        <div><dt>Date</dt><dd>9 February 2026</dd></div>
+        <div><dt>Classification</dt><dd>Developer Reference</dd></div>
+        <div><dt>Audience</dt><dd>Developer, Integrator</dd></div>
+    </dl>
+</div>
+
+<div class="doc-container">
+
+<p class="doc-inline-nav" style="margin:1.5rem 0 0;font-size:0.78rem;color:var(--ink-muted);">
+    <a href="index.html" style="color:var(--accent);text-decoration:none;">&larr; Back to Documentation Hub</a>
+    &nbsp;|&nbsp;
+    <a href="04-api-reference-th.html" style="color:var(--accent);text-decoration:none;">ภาษาไทย</a>
+</p>
+
+<!-- TOC -->
+<nav class="toc-section">
+    <h2>Contents</h2>
+    <ol class="toc-list">
+        <li><span class="toc-num">1</span><a href="#s1">Overview</a></li>
+        <li><span class="toc-num">2</span><a href="#s2">Sales</a></li>
+        <li><span class="toc-num">3</span><a href="#s3">Products</a></li>
+        <li><span class="toc-num">4</span><a href="#s4">Purchases</a></li>
+        <li><span class="toc-num">5</span><a href="#s5">Returns</a></li>
+        <li><span class="toc-num">6</span><a href="#s6">Shipments</a></li>
+        <li><span class="toc-num">7</span><a href="#s7">Customers</a></li>
+        <li><span class="toc-num">8</span><a href="#s8">Suppliers</a></li>
+        <li><span class="toc-num">9</span><a href="#s9">Expenses</a></li>
+        <li><span class="toc-num">10</span><a href="#s10">Incomes</a></li>
+        <li><span class="toc-num">11</span><a href="#s11">Dashboard</a></li>
+        <li><span class="toc-num">12</span><a href="#s12">Reports</a></li>
+        <li><span class="toc-num">13</span><a href="#s13">Export</a></li>
+        <li><span class="toc-num">14</span><a href="#s14">Auth and User</a></li>
+        <li><span class="toc-num">15</span><a href="#s15">Settings, Shop and Team</a></li>
+        <li><span class="toc-num">16</span><a href="#s16">Roles and Lookups</a></li>
+        <li><span class="toc-num">17</span><a href="#s17">Notifications, AI and System</a></li>
+    </ol>
+</nav>
+
+<!-- ================================================================ -->
+<!-- 1. OVERVIEW -->
+<!-- ================================================================ -->
+<h2 id="s1"><span class="section-num">1.</span> Overview</h2>
+
+<h3>1.1 Architecture</h3>
+<p>All business logic is implemented as <strong>Next.js Server Actions</strong> (the <code>'use server'</code> directive). These functions run server-side and are called directly from React components. There is no REST or GraphQL API layer.</p>
+
+<h3>1.2 Common Patterns</h3>
+<table>
+    <thead><tr><th>Pattern</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td><strong>RBAC Guard</strong></td><td>Every action calls <code>requirePermission('PERMISSION_NAME')</code> as its first statement. This authenticates the user, checks their role, and returns a context object (<code>ctx</code>) containing <code>userId</code>, <code>shopId</code>, and <code>role</code>.</td></tr>
+        <tr><td><strong>Multi-Tenant Isolation</strong></td><td>All database queries include <code>shopId: ctx.shopId</code> in the <code>where</code> clause. Data from other shops is unreachable.</td></tr>
+        <tr><td><strong>Input Validation</strong></td><td>Inputs are validated using <strong>Zod</strong> schemas. Invalid inputs return <code>{ success: false, error: { fieldname: [...] } }</code>.</td></tr>
+        <tr><td><strong>Soft Delete</strong></td><td>Delete operations set <code>deletedAt</code> instead of removing the row. Queries filter by <code>deletedAt: null</code>.</td></tr>
+        <tr><td><strong>Optimistic Locking</strong></td><td>Update operations check <code>version</code> to prevent concurrent modification conflicts.</td></tr>
+        <tr><td><strong>Revalidation</strong></td><td>After mutations, <code>revalidatePath()</code> is called to refresh Next.js caches for affected routes.</td></tr>
+        <tr><td><strong>Financial Precision</strong></td><td>All monetary values use <code>Decimal.js</code> internally and are converted with <code>toNumber()</code> before returning to the client.</td></tr>
+    </tbody>
+</table>
+
+<h3>1.3 Response Format</h3>
+<pre><code>// Success
+{ success: true, data: T }
+
+// Error (validation)
+{ success: false, error: { fieldName: string[] } }
+
+// Error (general)
+{ success: false, error: { _form: string[] } }</code></pre>
+
+<h3>1.4 Source Files</h3>
+<p>All actions reside in <code>src/actions/</code>. There are <strong>24 action files</strong> total:</p>
+<div class="kv-grid">
+    <div class="kv-card"><div class="kv-value">sales.ts</div><div class="kv-label">937 lines</div></div>
+    <div class="kv-card"><div class="kv-value">products.ts</div><div class="kv-label">661 lines</div></div>
+    <div class="kv-card"><div class="kv-value">shipments.ts</div><div class="kv-label">657 lines</div></div>
+    <div class="kv-card"><div class="kv-value">purchases.ts</div><div class="kv-label">423 lines</div></div>
+    <div class="kv-card"><div class="kv-value">returns.ts</div><div class="kv-label">384 lines</div></div>
+    <div class="kv-card"><div class="kv-value">reports.ts</div><div class="kv-label">1145 lines</div></div>
+    <div class="kv-card"><div class="kv-value">dashboard.ts</div><div class="kv-label">356 lines</div></div>
+    <div class="kv-card"><div class="kv-value">export.ts</div><div class="kv-label">399 lines</div></div>
+</div>
+
+<!-- ================================================================ -->
+<!-- 2. SALES -->
+<!-- ================================================================ -->
+<h2 id="s2"><span class="section-num">2.</span> Sales <small>sales.ts</small></h2>
+
+<table>
+    <thead><tr><th>Function</th><th>Permission</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td><code>getSales(params)</code></td><td>SALE_VIEW</td><td>Get paginated list of sales. Supports search, date range, payment method, channel, and status filters.</td></tr>
+        <tr><td><code>getSale(id)</code></td><td>SALE_VIEW</td><td>Get single sale with items, customer, and product details.</td></tr>
+        <tr><td><code>createSale(input)</code></td><td>SALE_CREATE</td><td>Create a new sale. Runs inside a transaction: validates products, calculates discounts, reserves stock atomically, generates invoice number with retry logic. Uses <code>Decimal.js</code> for all financial math.</td></tr>
+        <tr><td><code>cancelSale(input)</code></td><td>SALE_DELETE</td><td>Cancel a sale. Restores stock atomically, sets sale status to CANCELLED, cancels pending shipments.</td></tr>
+        <tr><td><code>getTodaySales()</code></td><td>DASHBOARD_VIEW</td><td>Aggregate today's sales count and revenue.</td></tr>
+        <tr><td><code>getRecentSales(limit)</code></td><td>DASHBOARD_VIEW</td><td>Get the N most recent sales for dashboard display.</td></tr>
+        <tr><td><code>verifyPayment(saleId, status, note?)</code></td><td>PAYMENT_VERIFY</td><td>Approve or reject a transfer payment. Sets paymentStatus to VERIFIED or REJECTED.</td></tr>
+        <tr><td><code>uploadPaymentProof(saleId, proofUrl)</code></td><td>SALE_VIEW</td><td>Attach a payment slip image URL to a sale.</td></tr>
+    </tbody>
+</table>
+
+<h3>2.1 createSale — Input Schema (SaleInput)</h3>
+<table>
+    <thead><tr><th>Field</th><th>Type</th><th>Required</th><th>Validation</th></tr></thead>
+    <tbody>
+        <tr><td>items</td><td>Array</td><td>Yes</td><td>Min 1 item. Each: productId, quantity (int, min 1), discount (0-100%)</td></tr>
+        <tr><td>paymentMethod</td><td>Enum</td><td>Yes</td><td>CASH | TRANSFER | CREDIT</td></tr>
+        <tr><td>channel</td><td>String</td><td>No</td><td>Sales channel identifier</td></tr>
+        <tr><td>customerId</td><td>String</td><td>No</td><td>Existing customer UUID</td></tr>
+        <tr><td>note</td><td>String</td><td>No</td><td>Max 500 characters</td></tr>
+        <tr><td>discountType</td><td>Enum</td><td>No</td><td>PERCENT | FIXED</td></tr>
+        <tr><td>discountValue</td><td>Number</td><td>No</td><td>Must be >= 0. If PERCENT, max 100.</td></tr>
+        <tr><td>proofOfPayment</td><td>String</td><td>No</td><td>URL to payment slip image</td></tr>
+    </tbody>
+</table>
+
+<h3>2.2 createSale — Side Effects</h3>
+<ul>
+    <li>Generates invoice number (INV-00001) with collision-retry (max 5 attempts)</li>
+    <li>Atomically decrements stock for each item (<code>executeRaw UPDATE ... SET stock = stock - @quantity WHERE stock >= @quantity</code>)</li>
+    <li>Records profit per item: <code>revenue - (costPrice * quantity)</code></li>
+    <li>Revalidates paths: <code>/sales</code>, <code>/products</code>, <code>/dashboard</code></li>
+</ul>
+
+<h3>2.3 cancelSale — Side Effects</h3>
+<ul>
+    <li>Atomically restores stock for each item</li>
+    <li>Cancels any associated shipments with status PENDING or SHIPPED</li>
+    <li>Records cancellation reason and detail</li>
+    <li>Revalidates: <code>/sales</code>, <code>/products</code>, <code>/dashboard</code>, <code>/shipments</code></li>
+</ul>
+
+<!-- ================================================================ -->
+<!-- 3. PRODUCTS -->
+<!-- ================================================================ -->
+<h2 id="s3"><span class="section-num">3.</span> Products <small>products.ts</small></h2>
+
+<table>
+    <thead><tr><th>Function</th><th>Permission</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td><code>getProducts(params)</code></td><td>PRODUCT_VIEW</td><td>Paginated list with search, category filter, sort, and low-stock filter.</td></tr>
+        <tr><td><code>getProduct(id)</code></td><td>PRODUCT_VIEW</td><td>Single product by ID.</td></tr>
+        <tr><td><code>createProduct(input)</code></td><td>PRODUCT_CREATE</td><td>Create a new product. Enforces unique SKU.</td></tr>
+        <tr><td><code>updateProduct(id, input)</code></td><td>PRODUCT_EDIT</td><td>Update product. Uses optimistic locking (version check). Logs stock changes to audit trail.</td></tr>
+        <tr><td><code>deleteProduct(id)</code></td><td>PRODUCT_DELETE</td><td>Soft delete. Uncancelled sales block deletion.</td></tr>
+        <tr><td><code>getProductsForSelect()</code></td><td>PRODUCT_VIEW</td><td>Lightweight list (id, name, price, stock) for sale form dropdowns. Only shows products with stock > 0.</td></tr>
+        <tr><td><code>getProductsForPurchase()</code></td><td>PRODUCT_VIEW</td><td>Same as above but includes zero-stock products (since you buy to add stock).</td></tr>
+        <tr><td><code>getLowStockProducts(limit)</code></td><td>DASHBOARD_VIEW</td><td>Products with stock below minStock threshold.</td></tr>
+        <tr><td><code>getLowStockProductsPaginated(params)</code></td><td>PRODUCT_VIEW</td><td>Paginated version of low-stock list.</td></tr>
+        <tr><td><code>adjustStock(productId, input)</code></td><td>PRODUCT_EDIT</td><td>Manual stock adjustment. Supports ADD, REMOVE, and SET operations. Requires a reason note.</td></tr>
+        <tr><td><code>batchCreateProducts(inputs)</code></td><td>PRODUCT_CREATE</td><td>Create multiple products at once (CSV import). Reports per-item success/failure.</td></tr>
+    </tbody>
+</table>
+
+<h3>3.1 adjustStock — Input</h3>
+<table>
+    <thead><tr><th>Field</th><th>Type</th><th>Validation</th></tr></thead>
+    <tbody>
+        <tr><td>type</td><td>Enum</td><td>ADD | REMOVE | SET</td></tr>
+        <tr><td>quantity</td><td>Number</td><td>Integer, min 1</td></tr>
+        <tr><td>note</td><td>String</td><td>Required. Reason for adjustment.</td></tr>
+    </tbody>
+</table>
+
+<!-- ================================================================ -->
+<!-- 4. PURCHASES -->
+<!-- ================================================================ -->
+<h2 id="s4"><span class="section-num">4.</span> Purchases <small>purchases.ts</small></h2>
+
+<table>
+    <thead><tr><th>Function</th><th>Permission</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td><code>getPurchases(params)</code></td><td>PURCHASE_VIEW</td><td>Paginated list with search, date range, payment method filter.</td></tr>
+        <tr><td><code>getPurchase(id)</code></td><td>PURCHASE_VIEW</td><td>Single purchase with items and supplier details.</td></tr>
+        <tr><td><code>createPurchase(input)</code></td><td>PURCHASE_CREATE</td><td>Create purchase. Transaction: generate purchase number, create items, increment stock, update cost prices.</td></tr>
+        <tr><td><code>cancelPurchase(input)</code></td><td>PURCHASE_DELETE</td><td>Cancel with reason. Checks stock sufficiency before reversal. Reverts cost prices.</td></tr>
+    </tbody>
+</table>
+
+<h3>4.1 createPurchase — Side Effects</h3>
+<ul>
+    <li>Generates purchase number (PUR-00001) with collision retry</li>
+    <li>Increments stock for each purchased item</li>
+    <li>Updates each product's <code>costPrice</code> to the new purchase cost</li>
+    <li>Revalidates: <code>/purchases</code>, <code>/products</code>, <code>/dashboard</code></li>
+</ul>
+
+<!-- ================================================================ -->
+<!-- 5. RETURNS -->
+<!-- ================================================================ -->
+<h2 id="s5"><span class="section-num">5.</span> Returns <small>returns.ts</small></h2>
+
+<table>
+    <thead><tr><th>Function</th><th>Permission</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td><code>getReturnableSaleItems(saleId)</code></td><td>RETURN_VIEW</td><td>Get items from a sale with their max returnable quantity (sold minus already returned).</td></tr>
+        <tr><td><code>createReturn(input)</code></td><td>RETURN_CREATE</td><td>Create a return. Atomic transaction: validate returnable quantities, calculate proportional refund, restore stock, adjust parent sale.</td></tr>
+        <tr><td><code>getReturns(options)</code></td><td>RETURN_VIEW</td><td>Paginated list of all returns.</td></tr>
+        <tr><td><code>getReturnById(returnId)</code></td><td>RETURN_VIEW</td><td>Single return with items and parent sale reference.</td></tr>
+    </tbody>
+</table>
+
+<h3>5.1 createReturn — Input (CreateReturnInput)</h3>
+<table>
+    <thead><tr><th>Field</th><th>Type</th><th>Validation</th></tr></thead>
+    <tbody>
+        <tr><td>saleId</td><td>String</td><td>Required. UUID of parent sale.</td></tr>
+        <tr><td>reason</td><td>String</td><td>Required. Max 500 characters.</td></tr>
+        <tr><td>refundMethod</td><td>Enum</td><td>CASH | TRANSFER | CREDIT</td></tr>
+        <tr><td>items</td><td>Array</td><td>Min 1. Each: saleItemId, quantity (int, min 1), refundPerUnit (min 0).</td></tr>
+    </tbody>
+</table>
+
+<h3>5.2 createReturn — Side Effects</h3>
+<ul>
+    <li>Generates return number (RET-00001) with collision retry</li>
+    <li>Restores stock via <code>StockService</code></li>
+    <li>Updates parent sale item's <code>returnedQuantity</code></li>
+    <li>Adjusts parent sale's <code>netAmount</code> and <code>profit</code></li>
+</ul>
+
+<!-- ================================================================ -->
+<!-- 6. SHIPMENTS -->
+<!-- ================================================================ -->
+<h2 id="s6"><span class="section-num">6.</span> Shipments <small>shipments.ts</small></h2>
+
+<table>
+    <thead><tr><th>Function</th><th>Permission</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td><code>getShipments(params)</code></td><td>SHIPMENT_VIEW</td><td>Paginated list with search, date range, status filter.</td></tr>
+        <tr><td><code>getShipment(id)</code></td><td>SHIPMENT_VIEW</td><td>Single shipment with sale and customer details.</td></tr>
+        <tr><td><code>getSalesWithoutShipment()</code></td><td>SHIPMENT_VIEW</td><td>Active sales that have no shipment yet (for form dropdown).</td></tr>
+        <tr><td><code>createShipment(input)</code></td><td>SHIPMENT_CREATE</td><td>Create shipment. Generates shipment number (SHP-00001). Initial status: PENDING.</td></tr>
+        <tr><td><code>updateShipment(input)</code></td><td>SHIPMENT_EDIT</td><td>Update shipment details (address, tracking, cost).</td></tr>
+        <tr><td><code>updateShipmentStatus(input)</code></td><td>SHIPMENT_EDIT</td><td>Change status with state machine validation (only valid transitions allowed).</td></tr>
+        <tr><td><code>cancelShipment(id, reason?)</code></td><td>SHIPMENT_CANCEL</td><td>Cancel a shipment (from PENDING or SHIPPED only).</td></tr>
+        <tr><td><code>matchParcelsToSales(parcels)</code></td><td>SHIPMENT_CREATE</td><td>OCR smart match: match scanned parcel data to sales by customer phone.</td></tr>
+        <tr><td><code>getShipmentStats()</code></td><td>SHIPMENT_VIEW</td><td>Count shipments by status (for dashboard widgets).</td></tr>
+    </tbody>
+</table>
+
+<h3>6.1 Status Transitions</h3>
+<table>
+    <thead><tr><th>From</th><th>To (Allowed)</th></tr></thead>
+    <tbody>
+        <tr><td>PENDING</td><td>SHIPPED, CANCELLED</td></tr>
+        <tr><td>SHIPPED</td><td>DELIVERED, RETURNED, CANCELLED</td></tr>
+        <tr><td>RETURNED</td><td>PENDING (re-ship)</td></tr>
+        <tr><td>DELIVERED</td><td>(terminal)</td></tr>
+        <tr><td>CANCELLED</td><td>(terminal)</td></tr>
+    </tbody>
+</table>
+
+<!-- ================================================================ -->
+<!-- 7. CUSTOMERS -->
+<!-- ================================================================ -->
+<h2 id="s7"><span class="section-num">7.</span> Customers <small>customers.ts</small></h2>
+
+<table>
+    <thead><tr><th>Function</th><th>Permission</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td><code>getCustomers(params)</code></td><td>CUSTOMER_VIEW</td><td>Paginated list with search.</td></tr>
+        <tr><td><code>getCustomer(id)</code></td><td>CUSTOMER_VIEW</td><td>Single customer record.</td></tr>
+        <tr><td><code>createCustomer(input)</code></td><td>CUSTOMER_CREATE</td><td>Create customer. Validates unique phone/email within shop.</td></tr>
+        <tr><td><code>updateCustomer(id, input)</code></td><td>CUSTOMER_EDIT</td><td>Update customer details.</td></tr>
+        <tr><td><code>deleteCustomer(id)</code></td><td>CUSTOMER_DELETE</td><td>Soft delete. Checks for linked sales.</td></tr>
+        <tr><td><code>getCustomersForSelect()</code></td><td>CUSTOMER_VIEW</td><td>Lightweight list for form dropdowns.</td></tr>
+        <tr><td><code>getCustomerProfile(id)</code></td><td>CUSTOMER_VIEW</td><td>Full profile with sales history, shipments, addresses, and spending statistics.</td></tr>
+    </tbody>
+</table>
+
+<!-- ================================================================ -->
+<!-- 8. SUPPLIERS -->
+<!-- ================================================================ -->
+<h2 id="s8"><span class="section-num">8.</span> Suppliers <small>suppliers.ts</small></h2>
+
+<table>
+    <thead><tr><th>Function</th><th>Permission</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td><code>getSuppliers(params)</code></td><td>SUPPLIER_VIEW</td><td>Paginated list with search.</td></tr>
+        <tr><td><code>getSupplier(id)</code></td><td>SUPPLIER_VIEW</td><td>Single supplier record.</td></tr>
+        <tr><td><code>createSupplier(input)</code></td><td>SUPPLIER_CREATE</td><td>Create supplier. Enforces unique supplier code.</td></tr>
+        <tr><td><code>updateSupplier(id, input)</code></td><td>SUPPLIER_EDIT</td><td>Update supplier details.</td></tr>
+        <tr><td><code>deleteSupplier(id)</code></td><td>SUPPLIER_DELETE</td><td>Soft delete. Blocks if linked purchases exist.</td></tr>
+        <tr><td><code>getSuppliersForSelect()</code></td><td>SUPPLIER_VIEW</td><td>Lightweight list for purchase form dropdown.</td></tr>
+        <tr><td><code>getSupplierProfile(id)</code></td><td>SUPPLIER_VIEW</td><td>Full profile with purchase history and spending statistics.</td></tr>
+    </tbody>
+</table>
+
+<!-- ================================================================ -->
+<!-- 9. EXPENSES -->
+<!-- ================================================================ -->
+<h2 id="s9"><span class="section-num">9.</span> Expenses <small>expenses.ts</small></h2>
+
+<table>
+    <thead><tr><th>Function</th><th>Permission</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td><code>getExpenses(params)</code></td><td>EXPENSE_VIEW</td><td>Paginated with search, category, date range.</td></tr>
+        <tr><td><code>getExpense(id)</code></td><td>EXPENSE_VIEW</td><td>Single expense.</td></tr>
+        <tr><td><code>createExpense(input)</code></td><td>EXPENSE_CREATE</td><td>Create expense record with category and amount.</td></tr>
+        <tr><td><code>updateExpense(id, input)</code></td><td>EXPENSE_EDIT</td><td>Update expense details.</td></tr>
+        <tr><td><code>deleteExpense(id)</code></td><td>EXPENSE_DELETE</td><td>Soft delete.</td></tr>
+        <tr><td><code>getMonthlyExpenses()</code></td><td>EXPENSE_VIEW</td><td>Aggregate total and count for current month.</td></tr>
+    </tbody>
+</table>
+
+<!-- ================================================================ -->
+<!-- 10. INCOMES -->
+<!-- ================================================================ -->
+<h2 id="s10"><span class="section-num">10.</span> Incomes <small>incomes.ts</small></h2>
+
+<table>
+    <thead><tr><th>Function</th><th>Permission</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td><code>getIncomes(params)</code></td><td>INCOME_VIEW</td><td>Paginated with search, category, date range.</td></tr>
+        <tr><td><code>getIncome(id)</code></td><td>INCOME_VIEW</td><td>Single income record.</td></tr>
+        <tr><td><code>createIncome(input)</code></td><td>INCOME_CREATE</td><td>Create non-sale income record.</td></tr>
+        <tr><td><code>updateIncome(id, input)</code></td><td>INCOME_EDIT</td><td>Update income details.</td></tr>
+        <tr><td><code>deleteIncome(id)</code></td><td>INCOME_DELETE</td><td>Soft delete.</td></tr>
+        <tr><td><code>getMonthlyIncomes()</code></td><td>INCOME_VIEW</td><td>Aggregate total and count for current month.</td></tr>
+    </tbody>
+</table>
+
+<!-- ================================================================ -->
+<!-- 11. DASHBOARD -->
+<!-- ================================================================ -->
+<h2 id="s11"><span class="section-num">11.</span> Dashboard <small>dashboard.ts</small></h2>
+
+<table>
+    <thead><tr><th>Function</th><th>Permission</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td><code>getDashboardStats()</code></td><td>DASHBOARD_VIEW</td><td>Main dashboard data: revenue, expenses, profit, sales count, top products, low stock alerts, recent sales, and income totals.</td></tr>
+        <tr><td><code>getMonthlyStats()</code></td><td>DASHBOARD_VIEW</td><td>Monthly comparison: this month vs last month for revenue, expenses, profit, sales count.</td></tr>
+        <tr><td><code>getSalesChartData(days)</code></td><td>DASHBOARD_VIEW</td><td>Daily sales revenue for the last N days (default 7), for chart rendering.</td></tr>
+    </tbody>
+</table>
+
+<!-- ================================================================ -->
+<!-- 12. REPORTS -->
+<!-- ================================================================ -->
+<h2 id="s12"><span class="section-num">12.</span> Reports <small>reports.ts</small></h2>
+
+<table>
+    <thead><tr><th>Function</th><th>Permission</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td><code>getReportData(startDate?, endDate?)</code></td><td>REPORT_VIEW</td><td>Master report: total sales, cost, profit, sales count, daily breakdown, individual sales, expenses, and incomes in date range.</td></tr>
+        <tr><td><code>getTopProducts(startDate?, endDate?, limit?)</code></td><td>REPORT_VIEW</td><td>Top N products by revenue within date range.</td></tr>
+        <tr><td><code>getProfitByProduct(startDate?, endDate?)</code></td><td>REPORT_VIEW</td><td>Profit breakdown per product: revenue, cost, margin, quantity sold.</td></tr>
+        <tr><td><code>getComparisonReport(p1Start, p1End, p2Start, p2End)</code></td><td>REPORT_VIEW</td><td>Compare two periods. Returns metrics with percentage change.</td></tr>
+        <tr><td><code>getStockValueReport()</code></td><td>REPORT_VIEW</td><td>Per-product stock value (at cost) with dead stock detection (no sales in 90+ days).</td></tr>
+        <tr><td><code>getInventoryTurnover(startDate?, endDate?)</code></td><td>REPORT_VIEW</td><td>COGS / average inventory value. Also computes Days Sales of Inventory.</td></tr>
+        <tr><td><code>getSalesByCategory(startDate?, endDate?)</code></td><td>REPORT_VIEW</td><td>Sales breakdown by product category: revenue, count, percentage share.</td></tr>
+        <tr><td><code>getProfitLossReport(startDate?, endDate?)</code></td><td>REPORT_VIEW</td><td>Full P&amp;L: gross revenue, discounts, net revenue, COGS, gross profit, expenses, incomes, return deductions, net profit. Includes month-over-month comparison.</td></tr>
+        <tr><td><code>getExpenseByCategoryReport(startDate?, endDate?)</code></td><td>REPORT_VIEW</td><td>Expenses grouped by category with percentage breakdown.</td></tr>
+        <tr><td><code>getSalesChannelReport(startDate?, endDate?)</code></td><td>REPORT_VIEW</td><td>Sales performance by channel (Walk-in, Shopee, Lazada, etc.).</td></tr>
+        <tr><td><code>getCustomerRankingReport(startDate?, endDate?, limit?)</code></td><td>REPORT_VIEW</td><td>Top customers ranked by total spending.</td></tr>
+    </tbody>
+</table>
+
+<!-- ================================================================ -->
+<!-- 13. EXPORT -->
+<!-- ================================================================ -->
+<h2 id="s13"><span class="section-num">13.</span> Export <small>export.ts</small></h2>
+
+<table>
+    <thead><tr><th>Function</th><th>Permission</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td><code>exportProductsData()</code></td><td>PRODUCT_VIEW</td><td>All active products as flat rows for CSV.</td></tr>
+        <tr><td><code>exportSalesData(startDate, endDate)</code></td><td>SALE_VIEW</td><td>Item-level detail for all sales in date range.</td></tr>
+        <tr><td><code>exportPurchasesData(startDate, endDate)</code></td><td>PURCHASE_VIEW</td><td>Purchase records in date range.</td></tr>
+        <tr><td><code>exportReturnsData(startDate, endDate)</code></td><td>RETURN_VIEW</td><td>Return records in date range.</td></tr>
+        <tr><td><code>exportCustomersData()</code></td><td>CUSTOMER_VIEW</td><td>All customers with aggregated spending stats.</td></tr>
+        <tr><td><code>exportExpensesData(startDate, endDate)</code></td><td>EXPENSE_VIEW</td><td>Expense records in date range.</td></tr>
+        <tr><td><code>exportIncomesData(startDate, endDate)</code></td><td>INCOME_VIEW</td><td>Income records in date range.</td></tr>
+    </tbody>
+</table>
+
+<!-- ================================================================ -->
+<!-- 14. AUTH / USER -->
+<!-- ================================================================ -->
+<h2 id="s14"><span class="section-num">14.</span> Auth and User <small>auth.ts, user.ts</small></h2>
+
+<table>
+    <thead><tr><th>Function</th><th>Source</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td><code>register(input)</code></td><td>auth.ts</td><td>Create new user account. Hashes password with bcrypt. No permission required (public).</td></tr>
+        <tr><td><code>login(input)</code></td><td>auth.ts</td><td>Authenticate user, return session token. No permission required (public).</td></tr>
+        <tr><td><code>getUserProfile()</code></td><td>user.ts</td><td>Get current user's profile data. Requires authentication.</td></tr>
+        <tr><td><code>updateUserProfile(input)</code></td><td>user.ts</td><td>Update current user's name, email, or password. Requires authentication.</td></tr>
+    </tbody>
+</table>
+
+<!-- ================================================================ -->
+<!-- 15. SETTINGS / SHOP / TEAM -->
+<!-- ================================================================ -->
+<h2 id="s15"><span class="section-num">15.</span> Settings, Shop and Team <small>settings.ts, shop.ts, team.ts, onboarding.ts</small></h2>
+
+<table>
+    <thead><tr><th>Function</th><th>Permission</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td><code>getShopSettings()</code></td><td>Auth only</td><td>Get current shop profile.</td></tr>
+        <tr><td><code>updateShopSettings(input)</code></td><td>SETTINGS_EDIT</td><td>Update shop name, address, phone, tax ID, invoice prefix.</td></tr>
+        <tr><td><code>createShop(input)</code></td><td>Auth only</td><td>Create a new shop during onboarding. Caller becomes owner.</td></tr>
+        <tr><td><code>getTeamMembers()</code></td><td>MEMBER_MANAGE</td><td>List all members and their roles.</td></tr>
+        <tr><td><code>inviteMember(input)</code></td><td>MEMBER_MANAGE</td><td>Add existing user to shop with specified role.</td></tr>
+        <tr><td><code>updateMemberRole(id, roleId)</code></td><td>MEMBER_MANAGE</td><td>Change member's role.</td></tr>
+        <tr><td><code>removeMember(id)</code></td><td>MEMBER_MANAGE</td><td>Remove member from shop. Cannot remove the owner.</td></tr>
+    </tbody>
+</table>
+
+<!-- ================================================================ -->
+<!-- 16. ROLES / LOOKUPS -->
+<!-- ================================================================ -->
+<h2 id="s16"><span class="section-num">16.</span> Roles and Lookups <small>roles.ts, lookups.ts</small></h2>
+
+<table>
+    <thead><tr><th>Function</th><th>Permission</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td><code>getRoles()</code></td><td>MEMBER_MANAGE</td><td>List all custom roles with their permissions.</td></tr>
+        <tr><td><code>createRole(input)</code></td><td>MEMBER_MANAGE</td><td>Create a role with selected permissions.</td></tr>
+        <tr><td><code>updateRole(id, input)</code></td><td>MEMBER_MANAGE</td><td>Update role name and permissions.</td></tr>
+        <tr><td><code>deleteRole(id)</code></td><td>MEMBER_MANAGE</td><td>Delete a role. Blocks if members are assigned.</td></tr>
+        <tr><td><code>getLookups(type)</code></td><td>Auth only</td><td>Get lookup values for a type (categories, etc.).</td></tr>
+        <tr><td><code>createLookup(input)</code></td><td>SETTINGS_EDIT</td><td>Add a new lookup value.</td></tr>
+        <tr><td><code>updateLookup(id, input)</code></td><td>SETTINGS_EDIT</td><td>Update a lookup value.</td></tr>
+        <tr><td><code>deleteLookup(id)</code></td><td>SETTINGS_EDIT</td><td>Delete a lookup value.</td></tr>
+    </tbody>
+</table>
+
+<!-- ================================================================ -->
+<!-- 17. NOTIFICATIONS / AI / SYSTEM -->
+<!-- ================================================================ -->
+<h2 id="s17"><span class="section-num">17.</span> Notifications, AI and System <small>notifications.ts, ai.ts, system.ts, customer-addresses.ts</small></h2>
+
+<table>
+    <thead><tr><th>Function</th><th>Source</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td><code>getNotifications()</code></td><td>notifications.ts</td><td>Get unread notifications for current user.</td></tr>
+        <tr><td><code>markAsRead(id)</code></td><td>notifications.ts</td><td>Mark a notification as read.</td></tr>
+        <tr><td><code>markAllAsRead()</code></td><td>notifications.ts</td><td>Mark all notifications as read.</td></tr>
+        <tr><td><code>extractReceiptData(imageUrl)</code></td><td>ai.ts</td><td>OCR pipeline: Tesseract.js extracts text from image, Groq AI parses structured data (product names, quantities, costs).</td></tr>
+        <tr><td><code>getSystemHealth()</code></td><td>system.ts</td><td>Database connectivity check and basic system metrics.</td></tr>
+        <tr><td><code>getCustomerAddresses(customerId)</code></td><td>customer-addresses.ts</td><td>List addresses for a customer.</td></tr>
+        <tr><td><code>createCustomerAddress(input)</code></td><td>customer-addresses.ts</td><td>Create a shipping address for a customer.</td></tr>
+        <tr><td><code>updateCustomerAddress(id, input)</code></td><td>customer-addresses.ts</td><td>Update an address.</td></tr>
+        <tr><td><code>deleteCustomerAddress(id)</code></td><td>customer-addresses.ts</td><td>Delete an address.</td></tr>
+    </tbody>
+</table>
+
+<!-- FOOTER -->
+<div class="doc-footer">
+    <p><strong>Shop Inventory</strong> &mdash; API Reference v1.0</p>
+    <p>9 February 2026 &middot; <a href="index.html" style="color:var(--accent);text-decoration:none;">Documentation Hub</a></p>
+</div>
+
+</div>
+<script src="doc-nav.js"></script></body>
+</html>

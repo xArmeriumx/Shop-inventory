@@ -1,0 +1,67 @@
+flowchart TD
+    subgraph INPUT["Step 1: Input Validation"]
+        P1["Receive purchase input<br>items, supplierId, paymentMethod, notes"] --> P2["Zod schema validation<br>purchaseSchema.safeParse"]
+        P2 --> P3{"Valid?"}
+        P3 -->|No| P4["Return validation errors<br>to client form"]
+        P3 -->|Yes| P5["Extract validated data<br>items + purchaseData"]
+    end
+
+    subgraph PNUMBER["Step 2: Purchase Number"]
+        P5 --> PN1["Begin DB Transaction"]
+        PN1 --> PN2["Query last purchase number<br>WHERE shopId, ORDER DESC"]
+        PN2 --> PN3["Parse and increment<br>PUR-00042 -> PUR-00043"]
+        PN3 --> PN4{"Collision check:<br>number exists?"}
+        PN4 -->|Yes, attempt < 5| PN3
+        PN4 -->|No| PN5["Purchase number confirmed"]
+        PN4 -->|Max retries| PN6["Throw Error:<br>Cannot generate number"]
+    end
+
+    subgraph CALC["Step 3: Cost Calculation"]
+        PN5 --> C1["For each item:<br>subtotal = quantity x costPrice"]
+        C1 --> C2["totalCost = sum of all subtotals<br>using Decimal.js precision"]
+    end
+
+    subgraph PERSIST["Step 4: Create Records"]
+        C2 --> CR1["Create Purchase record<br>purchaseNumber, totalCost,<br>paymentMethod, supplierId,<br>notes, receiptUrl"]
+        CR1 --> CR2["Create PurchaseItems<br>nested create for each item<br>productId, quantity, costPrice, subtotal"]
+    end
+
+    subgraph STOCK["Step 5: Stock Update"]
+        CR2 --> ST1["For each PurchaseItem:"]
+        ST1 --> ST2["StockService.recordMovement()<br>productId, type: PURCHASE<br>quantity: +N"]
+        ST2 --> ST3["Atomic increment product.stock<br>stock = stock + quantity"]
+        ST3 --> ST4["Create StockLog<br>with balanceAfter snapshot"]
+        ST4 --> ST5["Check and update<br>Product.isLowStock flag"]
+    end
+
+    subgraph COST_UPDATE["Step 6: Cost Price Update"]
+        ST5 --> CU1["Update Product.costPrice<br>to latest purchase costPrice"]
+        CU1 --> CU2["Commit transaction"]
+        CU2 --> CU3["Revalidate /purchases path<br>refresh client data"]
+    end
+
+    subgraph CANCEL["Cancel Purchase Flow"]
+        CR1 -.-> CA1["cancelPurchase(id, reason)"]
+        CA1 --> CA2["Load purchase with items<br>include product stock info"]
+        CA2 --> CA3{"Purchase.status === ACTIVE?"}
+        CA3 -->|No| CA4["Throw Error:<br>Already cancelled"]
+        CA3 -->|Yes| CA5["For each PurchaseItem:"]
+        CA5 --> CA6{"Product.stock >= item.quantity?<br>Check enough stock to reverse"}
+        CA6 -->|No| CA7["Throw Error:<br>Cannot cancel, stock already sold<br>current stock insufficient"]
+        CA6 -->|Yes| CA8["StockService.recordMovement()<br>type: PURCHASE_CANCEL<br>quantity: -N"]
+        CA8 --> CA9["Atomic decrement product.stock"]
+        CA9 --> CA10["Find previous purchase<br>of same product"]
+        CA10 --> CA11{"Previous purchase exists?"}
+        CA11 -->|Yes| CA12["Revert Product.costPrice<br>to previous purchase costPrice"]
+        CA11 -->|No| CA13["Keep current costPrice"]
+        CA12 --> CA14["Update Purchase record:<br>status = CANCELLED<br>cancelledAt = now<br>cancelledBy = currentUser.name<br>cancelReason = input reason"]
+        CA13 --> CA14
+    end
+
+    style INPUT fill:#1a1a2e,color:#e0e0e0
+    style PNUMBER fill:#16213e,color:#e0e0e0
+    style CALC fill:#0f3460,color:#e0e0e0
+    style PERSIST fill:#1b2d4e,color:#e0e0e0
+    style STOCK fill:#1a1a2e,color:#e0e0e0
+    style COST_UPDATE fill:#16213e,color:#e0e0e0
+    style CANCEL fill:#3d1b1b,color:#e0e0e0

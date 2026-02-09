@@ -9,6 +9,14 @@ const nextConfig = {
       },
     ],
   },
+  async rewrites() {
+    return [
+      {
+        source: "/docs",
+        destination: "/docs/index.html",
+      },
+    ];
+  },
   async headers() {
     return [
       {

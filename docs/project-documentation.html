@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shop Inventory — Technical Documentation</title>
+    <link rel="stylesheet" href="doc-styles.css">
+</head>
+<body>
+
+<!-- COVER -->
+<div class="cover-page">
+    <span class="cover-label">Technical Documentation</span>
+    <h1>Shop Inventory</h1>
+    <p class="cover-subtitle">A multi-tenant Point of Sale and Inventory Management system built with Next.js, Prisma, and PostgreSQL. This document covers the full system architecture, database design, business logic, security model, and maintenance guidelines.</p>
+    <dl class="cover-meta">
+        <div><dt>Version</dt><dd>1.0</dd></div>
+        <div><dt>Date</dt><dd>9 February 2026</dd></div>
+        <div><dt>Stack</dt><dd>Next.js 14 / TypeScript / Prisma / PostgreSQL</dd></div>
+        <div><dt>Scope</dt><dd>Architecture, Database, API, Security, Maintenance</dd></div>
+    </dl>
+</div>
+
+<div class="doc-container">
+
+<!-- TOC -->
+<nav class="toc-section">
+    <h2>Contents</h2>
+    <ol class="toc-list">
+        <li><span class="toc-num">1</span><a href="#s1">System Overview</a></li>
+        <li><span class="toc-num">2</span><a href="#s2">Technology Stack</a></li>
+        <li><span class="toc-num">3</span><a href="#s3">Architecture &amp; Request Lifecycle</a></li>
+        <li><span class="toc-num">4</span><a href="#s4">Database Schema (20 Models)</a></li>
+        <li><span class="toc-num">5</span><a href="#s5">RBAC &amp; Tenant Isolation</a></li>
+        <li><span class="toc-num">6</span><a href="#s6">Sale Lifecycle</a></li>
+        <li><span class="toc-num">7</span><a href="#s7">Purchase Lifecycle</a></li>
+        <li><span class="toc-num">8</span><a href="#s8">Stock Management &amp; Audit Trail</a></li>
+        <li><span class="toc-num">9</span><a href="#s9">Financial Calculations</a></li>
+        <li><span class="toc-num">10</span><a href="#s10">Shipment State Machine</a></li>
+        <li><span class="toc-num">11</span><a href="#s11">Returns &amp; Partial Refunds</a></li>
+        <li><span class="toc-num">12</span><a href="#s12">Data Deletion Strategy</a></li>
+        <li><span class="toc-num">13</span><a href="#s13">Security Model</a></li>
+        <li><span class="toc-num">14</span><a href="#s14">Server Actions Reference</a></li>
+        <li><span class="toc-num">15</span><a href="#s15">Known Issues &amp; Maintenance Notes</a></li>
+    </ol>
+</nav>
+
+<!-- ================================================================ -->
+<!-- 1. SYSTEM OVERVIEW -->
+<!-- ================================================================ -->
+<h2 id="s1"><span class="section-num">1.</span> System Overview</h2>
+
+<p>Shop Inventory is a web-based POS and inventory management platform designed for small-to-medium retail businesses. Each user account owns a single shop, and shop data is fully isolated at the database level. The system handles the entire retail workflow: product catalog, purchasing from suppliers, point-of-sale transactions, shipment tracking, returns, expense/income logging, and financial reporting.</p>
+
+<div class="kv-grid">
+    <div class="kv-card"><div class="kv-value">20</div><div class="kv-label">Database Models</div></div>
+    <div class="kv-card"><div class="kv-value">24</div><div class="kv-label">Server Action Files</div></div>
+    <div class="kv-card"><div class="kv-value">9</div><div class="kv-label">Validation Schemas</div></div>
+    <div class="kv-card"><div class="kv-value">35+</div><div class="kv-label">Granular Permissions</div></div>
+</div>
+
+<h3>Core Capabilities</h3>
+<ul>
+    <li>Point of Sale with item-level and bill-level discounts (referred to as G4 pattern internally)</li>
+    <li>Multi-channel sales tracking: walk-in, Shopee, Lazada, LINE, Facebook, and custom channels</li>
+    <li>Payment verification workflow with slip image upload for transfers</li>
+    <li>Partial returns with proportional refund calculation (G3 pattern)</li>
+    <li>Shipment lifecycle tracking with a 5-state finite state machine</li>
+    <li>Purchase management with automatic cost price synchronization</li>
+    <li>Real-time stock tracking with low-stock alerts and audit logging</li>
+    <li>Expense and income logging with dashboard profit/loss calculations</li>
+    <li>Customer and supplier relationship management</li>
+    <li>Thermal receipt printing (80mm format)</li>
+    <li>Receipt OCR via Tesseract.js and Groq AI for purchase data extraction</li>
+</ul>
+
+<!-- ================================================================ -->
+<!-- 2. TECHNOLOGY STACK -->
+<!-- ================================================================ -->
+<h2 id="s2"><span class="section-num">2.</span> Technology Stack</h2>
+
+<table>
+    <thead><tr><th>Layer</th><th>Technology</th><th>Role</th></tr></thead>
+    <tbody>
+        <tr><td>Application Framework</td><td><code>Next.js 14</code></td><td>App Router with React Server Components and Server Actions for zero-API backend</td></tr>
+        <tr><td>Language</td><td><code>TypeScript</code></td><td>End-to-end type safety from database to UI</td></tr>
+        <tr><td>Database</td><td><code>PostgreSQL</code> on Supabase</td><td>ACID-compliant relational storage with connection pooling</td></tr>
+        <tr><td>ORM</td><td><code>Prisma 6.x</code></td><td>Type-safe query builder, schema migrations, relation management</td></tr>
+        <tr><td>Authentication</td><td><code>NextAuth.js</code></td><td>JWT-based sessions with credentials provider</td></tr>
+        <tr><td>Input Validation</td><td><code>Zod</code></td><td>Schema-based runtime validation on all server actions</td></tr>
+        <tr><td>Financial Math</td><td><code>Decimal.js</code></td><td>Arbitrary-precision arithmetic for monetary values (avoids floating-point errors)</td></tr>
+        <tr><td>UI Components</td><td><code>shadcn/ui</code> + <code>Tailwind CSS</code></td><td>Accessible component library with utility-first styling</td></tr>
+        <tr><td>File Storage</td><td><code>Supabase Storage</code></td><td>Product images, payment slips, purchase receipts</td></tr>
+        <tr><td>OCR Pipeline</td><td><code>Tesseract.js</code> + <code>Groq AI</code></td><td>Client-side text extraction, server-side structured data parsing</td></tr>
+    </tbody>
+</table>
+
+<!-- ================================================================ -->
+<!-- 3. ARCHITECTURE -->
+<!-- ================================================================ -->
+<h2 id="s3"><span class="section-num">3.</span> Architecture &amp; Request Lifecycle</h2>
+
+<p>The application follows a Server Actions pattern — there is no separate REST or GraphQL API layer. All mutations and queries are handled through Next.js Server Actions that run on the server and are invoked directly from React client components.</p>
+
+<h3>Request Pipeline</h3>
+<div class="flow-row">
+    <span class="flow-node">Browser (React)</span>
+    <span class="flow-arrow">&#9654;</span>
+    <span class="flow-node">Server Action</span>
+    <span class="flow-arrow">&#9654;</span>
+    <span class="flow-node">Auth Guard</span>
+    <span class="flow-arrow">&#9654;</span>
+    <span class="flow-node">Zod Validation</span>
+    <span class="flow-arrow">&#9654;</span>
+    <span class="flow-node">Business Logic</span>
+    <span class="flow-arrow">&#9654;</span>
+    <span class="flow-node">Prisma / DB</span>
+</div>
+
+<p>Every server action begins with an <code>auth-guard</code> call that verifies the session, resolves the user's shop membership, checks permissions, and returns a <code>SessionContext</code> object containing <code>userId</code>, <code>shopId</code>, <code>role</code>, and <code>permissions</code>. This context is then used to scope all database queries to the correct tenant.</p>
+
+<h3>Shared Libraries</h3>
+<table>
+    <thead><tr><th>Module</th><th>Path</th><th>Responsibility</th></tr></thead>
+    <tbody>
+        <tr><td>Auth Guard</td><td><code>lib/auth-guard.ts</code></td><td>Session resolution, RBAC permission checks, tenant context injection</td></tr>
+        <tr><td>Money Utilities</td><td><code>lib/money.ts</code></td><td>Decimal.js wrappers for all monetary arithmetic; <code>toNumber()</code> for Prisma Decimal-to-JS conversion</td></tr>
+        <tr><td>Stock Service</td><td><code>lib/stock-service.ts</code></td><td>Centralized atomic stock operations, StockLog creation, low-stock detection</td></tr>
+        <tr><td>Sanitizer</td><td><code>lib/sanitize.ts</code></td><td>HTML entity encoding via <code>sanitizeText()</code> to prevent stored XSS</td></tr>
+        <tr><td>Pagination</td><td><code>lib/pagination.ts</code></td><td>Reusable paginated query builder with search, sort, and date range filters</td></tr>
+        <tr><td>Constants</td><td><code>lib/constants.ts</code></td><td>Enum definitions: payment methods, product categories, sales channels, shipment providers</td></tr>
+    </tbody>
+</table>
+
+<!-- ================================================================ -->
+<!-- 4. DATABASE -->
+<!-- ================================================================ -->
+<h2 id="s4"><span class="section-num">4.</span> Database Schema</h2>
+
+<p>The Prisma schema defines 20 models across approximately 890 lines. All primary keys use <code>cuid()</code>. Financial columns use <code>Decimal(10,2)</code>. Every business model includes a <code>shopId</code> foreign key for tenant scoping. Timestamps (<code>createdAt</code>, <code>updatedAt</code>) are present on all models.</p>
+
+<h3>4.1 Authentication &amp; Tenancy</h3>
+<table>
+    <thead><tr><th>Model</th><th>Key Fields</th><th>Relationships</th></tr></thead>
+    <tbody>
+        <tr><td><code>User</code></td><td>email (unique), name, password (hashed), lastActiveAt</td><td>Owns one Shop (1:1). Has many ShopMemberships (1:N).</td></tr>
+        <tr><td><code>Shop</code></td><td>name, address, phone, taxId, invoicePrefix</td><td>Owned by one User (onDelete: Restrict). Contains all business data.</td></tr>
+        <tr><td><code>Role</code></td><td>name, permissions (String[]), isDefault</td><td>Belongs to a Shop. Assigned to ShopMembers.</td></tr>
+        <tr><td><code>ShopMember</code></td><td>userId, shopId, roleId</td><td>Junction model linking User, Shop, and Role.</td></tr>
+    </tbody>
+</table>
+
+<h3>4.2 Catalog</h3>
+<table>
+    <thead><tr><th>Model</th><th>Key Fields</th><th>Notes</th></tr></thead>
+    <tbody>
+        <tr><td><code>Product</code></td><td>name, sku (unique per shop), costPrice, salePrice, stock, minStock, isLowStock, version</td><td>Optimistic locking via <code>version</code> field. Soft-deleted using <code>isActive</code> + <code>deletedAt</code>.</td></tr>
+        <tr><td><code>Supplier</code></td><td>name, code (unique per shop), contactName, phone, email, taxId</td><td>Soft-deleted. Referenced by Purchase and optionally by Product.</td></tr>
+        <tr><td><code>LookupType</code> / <code>LookupValue</code></td><td>type code + display values</td><td>Per-shop configurable dropdowns (product categories, expense categories, etc.).</td></tr>
+    </tbody>
+</table>
+
+<h3>4.3 Sales</h3>
+<table>
+    <thead><tr><th>Model</th><th>Key Fields</th><th>Notes</th></tr></thead>
+    <tbody>
+        <tr><td><code>Sale</code></td><td>invoiceNumber (unique/shop), totalAmount, totalCost, profit, netAmount, discountType, discountValue, discountAmount, paymentMethod, paymentStatus, channel, status</td><td>Supports G4 bill-level discounts. Voided via <code>status = CANCELLED</code> (never hard-deleted).</td></tr>
+        <tr><td><code>SaleItem</code></td><td>productId, quantity, salePrice, costPrice, subtotal, profit, discountPercent, discountAmount, returnedQty</td><td>G4 item-level discounts. <code>returnedQty</code> tracks partial returns for G3.</td></tr>
+    </tbody>
+</table>
+
+<h3>4.4 Purchases</h3>
+<table>
+    <thead><tr><th>Model</th><th>Key Fields</th><th>Notes</th></tr></thead>
+    <tbody>
+        <tr><td><code>Purchase</code></td><td>purchaseNumber (unique/shop), totalCost, paymentMethod, supplierId, status</td><td>Voided via status. Cancellation reverts stock and cost price.</td></tr>
+        <tr><td><code>PurchaseItem</code></td><td>productId, quantity, costPrice, subtotal</td><td>Cascade-deleted with parent Purchase.</td></tr>
+    </tbody>
+</table>
+
+<h3>4.5 Fulfillment</h3>
+<table>
+    <thead><tr><th>Model</th><th>Key Fields</th><th>Notes</th></tr></thead>
+    <tbody>
+        <tr><td><code>Shipment</code></td><td>shipmentNumber, saleId, recipientName, trackingNumber, shippingProvider, shippingCost, status</td><td>5-state FSM: PENDING, SHIPPED, DELIVERED, RETURNED, CANCELLED.</td></tr>
+        <tr><td><code>Return</code></td><td>returnNumber, saleId, totalRefund, reason, status</td><td>Partial returns with proportional refund.</td></tr>
+        <tr><td><code>ReturnItem</code></td><td>saleItemId, productId, quantity, refundAmount, costPrice</td><td>Links back to original SaleItem for quantity validation.</td></tr>
+    </tbody>
+</table>
+
+<h3>4.6 Supporting Models</h3>
+<table>
+    <thead><tr><th>Model</th><th>Purpose</th></tr></thead>
+    <tbody>
+        <tr><td><code>Customer</code> / <code>CustomerAddress</code></td><td>CRM data and saved shipping addresses. Soft-deleted.</td></tr>
+        <tr><td><code>StockLog</code></td><td>Immutable audit trail of every stock movement with <code>balanceAfter</code> snapshot.</td></tr>
+        <tr><td><code>Expense</code> / <code>Income</code></td><td>Financial tracking entries for dashboard P&L. Soft-deleted.</td></tr>
+        <tr><td><code>Notification</code></td><td>In-app alerts (LOW_STOCK, NEW_SALE, etc.). Cascade-deleted with Shop.</td></tr>
+    </tbody>
+</table>
+
+<!-- ================================================================ -->
+<!-- 5. RBAC -->
+<!-- ================================================================ -->
+<h2 id="s5"><span class="section-num">5.</span> RBAC &amp; Tenant Isolation</h2>
+
+<h3>Authentication Flow</h3>
+<div class="flow-row">
+    <span class="flow-node">Credentials Login</span>
+    <span class="flow-arrow">&#9654;</span>
+    <span class="flow-node">NextAuth JWT Session</span>
+    <span class="flow-arrow">&#9654;</span>
+    <span class="flow-node">getSessionContext()</span>
+    <span class="flow-arrow">&#9654;</span>
+    <span class="flow-node">SessionContext {userId, shopId, role, permissions}</span>
+</div>
+
+<h3>Permission Resolution</h3>
+<p>Every server action calls <code>requirePermission('PERMISSION_NAME')</code> before executing any logic. This function performs the following checks in order:</p>
+<ol>
+    <li>Verifies the user has a valid, non-expired session.</li>
+    <li>Resolves the user's ShopMember record and associated Role.</li>
+    <li>If the user is the shop <strong>OWNER</strong>, all permission checks are bypassed — owners have unrestricted access.</li>
+    <li>If the user is a <strong>MEMBER</strong>, the function checks whether <code>role.permissions</code> contains the required permission string.</li>
+    <li>On success, returns a <code>SessionContext</code> with the resolved <code>shopId</code>, which is used to scope all subsequent database queries.</li>
+</ol>
+
+<h3>Permission Matrix</h3>
+<table>
+    <thead><tr><th>Module</th><th>VIEW</th><th>CREATE</th><th>EDIT</th><th>DELETE</th><th>Special</th></tr></thead>
+    <tbody>
+        <tr><td>Products</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td><td>—</td></tr>
+        <tr><td>Sales</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td><td>PAYMENT_VERIFY</td></tr>
+        <tr><td>Purchases</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td><td>—</td></tr>
+        <tr><td>Expenses / Income</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td><td>—</td></tr>
+        <tr><td>Customers / Suppliers</td><td>Yes</td><td>Yes</td><td>Yes</td><td>Yes</td><td>—</td></tr>
+        <tr><td>Shipments</td><td>Yes</td><td>Yes</td><td>Yes</td><td>—</td><td>SHIPMENT_CANCEL</td></tr>
+        <tr><td>Returns</td><td>Yes</td><td>Yes</td><td>—</td><td>—</td><td>—</td></tr>
+        <tr><td>Dashboard</td><td>Yes</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>
+        <tr><td>Settings</td><td>—</td><td>—</td><td>Yes</td><td>—</td><td>MEMBER_MANAGE</td></tr>
+    </tbody>
+</table>
+
+<div class="callout callout-info">
+    <div class="callout-title">Tenant Isolation</div>
+    <p>Every database query includes a <code>WHERE shopId = ctx.shopId</code> clause. The <code>shopId</code> is never accepted from client input — it is always resolved server-side from the authenticated session. This guarantees that no user can access another shop's data regardless of the request payload.</p>
+</div>
+
+<!-- ================================================================ -->
+<!-- 6. SALE LIFECYCLE -->
+<!-- ================================================================ -->
+<h2 id="s6"><span class="section-num">6.</span> Sale Lifecycle</h2>
+
+<h3>6.1 Creating a Sale</h3>
+<table>
+    <thead><tr><th>Step</th><th>Operation</th><th>Implementation Detail</th></tr></thead>
+    <tbody>
+        <tr><td>1</td><td>Generate invoice number</td><td><code>generateInvoiceNumber()</code> produces sequential numbers in the format <code>INV-00001</code>. Uses retry logic (up to 5 attempts) with incremental offset to handle race conditions when multiple sales are created simultaneously.</td></tr>
+        <tr><td>2</td><td>Validate products</td><td>Fetches all referenced products by ID. Rejects the request if any product does not exist or has <code>isActive = false</code>.</td></tr>
+        <tr><td>3</td><td>Reserve stock atomically</td><td>Uses <code>prisma.product.updateMany({ where: { id, stock: { gte: qty } }, data: { stock: { decrement: qty } } })</code>. If the affected row count is 0, the stock was insufficient — the transaction is aborted.</td></tr>
+        <tr><td>4</td><td>Calculate financials</td><td>All arithmetic uses Decimal.js. Computes item subtotals, applies G4 item-level discounts, sums to totalAmount, applies bill-level discount, derives netAmount, totalCost, and profit.</td></tr>
+        <tr><td>5</td><td>Persist to database</td><td>Creates the Sale record with nested SaleItem creation inside a single Prisma transaction.</td></tr>
+        <tr><td>6</td><td>Record stock movements</td><td>Calls <code>StockService.recordMovement()</code> for each item, which creates a StockLog entry and updates the product's <code>isLowStock</code> flag.</td></tr>
+        <tr><td>7</td><td>Trigger notifications</td><td>If any product's stock drops below <code>minStock</code>, a LOW_STOCK notification is created.</td></tr>
+    </tbody>
+</table>
+
+<h3>6.2 Payment Status</h3>
+<table>
+    <thead><tr><th>Payment Method</th><th>Initial Status</th><th>Workflow</th></tr></thead>
+    <tbody>
+        <tr><td><span class="badge badge-green">CASH</span></td><td>VERIFIED</td><td>Immediately confirmed. No further action required.</td></tr>
+        <tr><td><span class="badge badge-blue">TRANSFER</span></td><td>PENDING</td><td>Customer uploads payment proof (slip image). A staff member with <code>PAYMENT_VERIFY</code> permission reviews and either approves or rejects.</td></tr>
+        <tr><td><span class="badge badge-blue">CREDIT</span></td><td>PENDING</td><td>Same workflow as TRANSFER.</td></tr>
+    </tbody>
+</table>
+
+<h3>6.3 Cancelling a Sale</h3>
+<p>Cancellation is a multi-step operation executed within a database transaction:</p>
+<ol>
+    <li>All associated Shipment records are set to <code>status = CANCELLED</code>.</li>
+    <li>Stock is restored for each item: the quantity restored is <code>quantity - returnedQty</code>, accounting for any partial returns that have already been processed.</li>
+    <li>Any auto-generated shipping expense records linked to the sale are deleted.</li>
+    <li>The sale record is updated: <code>status = CANCELLED</code>, <code>cancelledAt</code>, <code>cancelledBy</code>, and <code>cancelReason</code> are set.</li>
+</ol>
+
+<!-- ================================================================ -->
+<!-- 7. PURCHASE -->
+<!-- ================================================================ -->
+<h2 id="s7"><span class="section-num">7.</span> Purchase Lifecycle</h2>
+
+<h3>7.1 Creating a Purchase</h3>
+<table>
+    <thead><tr><th>Step</th><th>Operation</th><th>Detail</th></tr></thead>
+    <tbody>
+        <tr><td>1</td><td>Validate input</td><td>Zod <code>purchaseSchema</code> validates item array, supplierId, paymentMethod, and notes.</td></tr>
+        <tr><td>2</td><td>Generate purchase number</td><td>Format: <code>PUR-00001</code>. Same retry pattern as invoice numbers.</td></tr>
+        <tr><td>3</td><td>Calculate total cost</td><td><code>totalCost = sum(quantity * costPrice)</code> using Decimal.js.</td></tr>
+        <tr><td>4</td><td>Persist records</td><td>Purchase + PurchaseItems created in a single Prisma transaction.</td></tr>
+        <tr><td>5</td><td>Increment stock</td><td><code>StockService.recordMovement(type: PURCHASE, qty: +N)</code> for each item.</td></tr>
+        <tr><td>6</td><td>Sync cost price</td><td>Each product's <code>costPrice</code> is updated to the latest purchase cost.</td></tr>
+    </tbody>
+</table>
+
+<h3>7.2 Cancelling a Purchase</h3>
+<ol>
+    <li><strong>Stock validation:</strong> Verifies that current stock is greater than or equal to the originally purchased quantity. If stock has already been sold, cancellation is blocked.</li>
+    <li><strong>Stock reversal:</strong> <code>StockService.recordMovement(type: PURCHASE_CANCEL, qty: -N)</code> for each item.</li>
+    <li><strong>Cost price reversion:</strong> Finds the most recent previous purchase of the same product and reverts <code>Product.costPrice</code> to that value. If no prior purchase exists, the cost price remains unchanged.</li>
+    <li><strong>Status update:</strong> <code>status = CANCELLED</code> with reason and timestamp.</li>
+</ol>
+
+<!-- ================================================================ -->
+<!-- 8. STOCK -->
+<!-- ================================================================ -->
+<h2 id="s8"><span class="section-num">8.</span> Stock Management &amp; Audit Trail</h2>
+
+<p>All stock modifications pass through <code>StockService.recordMovement()</code>. This centralization provides three guarantees: atomic database updates, a complete audit trail via StockLog, and automatic low-stock detection.</p>
+
+<h3>Movement Types</h3>
+<table>
+    <thead><tr><th>Type</th><th>Trigger</th><th>Effect</th><th>Quantity</th></tr></thead>
+    <tbody>
+        <tr><td><code>SALE</code></td><td>Sale creation</td><td>Stock decreases</td><td>-N</td></tr>
+        <tr><td><code>PURCHASE</code></td><td>Purchase creation</td><td>Stock increases</td><td>+N</td></tr>
+        <tr><td><code>RETURN</code></td><td>Return creation</td><td>Stock increases</td><td>+N</td></tr>
+        <tr><td><code>ADJUSTMENT</code></td><td>Manual adjustment</td><td>Stock increases or decreases</td><td>+/-N</td></tr>
+        <tr><td><code>SALE_CANCEL</code></td><td>Sale cancellation</td><td>Stock increases</td><td>+N</td></tr>
+        <tr><td><code>PURCHASE_CANCEL</code></td><td>Purchase cancellation</td><td>Stock decreases</td><td>-N</td></tr>
+    </tbody>
+</table>
+
+<div class="callout callout-warning">
+    <div class="callout-title">Concurrency Control</div>
+    <p>Stock reservation during sale creation uses a single <code>updateMany</code> query with a <code>WHERE stock >= requestedQty</code> guard. This is an atomic compare-and-decrement operation — if another transaction reduces the stock first, <code>result.count</code> returns 0. This pattern is more reliable than a separate SELECT followed by UPDATE, as it eliminates the TOCTOU (time-of-check-to-time-of-use) race window entirely.</p>
+</div>
+
+<!-- ================================================================ -->
+<!-- 9. FINANCIAL -->
+<!-- ================================================================ -->
+<h2 id="s9"><span class="section-num">9.</span> Financial Calculations</h2>
+
+<h3>9.1 Sale Total Computation</h3>
+<pre><code>// All values computed with Decimal.js to avoid floating-point errors.
+SaleItem.subtotal    = quantity * salePrice
+SaleItem.subtotal   -= itemDiscountAmount            // G4 item-level discount
+
+Sale.totalAmount     = SUM(all item subtotals)
+Sale.discountAmount  = totalAmount * (percent / 100)  // or fixed value
+Sale.netAmount       = totalAmount - discountAmount   // G4 bill-level discount
+
+Sale.totalCost       = SUM(quantity * costPrice)
+Sale.profit          = netAmount - totalCost</code></pre>
+
+<h3>9.2 Return Refund Computation</h3>
+<pre><code>// Proportional refund that accounts for bill-level discount already applied.
+billDiscountRatio    = Sale.discountAmount / Sale.totalAmount
+refundPerUnit        = SaleItem.salePrice * (1 - billDiscountRatio)
+ReturnItem.refund    = returnQty * refundPerUnit
+
+// Original sale record is adjusted:
+Sale.netAmount      -= totalRefund
+Sale.totalCost      -= (returnQty * costPrice)
+Sale.profit          = netAmount - totalCost          // recalculated</code></pre>
+
+<h3>9.3 Dashboard Aggregation</h3>
+<table>
+    <thead><tr><th>Metric</th><th>Query Logic</th></tr></thead>
+    <tbody>
+        <tr><td>Revenue</td><td><code>SUM(Sale.netAmount)</code> where <code>status = ACTIVE</code> and date within range</td></tr>
+        <tr><td>Expenses</td><td><code>SUM(Expense.amount)</code> where <code>deletedAt IS NULL</code></td></tr>
+        <tr><td>Purchase Cost</td><td><code>SUM(Purchase.totalCost)</code> where <code>status = ACTIVE</code></td></tr>
+        <tr><td>Gross Profit</td><td><code>SUM(Sale.profit)</code> where <code>status = ACTIVE</code></td></tr>
+        <tr><td>Net Profit</td><td>Revenue minus total Expenses</td></tr>
+    </tbody>
+</table>
+
+<!-- ================================================================ -->
+<!-- 10. SHIPMENT -->
+<!-- ================================================================ -->
+<h2 id="s10"><span class="section-num">10.</span> Shipment State Machine</h2>
+
+<h3>Valid State Transitions</h3>
+<table>
+    <thead><tr><th>From</th><th>To</th><th>Trigger</th><th>Side Effects</th></tr></thead>
+    <tbody>
+        <tr><td><span class="badge badge-blue">PENDING</span></td><td><span class="badge badge-amber">SHIPPED</span></td><td>updateStatus</td><td>Sets <code>shippedAt</code> timestamp</td></tr>
+        <tr><td><span class="badge badge-amber">SHIPPED</span></td><td><span class="badge badge-green">DELIVERED</span></td><td>updateStatus</td><td>Sets <code>deliveredAt</code> timestamp</td></tr>
+        <tr><td><span class="badge badge-amber">SHIPPED</span></td><td><span class="badge badge-red">RETURNED</span></td><td>updateStatus</td><td>Parcel returned to sender</td></tr>
+        <tr><td><span class="badge badge-red">RETURNED</span></td><td><span class="badge badge-blue">PENDING</span></td><td>updateStatus</td><td>Re-ship workflow</td></tr>
+        <tr><td><span class="badge badge-blue">PENDING</span></td><td>CANCELLED</td><td>cancelShipment</td><td>—</td></tr>
+        <tr><td><span class="badge badge-amber">SHIPPED</span></td><td>CANCELLED</td><td>cancelShipment</td><td>—</td></tr>
+    </tbody>
+</table>
+
+<p>Invalid transitions (e.g., DELIVERED to PENDING, or CANCELLED to SHIPPED) are rejected at the server action level. The valid-transitions map is defined as a constant object and checked programmatically before any status update is persisted.</p>
+
+<!-- ================================================================ -->
+<!-- 11. RETURNS -->
+<!-- ================================================================ -->
+<h2 id="s11"><span class="section-num">11.</span> Returns &amp; Partial Refunds</h2>
+
+<table>
+    <thead><tr><th>Step</th><th>Operation</th><th>Validation</th></tr></thead>
+    <tbody>
+        <tr><td>1</td><td>Generate return number (<code>RET-00001</code>)</td><td>Same retry pattern for collision safety.</td></tr>
+        <tr><td>2</td><td>Validate return quantities</td><td><code>returnQty &lt;= (originalQty - alreadyReturnedQty)</code> per item.</td></tr>
+        <tr><td>3</td><td>Calculate proportional refund</td><td>Accounts for bill-level discount as described in Section 9.2.</td></tr>
+        <tr><td>4</td><td>Restore stock</td><td><code>StockService.recordMovement(type: RETURN, qty: +N)</code> per item.</td></tr>
+        <tr><td>5</td><td>Adjust parent sale</td><td>Decreases <code>netAmount</code>, <code>totalCost</code>, and recalculates <code>profit</code>.</td></tr>
+        <tr><td>6</td><td>Update returned count</td><td>Increments <code>SaleItem.returnedQty</code> so it cannot be returned again.</td></tr>
+    </tbody>
+</table>
+
+<!-- ================================================================ -->
+<!-- 12. DELETION -->
+<!-- ================================================================ -->
+<h2 id="s12"><span class="section-num">12.</span> Data Deletion Strategy</h2>
+
+<p>The system uses four distinct patterns for data removal, chosen based on the data's importance and relationships:</p>
+
+<table>
+    <thead><tr><th>Pattern</th><th>Behavior</th><th>Applied To</th></tr></thead>
+    <tbody>
+        <tr><td><span class="badge badge-red">Cascade</span></td><td>Deleting the parent automatically deletes all children. Used for data that has no meaning without its parent.</td><td>Shop (all data), Sale items, Purchase items, Return items</td></tr>
+        <tr><td><span class="badge badge-green">Restrict</span></td><td>Deletion of the parent is blocked if any children exist. Prevents accidental data loss.</td><td>User to Shop — the shop owner cannot be deleted while the shop exists.</td></tr>
+        <tr><td><span class="badge badge-blue">SetNull</span></td><td>The foreign key is set to NULL when the referenced record is removed. Preserves the child record for audit purposes.</td><td>StockLog references (<code>saleId</code>, <code>purchaseId</code>, <code>returnId</code>)</td></tr>
+        <tr><td><span class="badge badge-amber">Soft Delete</span></td><td>The record's <code>deletedAt</code> field is set to the current timestamp. It remains in the database but is excluded from all queries.</td><td>Product, Customer, Supplier, Expense, Income, CustomerAddress</td></tr>
+    </tbody>
+</table>
+
+<p>Financial transaction records (Sales, Purchases) are <strong>never deleted</strong>. They are voided by setting <code>status = CANCELLED</code> with an audit trail (<code>cancelledAt</code>, <code>cancelledBy</code>, <code>cancelReason</code>). This ensures financial data integrity for reporting and reconciliation.</p>
+
+<div class="callout callout-danger">
+    <div class="callout-title">Critical: User-Shop Relationship</div>
+    <p>The <code>User</code> to <code>Shop</code> relation uses <code>onDelete: Restrict</code>. If someone attempts to delete a user who owns a shop, Prisma will reject the operation at the database constraint level. The owner must explicitly delete or transfer the shop first. This was changed from <code>Cascade</code> (which would have destroyed all shop data) as a critical safety fix.</p>
+</div>
+
+<!-- ================================================================ -->
+<!-- 13. SECURITY -->
+<!-- ================================================================ -->
+<h2 id="s13"><span class="section-num">13.</span> Security Model</h2>
+
+<h3>13.1 Input Sanitization</h3>
+<p>All user-facing text fields pass through <code>sanitizeText()</code> via Zod's <code>.transform()</code> pipeline before reaching the database. This includes product names, customer names, addresses, notes, and descriptions across all 9 schema files. The sanitizer encodes HTML special characters to prevent stored XSS attacks.</p>
+
+<h3>13.2 Concurrency Safeguards</h3>
+<table>
+    <thead><tr><th>Mechanism</th><th>Location</th><th>Purpose</th></tr></thead>
+    <tbody>
+        <tr><td>Atomic <code>updateMany</code> with guard clause</td><td>Stock reservation in <code>createSale</code></td><td>Prevents overselling by checking stock level within the same UPDATE statement.</td></tr>
+        <tr><td>Optimistic locking (<code>version</code> field)</td><td>Product updates</td><td>Detects concurrent modifications. If the version does not match, the update fails and the user must retry.</td></tr>
+        <tr><td>Sequential number retry (5 attempts)</td><td>Invoice, purchase, shipment, return numbers</td><td>Handles race conditions where two transactions attempt to claim the same sequential number.</td></tr>
+        <tr><td>Prisma <code>$transaction</code></td><td>All multi-record operations</td><td>Ensures atomicity — either all records are written or none are.</td></tr>
+    </tbody>
+</table>
+
+<!-- ================================================================ -->
+<!-- 14. API REFERENCE -->
+<!-- ================================================================ -->
+<h2 id="s14"><span class="section-num">14.</span> Server Actions Reference</h2>
+
+<h3>Sales</h3>
+<table>
+    <thead><tr><th>Function</th><th>Permission</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td><code>getSales()</code></td><td>SALE_VIEW</td><td>Paginated list with search, date range, and status filters.</td></tr>
+        <tr><td><code>getSale(id)</code></td><td>SALE_VIEW</td><td>Single sale with items, customer, and shipment details.</td></tr>
+        <tr><td><code>createSale(input)</code></td><td>SALE_CREATE</td><td>Full sale flow including stock reservation, discount calculation, and payment setup.</td></tr>
+        <tr><td><code>cancelSale(id, reason)</code></td><td>SALE_DELETE</td><td>Voids the sale, restores stock, and cancels associated shipments.</td></tr>
+        <tr><td><code>verifyPayment(id, status)</code></td><td>PAYMENT_VERIFY</td><td>Approves or rejects a pending payment.</td></tr>
+    </tbody>
+</table>
+
+<h3>Purchases</h3>
+<table>
+    <thead><tr><th>Function</th><th>Permission</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td><code>getPurchases()</code></td><td>PURCHASE_VIEW</td><td>Paginated list with search and payment method filter.</td></tr>
+        <tr><td><code>createPurchase(input)</code></td><td>PURCHASE_CREATE</td><td>Creates purchase, increments stock, and updates product cost prices.</td></tr>
+        <tr><td><code>cancelPurchase(id, reason)</code></td><td>PURCHASE_DELETE</td><td>Reverses stock, reverts cost prices, voids the record.</td></tr>
+    </tbody>
+</table>
+
+<h3>Other Modules</h3>
+<table>
+    <thead><tr><th>Action File</th><th>Key Functions</th></tr></thead>
+    <tbody>
+        <tr><td><code>products.ts</code></td><td>CRUD, <code>adjustStock()</code>, <code>batchCreate()</code> for CSV import</td></tr>
+        <tr><td><code>returns.ts</code></td><td><code>createReturn()</code>, <code>getReturnableItems()</code></td></tr>
+        <tr><td><code>shipments.ts</code></td><td><code>createShipment()</code>, <code>updateShipmentStatus()</code>, <code>cancelShipment()</code></td></tr>
+        <tr><td><code>customers.ts</code></td><td>CRUD, <code>getCustomerProfile()</code> with aggregate stats</td></tr>
+        <tr><td><code>suppliers.ts</code></td><td>CRUD, <code>getSupplierProfile()</code></td></tr>
+        <tr><td><code>expenses.ts</code> / <code>incomes.ts</code></td><td>CRUD, monthly summary aggregation</td></tr>
+    </tbody>
+</table>
+
+<!-- ================================================================ -->
+<!-- 15. KNOWN ISSUES -->
+<!-- ================================================================ -->
+<h2 id="s15"><span class="section-num">15.</span> Known Issues &amp; Maintenance Notes</h2>
+
+<h3>Resolved (February 2026)</h3>
+<table>
+    <thead><tr><th>Severity</th><th>Issue</th><th>Resolution</th></tr></thead>
+    <tbody>
+        <tr><td><span class="badge badge-red">Critical</span></td><td>User-Shop relation used <code>onDelete: Cascade</code>, meaning deleting a user would destroy all shop data.</td><td>Changed to <code>onDelete: Restrict</code>. Prisma now blocks the operation.</td></tr>
+        <tr><td><span class="badge badge-amber">Medium</span></td><td>Purchase <code>paymentMethod</code> was validated by Zod but missing from the Prisma model. The value was silently dropped on save.</td><td>Added <code>paymentMethod</code> field to the Prisma Purchase model with <code>@default("CASH")</code>.</td></tr>
+        <tr><td><span class="badge badge-amber">Medium</span></td><td>Shipment and CustomerAddress schemas lacked <code>sanitizeText()</code> on text fields, creating a stored XSS risk.</td><td>Added <code>.transform(sanitizeText)</code> to all relevant text fields.</td></tr>
+    </tbody>
+</table>
+
+<h3>Open Items</h3>
+<table>
+    <thead><tr><th>Severity</th><th>Issue</th><th>Recommendation</th></tr></thead>
+    <tbody>
+        <tr><td><span class="badge badge-amber">Medium</span></td><td><code>verifyPayment</code> validates the sale ID with <code>z.string().uuid()</code>, but the application uses <code>cuid()</code> for all IDs.</td><td>Change to <code>z.string().cuid()</code> or <code>z.string().min(1)</code>.</td></tr>
+        <tr><td><span class="badge badge-blue">Low</span></td><td>StockLog creation in <code>createSale</code> uses a generic <code>referenceId</code> field instead of the explicit <code>saleId</code> foreign key.</td><td>Use the <code>saleId</code> field directly for proper relational integrity.</td></tr>
+        <tr><td><span class="badge badge-blue">Low</span></td><td>Customer profile statistics use <code>Number()</code> for Decimal conversion instead of the standardized <code>toNumber()</code> helper.</td><td>Replace with <code>toNumber()</code> for consistency.</td></tr>
+    </tbody>
+</table>
+
+<h3>Maintenance Guidelines</h3>
+<ul>
+    <li><strong>Adding a new field:</strong> Update the Prisma schema, create a migration (<code>npx prisma migrate dev</code>), update the Zod validation schema, and update the corresponding server action.</li>
+    <li><strong>Adding a new permission:</strong> Add the permission string to <code>lib/constants.ts</code>, use it in the relevant server action via <code>requirePermission()</code>, and update the role management UI.</li>
+    <li><strong>Modifying stock logic:</strong> Always go through <code>StockService.recordMovement()</code>. Direct Prisma updates to the product stock field will bypass audit logging and low-stock detection.</li>
+    <li><strong>Financial calculation changes:</strong> Use <code>Decimal.js</code> for all arithmetic. Never use native JavaScript arithmetic on monetary values. Convert to <code>number</code> only at the final output boundary using <code>toNumber()</code>.</li>
+    <li><strong>Running migrations in production:</strong> Use <code>npx prisma migrate deploy</code> (not <code>dev</code>). Always test migrations against a staging database first.</li>
+</ul>
+
+<!-- FOOTER -->
+<div class="doc-footer">
+    <p><strong>Shop Inventory</strong> &mdash; Technical Documentation v1.0</p>
+    <p>Generated 9 February 2026</p>
+</div>
+
+</div>
+<script src="doc-nav.js"></script></body>
+</html>

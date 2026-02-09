@@ -1,11 +1,12 @@
 import { z } from 'zod';
+import { sanitizeText } from '@/lib/sanitize';
 
 export const customerAddressSchema = z.object({
   customerId: z.string().min(1, 'กรุณาเลือกลูกค้า'),
   label: z.string().max(50).optional().nullable(),
-  recipientName: z.string().min(1, 'กรุณากรอกชื่อผู้รับ').max(200),
+  recipientName: z.string().min(1, 'กรุณากรอกชื่อผู้รับ').max(200).transform(sanitizeText),
   phone: z.string().max(20).optional().nullable(),
-  address: z.string().min(1, 'กรุณากรอกที่อยู่'),
+  address: z.string().min(1, 'กรุณากรอกที่อยู่').transform(sanitizeText),
   district: z.string().max(100).optional().nullable(),
   subDistrict: z.string().max(100).optional().nullable(),
   province: z.string().max(100).optional().nullable(),

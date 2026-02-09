@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shop Inventory — Executive Summary</title>
+    <link rel="stylesheet" href="doc-styles.css">
+</head>
+<body>
+
+<!-- COVER -->
+<div class="cover-page">
+    <span class="cover-label">Document 01 — Executive Summary</span>
+    <h1>Shop Inventory</h1>
+    <p class="cover-subtitle">Project overview for business stakeholders, project managers, and decision-makers. Written in non-technical language with emphasis on capabilities, workflows, and risk profile.</p>
+    <dl class="cover-meta">
+        <div><dt>Version</dt><dd>1.0</dd></div>
+        <div><dt>Date</dt><dd>9 February 2026</dd></div>
+        <div><dt>Classification</dt><dd>Business / Management</dd></div>
+        <div><dt>Audience</dt><dd>PM, Business Owner, Investor</dd></div>
+    </dl>
+</div>
+
+<div class="doc-container">
+
+<!-- NAV -->
+<p class="doc-inline-nav" style="margin:1.5rem 0 0;font-size:0.78rem;color:var(--ink-muted);">
+    <a href="index.html" style="color:var(--accent);text-decoration:none;">&larr; Back to Documentation Hub</a>
+    &nbsp;|&nbsp;
+    <a href="01-executive-summary-th.html" style="color:var(--accent);text-decoration:none;">ภาษาไทย</a>
+</p>
+
+<!-- TOC -->
+<nav class="toc-section">
+    <h2>Contents</h2>
+    <ol class="toc-list">
+        <li><span class="toc-num">1</span><a href="#s1">Project Identity</a></li>
+        <li><span class="toc-num">2</span><a href="#s2">Problem Statement</a></li>
+        <li><span class="toc-num">3</span><a href="#s3">Solution Overview</a></li>
+        <li><span class="toc-num">4</span><a href="#s4">Feature Matrix</a></li>
+        <li><span class="toc-num">5</span><a href="#s5">Technology Summary</a></li>
+        <li><span class="toc-num">6</span><a href="#s6">User Roles and Access Control</a></li>
+        <li><span class="toc-num">7</span><a href="#s7">Business Workflows</a></li>
+        <li><span class="toc-num">8</span><a href="#s8">Sales Channels</a></li>
+        <li><span class="toc-num">9</span><a href="#s9">Financial Controls</a></li>
+        <li><span class="toc-num">10</span><a href="#s10">Data Protection and Security</a></li>
+        <li><span class="toc-num">11</span><a href="#s11">Scalability and Growth Path</a></li>
+        <li><span class="toc-num">12</span><a href="#s12">Risk Assessment</a></li>
+        <li><span class="toc-num">13</span><a href="#s13">Glossary</a></li>
+    </ol>
+</nav>
+
+<!-- ================================================================ -->
+<!-- 1 -->
+<!-- ================================================================ -->
+<h2 id="s1"><span class="section-num">1.</span> Project Identity</h2>
+
+<table>
+    <tbody>
+        <tr><td><strong>Project Name</strong></td><td>Shop Inventory</td></tr>
+        <tr><td><strong>Type</strong></td><td>Web-based Point of Sale and Inventory Management System</td></tr>
+        <tr><td><strong>Target Users</strong></td><td>Small to medium retail businesses (1-10 staff per shop)</td></tr>
+        <tr><td><strong>Platform</strong></td><td>Web browser (desktop and mobile), Progressive Web App</td></tr>
+        <tr><td><strong>Hosting</strong></td><td>Vercel (application) + Supabase (database and file storage)</td></tr>
+        <tr><td><strong>Development Status</strong></td><td>Production-ready</td></tr>
+    </tbody>
+</table>
+
+<div class="kv-grid">
+    <div class="kv-card"><div class="kv-value">20</div><div class="kv-label">Database Models</div></div>
+    <div class="kv-card"><div class="kv-value">24</div><div class="kv-label">Backend Functions</div></div>
+    <div class="kv-card"><div class="kv-value">9</div><div class="kv-label">Input Schemas</div></div>
+    <div class="kv-card"><div class="kv-value">35+</div><div class="kv-label">Permissions</div></div>
+    <div class="kv-card"><div class="kv-value">15</div><div class="kv-label">Page Modules</div></div>
+    <div class="kv-card"><div class="kv-value">6</div><div class="kv-label">Sales Channels</div></div>
+</div>
+
+<!-- ================================================================ -->
+<!-- 2 -->
+<!-- ================================================================ -->
+<h2 id="s2"><span class="section-num">2.</span> Problem Statement</h2>
+
+<p>Small retail businesses in Thailand face several operational challenges that this system addresses:</p>
+
+<table>
+    <thead><tr><th>Challenge</th><th>Impact</th><th>How Shop Inventory Solves It</th></tr></thead>
+    <tbody>
+        <tr><td>Manual stock counting and paper-based records</td><td>Miscounts, lost data, stockouts</td><td>Real-time digital stock tracking with automatic low-stock alerts</td></tr>
+        <tr><td>No separation between sales across multiple channels</td><td>Revenue confusion between walk-in, Shopee, Lazada, etc.</td><td>Channel-based sales tracking with per-channel reporting</td></tr>
+        <tr><td>No cost/profit visibility per transaction</td><td>Cannot determine which products are profitable</td><td>Per-item cost tracking with automatic profit calculation</td></tr>
+        <tr><td>Staff access not controlled</td><td>Risk of unauthorized actions or data exposure</td><td>Role-based permissions with 35+ granular controls</td></tr>
+        <tr><td>Payment verification relies on chat screenshots</td><td>Slow, error-prone manual confirmation</td><td>Built-in payment slip upload and verification workflow</td></tr>
+        <tr><td>No return/refund tracking</td><td>Financial inaccuracy, stock count errors</td><td>Partial return system with proportional refund calculation</td></tr>
+    </tbody>
+</table>
+
+<!-- ================================================================ -->
+<!-- 3 -->
+<!-- ================================================================ -->
+<h2 id="s3"><span class="section-num">3.</span> Solution Overview</h2>
+
+<p>Shop Inventory is a web application that runs in any modern browser. It provides a unified dashboard for managing the complete retail workflow from receiving stock from suppliers to shipping products to customers. The system is designed for shop owners and their staff, with different access levels based on assigned roles.</p>
+
+<h3>Key Differentiators</h3>
+<ul>
+    <li><strong>No installation required:</strong> Works entirely in the browser. Accessible from desktop, tablet, and mobile.</li>
+    <li><strong>Multi-channel awareness:</strong> Track sales from walk-in, Shopee, Lazada, LINE, Facebook, or custom-defined channels in one place.</li>
+    <li><strong>Financial precision:</strong> All monetary calculations use high-precision arithmetic. No rounding errors on invoices or profit reports.</li>
+    <li><strong>Audit trail:</strong> Every stock change is logged with timestamp, source, and before/after values. This creates a verifiable history for reconciliation.</li>
+    <li><strong>Data isolation:</strong> Each shop's data is completely separated at the database level. No possibility of cross-shop data leakage.</li>
+    <li><strong>Thermal receipt printing:</strong> Supports 80mm thermal printers for point-of-sale receipts, complete with items, discounts, and totals.</li>
+    <li><strong>AI-powered receipt scanning:</strong> Photograph a supplier invoice and the system extracts items, quantities, and costs automatically.</li>
+</ul>
+
+<!-- ================================================================ -->
+<!-- 4 -->
+<!-- ================================================================ -->
+<h2 id="s4"><span class="section-num">4.</span> Feature Matrix</h2>
+
+<table>
+    <thead><tr><th>Module</th><th>Features</th><th>Status</th></tr></thead>
+    <tbody>
+        <tr>
+            <td><strong>Dashboard</strong></td>
+            <td>Revenue summary, expense total, profit/loss, sales count, top products, recent transactions, low-stock alerts</td>
+            <td><span class="badge badge-green">Done</span></td>
+        </tr>
+        <tr>
+            <td><strong>Product Catalog</strong></td>
+            <td>Add/edit/delete, image upload, SKU management, category assignment, barcode generation, CSV import, stock adjustment, low-stock threshold</td>
+            <td><span class="badge badge-green">Done</span></td>
+        </tr>
+        <tr>
+            <td><strong>Point of Sale</strong></td>
+            <td>Create sale, item-level discount, bill-level discount (percent or fixed), multiple payment methods (cash/transfer/credit), payment slip upload, payment verification, invoice numbering, thermal receipt print</td>
+            <td><span class="badge badge-green">Done</span></td>
+        </tr>
+        <tr>
+            <td><strong>Purchases</strong></td>
+            <td>Record purchase from supplier, auto-increment stock, auto-sync cost price, purchase number generation, purchase cancellation with stock reversal</td>
+            <td><span class="badge badge-green">Done</span></td>
+        </tr>
+        <tr>
+            <td><strong>Shipments</strong></td>
+            <td>Create shipment per sale, 5-state tracking (Pending, Shipped, Delivered, Returned, Cancelled), tracking number, shipping cost, address management</td>
+            <td><span class="badge badge-green">Done</span></td>
+        </tr>
+        <tr>
+            <td><strong>Returns</strong></td>
+            <td>Partial returns, proportional refund calculation, stock restoration, parent sale adjustment</td>
+            <td><span class="badge badge-green">Done</span></td>
+        </tr>
+        <tr>
+            <td><strong>Customers</strong></td>
+            <td>Customer records, multiple shipping addresses, purchase history, total spending statistics</td>
+            <td><span class="badge badge-green">Done</span></td>
+        </tr>
+        <tr>
+            <td><strong>Suppliers</strong></td>
+            <td>Supplier records, contact details, tax ID, purchase history</td>
+            <td><span class="badge badge-green">Done</span></td>
+        </tr>
+        <tr>
+            <td><strong>Expenses / Income</strong></td>
+            <td>Record expenses by category, record non-sale income, monthly summaries</td>
+            <td><span class="badge badge-green">Done</span></td>
+        </tr>
+        <tr>
+            <td><strong>Reports</strong></td>
+            <td>Sales report, purchase report, stock report, financial summary, CSV/Excel export</td>
+            <td><span class="badge badge-green">Done</span></td>
+        </tr>
+        <tr>
+            <td><strong>Settings</strong></td>
+            <td>Shop profile, team management, role/permission editor, lookup values (categories, etc.)</td>
+            <td><span class="badge badge-green">Done</span></td>
+        </tr>
+        <tr>
+            <td><strong>AI / OCR</strong></td>
+            <td>Receipt photo scanning (Tesseract.js OCR + Groq AI), automatic field extraction for purchase entry</td>
+            <td><span class="badge badge-green">Done</span></td>
+        </tr>
+    </tbody>
+</table>
+
+<!-- ================================================================ -->
+<!-- 5 -->
+<!-- ================================================================ -->
+<h2 id="s5"><span class="section-num">5.</span> Technology Summary</h2>
+
+<p>This section describes the technology choices in terms of their business value. For detailed technical specifications, refer to <a href="03-technical-architecture.html">Document 03: Technical Architecture</a>.</p>
+
+<table>
+    <thead><tr><th>Component</th><th>Technology</th><th>Business Benefit</th></tr></thead>
+    <tbody>
+        <tr><td>Web Framework</td><td>Next.js 14</td><td>Fast page loads, SEO-friendly, mobile-responsive out of the box</td></tr>
+        <tr><td>Programming Language</td><td>TypeScript</td><td>Fewer bugs due to compile-time type checking</td></tr>
+        <tr><td>Database</td><td>PostgreSQL on Supabase</td><td>Enterprise-grade reliability with managed hosting (no database admin required)</td></tr>
+        <tr><td>Authentication</td><td>NextAuth.js</td><td>Secure login without managing passwords directly</td></tr>
+        <tr><td>File Storage</td><td>Supabase Storage</td><td>Secure image hosting for product photos and payment slips</td></tr>
+        <tr><td>Financial Math</td><td>Decimal.js</td><td>No rounding errors on prices, discounts, or refund calculations</td></tr>
+        <tr><td>Hosting</td><td>Vercel</td><td>Automatic scaling, HTTPS, global CDN, zero-downtime deploys</td></tr>
+    </tbody>
+</table>
+
+<!-- ================================================================ -->
+<!-- 6 -->
+<!-- ================================================================ -->
+<h2 id="s6"><span class="section-num">6.</span> User Roles and Access Control</h2>
+
+<p>The system supports two base account types, with granular permissions controlled through custom roles.</p>
+
+<h3>Account Types</h3>
+<table>
+    <thead><tr><th>Type</th><th>Description</th><th>Access Level</th></tr></thead>
+    <tbody>
+        <tr><td><strong>Owner</strong></td><td>The user who created the shop. Only one owner per shop.</td><td>Full, unrestricted access to all features and settings. Cannot be reduced.</td></tr>
+        <tr><td><strong>Member</strong></td><td>Staff accounts invited by the owner. Multiple members per shop.</td><td>Controlled by the assigned role. Access is limited to permissions granted by the owner.</td></tr>
+    </tbody>
+</table>
+
+<h3>Permission Categories</h3>
+<p>Owners create custom roles (such as "Cashier", "Warehouse Staff", "Manager") by selecting from 35+ individual permissions grouped into modules:</p>
+
+<table>
+    <thead><tr><th>Module</th><th>Available Permissions</th></tr></thead>
+    <tbody>
+        <tr><td>Products</td><td>View, Create, Edit, Delete</td></tr>
+        <tr><td>Sales</td><td>View, Create, Edit, Delete</td></tr>
+        <tr><td>Purchases</td><td>View, Create, Edit, Delete</td></tr>
+        <tr><td>Expenses / Income</td><td>View, Create, Edit, Delete</td></tr>
+        <tr><td>Customers / Suppliers</td><td>View, Create, Edit, Delete</td></tr>
+        <tr><td>Shipments</td><td>View, Create, Edit, Cancel</td></tr>
+        <tr><td>Returns</td><td>View, Create</td></tr>
+        <tr><td>Dashboard</td><td>View</td></tr>
+        <tr><td>Reports</td><td>View</td></tr>
+        <tr><td>Settings</td><td>Edit, Manage Members</td></tr>
+        <tr><td>Special</td><td>Payment Verify</td></tr>
+    </tbody>
+</table>
+
+<h3>Example Roles</h3>
+<table>
+    <thead><tr><th>Role Name</th><th>Typical Permissions</th><th>Use Case</th></tr></thead>
+    <tbody>
+        <tr><td>Cashier</td><td>Sales (View, Create), Products (View), Customers (View, Create)</td><td>Front counter staff who only creates sales</td></tr>
+        <tr><td>Warehouse</td><td>Products (View, Edit), Purchases (View, Create), Shipments (all)</td><td>Staff handling incoming/outgoing stock</td></tr>
+        <tr><td>Manager</td><td>All except Settings and Member Management</td><td>Trusted staff with broad access but no admin control</td></tr>
+    </tbody>
+</table>
+
+<!-- ================================================================ -->
+<!-- 7 -->
+<!-- ================================================================ -->
+<h2 id="s7"><span class="section-num">7.</span> Business Workflows</h2>
+
+<h3>7.1 Sale Workflow</h3>
+<div class="flow-row">
+    <span class="flow-node">Select Products</span>
+    <span class="flow-arrow">&#9654;</span>
+    <span class="flow-node">Set Quantities</span>
+    <span class="flow-arrow">&#9654;</span>
+    <span class="flow-node">Apply Discounts</span>
+    <span class="flow-arrow">&#9654;</span>
+    <span class="flow-node">Choose Payment</span>
+    <span class="flow-arrow">&#9654;</span>
+    <span class="flow-node">Confirm Sale</span>
+    <span class="flow-arrow">&#9654;</span>
+    <span class="flow-node">Print Receipt</span>
+</div>
+
+<table>
+    <thead><tr><th>Step</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td>1. Select Products</td><td>Browse the product catalog and add items to the cart. Each item shows current stock and sale price.</td></tr>
+        <tr><td>2. Set Quantities</td><td>Adjust quantity for each item. The system blocks quantities higher than available stock.</td></tr>
+        <tr><td>3. Apply Discounts</td><td>Optional. Two levels available: per-item discount (percentage per line item) and bill-level discount (percentage or fixed amount applied to the total).</td></tr>
+        <tr><td>4. Choose Payment</td><td>Select Cash (immediately verified), Transfer (requires slip upload and manual verification), or Credit.</td></tr>
+        <tr><td>5. Confirm Sale</td><td>System generates an invoice number, deducts stock, calculates profit, and saves the transaction.</td></tr>
+        <tr><td>6. Print Receipt</td><td>Optional. Prints an 80mm thermal receipt or allows viewing as a digital receipt.</td></tr>
+    </tbody>
+</table>
+
+<h3>7.2 Purchase Workflow</h3>
+<div class="flow-row">
+    <span class="flow-node">Select Supplier</span>
+    <span class="flow-arrow">&#9654;</span>
+    <span class="flow-node">Add Items + Quantities</span>
+    <span class="flow-arrow">&#9654;</span>
+    <span class="flow-node">Set Cost Prices</span>
+    <span class="flow-arrow">&#9654;</span>
+    <span class="flow-node">Confirm Purchase</span>
+</div>
+
+<p>On confirmation, the system automatically: adds the purchased quantities to stock, updates each product's cost price to the latest purchase cost, and generates a unique purchase number for reference.</p>
+
+<h3>7.3 Return Workflow</h3>
+<div class="flow-row">
+    <span class="flow-node">Open Original Sale</span>
+    <span class="flow-arrow">&#9654;</span>
+    <span class="flow-node">Select Items to Return</span>
+    <span class="flow-arrow">&#9654;</span>
+    <span class="flow-node">Set Return Quantities</span>
+    <span class="flow-arrow">&#9654;</span>
+    <span class="flow-node">Confirm Return</span>
+</div>
+
+<p>The refund is calculated proportionally — if a bill-level discount was applied to the original sale, the refund per unit accounts for that discount. Stock is restored, and the original sale's net amount and profit are adjusted.</p>
+
+<h3>7.4 Shipment Workflow</h3>
+<div class="flow-row">
+    <span class="flow-node">Pending</span>
+    <span class="flow-arrow">&#9654;</span>
+    <span class="flow-node">Shipped</span>
+    <span class="flow-arrow">&#9654;</span>
+    <span class="flow-node">Delivered</span>
+</div>
+
+<p>Shipments follow a 5-state lifecycle. Parcels returned by the carrier can be set to "Returned" status and then re-shipped. Pending and Shipped shipments can be cancelled.</p>
+
+<!-- ================================================================ -->
+<!-- 8 -->
+<!-- ================================================================ -->
+<h2 id="s8"><span class="section-num">8.</span> Sales Channels</h2>
+
+<p>The system supports tracking sales across multiple channels to help shop owners understand where their revenue comes from.</p>
+
+<table>
+    <thead><tr><th>Channel</th><th>Use Case</th></tr></thead>
+    <tbody>
+        <tr><td><strong>Walk-in</strong></td><td>Over-the-counter sales in the physical store</td></tr>
+        <tr><td><strong>Shopee</strong></td><td>Orders from the Shopee marketplace</td></tr>
+        <tr><td><strong>Lazada</strong></td><td>Orders from the Lazada marketplace</td></tr>
+        <tr><td><strong>LINE</strong></td><td>Orders received through LINE messaging</td></tr>
+        <tr><td><strong>Facebook</strong></td><td>Orders received through Facebook/Messenger</td></tr>
+        <tr><td><strong>Other</strong></td><td>Any other channel not covered above</td></tr>
+    </tbody>
+</table>
+
+<p>Each sale is tagged with its channel at creation time. The dashboard and reports can filter by channel, providing per-channel revenue breakdowns.</p>
+
+<!-- ================================================================ -->
+<!-- 9 -->
+<!-- ================================================================ -->
+<h2 id="s9"><span class="section-num">9.</span> Financial Controls</h2>
+
+<h3>9.1 Precision</h3>
+<p>All monetary calculations use a specialized math library (Decimal.js) that prevents the rounding errors common in standard computer arithmetic. For example, a 15% discount on a 199.50 baht subtotal is calculated precisely without floating-point drift.</p>
+
+<h3>9.2 Discount System</h3>
+<table>
+    <thead><tr><th>Level</th><th>Type</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td>Item Level</td><td>Percentage</td><td>Applied per line item before summing the total. Useful for clearance or loyalty pricing.</td></tr>
+        <tr><td>Bill Level</td><td>Percentage or Fixed</td><td>Applied to the total after item discounts. Used for store-wide promotions or negotiated deals.</td></tr>
+    </tbody>
+</table>
+
+<h3>9.3 Profit Tracking</h3>
+<p>Every sale calculates profit automatically: <strong>Profit = Net Amount minus Total Cost</strong>. The cost is based on the most recent purchase price for each product. This gives the shop owner real-time visibility into margins per transaction and per product.</p>
+
+<h3>9.4 Data Integrity</h3>
+<ul>
+    <li>Financial records (sales, purchases) are never permanently deleted. They are cancelled with a reason and timestamp, preserving the audit trail.</li>
+    <li>Stock changes are logged individually. Every increment and decrement has a traceable source (sale, purchase, return, adjustment, cancellation).</li>
+    <li>Payment verification for transfers requires a staff member with explicit "Payment Verify" permission to approve or reject the payment proof.</li>
+</ul>
+
+<!-- ================================================================ -->
+<!-- 10 -->
+<!-- ================================================================ -->
+<h2 id="s10"><span class="section-num">10.</span> Data Protection and Security</h2>
+
+<table>
+    <thead><tr><th>Measure</th><th>Description</th></tr></thead>
+    <tbody>
+        <tr><td><strong>Data Isolation</strong></td><td>Each shop's data is stored separately. All database queries are automatically scoped to the logged-in user's shop. No cross-shop access is possible.</td></tr>
+        <tr><td><strong>Authentication</strong></td><td>User passwords are hashed and never stored in plain text. Sessions are managed using JSON Web Tokens with expiration.</td></tr>
+        <tr><td><strong>Input Validation</strong></td><td>All data submitted by users is validated and sanitized before being saved. This prevents injection attacks and data corruption.</td></tr>
+        <tr><td><strong>Access Control</strong></td><td>Every operation checks the user's role and permissions before executing. Unauthorized access attempts are blocked at the server level.</td></tr>
+        <tr><td><strong>HTTPS</strong></td><td>All communication between the browser and server is encrypted using TLS.</td></tr>
+        <tr><td><strong>Concurrency Safety</strong></td><td>Two staff members selling the last product simultaneously will not result in negative stock. The system uses atomic operations to prevent overselling.</td></tr>
+    </tbody>
+</table>
+
+<!-- ================================================================ -->
+<!-- 11 -->
+<!-- ================================================================ -->
+<h2 id="s11"><span class="section-num">11.</span> Scalability and Growth Path</h2>
+
+<h3>Current Capacity</h3>
+<ul>
+    <li>Designed for shops with up to 10 concurrent staff members.</li>
+    <li>PostgreSQL can handle thousands of products and hundreds of thousands of transactions without performance degradation.</li>
+    <li>Vercel hosting auto-scales to handle traffic spikes.</li>
+</ul>
+
+<h3>Future Growth Opportunities</h3>
+<table>
+    <thead><tr><th>Area</th><th>Potential Enhancement</th></tr></thead>
+    <tbody>
+        <tr><td>Multi-branch</td><td>Support multiple physical locations under one owner account, with per-branch stock tracking and consolidated reporting.</td></tr>
+        <tr><td>Mobile App</td><td>Progressive Web App (PWA) capabilities allow installation on mobile devices. A dedicated native app could add barcode scanning via camera.</td></tr>
+        <tr><td>Marketplace Integration</td><td>Direct API integration with Shopee, Lazada, and LINE to auto-import orders and sync stock levels.</td></tr>
+        <tr><td>Accounting Export</td><td>Generate financial reports in formats compatible with Thai accounting standards or export to accounting software.</td></tr>
+        <tr><td>E-Tax Invoice</td><td>Generate tax invoices compliant with the Thai Revenue Department's e-Tax Invoice system.</td></tr>
+    </tbody>
+</table>
+
+<!-- ================================================================ -->
+<!-- 12 -->
+<!-- ================================================================ -->
+<h2 id="s12"><span class="section-num">12.</span> Risk Assessment</h2>
+
+<table>
+    <thead><tr><th>Risk</th><th>Likelihood</th><th>Impact</th><th>Mitigation</th></tr></thead>
+    <tbody>
+        <tr>
+            <td>Internet outage prevents access</td>
+            <td><span class="badge badge-amber">Medium</span></td>
+            <td><span class="badge badge-red">High</span></td>
+            <td>The system is cloud-based and requires internet. A future PWA offline mode could cache the product catalog for viewing during outages.</td>
+        </tr>
+        <tr>
+            <td>Supabase service disruption</td>
+            <td><span class="badge badge-blue">Low</span></td>
+            <td><span class="badge badge-red">High</span></td>
+            <td>Supabase provides 99.9% uptime SLA. Automated backups are enabled. Database can be migrated to another PostgreSQL provider if needed.</td>
+        </tr>
+        <tr>
+            <td>Staff misuse of permissions</td>
+            <td><span class="badge badge-amber">Medium</span></td>
+            <td><span class="badge badge-amber">Medium</span></td>
+            <td>Granular RBAC limits exposure. Audit logs track all actions. Owners should create minimal-privilege roles.</td>
+        </tr>
+        <tr>
+            <td>Data growth slows queries</td>
+            <td><span class="badge badge-blue">Low</span></td>
+            <td><span class="badge badge-blue">Low</span></td>
+            <td>Database indexes are optimized for multi-tenant queries. Soft-deleted records could be archived periodically for very high-volume shops.</td>
+        </tr>
+        <tr>
+            <td>Dependency vulnerabilities</td>
+            <td><span class="badge badge-amber">Medium</span></td>
+            <td><span class="badge badge-amber">Medium</span></td>
+            <td>Regularly run <code>npm audit</code> and update dependencies. GitHub Dependabot can automate vulnerability alerts.</td>
+        </tr>
+    </tbody>
+</table>
+
+<!-- ================================================================ -->
+<!-- 13 -->
+<!-- ================================================================ -->
+<h2 id="s13"><span class="section-num">13.</span> Glossary</h2>
+
+<table>
+    <thead><tr><th>Term</th><th>Definition</th></tr></thead>
+    <tbody>
+        <tr><td><strong>POS</strong></td><td>Point of Sale. The system module used to create sales transactions.</td></tr>
+        <tr><td><strong>SKU</strong></td><td>Stock Keeping Unit. A unique identifier for each product in the catalog.</td></tr>
+        <tr><td><strong>RBAC</strong></td><td>Role-Based Access Control. A security model where permissions are assigned to roles, and roles are assigned to users.</td></tr>
+        <tr><td><strong>Multi-Tenant</strong></td><td>A system that serves multiple independent shops from a single application, with each shop's data isolated from others.</td></tr>
+        <tr><td><strong>Invoice Number</strong></td><td>A sequential, unique identifier generated for each sale (format: INV-00001, INV-00002, etc.)</td></tr>
+        <tr><td><strong>Bill-Level Discount</strong></td><td>A discount applied to the overall sale total, after individual item discounts have been calculated.</td></tr>
+        <tr><td><strong>Item-Level Discount</strong></td><td>A percentage discount applied to a single line item before the bill total is computed.</td></tr>
+        <tr><td><strong>Soft Delete</strong></td><td>A record is not permanently removed from the database. Instead, a "deleted at" timestamp is set, and the record is hidden from normal views but remains available for audit or recovery.</td></tr>
+        <tr><td><strong>Payment Slip</strong></td><td>A photo of the bank transfer receipt uploaded by the customer as proof of payment.</td></tr>
+        <tr><td><strong>Cost Price</strong></td><td>The price at which the shop purchased a product from a supplier. Used to calculate profit margins.</td></tr>
+        <tr><td><strong>Net Amount</strong></td><td>The final amount after all discounts have been applied. This is the actual revenue recorded for the sale.</td></tr>
+        <tr><td><strong>OCR</strong></td><td>Optical Character Recognition. Technology that reads text from images (used for receipt scanning).</td></tr>
+        <tr><td><strong>Thermal Printer</strong></td><td>A receipt printer commonly used at retail counters. This system supports 80mm thermal paper format.</td></tr>
+    </tbody>
+</table>
+
+<!-- FOOTER -->
+<div class="doc-footer">
+    <p><strong>Shop Inventory</strong> &mdash; Executive Summary v1.0</p>
+    <p>9 February 2026 &middot; <a href="index.html" style="color:var(--accent);text-decoration:none;">Documentation Hub</a></p>
+</div>
+
+</div>
+<script src="doc-nav.js"></script></body>
+</html>

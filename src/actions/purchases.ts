@@ -86,6 +86,7 @@ export async function getPurchases(params: GetPurchasesParams = {}) {
     shopId: ctx.shopId,
     ...(searchFilter && searchFilter),
     ...(dateFilter && { date: dateFilter }),
+    ...(paymentMethod && { paymentMethod }),
   };
 
   const result = await paginatedQuery(db.purchase, {
@@ -168,7 +169,7 @@ export async function createPurchase(input: PurchaseInput): Promise<ActionRespon
     };
   }
 
-  const { items, paymentMethod, ...purchaseData } = validated.data;
+  const { items, ...purchaseData } = validated.data;
   if (items.length === 0) {
     return {
       success: false,

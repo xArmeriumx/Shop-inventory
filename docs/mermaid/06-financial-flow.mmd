@@ -1,0 +1,84 @@
+flowchart TD
+    subgraph ITEM_CALC["Sale Item Calculation"]
+        IC1["Input: quantity, salePrice,<br>costPrice per item"]
+        IC2["subtotal = quantity x salePrice<br>using Decimal.js multiply"]
+        IC3["itemCost = quantity x costPrice"]
+        IC4["itemProfit = subtotal - itemCost"]
+        IC5{"Item has G4 discount?"}
+        IC6["discountPercent applied:<br>discountAmount = subtotal x percent / 100"]
+        IC7["Adjusted subtotal =<br>subtotal - itemDiscountAmount"]
+        IC8["No item discount applied"]
+
+        IC1 --> IC2 --> IC3 --> IC4 --> IC5
+        IC5 -->|Yes| IC6 --> IC7
+        IC5 -->|No| IC8
+    end
+
+    subgraph SALE_CALC["Sale Header Calculation"]
+        SC1["totalAmount = sum of all<br>item subtotals (after item discounts)"]
+        SC2{"Bill-level discount type?"}
+        SC3["Type: PERCENT<br>discountAmount =<br>totalAmount x discountValue / 100"]
+        SC4["Type: FIXED<br>discountAmount =<br>discountValue directly"]
+        SC5["No bill discount<br>discountAmount = 0"]
+        SC6["netAmount =<br>totalAmount - discountAmount"]
+        SC7["totalCost = sum of all<br>quantity x costPrice per item"]
+        SC8["profit = netAmount - totalCost"]
+        SC9["All calculations use Decimal.js<br>to prevent floating-point errors"]
+
+        SC1 --> SC2
+        SC2 -->|PERCENT| SC3
+        SC2 -->|FIXED| SC4
+        SC2 -->|None| SC5
+        SC3 --> SC6
+        SC4 --> SC6
+        SC5 --> SC6
+        SC6 --> SC7 --> SC8 --> SC9
+    end
+
+    subgraph RETURN_CALC["Return Refund Calculation"]
+        RC1["Load original Sale record<br>totalAmount, discountAmount"]
+        RC2["billDiscountRatio =<br>Sale.discountAmount / Sale.totalAmount<br>(proportion of bill discount)"]
+        RC3["For each return item:<br>load SaleItem.salePrice"]
+        RC4["refundPerUnit =<br>salePrice x (1 - billDiscountRatio)<br>(proportional to bill discount)"]
+        RC5["itemRefund =<br>returnQty x refundPerUnit"]
+        RC6["returnCost =<br>returnQty x costPrice"]
+        RC7["returnProfit =<br>itemRefund - returnCost"]
+        RC8["totalRefund = sum of all<br>item refund amounts"]
+
+        RC1 --> RC2 --> RC3 --> RC4 --> RC5 --> RC6 --> RC7 --> RC8
+    end
+
+    subgraph SALE_ADJUST["Sale Record Adjustment After Return"]
+        SA1["Load current Sale financials"]
+        SA2["Sale.netAmount =<br>current netAmount - totalRefund"]
+        SA3["Sale.totalCost =<br>current totalCost - returnCost"]
+        SA4["Sale.profit =<br>current profit - returnProfit"]
+        SA5["SaleItem.returnedQty +=<br>returnQty for each item"]
+
+        SA1 --> SA2 --> SA3 --> SA4 --> SA5
+    end
+
+    subgraph DASHBOARD["Dashboard Aggregation"]
+        DA1["Revenue query:<br>SUM Sale.netAmount<br>WHERE status = ACTIVE<br>AND date in range"]
+        DA2["Expense query:<br>SUM Expense.amount<br>WHERE deletedAt IS NULL<br>AND date in range"]
+        DA3["Purchase query:<br>SUM Purchase.totalCost<br>WHERE status = ACTIVE<br>AND date in range"]
+        DA4["Gross Profit:<br>SUM Sale.profit<br>WHERE status = ACTIVE"]
+        DA5["Net Profit:<br>Revenue - Expenses"]
+        DA6["All Prisma Decimal values<br>converted via toNumber() helper<br>before sending to client"]
+
+        DA1 --> DA5
+        DA2 --> DA5
+        DA3 --> DA6
+        DA4 --> DA6
+        DA5 --> DA6
+    end
+
+    IC7 --> SC1
+    IC8 --> SC1
+    RC8 --> SA1
+
+    style ITEM_CALC fill:#1a1a2e,color:#e0e0e0
+    style SALE_CALC fill:#16213e,color:#e0e0e0
+    style RETURN_CALC fill:#2d1b3d,color:#e0e0e0
+    style SALE_ADJUST fill:#3d1b3d,color:#e0e0e0
+    style DASHBOARD fill:#0f3460,color:#e0e0e0

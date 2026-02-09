@@ -119,7 +119,7 @@ model Shop {
 
   // Original owner (for billing, cannot be removed)
   userId      String   @unique
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   // RBAC Relations
   members     ShopMember[]
@@ -409,6 +409,7 @@ model Purchase {
   supplierName String? // @deprecated — use supplier (supplierId) instead. Kept for legacy data.
 
   totalCost   Decimal  @db.Decimal(10, 2)
+  paymentMethod String  @default("CASH")  // CASH | TRANSFER | CREDIT
   receiptUrl  String?
   notes       String?
 
