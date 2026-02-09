@@ -710,7 +710,7 @@ export async function verifyPayment(
     const ctx = await requirePermission('PAYMENT_VERIFY');
 
     // L3: Input sanitization
-    const sanitizedSaleId = z.string().uuid().safeParse(saleId);
+    const sanitizedSaleId = z.string().min(1).safeParse(saleId);
     if (!sanitizedSaleId.success) {
       return { success: false, message: 'รหัสรายการขายไม่ถูกต้อง' };
     }
@@ -758,7 +758,7 @@ export async function uploadPaymentProof(
     const ctx = await requirePermission('SALE_VIEW');
 
     // L3: Input sanitization
-    const sanitizedSaleId = z.string().uuid().safeParse(saleId);
+    const sanitizedSaleId = z.string().min(1).safeParse(saleId);
     if (!sanitizedSaleId.success) {
       return { success: false, message: 'รหัสรายการขายไม่ถูกต้อง' };
     }
