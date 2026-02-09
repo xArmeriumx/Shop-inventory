@@ -215,8 +215,8 @@ export async function createReturn(input: CreateReturnInput): Promise<ActionResp
           quantity: item.quantity, // Positive = add back to stock
           userId: ctx.userId,
           shopId,
-          referenceId: returnRecord.id,
-          referenceType: 'SALE',
+          returnId: returnRecord.id,
+          saleId: data.saleId,
           note: `คืนสินค้า ${returnNumber} (${data.reason})`,
           tx,
         });

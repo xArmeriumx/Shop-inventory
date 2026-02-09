@@ -535,8 +535,7 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>
               productId: item.productId,
               quantity: -item.quantity,
               balance: updatedProduct.stock,
-              referenceId: sale.id,
-              referenceType: 'SALE',
+              saleId: sale.id,
               note: `ขาย: ${sale.invoiceNumber}`,
               date: sale.date,
               userId: ctx.userId,
@@ -737,8 +736,7 @@ export async function cancelSale(input: CancelSaleInput) {
                 productId: item.productId,
                 quantity: restoreQty, // Only non-returned portion
                 balance: updatedProduct.stock,
-                referenceId: sale.id,
-                referenceType: 'SALE_CANCEL',
+                saleId: sale.id,
                 note: `ยกเลิกการขาย ${sale.invoiceNumber} - ${cancelReason}` +
                   (alreadyReturned > 0 ? ` (คืนแล้ว ${alreadyReturned} ชิ้น)` : ''),
                 date: new Date(),

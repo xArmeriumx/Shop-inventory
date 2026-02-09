@@ -10,8 +10,9 @@ interface CreateStockMovementParams {
   quantity: number; // Positive for add, Negative for remove
   userId: string;
   shopId?: string;  // RBAC: Shop scope for multi-tenant isolation
-  referenceId?: string;
-  referenceType?: 'SALE' | 'PURCHASE' | 'SALE_CANCEL' | 'PURCHASE_CANCEL';
+  saleId?: string;
+  purchaseId?: string;
+  returnId?: string;
   note?: string;
   date?: Date | string;
   tx?: Prisma.TransactionClient; // Optional transaction client
@@ -28,8 +29,9 @@ export class StockService {
     quantity,
     userId,
     shopId,
-    referenceId,
-    referenceType,
+    saleId,
+    purchaseId,
+    returnId,
     note,
     date,
     tx,
@@ -96,8 +98,9 @@ export class StockService {
           productId,
           quantity,
           balance: updatedProduct.stock, // Snapshot balance after movement
-          referenceId,
-          referenceType,
+          saleId,
+          purchaseId,
+          returnId,
           note,
           date: finalDate,
           userId,

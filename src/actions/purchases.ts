@@ -226,8 +226,7 @@ export async function createPurchase(input: PurchaseInput): Promise<ActionRespon
           quantity: item.quantity, // Purchase increases stock
           userId: ctx.userId,
           shopId: ctx.shopId,  // RBAC: Set shopId for stock log
-          referenceId: newPurchase.id,
-          referenceType: 'PURCHASE',
+          purchaseId: newPurchase.id,
           note: `ซื้อสินค้า`,
           date: newPurchase.date,
           tx,
@@ -355,8 +354,7 @@ export async function cancelPurchase(input: CancelPurchaseInput): Promise<Action
           quantity: -item.quantity, // Negative = reduce
           userId: ctx.userId,
           shopId: ctx.shopId,  // RBAC: Set shopId for stock log
-          referenceId: purchase.id,
-          referenceType: 'PURCHASE_CANCEL',
+          purchaseId: purchase.id,
           note: `ยกเลิกการซื้อ - ${cancelReason}`,
           date: new Date(),
           tx,

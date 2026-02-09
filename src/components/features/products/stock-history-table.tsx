@@ -17,8 +17,9 @@ interface StockLog {
   type: string;
   quantity: number;
   balance: number;
-  referenceId: string | null;
-  referenceType: string | null;
+  saleId: string | null;
+  purchaseId: string | null;
+  returnId: string | null;
   note: string | null;
   date: Date;
   user: {
@@ -136,8 +137,9 @@ export function StockHistoryTable(props: StockHistoryTableProps) {
                   {log.balance}
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
-                  {log.referenceType === 'SALE' && log.referenceId && `Sale`}
-                  {log.referenceType === 'PURCHASE' && log.referenceId && `Purchase`}
+                  {(log.type === 'SALE' || log.type === 'SALE_CANCEL') && log.saleId && 'Sale'}
+                  {(log.type === 'PURCHASE' || log.type === 'PURCHASE_CANCEL') && log.purchaseId && 'Purchase'}
+                  {log.type === 'RETURN' && log.returnId && 'Return'}
                 </TableCell>
                 <TableCell className="text-sm max-w-[200px] truncate" title={log.note || ''}>
                    {log.note || '-'}
