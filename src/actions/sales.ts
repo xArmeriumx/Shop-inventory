@@ -10,54 +10,36 @@ import { NotificationService } from '@/lib/notification-service';
 import type { Sale, SaleItem, Prisma } from '@prisma/client';
 import { StockService } from '@/lib/stock-service';
 import type { ActionResponse } from '@/types/action-response';
-import { Decimal } from '@prisma/client/runtime/library';
 import { money, toNumber, calcSubtotal, calcProfit } from '@/lib/money';
 import { z } from 'zod';
 
 // =============================================================================
-// RACE CONDITION PREVENTION UTILITIES
+// UTILITIES
 // =============================================================================
 
-/**
- * Maximum retries for invoice number generation when concurrent conflicts occur
- */
 const MAX_INVOICE_RETRIES = 5;
 
 /**
  * Generates a unique invoice number with retry logic for race condition handling.
- * 
- * Problem: When 2 users create sales simultaneously, they might both get the same
- * "last invoice number" and try to create the same new number, causing a unique
- * constraint violation.
- * 
- * Solution: Retry with incremented number if conflict detected.
- * 
- * @param tx - Prisma transaction client
- * @param shopId - Shop ID for scoping invoice numbers
- * @returns Unique invoice number string (e.g., "INV-00001")
  */
 async function generateInvoiceNumber(
   tx: Prisma.TransactionClient,
   shopId: string
 ): Promise<string> {
   for (let attempt = 0; attempt < MAX_INVOICE_RETRIES; attempt++) {
-    // 1. Find current max invoice number
     const lastSale = await tx.sale.findFirst({
       where: { shopId },
       orderBy: { invoiceNumber: 'desc' },
       select: { invoiceNumber: true },
     });
 
-    // 2. Parse and increment
     const lastNumber = lastSale
       ? parseInt(lastSale.invoiceNumber.split('-')[1] || '0')
       : 0;
 
-    // Add attempt offset to avoid collision on retry
     const newNumber = lastNumber + 1 + attempt;
     const invoiceNumber = `INV-${String(newNumber).padStart(5, '0')}`;
 
-    // 3. Check if this number already exists (race condition check)
     const exists = await tx.sale.findFirst({
       where: { shopId, invoiceNumber },
       select: { id: true }
@@ -67,7 +49,6 @@ async function generateInvoiceNumber(
       return invoiceNumber;
     }
 
-    // If exists, retry with next number
     await logger.warn('Invoice number collision, retrying', {
       invoiceNumber,
       attempt,
@@ -76,63 +57,6 @@ async function generateInvoiceNumber(
   }
 
   throw new Error('ไม่สามารถสร้างเลข Invoice ได้ กรุณาลองใหม่');
-}
-
-/**
- * Atomically reserves stock for a product.
- * 
- * Problem: When 2 users sell the same product simultaneously, both might pass
- * the stock check but end up with negative stock.
- * 
- * Solution: Use conditional updateMany that only succeeds if stock is sufficient.
- * This is atomic at the database level.
- * 
- * @param tx - Prisma transaction client
- * @param productId - Product to reserve stock for
- * @param quantity - Quantity to reserve (positive number)
- * @param productName - Product name for error messages
- * @throws Error if stock is insufficient
- */
-async function atomicReserveStock(
-  tx: Prisma.TransactionClient,
-  productId: string,
-  quantity: number,
-  productName: string
-): Promise<void> {
-  // Atomic: Only update if stock >= quantity
-  const result = await tx.product.updateMany({
-    where: {
-      id: productId,
-      stock: { gte: quantity }
-    },
-    data: {
-      stock: { decrement: quantity }
-    }
-  });
-
-  if (result.count === 0) {
-    throw new Error(`สินค้า "${productName}" สต็อกไม่พอหรือถูกขายไปแล้ว กรุณาลองใหม่`);
-  }
-}
-
-/**
- * Atomically restores stock for a product (for sale cancellation).
- * 
- * @param tx - Prisma transaction client
- * @param productId - Product to restore stock for
- * @param quantity - Quantity to restore (positive number)
- */
-async function atomicRestoreStock(
-  tx: Prisma.TransactionClient,
-  productId: string,
-  quantity: number
-): Promise<void> {
-  await tx.product.update({
-    where: { id: productId },
-    data: {
-      stock: { increment: quantity }
-    }
-  });
 }
 
 interface GetSalesParams {
@@ -358,22 +282,14 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>
       }
 
       // =================================================================
-      // 3. ATOMIC Stock Reservation (Race Condition Prevention)
-      // =================================================================
-      // This is the critical section. We use atomic updateMany with a
-      // condition that only succeeds if stock >= quantity.
-      // This prevents the "check-then-update" race condition.
+      // 3. Pre-check Stock Sufficiency (for user-friendly error message)
+      // Actual stock reservation happens in Step 7 via StockService
       // =================================================================
       for (const item of items) {
         const product = productDataMap.get(item.productId)!;
-        
-        // First, check if stock is sufficient (for user-friendly error message)
         if (product.stock < item.quantity) {
           throw new Error(`สินค้า "${product.name}" มีสต็อกไม่พอ (เหลือ ${product.stock})`);
         }
-
-        // ATOMIC: Reserve stock - only succeeds if stock >= quantity at DB level
-        await atomicReserveStock(tx, item.productId, item.quantity, product.name);
       }
 
       // =================================================================
@@ -510,52 +426,23 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>
       });
 
       // =================================================================
-      // 7. Record Stock Movements (Audit Trail + isLowStock flag)
-      // Note: Stock already decremented atomically in step 3 (safe check).
-      //       This step: creates audit log + updates isLowStock flag.
+      // 7. Record Stock Movements (via StockService)
+      // Handles: atomic stock decrement, StockLog, isLowStock, notifications
+      // requireStock: true = reject if stock goes negative (race condition safe)
       // =================================================================
       for (const item of sale.items) {
-        const updatedProduct = await tx.product.findUnique({
-          where: { id: item.productId },
-          select: { stock: true, minStock: true, name: true },
+        await StockService.recordMovement({
+          productId: item.productId,
+          type: 'SALE',
+          quantity: -item.quantity,
+          saleId: sale.id,
+          userId: ctx.userId,
+          shopId,
+          note: `ขาย: ${sale.invoiceNumber}`,
+          date: sale.date,
+          requireStock: true,
+          tx,
         });
-
-        if (updatedProduct) {
-          // Update isLowStock flag
-          const isLowStock = updatedProduct.stock <= updatedProduct.minStock;
-          await tx.product.update({
-            where: { id: item.productId },
-            data: { isLowStock },
-          });
-
-          // Create stock log entry
-          await tx.stockLog.create({
-            data: {
-              type: 'SALE',
-              productId: item.productId,
-              quantity: -item.quantity,
-              balance: updatedProduct.stock,
-              saleId: sale.id,
-              note: `ขาย: ${sale.invoiceNumber}`,
-              date: sale.date,
-              userId: ctx.userId,
-              shopId,
-            },
-          });
-
-          // Low stock notification (matches StockService behavior)
-          if (isLowStock && updatedProduct.stock > 0) {
-            NotificationService.create({
-              shopId,
-              type: 'LOW_STOCK',
-              severity: 'WARNING',
-              title: `สินค้าใกล้หมด: ${updatedProduct.name}`,
-              message: `เหลือ ${updatedProduct.stock} ชิ้น (ขั้นต่ำ ${updatedProduct.minStock})`,
-              link: `/products/${item.productId}`,
-              groupKey: `LOW_STOCK:${item.productId}`,
-            }).catch(() => {});
-          }
-        }
       }
 
       return sale;
@@ -692,59 +579,28 @@ export async function cancelSale(input: CancelSaleInput) {
       });
 
       // =================================================================
-      // คืนสต็อกสินค้ากลับเข้าไป (Atomic Restore Stock)
+      // คืนสต็อกสินค้า (via StockService)
+      // Handles: stock increment, StockLog, isLowStock, notifications
       // CRITICAL: Deduct already-returned quantity to prevent double-restore
       // =================================================================
       for (const item of sale.items) {
-        // Calculate how many were already returned for this item
         const alreadyReturned = item.returnItems.reduce(
           (sum: number, ri: { quantity: number }) => sum + ri.quantity, 0
         );
-        // Only restore the non-returned portion
         const restoreQty = item.quantity - alreadyReturned;
 
         if (restoreQty > 0) {
-          // Atomic stock restoration
-          await atomicRestoreStock(tx, item.productId, restoreQty);
-
-          // Get updated stock balance for the log
-          const updatedProduct = await tx.product.findUnique({
-            where: { id: item.productId },
-            select: { stock: true, minStock: true },
+          await StockService.recordMovement({
+            productId: item.productId,
+            type: 'SALE_CANCEL',
+            quantity: restoreQty,
+            saleId: sale.id,
+            userId,
+            shopId: sale.shopId || ctx.shopId,
+            note: `ยกเลิกการขาย ${sale.invoiceNumber} - ${cancelReason}` +
+              (alreadyReturned > 0 ? ` (คืนแล้ว ${alreadyReturned} ชิ้น)` : ''),
+            tx,
           });
-
-          if (updatedProduct) {
-            // Update isLowStock flag
-            const isLowStock = updatedProduct.stock <= updatedProduct.minStock;
-            await tx.product.update({
-              where: { id: item.productId },
-              data: { isLowStock },
-            });
-
-            // Clear low stock notification if product is no longer low stock
-            if (!isLowStock) {
-              NotificationService.removeByGroupKey(
-                sale.shopId || ctx.shopId,
-                `LOW_STOCK:${item.productId}`
-              ).catch(() => {});
-            }
-
-            // Create stock log entry
-            await tx.stockLog.create({
-              data: {
-                type: 'SALE_CANCEL',
-                productId: item.productId,
-                quantity: restoreQty, // Only non-returned portion
-                balance: updatedProduct.stock,
-                saleId: sale.id,
-                note: `ยกเลิกการขาย ${sale.invoiceNumber} - ${cancelReason}` +
-                  (alreadyReturned > 0 ? ` (คืนแล้ว ${alreadyReturned} ชิ้น)` : ''),
-                date: new Date(),
-                userId,
-                shopId: sale.shopId || ctx.shopId,
-              },
-            });
-          }
         }
       }
 

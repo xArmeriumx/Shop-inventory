@@ -16,6 +16,7 @@ interface CreateStockMovementParams {
   note?: string;
   date?: Date | string;
   tx?: Prisma.TransactionClient; // Optional transaction client
+  requireStock?: boolean; // If true, reject when stock would go negative (for sales)
 }
 
 export class StockService {
@@ -35,6 +36,7 @@ export class StockService {
     note,
     date,
     tx,
+    requireStock,
   }: CreateStockMovementParams) {
     const finalDate = date ? new Date(date) : new Date();
 
@@ -60,6 +62,13 @@ export class StockService {
           shopId: true,   // Get shopId from product if not provided
         },
       });
+
+      // 1.5 Stock guard: Reject if stock went negative (sale safety)
+      if (requireStock && updatedProduct.stock < 0) {
+        throw new Error(
+          `สินค้า "${updatedProduct.name}" สต็อกไม่พอ (เหลือ ${updatedProduct.stock + Math.abs(quantity)})`
+        );
+      }
 
       // 1.5 Calculation: Check if Low Stock
       // We do this immediately to keep the flag in sync

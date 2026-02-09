@@ -125,14 +125,34 @@ export async function createProduct(input: ProductInput): Promise<ActionResponse
   //create product  
   //table product
   try {
-    const product = await db.product.create({
-      data: {
-        ...validated.data,
-        description: validated.data.description || null,
-        sku: validated.data.sku || null,
-        userId: ctx.userId,
-        shopId: ctx.shopId,  // RBAC: Set shopId for new records
-      },
+    const product = await db.$transaction(async (tx) => {
+      // 1. Create the product record
+      const newProduct = await tx.product.create({
+        data: {
+          ...validated.data,
+          stock: 0, // Always start at 0, StockService will set the real value
+          description: validated.data.description || null,
+          sku: validated.data.sku || null,
+          userId: ctx.userId,
+          shopId: ctx.shopId,  // RBAC: Set shopId for new records
+        },
+      });
+
+      // 2. If initial stock > 0, record it via StockService (creates StockLog)
+      const initialStock = validated.data.stock ?? 0;
+      if (initialStock > 0) {
+        await StockService.recordMovement({
+          productId: newProduct.id,
+          type: 'ADJUSTMENT',
+          quantity: initialStock,
+          userId: ctx.userId,
+          shopId: ctx.shopId,
+          note: 'สต็อกเริ่มต้น (สร้างสินค้าใหม่)',
+          tx,
+        });
+      }
+
+      return newProduct;
     });
 
     revalidatePath('/products');

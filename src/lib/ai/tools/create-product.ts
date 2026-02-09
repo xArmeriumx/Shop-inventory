@@ -2,6 +2,7 @@
 
 import { db } from '@/lib/db';
 import { AITool, ToolResult, ToolContext } from './types';
+import { StockService } from '@/lib/stock-service';
 
 export const createProductTool: AITool = {
   definition: {
@@ -66,19 +67,37 @@ export const createProductTool: AITool = {
       const timestamp = Date.now().toString(36).toUpperCase();
       const sku = `PRD-${timestamp}`;
 
-      const product = await db.product.create({
-        data: {
-          name,
-          sku,
-          salePrice: price,
-          costPrice: cost,
-          stock,
-          category,
-          minStock: 5,
-          isActive: true,
-          userId: context.userId,
-          shopId: context.shopId,
-        },
+      const product = await db.$transaction(async (tx) => {
+        // 1. Create product with stock = 0 (StockService will set the real value)
+        const newProduct = await tx.product.create({
+          data: {
+            name,
+            sku,
+            salePrice: price,
+            costPrice: cost,
+            stock: 0,
+            category,
+            minStock: 5,
+            isActive: true,
+            userId: context.userId,
+            shopId: context.shopId,
+          },
+        });
+
+        // 2. If initial stock > 0, record via StockService (creates StockLog)
+        if (stock > 0) {
+          await StockService.recordMovement({
+            productId: newProduct.id,
+            type: 'ADJUSTMENT',
+            quantity: stock,
+            userId: context.userId,
+            shopId: context.shopId,
+            note: 'สต็อกเริ่มต้น (AI สร้างสินค้า)',
+            tx,
+          });
+        }
+
+        return newProduct;
       });
 
       return {

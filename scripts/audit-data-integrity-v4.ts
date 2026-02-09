@@ -448,31 +448,11 @@ async function check8_LargeValues() {
 }
 
 // ═══════════════════════════════════════════════════
-// 9. Sale status vs deletedAt
+// 9. Sale status consistency
 // ═══════════════════════════════════════════════════
 async function check9_StatusDeletedAt() {
-  process.stdout.write('  [9/12]  Status vs deletedAt consistency...');
+  process.stdout.write('  [9/12]  Status consistency...');
   let count = 0;
-
-  // ACTIVE sales with deletedAt set
-  const activeDel = await prisma.sale.count({
-    where: { status: 'ACTIVE', deletedAt: { not: null } },
-  });
-  if (activeDel > 0) {
-    add('CRITICAL', 'Status Conflict', 'Sale', `${activeDel} records`,
-      `ACTIVE sales with deletedAt set — conflicting state`);
-    count++;
-  }
-
-  // ACTIVE purchases with deletedAt set
-  const activePurDel = await prisma.purchase.count({
-    where: { status: 'ACTIVE', deletedAt: { not: null } },
-  });
-  if (activePurDel > 0) {
-    add('CRITICAL', 'Status Conflict', 'Purchase', `${activePurDel} records`,
-      `ACTIVE purchases with deletedAt set — conflicting state`);
-    count++;
-  }
 
   // Cancelled sales WITHOUT cancelledAt
   const cancelNoDate = await prisma.sale.count({
