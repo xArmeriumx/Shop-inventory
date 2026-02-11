@@ -19,13 +19,14 @@ import { money, calcSubtotal, calcProfit } from '@/lib/money';
 interface POSInterfaceProps {
   initialProducts: POSProduct[];
   categories: POSCategory[];
+  promptPayId?: string;
 }
 
 /**
  * POS Interface - Main POS component with state management
  * Coordinates all POS sub-components
  */
-export function POSInterface({ initialProducts, categories }: POSInterfaceProps) {
+export function POSInterface({ initialProducts, categories, promptPayId }: POSInterfaceProps) {
   const router = useRouter();
   const scanInputRef = useRef<HTMLInputElement>(null);
 
@@ -446,6 +447,7 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
         cart={cart}
         onConfirm={handlePaymentConfirm}
         isProcessing={isProcessing}
+        promptPayId={promptPayId}
       />
 
       {/* Success Dialog */}

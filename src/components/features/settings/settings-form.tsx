@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Mail, Store, MapPin, Phone, FileText, Package, Wallet, TrendingUp, Users, Shield } from 'lucide-react';
+import { Mail, Store, MapPin, Phone, FileText, Package, Wallet, TrendingUp, Users, Shield, QrCode } from 'lucide-react';
 import { CategoryManager } from '@/components/features/lookups/category-manager';
 import { usePermissions } from '@/hooks/use-permissions';
 
@@ -45,6 +45,7 @@ interface SettingsFormProps {
     phone: string | null;
     logo: string | null;
     taxId: string | null;
+    promptPayId: string | null;
   } | null;
   productCategories: LookupValue[];
   expenseCategories: LookupValue[];
@@ -209,6 +210,21 @@ export function SettingsForm({ initialData, shopData, productCategories, expense
                     />
                     <FileText className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="shopPromptPayId">PromptPay ID</Label>
+                  <div className="relative">
+                    <Input
+                      id="shopPromptPayId"
+                      name="promptPayId"
+                      defaultValue={shopData?.promptPayId || ''}
+                      placeholder="เบอร์มือถือ หรือ เลขบัตรประชาชน"
+                      className="pl-9"
+                    />
+                    <QrCode className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  </div>
+                  <p className="text-xs text-muted-foreground">สำหรับสร้าง QR Code รับเงินในหน้า POS</p>
                 </div>
 
                 {shopState.error && (

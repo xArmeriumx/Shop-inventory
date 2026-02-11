@@ -12,6 +12,7 @@ const shopSchema = z.object({
   phone: z.string().optional(),
   logo: z.string().optional(),
   taxId: z.string().optional(),
+  promptPayId: z.string().optional(),
 });
 
 export type ShopState = {
@@ -56,6 +57,7 @@ export async function updateShop(prevState: ShopState, formData: FormData): Prom
     phone: formData.get('phone') || undefined,
     logo: formData.get('logo') || undefined,
     taxId: formData.get('taxId') || undefined,
+    promptPayId: formData.get('promptPayId') || undefined,
   };
 
   const validatedFields = shopSchema.safeParse(rawFormData);
@@ -76,6 +78,7 @@ export async function updateShop(prevState: ShopState, formData: FormData): Prom
         phone: validatedFields.data.phone,
         logo: validatedFields.data.logo,
         taxId: validatedFields.data.taxId,
+        promptPayId: validatedFields.data.promptPayId,
       },
       create: {
         userId: ctx.userId,
@@ -84,6 +87,7 @@ export async function updateShop(prevState: ShopState, formData: FormData): Prom
         phone: validatedFields.data.phone,
         logo: validatedFields.data.logo,
         taxId: validatedFields.data.taxId,
+        promptPayId: validatedFields.data.promptPayId,
       },
     });
 

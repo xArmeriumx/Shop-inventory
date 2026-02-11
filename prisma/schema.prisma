@@ -116,6 +116,7 @@ model Shop {
   logo        String?  // URL โลโก้
   taxId       String?  // เลขประจำตัวผู้เสียภาษี
   invoicePrefix String? @default("INV")  // G2: prefix ใบกำกับภาษี
+  promptPayId   String?  // เบอร์มือถือ/เลขบัตรปชช. สำหรับ PromptPay QR
 
   // Original owner (for billing, cannot be removed)
   userId      String   @unique

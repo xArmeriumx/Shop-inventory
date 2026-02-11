@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { CheckCircle, Loader2, CreditCard, Wallet, Smartphone } from 'lucide-react';
+import { CheckCircle, Loader2, CreditCard, Wallet, Smartphone, QrCode, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,7 @@ import {
 import type { POSCart, POSPaymentMethod } from '@/lib/pos/types';
 import { formatCurrency } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
+import { PromptPayQR } from './promptpay-qr';
 
 interface POSPaymentDialogProps {
   isOpen: boolean;
@@ -21,6 +22,7 @@ interface POSPaymentDialogProps {
   cart: POSCart;
   onConfirm: (paymentMethod: string, amountReceived?: number, change?: number) => Promise<void>;
   isProcessing: boolean;
+  promptPayId?: string;
 }
 
 const PAYMENT_OPTIONS: { value: POSPaymentMethod; label: string; icon: React.ReactNode }[] = [
@@ -34,7 +36,7 @@ const QUICK_AMOUNTS = [20, 50, 100, 500, 1000];
 
 /**
  * POS Payment Dialog - Payment method selection and confirmation
- * With cash amount input and change calculation
+ * With cash amount input, change calculation, and PromptPay QR
  */
 export function POSPaymentDialog({
   isOpen,
@@ -42,6 +44,7 @@ export function POSPaymentDialog({
   cart,
   onConfirm,
   isProcessing,
+  promptPayId,
 }: POSPaymentDialogProps) {
   const [selectedMethod, setSelectedMethod] = useState<POSPaymentMethod>('CASH');
   const [amountReceived, setAmountReceived] = useState<string>('');
@@ -80,7 +83,7 @@ export function POSPaymentDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl">ชำระเงิน</DialogTitle>
         </DialogHeader>
@@ -196,6 +199,30 @@ export function POSPaymentDialog({
             </div>
           )}
 
+          {/* PromptPay QR - Show for TRANSFER */}
+          {selectedMethod === 'TRANSFER' && (
+            <div className="border-t pt-4">
+              {promptPayId ? (
+                <PromptPayQR 
+                  promptPayId={promptPayId} 
+                  amount={cart.totalAmount} 
+                />
+              ) : (
+                <div className="flex flex-col items-center gap-3 py-6 text-center">
+                  <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
+                    <QrCode className="h-8 w-8 text-muted-foreground/50" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">ยังไม่ได้ตั้งค่า PromptPay</p>
+                    <p className="text-xs text-muted-foreground/70 mt-1">
+                      ไปที่ <span className="inline-flex items-center gap-1"><Settings className="h-3 w-3" />ตั้งค่า</span> → ร้านค้า → กรอก PromptPay ID
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Action Buttons */}
           <div className="flex gap-3 pt-2">
             <Button
@@ -229,4 +256,3 @@ export function POSPaymentDialog({
     </Dialog>
   );
 }
-
