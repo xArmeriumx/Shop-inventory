@@ -47,6 +47,7 @@ export interface POSCreateSaleInput {
   customerName?: string | null;
   paymentMethod: string;
   notes?: string | null;
+  receiptUrl?: string | null;
   items: {
     productId: string;
     quantity: number;

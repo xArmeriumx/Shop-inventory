@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { CheckCircle, Loader2, CreditCard, Wallet, Smartphone, QrCode, Settings } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { CheckCircle, Loader2, CreditCard, Wallet, Smartphone, QrCode, Settings, Camera, ImageIcon, X, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -20,7 +20,7 @@ interface POSPaymentDialogProps {
   isOpen: boolean;
   onClose: () => void;
   cart: POSCart;
-  onConfirm: (paymentMethod: string, amountReceived?: number, change?: number) => Promise<void>;
+  onConfirm: (paymentMethod: string, amountReceived?: number, change?: number, receiptUrl?: string) => Promise<void>;
   isProcessing: boolean;
   promptPayId?: string;
 }
@@ -36,7 +36,7 @@ const QUICK_AMOUNTS = [20, 50, 100, 500, 1000];
 
 /**
  * POS Payment Dialog - Payment method selection and confirmation
- * With cash amount input, change calculation, and PromptPay QR
+ * With cash amount input, change calculation, PromptPay QR, and slip upload
  */
 export function POSPaymentDialog({
   isOpen,
@@ -49,12 +49,23 @@ export function POSPaymentDialog({
   const [selectedMethod, setSelectedMethod] = useState<POSPaymentMethod>('CASH');
   const [amountReceived, setAmountReceived] = useState<string>('');
   const [change, setChange] = useState<number>(0);
+  
+  // Slip upload state
+  const [slipPreview, setSlipPreview] = useState<string | null>(null);
+  const [slipFile, setSlipFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Reset on dialog open
   useEffect(() => {
     if (isOpen) {
       setAmountReceived('');
       setChange(0);
+      setSlipPreview(null);
+      setSlipFile(null);
+      setUploadedUrl(null);
+      setIsUploading(false);
     }
   }, [isOpen]);
 
@@ -73,13 +84,92 @@ export function POSPaymentDialog({
     setAmountReceived(cart.totalAmount.toString());
   };
 
+  // Handle slip file selection
+  const handleSlipSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate type
+    if (!file.type.startsWith('image/')) {
+      alert('กรุณาเลือกไฟล์รูปภาพเท่านั้น');
+      return;
+    }
+
+    // Validate size (5MB max)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('ไฟล์ต้องมีขนาดไม่เกิน 5MB');
+      return;
+    }
+
+    setSlipFile(file);
+    
+    // Create preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setSlipPreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Remove slip
+  const handleRemoveSlip = () => {
+    setSlipPreview(null);
+    setSlipFile(null);
+    setUploadedUrl(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Upload slip to server
+  const uploadSlip = async (): Promise<string | null> => {
+    if (!slipFile) return null;
+    if (uploadedUrl) return uploadedUrl; // Already uploaded
+
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', slipFile);
+      formData.append('folder', 'slips');
+      formData.append('bucket', 'receipts');
+
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        throw new Error('Upload failed');
+      }
+
+      const data = await res.json();
+      setUploadedUrl(data.url);
+      return data.url;
+    } catch (err) {
+      console.error('Slip upload error:', err);
+      alert('อัพโหลดสลิปไม่สำเร็จ');
+      return null;
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const handleConfirm = async () => {
     const received = selectedMethod === 'CASH' ? parseFloat(amountReceived) || cart.totalAmount : undefined;
     const changeAmount = selectedMethod === 'CASH' ? change : undefined;
-    await onConfirm(selectedMethod, received, changeAmount);
+
+    // Upload slip if present (for TRANSFER)
+    let receiptUrl: string | undefined;
+    if (selectedMethod === 'TRANSFER' && slipFile) {
+      const url = await uploadSlip();
+      if (url) receiptUrl = url;
+    }
+
+    await onConfirm(selectedMethod, received, changeAmount, receiptUrl);
   };
 
   const isCashValid = selectedMethod !== 'CASH' || (parseFloat(amountReceived) || 0) >= cart.totalAmount;
+  const hasSlip = !!slipPreview;
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -199,27 +289,78 @@ export function POSPaymentDialog({
             </div>
           )}
 
-          {/* PromptPay QR - Show for TRANSFER */}
+          {/* Transfer: QR + Slip Upload */}
           {selectedMethod === 'TRANSFER' && (
-            <div className="border-t pt-4">
+            <div className="space-y-4 border-t pt-4">
+              {/* PromptPay QR */}
               {promptPayId ? (
                 <PromptPayQR 
                   promptPayId={promptPayId} 
                   amount={cart.totalAmount} 
                 />
               ) : (
-                <div className="flex flex-col items-center gap-3 py-6 text-center">
-                  <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
-                    <QrCode className="h-8 w-8 text-muted-foreground/50" />
+                <div className="flex flex-col items-center gap-3 py-4 text-center">
+                  <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center">
+                    <QrCode className="h-7 w-7 text-muted-foreground/50" />
                   </div>
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">ยังไม่ได้ตั้งค่า PromptPay</p>
                     <p className="text-xs text-muted-foreground/70 mt-1">
-                      ไปที่ <span className="inline-flex items-center gap-1"><Settings className="h-3 w-3" />ตั้งค่า</span> → ร้านค้า → กรอก PromptPay ID
+                      ไปที่ <Settings className="h-3 w-3 inline" /> ตั้งค่า → ร้านค้า → กรอก PromptPay ID
                     </p>
                   </div>
                 </div>
               )}
+
+              {/* Slip Upload */}
+              <div className="space-y-2">
+                {/* Hidden file input */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={handleSlipSelect}
+                />
+
+                {slipPreview ? (
+                  /* Slip Preview */
+                  <div className="relative border rounded-lg overflow-hidden bg-muted/30">
+                    <img 
+                      src={slipPreview} 
+                      alt="สลิปการโอนเงิน"
+                      className="w-full max-h-[200px] object-contain"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleRemoveSlip}
+                      className="absolute top-2 right-2 p-1 rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                    <div className="absolute bottom-0 left-0 right-0 bg-green-600/90 text-white text-xs py-1.5 px-3 flex items-center gap-1.5">
+                      <ShieldCheck className="h-3.5 w-3.5" />
+                      แนบสลิปแล้ว
+                    </div>
+                  </div>
+                ) : (
+                  /* Upload Button */
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className={cn(
+                      'w-full flex items-center justify-center gap-2 py-3 px-4 rounded-lg border-2 border-dashed transition-all',
+                      'text-sm font-medium touch-manipulation active:scale-[0.98]',
+                      'border-border hover:border-primary/50 text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    <Camera className="h-4 w-4" />
+                    แนบสลิปการโอนเงิน
+                    <span className="text-xs opacity-60">(ไม่บังคับ)</span>
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
@@ -229,24 +370,29 @@ export function POSPaymentDialog({
               variant="outline"
               className="flex-1"
               onClick={onClose}
-              disabled={isProcessing}
+              disabled={isProcessing || isUploading}
             >
               ยกเลิก
             </Button>
             <Button
-              className="flex-1 h-12"
+              className={cn(
+                'flex-1 h-12 transition-all',
+                selectedMethod === 'TRANSFER' && !hasSlip && 'opacity-80'
+              )}
               onClick={handleConfirm}
-              disabled={isProcessing || !isCashValid}
+              disabled={isProcessing || isUploading || !isCashValid}
             >
-              {isProcessing ? (
+              {isProcessing || isUploading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  กำลังบันทึก...
+                  {isUploading ? 'กำลังอัพโหลดสลิป...' : 'กำลังบันทึก...'}
                 </>
               ) : (
                 <>
                   <CheckCircle className="mr-2 h-4 w-4" />
-                  ยืนยันการชำระเงิน
+                  {selectedMethod === 'TRANSFER' && !hasSlip
+                    ? 'ยืนยัน (ไม่แนบสลิป)'
+                    : 'ยืนยันการชำระเงิน'}
                 </>
               )}
             </Button>

@@ -180,6 +180,7 @@ export async function createPOSSale(input: POSCreateSaleInput): Promise<POSCreat
       customerName: input.customerName || null,
       paymentMethod: input.paymentMethod as 'CASH' | 'TRANSFER' | 'CREDIT',
       notes: input.notes || null,
+      receiptUrl: input.receiptUrl || null,
       items: input.items.map(item => ({ ...item, discountAmount: 0 })),
     });
 

@@ -234,7 +234,7 @@ export function POSInterface({ initialProducts, categories, promptPayId }: POSIn
     }
   }, [cart.items.length]);
 
-  const handlePaymentConfirm = useCallback(async (paymentMethod: string, amountReceived?: number, change?: number) => {
+  const handlePaymentConfirm = useCallback(async (paymentMethod: string, amountReceived?: number, change?: number, receiptUrl?: string) => {
     setIsProcessing(true);
 
     try {
@@ -242,6 +242,7 @@ export function POSInterface({ initialProducts, categories, promptPayId }: POSIn
         customerId: selectedCustomer?.id.startsWith('temp-') ? undefined : selectedCustomer?.id,
         customerName: selectedCustomer ? selectedCustomer.name : undefined,
         paymentMethod,
+        receiptUrl: receiptUrl || null,
         items: cart.items.map((item) => ({
           productId: item.productId,
           quantity: item.quantity,
