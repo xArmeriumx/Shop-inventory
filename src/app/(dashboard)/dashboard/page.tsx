@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import { Package, TrendingUp, ShoppingCart, AlertCircle, CreditCard, Truck, Wallet, Warehouse } from 'lucide-react';
+import { Package, TrendingUp, ShoppingCart, AlertCircle, Truck, Wallet, Warehouse } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getDashboardStats, getMonthlyStats } from '@/actions/dashboard';
@@ -43,14 +43,6 @@ async function DashboardContent() {
       subtitle: 'need restock',
       icon: AlertCircle,
       iconColor: 'text-red-600',
-    },
-    {
-      title: 'Pending Payments',
-      value: stats.pendingPayments.count.toString(),
-      subtitle: formatCurrency(stats.pendingPayments.amount.toString()),
-      icon: CreditCard,
-      iconColor: 'text-orange-600',
-      href: '/sales?paymentStatus=PENDING',
     },
     {
       title: 'Pending Shipments',

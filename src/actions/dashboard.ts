@@ -107,16 +107,8 @@ export async function getDashboardStats() {
       take: 5,
     }),
 
-    // NEW: Pending payment count + amount
-    db.sale.aggregate({
-      where: {
-        shopId: ctx.shopId,
-        paymentStatus: "PENDING",
-        status: { not: "CANCELLED" },
-      },
-      _sum: { netAmount: true },  // ✅ ยอดรอตรวจสอบ = เงินที่ลูกค้าต้องจ่ายจริง
-      _count: true,
-    }),
+    // Removed: Pending payments query (POS = ทุก sale คือ VERIFIED)
+    Promise.resolve({ _count: 0, _sum: { netAmount: null } }),
 
     // NEW: Pending shipments count
     db.shipment.count({
@@ -187,11 +179,8 @@ export async function getDashboardStats() {
       stock: product.stock,
       minStock: product.minStock,
     })),
-    // NEW: Action items
-    pendingPayments: {
-      count: pendingPayments._count,
-      amount: toNumber(pendingPayments._sum.netAmount),  // ✅ ยอดรอตรวจสอบจริง
-    },
+    // Removed: pendingPayments (POS = ทุก sale คือ VERIFIED)
+    pendingPayments: { count: 0, amount: 0 },
     pendingShipments,
     todayExpenses: {
       total: toNumber(todayExpenses._sum.amount),

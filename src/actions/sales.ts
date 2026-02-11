@@ -387,7 +387,8 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>
       // 6. Create Sale Record (Header + Items)
       // =================================================================
       // G1: Auto-verify cash payments, set PENDING for transfers
-      const paymentStatus = saleData.paymentMethod === 'CASH' ? 'VERIFIED' : 'PENDING';
+      // POS system: ทุกการขายที่บันทึก = ชำระแล้ว (ไม่มี PENDING flow)
+      const paymentStatus = 'VERIFIED';
       
       const sale = await tx.sale.create({
         data: {

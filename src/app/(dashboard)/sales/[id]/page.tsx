@@ -49,7 +49,6 @@ import { requirePermission, hasPermission } from '@/lib/auth-guard';
 
 async function SaleDetails({ id }: { id: string }) {
   const ctx = await requirePermission('SALE_VIEW');
-  const canVerifyPayment = hasPermission(ctx, 'PAYMENT_VERIFY');
 
   const [sale, shop] = await Promise.all([
     getSale(id),
@@ -149,7 +148,6 @@ async function SaleDetails({ id }: { id: string }) {
               paymentProof={(sale as any).paymentProof}
               paymentNote={(sale as any).paymentNote}
               paymentVerifiedAt={(sale as any).paymentVerifiedAt}
-              canVerify={canVerifyPayment}
             />
           )}
 
