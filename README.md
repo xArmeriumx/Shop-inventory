@@ -1,130 +1,260 @@
-# Shop Inventory & Sales Management System
+<p align="center">
+  <h1 align="center">🏪 Shop Inventory</h1>
+  <p align="center">
+    Full-stack POS & Inventory Management System
+    <br />
+    Built with Next.js 14 · TypeScript · Prisma · PostgreSQL
+    <br /><br />
+    <a href="https://shop-inventory.napatdev.com">🌐 Live Demo</a>
+    ·
+    <a href="#features">Features</a>
+    ·
+    <a href="#tech-stack">Tech Stack</a>
+    ·
+    <a href="#getting-started">Setup</a>
+  </p>
+</p>
 
-A comprehensive Inventory and Sales Management System developed with Next.js 14, TypeScript, Prisma, and TailwindCSS. This system is designed for multi-tenant usage, featuring role-based access control (RBAC) and robust audit trails.
+---
 
-## System Overview
+## About
 
-This application serves as a complete Point of Sale (POS) and inventory management solution. It supports multiple shops, granular user permissions, and precise stock tracking. The architecture prioritizes data integrity, auditability, and ease of use.
+A production-grade **Point of Sale & Inventory Management** system designed for small-to-medium retail businesses. Supports multi-tenant shops, role-based access control, AI-powered receipt scanning, and real-time stock tracking — all in a single deployable Next.js application.
 
-## Core Features
+### 📊 Project Stats
 
-### 1. Multi-Tenant Architecture
+|                        |                                                           |
+| ---------------------- | --------------------------------------------------------- |
+| **Database Models**    | 22 (User, Product, Sale, Purchase, Return, Shipment, ...) |
+| **Server Actions**     | 24 modules (type-safe, audit-logged)                      |
+| **Feature Components** | 23 areas (POS, Reports, OCR, Team, ...)                   |
+| **Test Framework**     | Vitest with unit test coverage                            |
+| **Deployment**         | Vercel (Edge-compatible)                                  |
 
-- Supports multiple independent shops.
-- **Role-Based Access Control (RBAC)**: secure and granular permission system (Owner, Manager, Cashier, etc.).
-- **Onboarding Flow**: streamlined process for creating new shops or joining existing teams via invitation.
+---
 
-### 2. Inventory Management
+## Features
 
-- Real-time stock tracking with detailed movement history.
-- Manual stock adjustments with mandatory reason logging.
-- Low stock alerts and cost tracking.
+### 🛒 Point of Sale (POS)
 
-### 3. Point of Sale (POS)
+- Full-screen POS optimized for tablet & desktop
+- Barcode scanning for quick product lookup
+- PromptPay QR code generation for mobile payments
+- Thermal receipt printing (80mm)
+- Slip upload & payment proof tracking
 
-- **Dedicated POS Interface**: Full-screen mode optimized for tablets and desktop.
-- **Barcode Support**: Quick product entry via barcode scanning.
-- **Real-time Synchronization**: Stock updates instantly across all devices.
-- **Invoice Generation**: Auto-generate Tax Invoices and Receipts.
+### 📦 Inventory Management
 
-### 4. Team & Role Management (RBAC)
+- Real-time stock tracking with movement history
+- Low stock alerts with configurable thresholds
+- CSV batch import with Thai/English header auto-mapping
+- Barcode label generation (EAN-13, Code128)
+- Optimistic locking to prevent concurrent stock conflicts
 
-- **Granular Permissions**: Define custom roles with specific capability flags.
-- **Auto-dependency Resolution**: Related permissions are granted automatically when needed.
-- **Invite-only Onboarding**: Secure invitation system for adding staff.
-- **Real-time Enforcement**: Permission changes take effect immediately.
-- **Optimized Performance**: Efficient polling mechanism with minimal server overhead.
+### 🧾 Sales & Purchases
 
-### 5. Sales and Purchase Management
+- Complete sales lifecycle: create → invoice → receipt → return
+- Purchase orders with supplier management
+- Audit-ready cancellation (soft delete + reason logging)
+- Automatic profit calculation per transaction
+- Multi-payment method support (Cash, Transfer, Credit)
 
-- **Audit-Ready Cancellation**: Implements a rigorous cancellation workflow instead of deletion. All cancellations require a reason and are timestamped.
-- Automatic profit calculation and stock deduction.
-- Receipt upload capability via Supabase Storage.
-- Tax invoice generation.
+### 📊 Reports & Analytics
 
-### 6. Reporting and Analytics
+- Revenue, expense, and profit dashboards with Recharts
+- Daily/monthly breakdowns
+- CSV export for all reports
+- Printable report formats
 
-- Comprehensive financial reports (Revenue, Expense, Profit).
-- Daily breakdowns and downloadable CSV exports.
-- Printable report formats.
+### 🤖 AI & OCR
 
-### 7. System Stability & Monitoring (v2.4)
+- **Receipt Scanner**: Tesseract.js (client-side) + Groq AI (server-side) for structured data extraction
+- **AI Chat Assistant**: Groq-powered business chatbot for product/sales queries
+- **Smart Matching**: Fuzzy matching engine for products & suppliers from scanned data
 
-- **System Health Dashboard**: Real-time server status, CPU/Memory usage, and active database connection monitoring.
-- **Smart Error Handling**: Automated try-catch protection on critical actions (Sales, Purchases, Inventory) to prevent data inconsistency.
-- **Auto-Logging System**: Captures system errors and warnings into a consolidated `SystemLog` for admin auditing.
-- **Performance Optimization**: Tuned generic connection pool settings for Serverless environments (Prisma + PgBouncer).
+### 🔐 Security & Multi-Tenancy
 
-## Technical Architecture
+- **RBAC**: Granular role system (Owner → Manager → Cashier) with auto-dependency resolution
+- **Multi-Tenant**: Complete data isolation per shop
+- **Auth**: NextAuth.js v5 with credential + invite-based registration
+- **Input Sanitization**: XSS protection on all text inputs
+- **Optimistic Locking**: Prevents race conditions on financial records
 
-### Technology Stack
+### 📱 Responsive Design
 
-- **Framework**: Next.js 14 (App Router)
-- **Language**: TypeScript (Strict mode)
-- **Database**: PostgreSQL
-- **ORM**: Prisma
-- **Authentication**: NextAuth.js
-- **Styling**: TailwindCSS, Shadcn UI
-- **Deployment**: Vercel (Edge-compatible middleware)
+- Mobile-first UI across all pages
+- PWA-ready manifest
+- Touch-optimized POS interface
 
-### Development Standards
+### 🚚 Additional Modules
 
-- **Server Actions**: Standardized `ActionResponse` pattern for consistent error handling.
-- **Type Safety**: Strictly typed interfaces across the entire codebase.
-- **Audit Logging**: All critical actions (stock changes, cancellations) are persistently logged.
+- Customer management with address book
+- Supplier directory
+- Shipment tracking with carrier integration
+- Expense & income recording
+- Team management & invitation system
+- System health monitoring dashboard
 
-## Installation and Setup
+---
+
+## Tech Stack
+
+| Layer          | Technology                               |
+| -------------- | ---------------------------------------- |
+| **Framework**  | Next.js 14 (App Router, Server Actions)  |
+| **Language**   | TypeScript (Strict mode)                 |
+| **Database**   | PostgreSQL                               |
+| **ORM**        | Prisma 6                                 |
+| **Auth**       | NextAuth.js v5                           |
+| **Storage**    | Supabase Storage                         |
+| **AI/OCR**     | Groq SDK (Llama), Tesseract.js           |
+| **UI**         | TailwindCSS, Shadcn/UI, Radix Primitives |
+| **Charts**     | Recharts                                 |
+| **Validation** | Zod                                      |
+| **Forms**      | React Hook Form                          |
+| **Testing**    | Vitest, Testing Library                  |
+| **Financial**  | Decimal.js (precision arithmetic)        |
+| **Deploy**     | Vercel                                   |
+
+---
+
+## Architecture
+
+```
+src/
+├── app/                    # Next.js App Router
+│   ├── (auth)/             # Login, Register
+│   ├── (dashboard)/        # Protected pages (products, sales, reports, ...)
+│   ├── (pos)/              # Full-screen POS interface
+│   └── api/                # API routes (OCR, AI, webhooks)
+│
+├── actions/                # 24 Server Action modules
+│   ├── sales.ts            # Sale CRUD, cancellation, audit
+│   ├── products.ts         # Product CRUD, batch import
+│   ├── reports.ts          # Financial aggregation queries
+│   └── ...
+│
+├── components/
+│   ├── features/           # 23 feature-specific component groups
+│   │   ├── pos/            # POS interface, payment dialog, QR
+│   │   ├── products/       # Product table, CSV import, barcode
+│   │   ├── reports/        # Charts, filters, export
+│   │   ├── ocr/            # Scanner, review modal
+│   │   └── ...
+│   └── ui/                 # Shadcn/UI base components
+│
+├── lib/                    # Shared utilities
+│   ├── ocr/                # OCR engine, AI extraction, matching
+│   ├── pos/                # POS service layer
+│   ├── ai/                 # Groq AI client & chat tools
+│   ├── money.ts            # Decimal.js financial helpers
+│   ├── permissions.ts      # RBAC permission engine
+│   ├── optimistic-lock.ts  # Concurrency control
+│   └── sanitize.ts         # XSS input protection
+│
+└── schemas/                # Zod validation schemas
+```
+
+### Data Flow
+
+```
+Client (React) → Server Action → Prisma → PostgreSQL
+                      ↓
+              Input Validation (Zod)
+              Auth Check (NextAuth)
+              Permission Check (RBAC)
+              Audit Logging
+```
+
+---
+
+## Getting Started
 
 ### Prerequisites
 
-- Node.js 18 or higher
-- PostgreSQL Database
+- Node.js 18+
+- PostgreSQL database
+- Supabase project (for file storage)
 
-### Setup Instructions
+### Installation
 
-1.  **Clone the repository**
+```bash
+# Clone
+git clone https://github.com/xArmeriumx/Shop-inventory.git
+cd Shop-inventory
 
-    ```bash
-    git clone https://github.com/xArmeriumx/Shop-inventory.git
-    cd Shop-inventory
-    ```
+# Install
+npm install
 
-2.  **Install dependencies**
+# Environment
+cp .env.example .env
+# Edit .env with your database URL, auth secret, and Supabase keys
 
-    ```bash
-    npm install
-    ```
+# Database
+npx prisma db push
 
-3.  **Environment Configuration**
-    Create a `.env` file based on `.env.example` and populate the necessary variables:
+# Dev server
+npm run dev
+```
 
-    ```env
-    DATABASE_URL="postgresql://..."
-    AUTH_SECRET="your-secret-key"
-    NEXT_PUBLIC_SUPABASE_URL="..."
-    ```
+Open [http://localhost:3000](http://localhost:3000)
 
-4.  **Database Initialization**
+### Environment Variables
 
-    ```bash
-    npx prisma db push
-    ```
+```env
+DATABASE_URL="postgresql://..."
+AUTH_SECRET="your-secret-key"
+NEXT_PUBLIC_SUPABASE_URL="https://xxx.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY="..."
+GROQ_API_KEY="..."  # Optional: for AI/OCR features
+```
 
-5.  **Start Development Server**
-    ```bash
-    npm run dev
-    ```
+### Scripts
 
-Access the application at `http://localhost:3000`.
+| Command             | Description        |
+| ------------------- | ------------------ |
+| `npm run dev`       | Start dev server   |
+| `npm run build`     | Production build   |
+| `npm test`          | Run tests (Vitest) |
+| `npm run db:studio` | Open Prisma Studio |
+| `npm run db:seed`   | Seed sample data   |
+
+---
+
+## Database Schema
+
+22 models covering the full retail business domain:
+
+```
+User ─┬─ ShopMember ── Shop
+      │       └── Role (RBAC permissions)
+      │
+      ├── Product ── SaleItem ── Sale ── Customer
+      │     └── StockLog           └── Return ── ReturnItem
+      │
+      ├── Supplier ── Purchase ── PurchaseItem
+      │
+      ├── Expense / Income
+      │
+      ├── Shipment ── CustomerAddress
+      │
+      └── SystemLog / Notification
+```
+
+---
 
 ## Deployment
 
-The application is optimized for deployment on Vercel.
+Optimized for **Vercel**:
 
-1.  Connect the GitHub repository to Vercel.
-2.  Configure the environment variables in the Vercel dashboard.
-3.  Deploy.
+1. Connect GitHub repo to Vercel
+2. Set environment variables
+3. Deploy
+
+Production URL: [shop-inventory.napatdev.com](https://shop-inventory.napatdev.com)
+
+---
 
 ## License
 
-This project is licensed under the MIT License.
+MIT License — see [LICENSE](LICENSE) for details.

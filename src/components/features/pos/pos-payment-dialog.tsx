@@ -15,6 +15,7 @@ import type { POSCart, POSPaymentMethod } from '@/lib/pos/types';
 import { formatCurrency } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 import { PromptPayQR } from './promptpay-qr';
+import { uploadToStorage, RECEIPTS_BUCKET } from '@/lib/supabase-browser';
 
 interface POSPaymentDialogProps {
   isOpen: boolean;
@@ -121,30 +122,21 @@ export function POSPaymentDialog({
     }
   };
 
-  // Upload slip to server
+  // Upload slip to Supabase (direct, same as FileUpload)
   const uploadSlip = async (): Promise<string | null> => {
     if (!slipFile) return null;
     if (uploadedUrl) return uploadedUrl; // Already uploaded
 
     setIsUploading(true);
     try {
-      const formData = new FormData();
-      formData.append('file', slipFile);
-      formData.append('folder', 'slips');
-      formData.append('bucket', 'receipts');
+      const result = await uploadToStorage(slipFile, RECEIPTS_BUCKET, 'slips');
 
-      const res = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!res.ok) {
-        throw new Error('Upload failed');
+      if ('error' in result) {
+        throw new Error(result.error);
       }
 
-      const data = await res.json();
-      setUploadedUrl(data.url);
-      return data.url;
+      setUploadedUrl(result.url);
+      return result.url;
     } catch (err) {
       console.error('Slip upload error:', err);
       alert('อัพโหลดสลิปไม่สำเร็จ');

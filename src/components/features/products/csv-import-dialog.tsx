@@ -114,6 +114,8 @@ export function CSVImportDialog({ open, onClose }: CSVImportDialogProps) {
         category: p.category,
         costPrice: p.costPrice,
         salePrice: p.salePrice,
+        stock: p.stock,
+        minStock: p.minStock,
       }));
 
       const response = await batchCreateProducts(inputs);

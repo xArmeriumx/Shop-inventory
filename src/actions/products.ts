@@ -528,6 +528,8 @@ export interface BatchProductInput {
   category: string;
   costPrice: number;
   salePrice: number;
+  stock?: number;
+  minStock?: number;
 }
 
 export interface BatchCreateResult {
@@ -571,6 +573,8 @@ export async function batchCreateProducts(
       category: input.category.trim(),
       costPrice: input.costPrice || 0,
       salePrice: input.salePrice || 0,
+      stock: input.stock,
+      minStock: input.minStock,
     });
   }
 
@@ -615,6 +619,8 @@ export async function batchCreateProducts(
               category: input.category,
               costPrice: input.costPrice,
               salePrice: input.salePrice,
+              ...(input.stock !== undefined && { stock: input.stock }),
+              ...(input.minStock !== undefined && { minStock: input.minStock }),
               isActive: true,
               deletedAt: null,
             },
@@ -633,8 +639,8 @@ export async function batchCreateProducts(
               category: input.category,
               costPrice: input.costPrice,
               salePrice: input.salePrice,
-              stock: 0,
-              minStock: 5,
+              stock: input.stock ?? 0,
+              minStock: input.minStock ?? 5,
               userId: ctx.userId,
               shopId: ctx.shopId,
             },
