@@ -88,7 +88,7 @@ export default function Home() {
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
               <a
-                href="https://github.com/xArmeriumx/Shop-inventory/releases/latest/download/Shop.Inventory.Setup.0.1.0.exe"
+                href="https://github.com/xArmeriumx/shop-inventory-releases/releases/tag/download"
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-foreground px-8 py-3.5 text-sm font-semibold text-background transition-all hover:bg-foreground/90 active:scale-[0.98] shadow-lg shadow-foreground/10"
               >
                 <Download className="h-4 w-4" />
@@ -312,7 +312,7 @@ export default function Home() {
               {/* Download button — large & prominent */}
               <div className="pt-2 flex flex-col items-center gap-4">
                 <a
-                  href="https://github.com/xArmeriumx/Shop-inventory/releases/latest/download/Shop.Inventory.Setup.0.1.0.exe"
+                  href="https://github.com/xArmeriumx/shop-inventory-releases/releases/tag/download"
                   className="inline-flex items-center justify-center gap-2.5 rounded-xl bg-background text-foreground px-10 py-4 text-base font-semibold transition-all hover:bg-background/90 active:scale-[0.98]"
                 >
                   <Download className="h-5 w-5" />
