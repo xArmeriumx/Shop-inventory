@@ -1,0 +1,36 @@
+# ============================================
+# Electron Builder Configuration
+# ============================================
+# Build command: npm run electron:build
+# Output: dist-electron/
+
+appId: com.shopinventory.app
+productName: Shop Inventory
+copyright: Copyright © 2026
+
+directories:
+  output: dist-electron
+
+files:
+  - "electron/**/*"
+  - "public/favicon.ico"
+  - "!node_modules"
+  - "!src"
+  - "!prisma"
+  - "!docs"
+  - "!.next"
+  - "!**/*.md"
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  icon: public/favicon.ico
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  installerIcon: public/favicon.ico
+  uninstallerIcon: public/favicon.ico
+  deleteAppDataOnUninstall: false

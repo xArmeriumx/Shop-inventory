@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <!-- Subtle gradient for depth -->
+    <linearGradient id="bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#111113"/>
+      <stop offset="100%" style="stop-color:#09090b"/>
+    </linearGradient>
+    <!-- Glow effect for the S -->
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <!-- Subtle shadow -->
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+
+  <!-- Background rounded square -->
+  <rect width="512" height="512" rx="108" ry="108" fill="url(#bg-grad)"/>
+  
+  <!-- Subtle border -->
+  <rect width="508" height="508" x="2" y="2" rx="106" ry="106" fill="none" stroke="#ffffff" stroke-opacity="0.06" stroke-width="2"/>
+
+  <!-- Inventory box icon (top-right corner accent) -->
+  <g transform="translate(340, 80)" opacity="0.12">
+    <rect x="0" y="8" width="80" height="60" rx="6" fill="none" stroke="#fff" stroke-width="3"/>
+    <line x1="0" y1="28" x2="80" y2="28" stroke="#fff" stroke-width="3"/>
+    <line x1="30" y1="28" x2="30" y2="8" stroke="#fff" stroke-width="3"/>
+    <line x1="50" y1="28" x2="50" y2="8" stroke="#fff" stroke-width="3"/>
+  </g>
+
+  <!-- Barcode lines (bottom-left accent) -->
+  <g transform="translate(80, 370)" opacity="0.10">
+    <rect x="0" y="0" width="4" height="40" fill="#fff"/>
+    <rect x="8" y="0" width="2" height="40" fill="#fff"/>
+    <rect x="14" y="0" width="6" height="40" fill="#fff"/>
+    <rect x="24" y="0" width="2" height="40" fill="#fff"/>
+    <rect x="30" y="0" width="4" height="40" fill="#fff"/>
+    <rect x="38" y="0" width="2" height="40" fill="#fff"/>
+    <rect x="44" y="0" width="6" height="40" fill="#fff"/>
+    <rect x="54" y="0" width="4" height="40" fill="#fff"/>
+    <rect x="62" y="0" width="2" height="40" fill="#fff"/>
+    <rect x="68" y="0" width="6" height="40" fill="#fff"/>
+    <rect x="78" y="0" width="4" height="40" fill="#fff"/>
+    <rect x="86" y="0" width="2" height="40" fill="#fff"/>
+  </g>
+
+  <!-- Main "S" letter - bold geometric style -->
+  <g filter="url(#shadow)">
+    <path d="
+      M 186 148
+      L 326 148
+      Q 358 148 358 180
+      L 358 232
+      Q 358 264 326 264
+      L 210 264
+      Q 186 264 186 288
+      L 186 332
+      Q 186 364 210 364
+      L 350 364
+    " fill="none" stroke="#ffffff" stroke-width="42" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)"/>
+  </g>
+
+  <!-- Decorative dot grid (subtle) -->
+  <g opacity="0.05">
+    <circle cx="100" cy="140" r="3" fill="#fff"/>
+    <circle cx="120" cy="140" r="3" fill="#fff"/>
+    <circle cx="140" cy="140" r="3" fill="#fff"/>
+    <circle cx="100" cy="160" r="3" fill="#fff"/>
+    <circle cx="120" cy="160" r="3" fill="#fff"/>
+    <circle cx="140" cy="160" r="3" fill="#fff"/>
+    <circle cx="100" cy="180" r="3" fill="#fff"/>
+    <circle cx="120" cy="180" r="3" fill="#fff"/>
+    <circle cx="140" cy="180" r="3" fill="#fff"/>
+  </g>
+</svg>

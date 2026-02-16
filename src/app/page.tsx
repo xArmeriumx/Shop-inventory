@@ -12,6 +12,13 @@ import {
   Zap,
   Globe,
   Smartphone,
+  Monitor,
+  Download,
+  Wifi,
+  WifiOff,
+  Printer,
+  Maximize,
+  AppWindow,
 } from 'lucide-react';
 
 export default function Home() {
@@ -80,13 +87,13 @@ export default function Home() {
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
-              <Link
-                href="/register"
+              <a
+                href="https://github.com/xArmeriumx/Shop-inventory/releases/latest/download/Shop.Inventory.Setup.0.1.0.exe"
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-foreground px-8 py-3.5 text-sm font-semibold text-background transition-all hover:bg-foreground/90 active:scale-[0.98] shadow-lg shadow-foreground/10"
               >
-                สมัครใช้งานฟรี
-                <ArrowRight className="h-4 w-4" />
-              </Link>
+                <Download className="h-4 w-4" />
+                ดาวน์โหลดแอป
+              </a>
               <Link
                 href="/login"
                 className="w-full sm:w-auto inline-flex items-center justify-center rounded-xl border border-border px-8 py-3.5 text-sm font-medium transition-all hover:bg-muted active:scale-[0.98]"
@@ -94,6 +101,13 @@ export default function Home() {
                 เข้าสู่ระบบ
               </Link>
             </div>
+            <p className="text-xs text-muted-foreground pt-1">
+              หรือ{' '}
+              <Link href="/register" className="underline underline-offset-2 hover:text-foreground transition-colors">
+                ใช้งานบนเว็บ
+              </Link>
+              {' '}ได้ทันทีไม่ต้องติดตั้ง
+            </p>
 
             {/* Trust signals */}
             <div className="flex items-center justify-center gap-6 pt-4 text-xs text-muted-foreground">
@@ -270,6 +284,101 @@ export default function Home() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Desktop App Download ───────────────────── */}
+      <section className="border-t bg-foreground text-background py-20 md:py-28">
+        <div className="container mx-auto px-6">
+          <div className="max-w-5xl mx-auto">
+            {/* Header + Download — centered */}
+            <div className="text-center max-w-2xl mx-auto mb-16 space-y-6">
+              <div className="inline-flex items-center gap-2 rounded-full border border-background/20 px-4 py-1.5 text-xs font-medium text-background/60">
+                <Monitor className="h-3 w-3" />
+                Desktop Application
+              </div>
+
+              <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight leading-[1.15]">
+                ติดตั้งแอป Desktop
+                <br />
+                <span className="text-background/50">เพื่อประสบการณ์ POS ที่ดีที่สุด</span>
+              </h2>
+
+              <p className="text-sm md:text-base text-background/50 max-w-lg mx-auto">
+                ใช้งานได้เหมือนโปรแกรมทั่วไป พร้อมฟีเจอร์พิเศษที่เว็บทำไม่ได้
+              </p>
+
+              {/* Download button — large & prominent */}
+              <div className="pt-2 flex flex-col items-center gap-4">
+                <a
+                  href="https://github.com/xArmeriumx/Shop-inventory/releases/latest/download/Shop.Inventory.Setup.0.1.0.exe"
+                  className="inline-flex items-center justify-center gap-2.5 rounded-xl bg-background text-foreground px-10 py-4 text-base font-semibold transition-all hover:bg-background/90 active:scale-[0.98]"
+                >
+                  <Download className="h-5 w-5" />
+                  ดาวน์โหลดสำหรับ Windows
+                </a>
+
+                <div className="flex items-center gap-4 text-xs text-background/40">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-background/10 px-2.5 py-1">
+                    v0.1.0
+                  </span>
+                  <span>Windows 10/11 (64-bit)</span>
+                  <span>·</span>
+                  <span>ฟรี 100%</span>
+                </div>
+              </div>
+            </div>
+
+            {/* App window mockup */}
+            <div className="max-w-3xl mx-auto mb-16">
+              <div className="rounded-xl border border-background/10 overflow-hidden">
+                {/* Title bar */}
+                <div className="flex items-center justify-between px-4 py-2.5 bg-background/5 border-b border-background/10">
+                  <div className="flex items-center gap-2.5">
+                    <div className="h-5 w-5 rounded bg-background/10 flex items-center justify-center">
+                      <Package className="h-3 w-3 text-background/60" />
+                    </div>
+                    <span className="text-xs font-medium text-background/60">Shop Inventory</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="h-3 w-6 rounded-sm bg-background/10" />
+                    <div className="h-3 w-6 rounded-sm bg-background/10" />
+                    <div className="h-3 w-6 rounded-sm bg-background/10" />
+                  </div>
+                </div>
+                {/* Mockup content */}
+                <div className="p-6 md:p-8 bg-background/[0.03]">
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="space-y-1.5">
+                      <div className="h-2.5 w-28 rounded-full bg-background/10" />
+                      <div className="h-2 w-44 rounded-full bg-background/5" />
+                    </div>
+                    <div className="h-8 w-24 rounded-lg bg-background/10" />
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 mb-5">
+                    {['ยอดขาย', 'กำไร', 'สต็อก'].map((label) => (
+                      <div key={label} className="rounded-lg bg-background/5 border border-background/10 p-4 text-center">
+                        <div className="text-xl font-bold text-background/30">—</div>
+                        <div className="text-[10px] text-background/25 mt-1">{label}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-end gap-1.5 h-16">
+                    {[40, 65, 35, 80, 55, 70, 45, 85, 60, 50, 75, 40].map((h, i) => (
+                      <div
+                        key={i}
+                        className="flex-1 rounded-t bg-background/8"
+                        style={{ height: `${h}%` }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+
+
           </div>
         </div>
       </section>

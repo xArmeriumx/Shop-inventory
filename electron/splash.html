@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shop Inventory</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #09090b;
+      color: #fafafa;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      overflow: hidden;
+      user-select: none;
+      -webkit-app-region: drag;
+    }
+
+    /* ===== Animated background ===== */
+    .bg-glow {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(255,255,255,0.03) 0%, transparent 70%);
+      border-radius: 50%;
+      animation: pulse-glow 3s ease-in-out infinite;
+    }
+
+    @keyframes pulse-glow {
+      0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.5; }
+      50% { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+    }
+
+    /* ===== Logo ===== */
+    .logo-container {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 28px;
+      animation: fadeIn 0.8s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .logo-icon {
+      width: 80px;
+      height: 80px;
+      border-radius: 20px;
+      background: linear-gradient(135deg, #18181b 0%, #111113 100%);
+      border: 1px solid rgba(255,255,255,0.08);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+
+    .logo-icon svg {
+      width: 44px;
+      height: 44px;
+    }
+
+    .app-name {
+      font-size: 22px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      color: #fafafa;
+    }
+
+    .app-subtitle {
+      font-size: 12px;
+      color: rgba(255,255,255,0.35);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-top: -12px;
+    }
+
+    /* ===== Loading indicator ===== */
+    .loading-section {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      margin-top: 48px;
+      animation: fadeIn 1.2s ease-out;
+    }
+
+    .progress-track {
+      width: 200px;
+      height: 2px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, rgba(255,255,255,0.15), rgba(255,255,255,0.5), rgba(255,255,255,0.15));
+      border-radius: 2px;
+      animation: progress-indeterminate 2s ease-in-out infinite;
+    }
+
+    @keyframes progress-indeterminate {
+      0% { width: 0%; margin-left: 0%; }
+      50% { width: 60%; margin-left: 20%; }
+      100% { width: 0%; margin-left: 100%; }
+    }
+
+    .loading-text {
+      font-size: 11px;
+      color: rgba(255,255,255,0.25);
+      letter-spacing: 0.5px;
+    }
+
+    /* ===== Version tag ===== */
+    .version {
+      position: fixed;
+      bottom: 20px;
+      font-size: 10px;
+      color: rgba(255,255,255,0.12);
+      letter-spacing: 1px;
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-glow"></div>
+
+  <div class="logo-container">
+    <div class="logo-icon">
+      <svg viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 11H32C33.1 11 34 11.9 34 13V18C34 19.1 33.1 20 32 20H14C12.9 20 12 20.9 12 22V31C12 32.1 12.9 33 14 33H34" 
+              stroke="#fafafa" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <span class="app-name">Shop Inventory</span>
+    <span class="app-subtitle">Point of Sale System</span>
+  </div>
+
+  <div class="loading-section">
+    <div class="progress-track">
+      <div class="progress-fill"></div>
+    </div>
+    <span class="loading-text">กำลังเชื่อมต่อ...</span>
+  </div>
+
+  <div class="version">v0.1.0</div>
+</body>
+</html>

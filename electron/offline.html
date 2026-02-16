@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ไม่มีการเชื่อมต่อ</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #09090b;
+      color: #fafafa;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+      max-width: 400px;
+      text-align: center;
+      animation: fadeIn 0.6s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(16px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ===== Offline icon ===== */
+    .offline-icon {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.06);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 8px;
+    }
+
+    .offline-icon svg {
+      width: 36px;
+      height: 36px;
+      color: rgba(255,255,255,0.3);
+    }
+
+    /* ===== Text ===== */
+    .title {
+      font-size: 20px;
+      font-weight: 600;
+      color: #fafafa;
+    }
+
+    .description {
+      font-size: 13px;
+      color: rgba(255,255,255,0.4);
+      line-height: 1.7;
+    }
+
+    /* ===== Tips ===== */
+    .tips {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 12px;
+      padding: 16px 20px;
+      width: 100%;
+      margin-top: 8px;
+    }
+
+    .tips-title {
+      font-size: 11px;
+      color: rgba(255,255,255,0.3);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 10px;
+    }
+
+    .tip-item {
+      font-size: 12px;
+      color: rgba(255,255,255,0.45);
+      padding: 4px 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .tip-item::before {
+      content: "•";
+      color: rgba(255,255,255,0.2);
+    }
+
+    /* ===== Retry button ===== */
+    .retry-btn {
+      margin-top: 12px;
+      padding: 12px 40px;
+      background: #fafafa;
+      color: #09090b;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      letter-spacing: 0.3px;
+    }
+
+    .retry-btn:hover {
+      background: #e4e4e7;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(255,255,255,0.1);
+    }
+
+    .retry-btn:active {
+      transform: translateY(0);
+      background: #d4d4d8;
+    }
+
+    .retry-btn.loading {
+      pointer-events: none;
+      opacity: 0.6;
+    }
+
+    /* ===== Spinner for retry ===== */
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .spinner {
+      display: none;
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(9,9,11,0.2);
+      border-top-color: #09090b;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+
+    .retry-btn.loading .spinner {
+      display: inline-block;
+    }
+
+    /* ===== Footer ===== */
+    .footer {
+      position: fixed;
+      bottom: 24px;
+      font-size: 10px;
+      color: rgba(255,255,255,0.1);
+      letter-spacing: 1px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="offline-icon">
+      <!-- Wi-Fi off icon -->
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="2" y1="2" x2="22" y2="22"/>
+        <path d="M8.5 16.5a5 5 0 0 1 7 0"/>
+        <path d="M2 8.82a15 15 0 0 1 4.17-2.65"/>
+        <path d="M10.66 5c4.01-.36 8.14.9 11.34 3.76"/>
+        <path d="M16.85 11.25a10 10 0 0 1 2.22 1.68"/>
+        <path d="M5 12.86a10 10 0 0 1 5.17-2.89"/>
+        <line x1="12" y1="20" x2="12.01" y2="20"/>
+      </svg>
+    </div>
+
+    <h1 class="title">ไม่มีการเชื่อมต่ออินเทอร์เน็ต</h1>
+
+    <p class="description">
+      ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้<br>
+      กรุณาตรวจสอบการเชื่อมต่อของคุณแล้วลองอีกครั้ง
+    </p>
+
+    <div class="tips">
+      <div class="tips-title">ลองตรวจสอบ</div>
+      <div class="tip-item">สาย LAN หรือ Wi-Fi เชื่อมต่ออยู่</div>
+      <div class="tip-item">Router ทำงานปกติ</div>
+      <div class="tip-item">Firewall ไม่ได้บล็อกแอป</div>
+    </div>
+
+    <button class="retry-btn" onclick="retryConnection()">
+      <span class="spinner"></span>
+      ลองใหม่อีกครั้ง
+    </button>
+  </div>
+
+  <div class="footer">SHOP INVENTORY — OFFLINE</div>
+
+  <script>
+    function retryConnection() {
+      const btn = document.querySelector('.retry-btn');
+      btn.classList.add('loading');
+      btn.innerHTML = '<span class="spinner" style="display:inline-block"></span> กำลังเชื่อมต่อ...';
+      
+      // Send message to Electron main process to retry
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    }
+
+    // Auto-retry every 15 seconds
+    setInterval(() => {
+      fetch('https://shop-inventory.napatdev.com', { mode: 'no-cors', cache: 'no-store' })
+        .then(() => { window.location.reload(); })
+        .catch(() => {});
+    }, 15000);
+  </script>
+</body>
+</html>

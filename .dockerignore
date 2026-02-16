@@ -1,0 +1,35 @@
+# Dependencies (will be installed inside container)
+node_modules
+
+# Build output
+.next
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+
+# Environment files (use docker-compose env instead)
+.env
+.env.local
+.env.production
+
+# Documentation
+docs
+*.md
+*.pdf
+Diagram.pdf
+
+# Debug files
+debug-*.ts
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Test files
+vitest.config.ts
+tsconfig.tsbuildinfo

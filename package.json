@@ -2,6 +2,7 @@
   "name": "shop-inventory",
   "version": "0.1.0",
   "private": true,
+  "main": "electron/main.js",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -15,7 +16,10 @@
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
-    "db:migrate-rbac": "tsx prisma/scripts/migrate-to-rbac.ts"
+    "db:migrate-rbac": "tsx prisma/scripts/migrate-to-rbac.ts",
+    "electron:dev": "electron .",
+    "electron:build": "electron-builder --win",
+    "electron:pack": "electron-builder --win --dir"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.7.4",
@@ -71,6 +75,8 @@
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^5.1.3",
     "autoprefixer": "^10.4.20",
+    "electron": "^40.4.1",
+    "electron-builder": "^26.7.0",
     "eslint": "^8.57.0",
     "eslint-config-next": "^14.2.21",
     "jsdom": "^28.0.0",
