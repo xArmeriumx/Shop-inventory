@@ -59,6 +59,11 @@ const DOC_TYPE_CONFIG: Record<DocumentType, {
     description: 'ใบจัดส่งสินค้า, ใบนำส่ง',
     icon: <FileText className="h-5 w-5" />,
   },
+  sale: {
+    title: 'สแกนใบขาย',
+    description: 'ใบแจ้งหนี้ขาย, แชทลูกค้า, สลิปโอน, Order Online',
+    icon: <Receipt className="h-5 w-5" />,
+  },
 };
 
 export interface DocumentScannerProps {

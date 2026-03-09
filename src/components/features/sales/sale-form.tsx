@@ -12,10 +12,11 @@ import { createSale } from '@/actions/sales';
 import { getProductsForSelect } from '@/actions/products';
 import { getCustomersForSelect } from '@/actions/customers';
 import { formatCurrency } from '@/lib/formatters';
-import { Plus, Trash2, ScanBarcode, Tag, Percent } from 'lucide-react';
+import { Plus, Trash2, ScanBarcode, Tag, Percent, Sparkles } from 'lucide-react';
 import { CustomerCombobox } from '@/components/features/customers/customer-combobox';
 import { FileUpload } from '@/components/ui/file-upload';
 import { usePermissions } from '@/hooks/use-permissions';
+import { SaleScannerButton, type SaleScanResult } from './sale-scanner-button';
 
 interface Product {
   id: string;
@@ -56,6 +57,9 @@ export function SaleForm() {
   const [showDiscount, setShowDiscount] = useState(false);
   const [discountType, setDiscountType] = useState<'PERCENT' | 'FIXED'>('FIXED');
   const [discountValue, setDiscountValue] = useState<number | string>(0);
+
+  // AI autofill tracking
+  const [aiFilled, setAiFilled] = useState<Set<string>>(new Set());
 
   // Load products and customers
   useEffect(() => {
@@ -235,6 +239,94 @@ export function SaleForm() {
     }
   };
 
+  // ── AI Scan autofill (context-aware by sourceType) ──
+  const handleScanResult = (result: SaleScanResult) => {
+    const filled = new Set<string>();
+
+    // ── Payment Slip: date/time only ──────────────────
+    if (result.sourceType === 'payment_slip') {
+      if (result.date) {
+        setIsBackdated(true);
+        const datetime = result.time ? `${result.date}T${result.time}` : `${result.date}T00:00`;
+        setDate(datetime);
+        filled.add('date');
+      }
+      if (result.senderName && !selectedCustomer) {
+        setSelectedCustomer(result.senderName);
+        setIsNewCustomer(true);
+        filled.add('customer');
+      }
+      setAiFilled(filled);
+      return;
+    }
+
+    // ── Date & Time ───────────────────────────────────
+    if (result.date) {
+      setIsBackdated(true);
+      const datetime = result.time ? `${result.date}T${result.time}` : `${result.date}T00:00`;
+      setDate(datetime);
+      filled.add('date');
+    }
+
+    // ── Customer info ─────────────────────────────────
+    if (result.customerName) {
+      setSelectedCustomer(result.customerName);
+      setIsNewCustomer(true);
+      filled.add('customer');
+    }
+
+    if (result.customerAddress) {
+      setCustomerAddress(result.customerAddress);
+      setShowAddress(true);
+      filled.add('customerAddress');
+    }
+
+    // ── Items: invoice/order only (NOT chat — user types items themselves) ──
+    const shouldFillItems =
+      result.sourceType !== 'chat_screenshot' &&
+      Array.isArray(result.items) &&
+      result.items.length > 0;
+
+    if (shouldFillItems) {
+      const newItems: SaleItem[] = result.items.map((scannedItem) => {
+        const matched = products.find((p) =>
+          (scannedItem.sku && p.sku && p.sku.toLowerCase() === scannedItem.sku.toLowerCase()) ||
+          p.name.toLowerCase().includes(scannedItem.name.toLowerCase()) ||
+          scannedItem.name.toLowerCase().includes(p.name.toLowerCase())
+        );
+
+        if (matched) {
+          return {
+            productId: matched.id,
+            product: matched,
+            quantity: scannedItem.quantity,
+            salePrice: scannedItem.unitPrice || matched.salePrice,
+            discountAmount: 0,
+          };
+        }
+
+        return {
+          productId: '',
+          quantity: scannedItem.quantity,
+          salePrice: scannedItem.unitPrice,
+          discountAmount: 0,
+        };
+      });
+
+      const validItems = newItems.filter((i) => i.productId || Number(i.salePrice) > 0);
+      if (validItems.length > 0) {
+        setItems(validItems);
+        filled.add('items');
+      }
+    }
+
+    setAiFilled(filled);
+  };
+
+  // AI green-ring class helper
+  const aiFieldClass = (field: string, base: string) =>
+    aiFilled.has(field) ? `${base} ring-2 ring-emerald-400/60 bg-emerald-50/40 dark:bg-emerald-950/20` : base;
+
   const { totalAmount, totalCost, profit, billDiscountAmount, netAmount } = calculateTotals();
 
   return (
@@ -381,10 +473,18 @@ export function SaleForm() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">รายการสินค้า</CardTitle>
-            <Button type="button" size="sm" onClick={handleAddItem}>
-              <Plus className="mr-1 h-4 w-4" />
-              เพิ่มรายการ
-            </Button>
+            <div className="flex items-center gap-2">
+              <SaleScannerButton
+                onScanResult={handleScanResult}
+                variant="outline"
+                size="sm"
+                className="border-purple-200 text-purple-700 hover:bg-purple-50 dark:border-purple-800 dark:text-purple-400 dark:hover:bg-purple-950/20"
+              />
+              <Button type="button" size="sm" onClick={handleAddItem}>
+                <Plus className="mr-1 h-4 w-4" />
+                เพิ่มรายการ
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">

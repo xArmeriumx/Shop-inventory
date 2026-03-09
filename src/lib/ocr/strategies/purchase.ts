@@ -1,6 +1,16 @@
 /**
- * Purchase Strategy - For purchase orders/invoices (ใบสั่งซื้อ/ใบส่งสินค้า)
- * Examples: SAGASONIC, supplier invoices, wholesale orders
+ * Purchase Strategy — Context-Aware Document Analyzer
+ *
+ * รองรับทุกประเภทภาพที่เกี่ยวกับการสั่งซื้อ:
+ *   1. ใบสั่งซื้อ/ใบส่งสินค้าจากซัพพลายเออร์ (SAGASONIC, ผู้จำหน่าย)
+ *   2. Screenshot แชท LINE/Facebook คุยกับซัพพลายเออร์ (จับราคา/รายการสั่ง)
+ *   3. สลิปโอนเงินค่าสินค้า → จับวันที่/เวลาชำระ
+ *   4. Screenshot platform ซัพพลายเออร์ (Alibaba, แพลตฟอร์ม B2B)
+ *
+ * Philosophy:
+ *   - AI ดูบริบท → ตัดสินใจว่าจะ extract อะไร
+ *   - ข้อมูลที่มั่นใจ: supplier, date, total, document number → autofill
+ *   - รายการสินค้า: AI อ่านมาให้แต่ USER ต้องยืนยัน (ตรวจทาน)
  */
 
 import { OCRStrategy, DocumentType } from './base';
@@ -9,135 +19,187 @@ export class PurchaseStrategy implements OCRStrategy {
   documentType: DocumentType = 'purchase';
 
   getPrompt(): string {
-    return `คุณเป็นผู้เชี่ยวชาญอ่านใบสั่งซื้อ/ใบส่งสินค้าไทย วิเคราะห์ภาพและตอบเป็น JSON
+    return `คุณเป็น Expert Thai Purchase Document AI — อ่านเอกสารการจัดซื้อได้ทุกรูปแบบ
 
-═══════════════════════════════
-⚠️ กฎสำคัญ
-═══════════════════════════════
-1. ชื่อสินค้า: ต้องอ่านให้ครบทั้งภาษาไทย/อังกฤษ/จีน (ห้ามว่าง!)
-2. รหัสสินค้า (code): อ่านจากคอลัมน์แรก เช่น SA11298, SA10060
-3. รุ่น (model): อ่านจากคอลัมน์ถัดไป เช่น JL-301X6, SA-807Q
-4. คุณสมบัติ (specs): สี, ขนาด เช่น Red, Yellow, 12V20AH
-5. วันที่: แปลง พ.ศ.→ค.ศ. (2568→2025, 2569→2026)
+═══════════════════════════════════════════════════
+📸 ระบุประเภทภาพก่อนเสมอ ("sourceType")
+═══════════════════════════════════════════════════
 
-═══════════════════════════════
-📋 ตัวอย่าง SAGASONIC ใบสั่งซื้อ
-═══════════════════════════════
-ถ้าเห็น:
-"SAGASONIC
-销售发货_การขายและการจัดส่ง
-单号No:S18742                     日期วันที่:2026-01-12
-客户ลูกค้า:30KPE-H43หนองคาย-SPMเอส.พีมอเตอร์ไบค์(อ.รัตนวาปี)
-业务รหัส: 30KPE-HotRock (M)
+"purchase_invoice"  — ใบสั่งซื้อ/ใบส่งสินค้าจากซัพพลายเออร์ (เช่น SAGASONIC, supplier invoice)
+"payment_slip"     — สลิปโอนเงินค่าสินค้า → ดึงวันที่/เวลา/ยอดชำระเท่านั้น
+"chat_screenshot"  — แชท LINE/FB คุยกับซัพพลายเออร์ → ดึงชื่อ/เบอร์/ราคา/รายการที่ตกลง
+"platform_screenshot" — Alibaba, แพลตฟอร์ม B2B order page
+"handwritten_note" — บันทึกมือ รายการสั่งซื้อ
 
-| code    | 型号แบบ        | 特征คุณสมบัติ      | 单价หน่วย | 单位 | 数量 | 金额จำนวนเงิน |
-|---------|---------------|-------------------|----------|------|------|------------|
-| SA11298 | JL-301X6      | 红色-Red          | 8900.00B | PCS  | 1    | 8900B      |
-| SA11345 | JL-301X6      | 深蓝色-Dark blue  | 8900.00B | PCS  | 1    | 8900B      |
-| SA10060 | SA-807Q       | Red               | 5500.00B | PCS  | 1    | 5500B      |
-| SA10055 | SA-807Q       | Yellow            | 5500.00B | PCS  | 1    | 5500B      |
-| SA10069 | SA-807Q       | Gray              | 5500.00B | PCS  | 1    | 5500B      |
-| SA10525 | CWW-12V20AH   | 无                | 650.00B  | PCS  | 8    | 5200B      |
-| SA10567 | TN-12V15AH    | Orange            | 450.00B  | PCS  | 12   | 5400B      |
+═══════════════════════════════════════════════════
+🧠 Logic ตามประเภทภาพ
+═══════════════════════════════════════════════════
 
-应收ลูกหนี้:46500B   费用ค่าใช้จ่าน: 1600   合计รวม:46500B"
+【purchase_invoice — ใบสั่งซื้อ/ใบส่งสินค้า】
+• vendor = ชื่อบริษัท/ผู้จำหน่าย (Logo หรือหัวเอกสาร)
+• documentNumber = เลขที่เอกสาร (S18742, INV-001 ฯลฯ)
+• date = วันที่ในเอกสาร
+• items = อ่านทุกรายการจากตาราง (code, model, specs, quantity, unitPrice, total)
+• total = ยอดรวมสุทธิ
+• shippingFee = ค่าขนส่ง (ถ้ามี)
 
-ตอบ:
-{
-  "vendor":"SAGASONIC",
-  "documentType":"purchase_order",
-  "documentNumber":"S18742",
-  "date":"2026-01-12",
-  "customer":{
-    "code":"30KPE-H43",
-    "name":"หนองคาย-SPMเอส.พีมอเตอร์ไบค์",
-    "branch":"อ.รัตนวาปี"
-  },
-  "salesCode":"30KPE-HotRock (M)",
-  "items":[
-    {"code":"SA11298","model":"JL-301X6","name":"JL-301X6 แบตเตอรี่","specs":"红色-Red","unit":"PCS","quantity":1,"unitPrice":8900,"total":8900},
-    {"code":"SA11345","model":"JL-301X6","name":"JL-301X6 แบตเตอรี่","specs":"深蓝色-Dark blue","unit":"PCS","quantity":1,"unitPrice":8900,"total":8900},
-    {"code":"SA10060","model":"SA-807Q","name":"SA-807Q แบตเตอรี่","specs":"Red","unit":"PCS","quantity":1,"unitPrice":5500,"total":5500},
-    {"code":"SA10055","model":"SA-807Q","name":"SA-807Q แบตเตอรี่","specs":"Yellow","unit":"PCS","quantity":1,"unitPrice":5500,"total":5500},
-    {"code":"SA10069","model":"SA-807Q","name":"SA-807Q แบตเตอรี่","specs":"Gray","unit":"PCS","quantity":1,"unitPrice":5500,"total":5500},
-    {"code":"SA10525","model":"CWW-12V20AH(6-DZF-20)","name":"แบตเตอรี่12V20AH","specs":"无","unit":"PCS","quantity":8,"unitPrice":650,"total":5200},
-    {"code":"SA10567","model":"TN-12V15AH","name":"แบตเตอรี่12V15AH","specs":"Orange","unit":"PCS","quantity":12,"unitPrice":450,"total":5400}
-  ],
-  "subtotal":46500,
-  "shippingFee":1600,
-  "discount":0,
-  "total":46500,
-  "amountReceivable":46500,
-  "expenses":1600,
-  "paymentStatus":"pending",
-  "confidence":95
-}
+【payment_slip — สลิปโอนเงิน】
+⚡ ต้องการแค่:
+• date = วันที่โอน (YYYY-MM-DD)
+• time = เวลาโอน (HH:MM)
+• total = ยอดโอน
+• vendor = ชื่อผู้รับเงิน (ซัพพลายเออร์)
+• paymentStatus = "paid"
+• items = [] (ไม่ต้องอ่านรายการ เพราะสลิปไม่มี)
 
-═══════════════════════════════
-📋 ตัวอย่าง 2 (S14217)
-═══════════════════════════════
-ถ้าเห็น: "S14217, 日期:2025-10-10, SA10532 36V12-28A 充电器, SA10533 48V12-28A 充电器"
+【chat_screenshot — แชทคุยกับซัพพลายเออร์】
+⚡ ต้องการ:
+• vendor = ชื่อซัพพลายเออร์ (จากชื่อแชท หรือที่แนะนำตัว)
+• supplierPhone = เบอร์โทรซัพพลายเออร์ (ถ้ามีในแชท)
+• date = วันที่แชท (ถ้าเห็น timestamp)
+• items = รายการที่ตกลงซื้อขาย (ชื่อสินค้า, จำนวน, ราคาต่อชิ้น)
+  → อ่านจากข้อความในแชทที่มีตัวเลขราคา เช่น "แบต 12V20AH x5 ตัว ตัวละ 650"
+• total = ยอดรวม (ถ้าระบุในแชท)
+• notes = ข้อความสำคัญอื่นๆ เช่น "ส่งพรุ่งนี้", "โอนก่อนส่ง"
+
+═══════════════════════════════════════════════════
+📋 ตัวอย่าง 1: ใบส่งสินค้า SAGASONIC
+═══════════════════════════════════════════════════
+ภาพ:
+"SAGASONIC 销售发货_การขายและการจัดส่ง
+S18742  วันที่: 2026-01-12
+ลูกค้า: หนองคาย-SPM (อ.รัตนวาปี)
+SA11298 | JL-301X6 | Red    | 1 PCS | 8,900 B
+SA10525 | CWW-12V20AH | -   | 8 PCS | 650 B | 5,200 B
+รวม: 46,500 B  ค่าส่ง: 1,600 B"
 
 ตอบ:
 {
-  "documentNumber":"S14217",
-  "date":"2025-10-10",
-  "items":[
-    {"code":"SA10532","model":"36V12-28A","name":"充电器 ม้าดำ (Charger)","specs":"无","quantity":2,"unitPrice":260,"total":520},
-    {"code":"SA10533","model":"48V12-28A","name":"充电器 ม้าดำ (Charger)","specs":"无","quantity":2,"unitPrice":265,"total":530}
+  "sourceType": "purchase_invoice",
+  "vendor": "SAGASONIC",
+  "documentNumber": "S18742",
+  "date": "2026-01-12",
+  "time": null,
+  "supplierPhone": null,
+  "items": [
+    {"code": "SA11298", "model": "JL-301X6", "name": "JL-301X6", "specs": "Red", "quantity": 1, "unitPrice": 8900, "total": 8900},
+    {"code": "SA10525", "model": "CWW-12V20AH", "name": "แบตเตอรี่ 12V20AH", "specs": null, "quantity": 8, "unitPrice": 650, "total": 5200}
   ],
-  "total":1100
+  "subtotal": 46500,
+  "shippingFee": 1600,
+  "discount": 0,
+  "total": 46500,
+  "paymentStatus": "pending",
+  "confidence": 95
 }
 
-═══════════════════════════════
-📤 JSON Schema
-═══════════════════════════════
+═══════════════════════════════════════════════════
+📋 ตัวอย่าง 2: สลิปโอนเงินค่าสินค้า
+═══════════════════════════════════════════════════
+ภาพ:
+"KBank โอนเงินสำเร็จ
+วันที่ 5 มี.ค. 69  เวลา 09:43
+จาก: นาย สมชาย ร้านมอเตอร์
+ไปยัง: บริษัท SAGASONIC
+จำนวน: 46,500 บาท"
+
+ตอบ:
 {
-  "vendor":"ชื่อบริษัท/ผู้จำหน่าย",
-  "documentType":"purchase_order|delivery_note|invoice",
-  "documentNumber":"เลขที่เอกสาร (S18742)",
-  "date":"YYYY-MM-DD",
-  "customer":{
-    "code":"รหัสลูกค้า",
-    "name":"ชื่อลูกค้า",
-    "branch":"สาขา"
-  },
-  "salesCode":"รหัสพนักงานขาย",
-  "items":[{
-    "code":"รหัสสินค้า (SA11298)",
-    "model":"รุ่น (JL-301X6)",
-    "name":"ชื่อสินค้า (ห้ามว่าง!)",
-    "specs":"คุณสมบัติ/สี",
-    "unit":"หน่วย (PCS)",
-    "quantity":1,
-    "unitPrice":0,
-    "total":0
+  "sourceType": "payment_slip",
+  "vendor": "SAGASONIC",
+  "date": "2026-03-05",
+  "time": "09:43",
+  "items": [],
+  "total": 46500,
+  "paymentStatus": "paid",
+  "confidence": 90
+}
+
+═══════════════════════════════════════════════════
+📋 ตัวอย่าง 3: แชท LINE คุยกับซัพพลายเออร์
+═══════════════════════════════════════════════════
+ภาพ:
+"[LINE — SAGA อาร์ม 0812345678]
+SAGA อาร์ม: ออเดอร์รับแล้วนะครับ
+SAGA อาร์ม: รายการวันนี้ 5 มี.ค.
+SAGA อาร์ม: แบต 12V20AH x 10 ชิ้น ราคา 650/ชิ้น = 6,500
+SAGA อาร์ม: ที่ชาร์จ 48V x 5 ชิ้น ราคา 265/ชิ้น = 1,325
+SAGA อาร์ม: รวม 7,825 บาท โอนก่อนส่งนะครับ"
+
+ตอบ:
+{
+  "sourceType": "chat_screenshot",
+  "vendor": "SAGA อาร์ม",
+  "supplierPhone": "0812345678",
+  "date": "2026-03-05",
+  "time": null,
+  "items": [
+    {"name": "แบต 12V20AH", "quantity": 10, "unitPrice": 650, "total": 6500},
+    {"name": "ที่ชาร์จ 48V", "quantity": 5, "unitPrice": 265, "total": 1325}
+  ],
+  "total": 7825,
+  "paymentStatus": "pending",
+  "notes": "โอนก่อนส่ง",
+  "confidence": 82
+}
+
+═══════════════════════════════════════════════════
+📤 JSON Schema (ตอบแค่นี้เท่านั้น)
+═══════════════════════════════════════════════════
+{
+  "sourceType": "purchase_invoice|payment_slip|chat_screenshot|platform_screenshot|handwritten_note",
+  "vendor": "ชื่อซัพพลายเออร์/ผู้จำหน่าย",
+  "supplierPhone": "เบอร์โทรซัพพลายเออร์ (ถ้ามี)",
+  "documentNumber": "เลขที่เอกสาร (ถ้ามี)",
+  "date": "YYYY-MM-DD",
+  "time": "HH:MM หรือ null",
+  "items": [{
+    "code": "รหัสสินค้า (ถ้ามี)",
+    "model": "รุ่น (ถ้ามี)",
+    "name": "ชื่อสินค้า (ห้ามว่าง!)",
+    "specs": "สี/คุณสมบัติ (ถ้ามี)",
+    "unit": "หน่วย (ถ้ามี)",
+    "quantity": 1,
+    "unitPrice": 0,
+    "total": 0
   }],
-  "subtotal":0,
-  "shippingFee":0,
-  "discount":0,
-  "total":0,
-  "amountReceivable":0,
-  "expenses":0,
-  "paymentStatus":"paid|pending|partial",
-  "notes":"หมายเหตุ",
-  "confidence":0-100
+  "subtotal": 0,
+  "shippingFee": 0,
+  "discount": 0,
+  "total": 0,
+  "paymentStatus": "paid|pending|partial",
+  "notes": "หมายเหตุ (ถ้ามี)",
+  "confidence": 0
 }`;
   }
 
   validate(data: any): boolean {
-    return !!(data.vendor || data.documentNumber) && data.items?.length > 0;
+    if (!data || typeof data !== 'object') return false;
+    // For payment slips: just vendor + total is enough
+    if (data.sourceType === 'payment_slip') {
+      return !!(data.vendor || data.total > 0);
+    }
+    // For invoices/chat: need vendor or document number
+    return !!(data.vendor || data.documentNumber);
   }
 
   getDefaults(): Partial<any> {
     return {
+      sourceType: 'purchase_invoice',
       vendor: '',
+      supplierPhone: null,
       documentType: 'purchase_order',
-      documentNumber: '',
+      documentNumber: null,
       date: new Date().toISOString().split('T')[0],
+      time: null,
       items: [],
+      subtotal: 0,
+      shippingFee: 0,
+      discount: 0,
       total: 0,
       paymentStatus: 'pending',
+      notes: null,
+      confidence: 0,
     };
   }
 }
