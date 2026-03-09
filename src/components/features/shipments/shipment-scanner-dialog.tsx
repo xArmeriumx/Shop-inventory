@@ -62,6 +62,42 @@ const SOURCE_TYPE_INFO: Record<string, { icon: React.ElementType; label: string;
   tracking_app:   { icon: Truck,         label: 'App ติดตามพัสดุ',  color: 'text-teal-600' },
 };
 
+// ── Normalize AI provider output to exact form Select values ──
+const PROVIDER_MAP: Record<string, string> = {
+  flash: 'Flash Express',
+  kerry: 'Kerry Express',
+  'j&t': 'J&T Express',
+  jt: 'J&T Express',
+  jnt: 'J&T Express',
+  ems: 'Thailand Post',
+  'ไปรษณีย์': 'Thailand Post',
+  'ไปรษณีย์ไทย': 'Thailand Post',
+  'thailand post': 'Thailand Post',
+  thaipost: 'Thailand Post',
+  dhl: 'DHL',
+  ninja: 'Ninja Van',
+  'ninja van': 'Ninja Van',
+  best: 'Best Express',
+  dee: 'Dee Express',
+  shopee: 'Shopee Express',
+  lazada: 'Lazada Logistics',
+};
+
+function normalizeProvider(raw: string): string {
+  if (!raw) return '';
+  const lower = raw.toLowerCase().trim();
+  // Direct match
+  if (PROVIDER_MAP[lower]) return PROVIDER_MAP[lower];
+  // Partial match
+  for (const [key, value] of Object.entries(PROVIDER_MAP)) {
+    if (lower.includes(key) || key.includes(lower)) return value;
+  }
+  // Already valid? (e.g. "Flash Express" passed through)
+  const validValues = ['Flash Express', 'Kerry Express', 'J&T Express', 'Thailand Post', 'DHL', 'Ninja Van', 'Best Express', 'Dee Express'];
+  if (validValues.includes(raw)) return raw;
+  return raw; // Return as-is for unknown providers
+}
+
 interface SaleOption {
   id: string;
   invoiceNumber: string;
@@ -172,10 +208,10 @@ export function ShipmentScannerDialog({
       setSourceType(result.data.sourceType || 'courier_receipt');
       setPlatform(result.data.platform || null);
 
-      // Map to OcrParcel
+      // Map to OcrParcel with normalized provider names
       const parcels: OcrParcel[] = result.data.parcels.map((p: any) => ({
         trackingNumber: p.trackingNumber?.trim() || '',
-        shippingProvider: p.shippingProvider || '',
+        shippingProvider: normalizeProvider(p.shippingProvider || ''),
         recipientName: p.recipientName || '',
         recipientPhone: p.recipientPhone || null,
         province: p.province || null,

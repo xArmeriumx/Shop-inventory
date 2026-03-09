@@ -189,14 +189,18 @@ export function SaleScannerButton({
     }
   };
 
+  // Maps AI output to form schema enum: CASH | TRANSFER | CREDIT
   const normalizePaymentMethod = (raw?: string | null): string | null => {
     if (!raw) return null;
     const u = raw.toUpperCase();
     if (u.includes('CASH') || u.includes('เงินสด')) return 'CASH';
-    if (u.includes('TRANSFER') || u.includes('โอน') || u.includes('BANK')) return 'BANK_TRANSFER';
-    if (u.includes('PROMPTPAY') || u.includes('พร้อมเพย์')) return 'PROMPTPAY';
-    if (u.includes('QR')) return 'QR_CODE';
-    if (u.includes('CARD') || u.includes('บัตร')) return 'CREDIT_CARD';
+    // All electronic transfers → TRANSFER
+    if (u.includes('TRANSFER') || u.includes('โอน') || u.includes('BANK') ||
+        u.includes('PROMPTPAY') || u.includes('พร้อมเพย์') || u.includes('QR') ||
+        u.includes('PAY')) return 'TRANSFER';
+    // Credit card / installment → CREDIT
+    if (u.includes('CREDIT') || u.includes('CARD') || u.includes('บัตร') ||
+        u.includes('เครดิต') || u.includes('ผ่อน')) return 'CREDIT';
     return null;
   };
 

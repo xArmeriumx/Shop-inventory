@@ -47,6 +47,10 @@ export function PurchaseForm() {
   const [isBackdated, setIsBackdated] = useState(false);
   const [date, setDate] = useState<string>(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
   const [supplierId, setSupplierId] = useState<string>(''); // Supplier selection
+  // Payment method (controlled for AI autofill)
+  const [paymentMethod, setPaymentMethod] = useState<string>('');
+  // AI autofill tracking
+  const [aiFilled, setAiFilled] = useState<Set<string>>(new Set());
   const [items, setItems] = useState<PurchaseItem[]>([
     { productId: '', quantity: 1, costPrice: 0 },
   ]);
@@ -79,6 +83,13 @@ export function PurchaseForm() {
     if (result.date) {
       setIsBackdated(true);
       setDate(result.date + 'T00:00');
+    }
+    
+    // Auto-set payment method when slip detected (from raw OCR data passed through)
+    const rawResult = result as any;
+    if (rawResult.paymentStatus === 'paid' || rawResult.sourceType === 'payment_slip') {
+      setPaymentMethod('TRANSFER');
+      setAiFilled((prev) => new Set(prev).add('paymentMethod'));
     }
     
     // Set items from review result (using fresh products)
@@ -228,7 +239,7 @@ export function PurchaseForm() {
     const formData = new FormData(e.currentTarget);
     const data = {
       supplierId: supplierId || null,
-      paymentMethod: formData.get('paymentMethod') as any,
+      paymentMethod: paymentMethod || (formData.get('paymentMethod') as any),
       notes: (formData.get('notes') as string) || null,
       receiptUrl: receiptUrl,
       date: isBackdated ? new Date(date).toISOString() : undefined,
@@ -330,7 +341,12 @@ export function PurchaseForm() {
                 id="paymentMethod"
                 name="paymentMethod"
                 required
-                className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value)}
+                className={aiFilled.has('paymentMethod')
+                  ? 'w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm ring-2 ring-emerald-400/60 bg-emerald-50/40 dark:bg-emerald-950/20'
+                  : 'w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm'
+                }
               >
                 <option value="">เลือกวิธีชำระเงิน</option>
                 {PAYMENT_METHODS.map((method) => (

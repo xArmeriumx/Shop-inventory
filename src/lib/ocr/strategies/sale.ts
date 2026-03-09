@@ -47,7 +47,7 @@ export class SaleStrategy implements OCRStrategy {
 • time = เวลาโอน (HH:MM) ← สำคัญมาก (ยืนยันเวลาชำระ)
 • total = ยอดโอน
 • senderName = ชื่อผู้โอน (ลูกค้า)
-• paymentMethod = "BANK_TRANSFER"
+• paymentMethod = "TRANSFER"
 • items = [] (ไม่ต้องอ่านรายการสินค้า)
 
 【chat_screenshot — แชทลูกค้า ← สำคัญที่สุด】
@@ -92,7 +92,7 @@ export class SaleStrategy implements OCRStrategy {
   "date": "2026-02-05",
   "time": "14:32",
   "total": 8900,
-  "paymentMethod": "BANK_TRANSFER",
+  "paymentMethod": "TRANSFER",
   "items": [],
   "confidence": 92
 }
@@ -122,7 +122,7 @@ export class SaleStrategy implements OCRStrategy {
     {"name": "แบต 12V20AH", "quantity": 2, "unitPrice": 650, "total": 1300}
   ],
   "total": 1300,
-  "paymentMethod": "BANK_TRANSFER",
+  "paymentMethod": "TRANSFER",
   "notes": "โอนเงินแล้ว",
   "confidence": 88
 }
@@ -182,7 +182,7 @@ export class SaleStrategy implements OCRStrategy {
     {"name": "แบตเตอรี่มอไซค์ 12V9AH", "quantity": 1, "unitPrice": 450, "total": 450}
   ],
   "total": 450,
-  "paymentMethod": "QR_CODE",
+  "paymentMethod": "TRANSFER",
   "confidence": 90
 }
 
@@ -209,7 +209,7 @@ export class SaleStrategy implements OCRStrategy {
   "subtotal": 0,
   "discount": 0,
   "total": 0,
-  "paymentMethod": "CASH|BANK_TRANSFER|QR_CODE|PROMPTPAY|CREDIT_CARD|null",
+  "paymentMethod": "CASH|TRANSFER|CREDIT|null (⚠️ ห้ามใช้ค่าอื่น!)",
   "notes": "ข้อความสำคัญ (ถ้ามี)",
   "confidence": 0
 }`;

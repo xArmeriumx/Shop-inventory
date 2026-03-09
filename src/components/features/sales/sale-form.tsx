@@ -57,6 +57,8 @@ export function SaleForm() {
   const [showDiscount, setShowDiscount] = useState(false);
   const [discountType, setDiscountType] = useState<'PERCENT' | 'FIXED'>('FIXED');
   const [discountValue, setDiscountValue] = useState<number | string>(0);
+  // Payment method (controlled for AI autofill)
+  const [paymentMethod, setPaymentMethod] = useState<string>('');
 
   // AI autofill tracking
   const [aiFilled, setAiFilled] = useState<Set<string>>(new Set());
@@ -154,7 +156,7 @@ export function SaleForm() {
       customerId: (!isNewCustomer && selectedCustomer) ? selectedCustomer : null,
       customerName: isNewCustomer ? selectedCustomer : null,
       customerAddress: showAddress ? customerAddress : null,
-      paymentMethod: formData.get('paymentMethod') as any,
+      paymentMethod: paymentMethod || (formData.get('paymentMethod') as any),
       notes: (formData.get('notes') as string) || null,
       receiptUrl,
       date: isBackdated ? new Date(date).toISOString() : undefined,
@@ -256,6 +258,9 @@ export function SaleForm() {
         setIsNewCustomer(true);
         filled.add('customer');
       }
+      // Payment slip → always TRANSFER
+      setPaymentMethod('TRANSFER');
+      filled.add('paymentMethod');
       setAiFilled(filled);
       return;
     }
@@ -279,6 +284,12 @@ export function SaleForm() {
       setCustomerAddress(result.customerAddress);
       setShowAddress(true);
       filled.add('customerAddress');
+    }
+
+    // ── Payment method ───────────────────────────────
+    if (result.paymentMethod) {
+      setPaymentMethod(result.paymentMethod);
+      filled.add('paymentMethod');
     }
 
     // ── Items: invoice/order only (NOT chat — user types items themselves) ──
@@ -440,7 +451,9 @@ export function SaleForm() {
                 id="paymentMethod"
                 name="paymentMethod"
                 required
-                className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value)}
+                className={aiFieldClass('paymentMethod', 'w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm')}
               >
                 <option value="">เลือกวิธีชำระเงิน</option>
                 {PAYMENT_METHODS.map((method) => (
