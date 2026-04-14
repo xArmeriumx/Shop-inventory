@@ -4,7 +4,8 @@ import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/auth-guard';
 import { logger } from '@/lib/logger';
 import { expenseSchema, type ExpenseInput } from '@/schemas/expense';
-import { FinanceService, GetFinanceParams, ServiceError } from '@/services';
+export type { GetFinanceParams } from '@/services';
+import { FinanceService, type GetFinanceParams, ServiceError } from '@/services';
 
 export async function getExpenses(params: GetFinanceParams = {}) {
   const ctx = await requirePermission('EXPENSE_VIEW');

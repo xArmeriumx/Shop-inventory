@@ -101,7 +101,7 @@ export function PermissionProvider({ children }: PermissionProviderProps) {
    * Initialize state from session JWT if available
    * This prevents an unnecessary initial fetch since JWT already contains permissions
    */
-  const [permissionData, setPermissionData] = useState<PermissionData>(() => {
+  const [permissionData, setPermissionData] = useState<PermissionData | null>(() => {
     if (!session?.user) return null;
     return {
       shopId: session.user.shopId as string,

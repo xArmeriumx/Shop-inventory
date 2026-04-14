@@ -1,7 +1,8 @@
 'use server';
 
 import { requirePermission } from '@/lib/auth-guard';
-import { SystemService, SystemMetrics } from '@/services';
+export type { SystemMetrics } from '@/services';
+import { SystemService, type SystemMetrics } from '@/services';
 
 export async function getSystemMetrics(): Promise<SystemMetrics> {
   // Security check: Only Shop Owners/Admins (who have shop settings permissions) can view system stats

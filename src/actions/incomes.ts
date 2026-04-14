@@ -4,7 +4,8 @@ import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/auth-guard';
 import { logger } from '@/lib/logger';
 import { incomeSchema, type IncomeInput } from '@/schemas/income';
-import { FinanceService, GetFinanceParams, ServiceError } from '@/services';
+export type { GetFinanceParams } from '@/services';
+import { FinanceService, type GetFinanceParams, ServiceError } from '@/services';
 
 export async function getIncomes(params: GetFinanceParams = {}) {
   const ctx = await requirePermission('INCOME_VIEW');

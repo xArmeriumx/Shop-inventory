@@ -4,7 +4,8 @@ import { revalidatePath } from 'next/cache';
 import { shipmentSchema, updateShipmentSchema, updateShipmentStatusSchema } from '@/schemas/shipment';
 import type { ShipmentInput, UpdateShipmentInput, UpdateShipmentStatusInput } from '@/schemas/shipment';
 import type { ActionResponse } from '@/types/action-response';
-import { ShipmentService, OcrParcel, ParcelMatch, ServiceError } from '@/services';
+export type { OcrParcel, ParcelMatch } from '@/services';
+import { ShipmentService, type OcrParcel, type ParcelMatch, ServiceError } from '@/services';
 import { requirePermission } from '@/lib/auth-guard';
 import { logger } from '@/lib/logger';
 

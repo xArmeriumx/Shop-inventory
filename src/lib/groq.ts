@@ -1,8 +1,9 @@
 import Groq from 'groq-sdk';
 
 // Initialize Groq client
+// Note: Providing a fallback dummy key to prevent build failures when GROQ_API_KEY is missing
 export const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
+  apiKey: process.env.GROQ_API_KEY || 'none_provided_at_build_time',
 });
 
 // Fast, cheap model for most responses

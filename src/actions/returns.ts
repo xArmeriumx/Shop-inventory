@@ -1,7 +1,6 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth-guard';
 import { z } from 'zod';
 import { ReturnService, ServiceError } from '@/services';

@@ -2,7 +2,8 @@
 
 import { auth } from '@/lib/auth';
 import { logger } from '@/lib/logger';
-import { IamService, PermissionData } from '@/services';
+export type { PermissionData } from '@/services';
+import { IamService, type PermissionData } from '@/services';
 
 export type PermissionVersionData = {
   version: number;

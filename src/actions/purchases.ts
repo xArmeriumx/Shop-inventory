@@ -6,7 +6,8 @@ import { requireAuth, requirePermission, getCurrentUserId } from '@/lib/auth-gua
 import { paginatedQuery, buildSearchFilter, buildDateRangeFilter } from '@/lib/pagination';
 import { purchaseSchema, type PurchaseInput } from '@/schemas/purchase';
 import type { Purchase } from '@prisma/client';
-import { PurchaseService, ServiceError, GetPurchasesParams, CancelPurchaseInput } from '@/services';
+export type { GetPurchasesParams, CancelPurchaseInput } from '@/services';
+import { PurchaseService, ServiceError, type GetPurchasesParams, type CancelPurchaseInput } from '@/services';
 import type { ActionResponse } from '@/types/action-response';
 
 export async function getPurchases(params: GetPurchasesParams = {}) {

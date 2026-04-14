@@ -12,7 +12,8 @@ import { ActionResponse } from '@/types/action-response';
 import { Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { VERSION_CONFLICT_ERROR } from '@/lib/optimistic-lock';
-import { ProductService, ServiceError, GetProductsParams, BatchProductInput, BatchCreateResult } from '@/services';
+export type { BatchProductInput, BatchCreateResult } from '@/services';
+import { ProductService, ServiceError, GetProductsParams, type BatchProductInput, type BatchCreateResult } from '@/services';
 
 //get product (paginated)
 export async function getProducts(params: any = {}) {

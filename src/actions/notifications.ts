@@ -1,6 +1,7 @@
 'use server';
 
-import { NotificationService, requireShop } from '@/services';
+import { requireShop } from '@/lib/auth-guard';
+import { NotificationService } from '@/services';
 
 /**
  * Get notifications for current user/shop

@@ -6,7 +6,8 @@ import { logger } from '@/lib/logger';
 import { customerSchema, type CustomerInput } from '@/schemas/customer';
 import type { Customer } from '@prisma/client';
 import type { ActionResponse } from '@/types/action-response';
-import { CustomerService, GetCustomersParams, ServiceError } from '@/services';
+export type { GetCustomersParams } from '@/services';
+import { CustomerService, type GetCustomersParams, ServiceError } from '@/services';
 
 export async function getCustomers(params: GetCustomersParams = {}) {
   const ctx = await requirePermission('CUSTOMER_VIEW');

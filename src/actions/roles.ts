@@ -4,7 +4,8 @@ import { revalidatePath } from 'next/cache';
 import { requireAuth, requirePermission } from '@/lib/auth-guard';
 import { logger } from '@/lib/logger';
 import type { ActionResponse } from '@/types/action-response';
-import { IamService, RoleInput, ServiceError } from '@/services';
+export type { RoleInput } from '@/services';
+import { IamService, type RoleInput, ServiceError } from '@/services';
 
 export async function getRoles() {
   const ctx = await requirePermission('TEAM_VIEW');

@@ -1,7 +1,6 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { requirePermission, hasPermission } from '@/lib/auth-guard';
 import { paginatedQuery, buildSearchFilter, buildDateRangeFilter } from '@/lib/pagination';
@@ -11,7 +10,6 @@ import type { Sale, SaleItem, Prisma } from '@prisma/client';
 
 import type { ActionResponse } from '@/types/action-response';
 import { money, toNumber, calcSubtotal, calcProfit } from '@/lib/money';
-import { z } from 'zod';
 
 // =============================================================================
 // UTILITIES
@@ -19,7 +17,8 @@ import { z } from 'zod';
 
 
 
-import { StockService, SaleService, ServiceError, GetSalesParams, CancelSaleInput } from '@/services';
+export type { GetSalesParams, CancelSaleInput } from '@/services';
+import { StockService, SaleService, ServiceError, type GetSalesParams, type CancelSaleInput } from '@/services';
 
 // ดึงข้อมูลการขายทั้งหมด (Pagination)
 export async function getSales(params: GetSalesParams = {}) {
