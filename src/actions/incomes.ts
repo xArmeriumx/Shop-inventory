@@ -1,84 +1,27 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth-guard';
 import { logger } from '@/lib/logger';
-import { paginatedQuery, buildSearchFilter, buildDateRangeFilter } from '@/lib/pagination';
 import { incomeSchema, type IncomeInput } from '@/schemas/income';
-import { toNumber } from '@/lib/money';
+import { FinanceService, GetFinanceParams, ServiceError } from '@/services';
 
-interface GetIncomesParams {
-  page?: number;
-  limit?: number;
-  search?: string;
-  category?: string;
-  startDate?: string;
-  endDate?: string;
-}
-
-/**
- * Get incomes (paginated)
- */
-export async function getIncomes(params: GetIncomesParams = {}) {
+export async function getIncomes(params: GetFinanceParams = {}) {
   const ctx = await requirePermission('INCOME_VIEW');
-  const { page = 1, limit = 20, search, category, startDate, endDate } = params;
-
-  // Search filter
-  const searchFilter = buildSearchFilter(search, ['description']);
-  const dateFilter = buildDateRangeFilter(startDate, endDate);
-
-  // Where clause
-  const where = {
-    shopId: ctx.shopId,
-    deletedAt: null,
-    ...(searchFilter && searchFilter),
-    ...(category && { category }),
-    ...(dateFilter && { date: dateFilter }),
-  };
-
-  // Paginated query
-  const result = await paginatedQuery(db.income, {
-    where,
-    page,
-    limit,
-    orderBy: { date: 'desc' },
-  });
-
-  return {
-    ...result,
-    data: result.data.map((income: any) => ({
-      ...income,
-      amount: toNumber(income.amount),
-    })),
-  };
+  return FinanceService.getIncomes(params, { userId: ctx.userId, shopId: ctx.shopId });
 }
 
-/**
- * Get income by id
- */
 export async function getIncome(id: string) {
   const ctx = await requirePermission('INCOME_VIEW');
-
-  const income = await db.income.findFirst({
-    where: { id, shopId: ctx.shopId, deletedAt: null },
-  });
-
-  if (!income) {
-    throw new Error('ไม่พบข้อมูลรายรับ');
+  try {
+    return await FinanceService.getIncomeById(id, { userId: ctx.userId, shopId: ctx.shopId });
+  } catch (error: unknown) {
+    if (error instanceof ServiceError) throw new Error(error.message);
+    throw error;
   }
-
-  return {
-    ...income,
-    amount: Number(income.amount),
-  };
 }
 
-/**
- * Create income
- */
 export async function createIncome(input: IncomeInput) {
-  // RBAC: Require INCOME_CREATE permission
   const ctx = await requirePermission('INCOME_CREATE');
 
   const validated = incomeSchema.safeParse(input);
@@ -87,34 +30,24 @@ export async function createIncome(input: IncomeInput) {
   }
 
   try {
-    const income = await db.income.create({
-      data: {
-        ...validated.data,
-        userId: ctx.userId,
-        shopId: ctx.shopId,
-      },
-    });
-
+    const income = await FinanceService.createIncome(validated.data, { userId: ctx.userId, shopId: ctx.shopId });
     revalidatePath('/incomes');
     revalidatePath('/dashboard');
     return { 
       success: true,
       data: {
         ...income,
-        amount: toNumber(income.amount)
+        amount: Number(income.amount)
       } 
     };
-  } catch (error) {
-    await logger.error('Create income error', error as Error, { path: 'createIncome', userId: ctx.userId });
+  } catch (error: unknown) {
+    const typedError = error as Error;
+    await logger.error('Create income error', typedError, { path: 'createIncome', userId: ctx.userId });
     return { success: false, error: { _form: ['เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง'] } };
   }
 }
 
-/**
- * Update income (edit)
- */
 export async function updateIncome(id: string, input: IncomeInput) {
-  // RBAC: Require INCOME_EDIT permission
   const ctx = await requirePermission('INCOME_EDIT');
 
   const validated = incomeSchema.safeParse(input);
@@ -122,23 +55,8 @@ export async function updateIncome(id: string, input: IncomeInput) {
     return { success: false, error: validated.error.flatten().fieldErrors };
   }
 
-  // Check if income exists and belongs to shop
-  const existing = await db.income.findFirst({
-    where: { id, shopId: ctx.shopId, deletedAt: null },
-  });
-
-  if (!existing) {
-    return { success: false, error: { _form: ['ไม่พบข้อมูลรายรับ'] } };
-  }
-
   try {
-    const income = await db.income.update({
-      where: { id },
-      data: {
-        ...validated.data,
-      },
-    });
-
+    const income = await FinanceService.updateIncome(id, validated.data, { userId: ctx.userId, shopId: ctx.shopId });
     revalidatePath('/incomes');
     revalidatePath(`/incomes/${id}`);
     return { 
@@ -148,67 +66,31 @@ export async function updateIncome(id: string, input: IncomeInput) {
         amount: Number(income.amount)
       } 
     };
-  } catch (error) {
-    await logger.error('Update income error', error as Error, { path: 'updateIncome', userId: ctx.userId, incomeId: id });
+  } catch (error: unknown) {
+    if (error instanceof ServiceError) return { success: false, error: { _form: [error.message] } };
+    const typedError = error as Error;
+    await logger.error('Update income error', typedError, { path: 'updateIncome', userId: ctx.userId, incomeId: id });
     return { success: false, error: { _form: ['เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง'] } };
   }
 }
 
-/**
- * Delete income (soft delete)
- */
 export async function deleteIncome(id: string) {
-  // RBAC: Require INCOME_DELETE permission
   const ctx = await requirePermission('INCOME_DELETE');
 
-  const existing = await db.income.findFirst({
-    where: { id, shopId: ctx.shopId, deletedAt: null },
-  });
-
-  if (!existing) {
-    return { success: false, message: 'ไม่พบข้อมูลรายรับ' };
-  }
-
   try {
-    // Soft Delete: Set deletedAt instead of hard delete
-    await db.income.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-    });
-
+    await FinanceService.deleteIncome(id, { userId: ctx.userId, shopId: ctx.shopId });
     revalidatePath('/incomes');
     revalidatePath('/dashboard');
     return { success: true, message: 'ลบรายรับสำเร็จ' };
-  } catch (error) {
-    await logger.error('Delete income error', error as Error, { path: 'deleteIncome', userId: ctx.userId, incomeId: id });
+  } catch (error: unknown) {
+    if (error instanceof ServiceError) return { success: false, message: error.message };
+    const typedError = error as Error;
+    await logger.error('Delete income error', typedError, { path: 'deleteIncome', userId: ctx.userId, incomeId: id });
     return { success: false, message: 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง' };
   }
 }
 
-/**
- * Get monthly incomes (summary for dashboard)
- */
 export async function getMonthlyIncomes() {
   const ctx = await requirePermission('INCOME_VIEW');
-  const now = new Date();
-  const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-  const firstDayOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-
-  const result = await db.income.aggregate({
-    where: {
-      shopId: ctx.shopId,
-      deletedAt: null,
-      date: {
-        gte: firstDayOfMonth,
-        lt: firstDayOfNextMonth,
-      },
-    },
-    _sum: { amount: true },
-    _count: true,
-  });
-
-  return {
-    total: toNumber(result._sum.amount),
-    count: result._count,
-  };
+  return FinanceService.getMonthlyIncomes({ userId: ctx.userId, shopId: ctx.shopId });
 }

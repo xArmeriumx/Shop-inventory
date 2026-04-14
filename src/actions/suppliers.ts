@@ -1,90 +1,39 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { db } from '@/lib/db';
-import { requirePermission, getCurrentUserId } from '@/lib/auth-guard';
+import { requirePermission } from '@/lib/auth-guard';
 import { logger } from '@/lib/logger';
-import { paginatedQuery, buildSearchFilter } from '@/lib/pagination';
 import { supplierSchema, type SupplierInput } from '@/schemas/supplier';
 import type { ActionResponse } from '@/types/action-response';
 import type { Supplier } from '@prisma/client';
-import { toNumber } from '@/lib/money';
+import { SupplierService, ServiceError } from '@/services';
 
-// Get all suppliers for select/combobox
 export async function getSuppliersForSelect() {
   const ctx = await requirePermission('SUPPLIER_VIEW');
-  
-  return db.supplier.findMany({
-    where: {
-      shopId: ctx.shopId,
-      deletedAt: null,
-    },
-    select: {
-      id: true,
-      name: true,
-      code: true,
-      phone: true,
-    },
-    orderBy: { name: 'asc' },
-  });
+  return SupplierService.getForSelect({ userId: ctx.userId, shopId: ctx.shopId });
 }
 
-// Get paginated suppliers
 export async function getSuppliers(params: {
   page?: number;
   limit?: number;
   search?: string;
 } = {}) {
   const ctx = await requirePermission('SUPPLIER_VIEW');
-  const { page = 1, limit = 20, search } = params;
-  
-  const searchFilter = buildSearchFilter(search, ['name', 'code', 'phone', 'email', 'contactName']);
-  
-  return paginatedQuery(db.supplier, {
-    where: {
-      shopId: ctx.shopId,
-      deletedAt: null,
-      ...searchFilter,
-    },
-    include: {
-      _count: {
-        select: { purchases: true },
-      },
-    },
-    page,
-    limit,
-    orderBy: { name: 'asc' },
-  });
+  return SupplierService.getList(params, { userId: ctx.userId, shopId: ctx.shopId });
 }
 
-// Get single supplier
 export async function getSupplier(id: string) {
   const ctx = await requirePermission('SUPPLIER_VIEW');
-  
-  const supplier = await db.supplier.findFirst({
-    where: {
-      id,
-      shopId: ctx.shopId,
-      deletedAt: null,
-    },
-    include: {
-      _count: {
-        select: { purchases: true },
-      },
-    },
-  });
-  
-  if (!supplier) {
-    throw new Error('ไม่พบข้อมูลผู้จำหน่าย');
+  try {
+    return await SupplierService.getById(id, { userId: ctx.userId, shopId: ctx.shopId });
+  } catch (error: unknown) {
+    if (error instanceof ServiceError) throw new Error(error.message);
+    throw error;
   }
-  
-  return supplier;
 }
 
-// Create supplier
 export async function createSupplier(input: SupplierInput): Promise<ActionResponse<Supplier>> {
   const ctx = await requirePermission('SUPPLIER_CREATE');
-  const userId = await getCurrentUserId();
   
   const validated = supplierSchema.safeParse(input);
   if (!validated.success) {
@@ -96,23 +45,16 @@ export async function createSupplier(input: SupplierInput): Promise<ActionRespon
   }
   
   try {
-    const supplier = await db.supplier.create({
-      data: {
-        ...validated.data,
-        userId,
-        shopId: ctx.shopId,
-      },
-    });
-    
+    const supplier = await SupplierService.create(validated.data, { userId: ctx.userId, shopId: ctx.shopId });
     revalidatePath('/suppliers');
-    
     return {
       success: true,
       data: supplier,
       message: 'เพิ่มผู้จำหน่ายสำเร็จ',
     };
-  } catch (error) {
-    await logger.error('Create supplier error', error as Error, { path: 'createSupplier', userId: ctx.userId });
+  } catch (error: unknown) {
+    const typedError = error as Error;
+    await logger.error('Create supplier error', typedError, { path: 'createSupplier', userId: ctx.userId });
     return {
       success: false,
       message: 'เกิดข้อผิดพลาดในการเพิ่มผู้จำหน่าย',
@@ -120,7 +62,6 @@ export async function createSupplier(input: SupplierInput): Promise<ActionRespon
   }
 }
 
-// Update supplier
 export async function updateSupplier(
   id: string,
   input: SupplierInput
@@ -137,25 +78,18 @@ export async function updateSupplier(
   }
   
   try {
-    const supplier = await db.supplier.update({
-      where: {
-        id,
-        shopId: ctx.shopId,
-        deletedAt: null,
-      },
-      data: validated.data,
-    });
-    
+    const supplier = await SupplierService.update(id, validated.data, { userId: ctx.userId, shopId: ctx.shopId });
     revalidatePath('/suppliers');
     revalidatePath(`/suppliers/${id}`);
-    
     return {
       success: true,
       data: supplier,
       message: 'อัปเดตข้อมูลผู้จำหน่ายสำเร็จ',
     };
-  } catch (error) {
-    await logger.error('Update supplier error', error as Error, { path: 'updateSupplier', userId: ctx.userId, supplierId: id });
+  } catch (error: unknown) {
+    if (error instanceof ServiceError) return { success: false, message: error.message };
+    const typedError = error as Error;
+    await logger.error('Update supplier error', typedError, { path: 'updateSupplier', userId: ctx.userId, supplierId: id });
     return {
       success: false,
       message: 'เกิดข้อผิดพลาดในการอัปเดตข้อมูล',
@@ -163,41 +97,20 @@ export async function updateSupplier(
   }
 }
 
-// Soft delete supplier
 export async function deleteSupplier(id: string): Promise<ActionResponse<void>> {
   const ctx = await requirePermission('SUPPLIER_DELETE');
   
   try {
-    // Check if supplier has purchases
-    const purchaseCount = await db.purchase.count({
-      where: { supplierId: id },
-    });
-    
-    if (purchaseCount > 0) {
-      return {
-        success: false,
-        message: `ไม่สามารถลบผู้จำหน่ายที่มีประวัติการซื้อ ${purchaseCount} รายการ`,
-      };
-    }
-    
-    await db.supplier.update({
-      where: {
-        id,
-        shopId: ctx.shopId,
-      },
-      data: {
-        deletedAt: new Date(),
-      },
-    });
-    
+    await SupplierService.delete(id, { userId: ctx.userId, shopId: ctx.shopId });
     revalidatePath('/suppliers');
-    
     return {
       success: true,
       message: 'ลบผู้จำหน่ายสำเร็จ',
     };
-  } catch (error) {
-    await logger.error('Delete supplier error', error as Error, { path: 'deleteSupplier', userId: ctx.userId, supplierId: id });
+  } catch (error: unknown) {
+    if (error instanceof ServiceError) return { success: false, message: error.message };
+    const typedError = error as Error;
+    await logger.error('Delete supplier error', typedError, { path: 'deleteSupplier', userId: ctx.userId, supplierId: id });
     return {
       success: false,
       message: 'เกิดข้อผิดพลาดในการลบผู้จำหน่าย',
@@ -205,124 +118,12 @@ export async function deleteSupplier(id: string): Promise<ActionResponse<void>> 
   }
 }
 
-// =============================================================================
-// SUPPLIER PROFILE (Full detail with purchases + stats)
-// =============================================================================
-
 export async function getSupplierProfile(id: string) {
   const ctx = await requirePermission('SUPPLIER_VIEW');
-
-  const [supplier, purchases, stats, topProducts] = await Promise.all([
-    // 1. Supplier info
-    db.supplier.findFirst({
-      where: { id, shopId: ctx.shopId, deletedAt: null },
-    }),
-
-    // 2. Recent purchases (latest 10)
-    db.purchase.findMany({
-      where: { supplierId: id, shopId: ctx.shopId },
-      select: {
-        id: true,
-        date: true,
-        totalCost: true,
-        status: true,
-        items: {
-          select: {
-            quantity: true,
-            product: { select: { name: true } },
-          },
-          take: 3,
-        },
-      },
-      orderBy: { date: 'desc' },
-      take: 10,
-    }),
-
-    // 3. Summary stats
-    db.purchase.aggregate({
-      where: {
-        supplierId: id,
-        shopId: ctx.shopId,
-        status: { not: 'CANCELLED' },
-      },
-      _sum: { totalCost: true },
-      _count: true,
-      _avg: { totalCost: true },
-    }),
-
-    // 4. Top products purchased from this supplier
-    db.purchaseItem.groupBy({
-      by: ['productId'],
-      where: {
-        purchase: {
-          supplierId: id,
-          shopId: ctx.shopId,
-          status: { not: 'CANCELLED' },
-        },
-      },
-      _sum: { quantity: true, subtotal: true },
-      _count: true,
-      orderBy: { _sum: { subtotal: 'desc' } },
-      take: 10,
-    }),
-  ]);
-
-  if (!supplier) {
-    throw new Error('ไม่พบข้อมูลผู้จำหน่าย');
+  try {
+    return await SupplierService.getProfile(id, { userId: ctx.userId, shopId: ctx.shopId });
+  } catch (error: unknown) {
+    if (error instanceof ServiceError) throw new Error(error.message);
+    throw error;
   }
-
-  // Get product names for top products
-  let topProductsWithNames: any[] = [];
-  if (topProducts.length > 0) {
-    const productIds = topProducts.map((tp: any) => tp.productId);
-    const products = await db.product.findMany({
-      where: { id: { in: productIds } },
-      select: { id: true, name: true, sku: true },
-    });
-    const productMap = new Map(products.map(p => [p.id, p]));
-
-    topProductsWithNames = topProducts.map((tp: any) => {
-      const product = productMap.get(tp.productId);
-      return {
-        productId: tp.productId,
-        name: product?.name || 'สินค้าที่ลบแล้ว',
-        sku: product?.sku || null,
-        totalQuantity: tp._sum.quantity || 0,
-        totalCost: toNumber(tp._sum.subtotal),
-        orderCount: tp._count,
-      };
-    });
-  }
-
-  // Get last purchase date
-  const lastPurchase = purchases.length > 0 ? purchases[0] : null;
-
-  // Calculate purchase frequency (avg days between orders)
-  let avgDaysBetweenOrders = 0;
-  if (purchases.length >= 2) {
-    const activePurchases = purchases.filter(p => p.status !== 'CANCELLED');
-    if (activePurchases.length >= 2) {
-      const first = activePurchases[activePurchases.length - 1].date;
-      const last = activePurchases[0].date;
-      const daysDiff = Math.max(1, Math.round((last.getTime() - first.getTime()) / (1000 * 60 * 60 * 24)));
-      avgDaysBetweenOrders = Math.round(daysDiff / (activePurchases.length - 1));
-    }
-  }
-
-  return {
-    supplier,
-    purchases: purchases.map(p => ({
-      ...p,
-      totalCost: toNumber(p.totalCost),
-    })),
-    stats: {
-      totalSpend: toNumber(stats._sum?.totalCost),
-      orderCount: stats._count,
-      avgOrderValue: toNumber(stats._avg?.totalCost),
-      lastPurchaseDate: lastPurchase?.date || null,
-      avgDaysBetweenOrders,
-    },
-    topProducts: topProductsWithNames,
-  };
 }
-

@@ -8,85 +8,28 @@ import { paginatedQuery, buildSearchFilter } from '@/lib/pagination';
 import { productSchema, productUpdateSchema, type ProductInput, type ProductUpdateInput } from '@/schemas/product';
 import { Product } from '@prisma/client';
 import { ActionResponse } from '@/types/action-response';
-import { StockService } from '@/lib/stock-service';
+
 import { Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { VERSION_CONFLICT_ERROR } from '@/lib/optimistic-lock';
-
-interface GetProductsParams {
-  page?: number;
-  limit?: number;
-  search?: string;
-  category?: string;
-  sortBy?: string;
-  sortOrder?: 'asc' | 'desc';
-  lowStockOnly?: boolean;
-}
+import { ProductService, ServiceError, GetProductsParams, BatchProductInput, BatchCreateResult } from '@/services';
 
 //get product (paginated)
-export async function getProducts(params: GetProductsParams = {}) {
+export async function getProducts(params: any = {}) {
   // RBAC: Require PRODUCT_VIEW permission for list
   const ctx = await requirePermission('PRODUCT_VIEW');
-  const { 
-    page = 1, 
-    limit = 20, 
-    search, 
-    category, 
-    sortBy = 'createdAt', 
-    sortOrder = 'desc',
-    lowStockOnly = false,
-  } = params;
-
-  const searchFilter = buildSearchFilter(search, ['name', 'sku', 'description']);
-
-  const where = {
-    shopId: ctx.shopId,
-    isActive: true,
-    deletedAt: null,
-    ...(searchFilter && searchFilter),
-    ...(category && { category }),
-    ...(lowStockOnly && { isLowStock: true }),
-  };
-
-  const whereClause = where;
-
-
-//Paginated query
-  const result = await paginatedQuery<Product>(db.product, {
-    where: whereClause,
-    page,
-    limit,
-    orderBy: { [sortBy]: sortOrder },
-  });
-
-  return {
-    ...result,
-    data: result.data.map(product => ({
-      ...product,
-      costPrice: Number(product.costPrice),
-      salePrice: Number(product.salePrice),
-    }))
-  };
+  return ProductService.getList(params, { userId: ctx.userId, shopId: ctx.shopId });
 }
 
 //get product by id 
 export async function getProduct(id: string) {
   const ctx = await requirePermission('PRODUCT_VIEW');
-
-  const product = await db.product.findFirst({
-    where: {
-      id,
-      shopId: ctx.shopId,
-      isActive: true,
-      deletedAt: null,
-    },
-  });
-
-  if (!product) {
-    throw new Error('ไม่พบสินค้า');
+  try {
+    return await ProductService.getById(id, { userId: ctx.userId, shopId: ctx.shopId });
+  } catch (error: unknown) {
+    if (error instanceof ServiceError) throw new Error(error.message);
+    throw error;
   }
-
-  return product;
 }
 
 //create product  
@@ -104,56 +47,12 @@ export async function createProduct(input: ProductInput): Promise<ActionResponse
     };
   }
 
-  // Check duplicate SKU (within shop if available, otherwise global)
-  if (validated.data.sku) {
-    const existing = await db.product.findFirst({
-      where: { 
-        sku: validated.data.sku,
-        shopId: ctx.shopId,
-        isActive: true,
-      },
-    });
-    if (existing) {
-      return {
-        success: false,
-        message: 'รหัสสินค้า (SKU) นี้มีอยู่แล้ว',
-        errors: { sku: ['SKU นี้มีอยู่แล้ว'] }
-      };
-    }
-  }
-
-  //create product  
-  //table product
   try {
-    const product = await db.$transaction(async (tx) => {
-      // 1. Create the product record
-      const newProduct = await tx.product.create({
-        data: {
-          ...validated.data,
-          stock: 0, // Always start at 0, StockService will set the real value
-          description: validated.data.description || null,
-          sku: validated.data.sku || null,
-          userId: ctx.userId,
-          shopId: ctx.shopId,  // RBAC: Set shopId for new records
-        },
-      });
-
-      // 2. If initial stock > 0, record it via StockService (creates StockLog)
-      const initialStock = validated.data.stock ?? 0;
-      if (initialStock > 0) {
-        await StockService.recordMovement({
-          productId: newProduct.id,
-          type: 'ADJUSTMENT',
-          quantity: initialStock,
-          userId: ctx.userId,
-          shopId: ctx.shopId,
-          note: 'สต็อกเริ่มต้น (สร้างสินค้าใหม่)',
-          tx,
-        });
-      }
-
-      return newProduct;
-    });
+    // โยนงานต่อให้ Service Layer ซึ่งจะจัดการเรื่องเช็คซ้ำ การสร้างของ และโยง Stock
+    const product = await ProductService.create(
+      { userId: ctx.userId, shopId: ctx.shopId },
+      validated.data
+    );
 
     revalidatePath('/products');
     return {
@@ -161,11 +60,21 @@ export async function createProduct(input: ProductInput): Promise<ActionResponse
       message: 'สร้างสินค้าสำเร็จ',
       data: product
     };
-  } catch (error: any) {
-    await logger.error('Create product error', error as Error, { path: 'createProduct', userId: ctx.userId });
+  } catch (error: unknown) {
+    // กรณีที่ Service ตั้งใจโยน Validation Exception ออกมา
+    if (error instanceof ServiceError) {
+      return {
+        success: false,
+        message: error.message,
+        errors: error.errors
+      };
+    }
+
+    const typedError = error as Error;
+    await logger.error('Create product error', typedError, { path: 'createProduct', userId: ctx.userId });
     return {
       success: false,
-      message: error.message || 'เกิดข้อผิดพลาดในการสร้างสินค้า'
+      message: typedError.message || 'เกิดข้อผิดพลาดในการสร้างสินค้า'
     };
   }
 }
@@ -185,98 +94,12 @@ export async function updateProduct(id: string, input: ProductUpdateInput): Prom
     };
   }
 
-  // Check ownership by shop (RBAC scope)
-  const existing = await db.product.findFirst({
-    where: { id, shopId: ctx.shopId },
-  });
-
-  if (!existing) {
-    return {
-      success: false,
-      message: 'ไม่พบสินค้า'
-    };
-  }
-
-  // Optimistic Locking: Check version if provided
-  if (validated.data.version !== undefined && validated.data.version !== existing.version) {
-    return {
-      success: false,
-      message: 'ข้อมูลถูกแก้ไขโดยผู้ใช้อื่น กรุณารีเฟรชแล้วลองใหม่',
-      errors: { _form: [VERSION_CONFLICT_ERROR] }
-    };
-  }
-
-  // Check duplicate SKU (if changed) - scoped by shop
-  if (validated.data.sku && validated.data.sku !== existing.sku) {
-    const duplicate = await db.product.findFirst({
-      where: { 
-        sku: validated.data.sku, 
-        shopId: ctx.shopId,  // RBAC: Scope to shop
-        id: { not: id } 
-      },
-    });
-    if (duplicate) {
-      return {
-        success: false,
-        message: 'รหัสสินค้า (SKU) นี้มีอยู่แล้ว',
-        errors: { sku: ['SKU นี้มีอยู่แล้ว'] }
-      };
-    }
-  }
-
-
-    // Transaction
-    // 1. StockLog
-    // 2. Update Product
-    // 3. Calculate Low Stock
   try {
-    const product = await db.$transaction(async (tx) => {
-
-
-      // 1. Handle Stock Adjustment if changed
-      if (validated.data.stock !== undefined && validated.data.stock !== existing.stock) {
-        const diff = validated.data.stock - existing.stock;
-        
-        // เรียก StockService (ซึ่งจะ Create StockLog + Update Product ให้อัตโนมัติ)
-        await StockService.recordMovement({
-          productId: id,
-          type: 'ADJUSTMENT',
-          quantity: diff,
-          userId: ctx.userId,
-          shopId: ctx.shopId,  // RBAC: Set shopId for stock log
-          note: 'ปรับปรุงสต็อก (แก้ไขสินค้า)',
-          tx,
-        });
-      }
-
-      // Step 2: อัปเดตข้อมูลอื่นๆ (ชื่อ, ราคา, หมวดหมู่)
-      const { stock, version, ...otherData } = validated.data;
-      
-      const updatedProduct = await tx.product.update({
-        where: { id },
-        data: {
-          ...otherData,
-          description: otherData.description || null,
-          sku: otherData.sku || null,
-          version: { increment: 1 },  // Optimistic locking: increment version
-        },
-      });
-
-       // Step 3: Re-Check Low Stock (ถ้ามีการแก้ MinStock)
-      if (validated.data.minStock !== undefined) {
-         const isLow = updatedProduct.stock <= updatedProduct.minStock;
-       
-         // Update Low Stock Status
-         await tx.product.update({
-           where: { id },
-           data: { isLowStock: isLow }
-         });
-        
-         updatedProduct.isLowStock = isLow;
-      }
-
-      return updatedProduct;
-    });
+    const product = await ProductService.update(
+      id,
+      { userId: ctx.userId, shopId: ctx.shopId },
+      validated.data
+    );
 
     revalidatePath('/products');
     revalidatePath(`/products/${id}`);
@@ -286,11 +109,20 @@ export async function updateProduct(id: string, input: ProductUpdateInput): Prom
       message: 'อัปเดตสินค้าสำเร็จ',
       data: product
     };
-  } catch (error: any) {
-    await logger.error('Update product error', error as Error, { path: 'updateProduct', userId: ctx.userId, productId: id });
+  } catch (error: unknown) {
+    if (error instanceof ServiceError) {
+      return {
+        success: false,
+        message: error.message,
+        errors: error.errors
+      };
+    }
+
+    const typedError = error as Error;
+    await logger.error('Update product error', typedError, { path: 'updateProduct', userId: ctx.userId, productId: id });
     return {
       success: false,
-      message: error.message || 'เกิดข้อผิดพลาดในการอัปเดตสินค้า'
+      message: typedError.message || 'เกิดข้อผิดพลาดในการอัปเดตสินค้า'
     };
   }
 }
@@ -300,125 +132,43 @@ export async function deleteProduct(id: string): Promise<ActionResponse> {
   // RBAC: Require PRODUCT_DELETE permission
   const ctx = await requirePermission('PRODUCT_DELETE');
 
-  // Check ownership/scope
-  const existing = await db.product.findFirst({
-    where: { id, shopId: ctx.shopId },
-  });
-
-  if (!existing) {
-    return {
-      success: false,
-      message: 'ไม่พบสินค้า'
-    };
-  }
-
   try {
-    // Soft delete: set both isActive + deletedAt for consistency with other models
-    await db.product.update({
-      where: { id },
-      data: {
-        isActive: false,
-        deletedAt: new Date(),
-      },
-    });
+    await ProductService.delete(id, { userId: ctx.userId, shopId: ctx.shopId });
 
     revalidatePath('/products');
     return {
       success: true,
       message: 'ลบสินค้าสำเร็จ'
     };
-  } catch (error: any) {
-    await logger.error('Delete product error', error as Error, { path: 'deleteProduct', userId: ctx.userId, productId: id });
+  } catch (error: unknown) {
+    if (error instanceof ServiceError) {
+      return { success: false, message: error.message };
+    }
+    const typedError = error as Error;
+    await logger.error('Delete product error', typedError, { path: 'deleteProduct', userId: ctx.userId, productId: id });
     return {
       success: false,
-      message: error.message || 'เกิดข้อผิดพลาดในการลบสินค้า'
+      message: typedError.message || 'เกิดข้อผิดพลาดในการลบสินค้า'
     };
   }
 }
 
 
 // Get Products for Select (แสดงสินค้าใน Select)  
-// ใช้สำหรับหน้า Sale - ต้องมีสต็อกมากกว่า 0 ถึงจะขายได้
 export async function getProductsForSelect() {
-  const ctx = await requirePermission('PRODUCT_VIEW'); // Assume needed
-
-  const products = await db.product.findMany({
-    where: {
-      shopId: ctx.shopId,
-      isActive: true,
-      deletedAt: null,
-      stock: { gt: 0 }, // ต้องมีสต็อกมากกว่า 0 
-    },
-    select: {
-      id: true,
-      name: true,
-      sku: true,
-      salePrice: true, // ราคาขาย
-      costPrice: true, // ราคาต้นทุน
-      stock: true, // สต็อก
-    },
-    orderBy: { name: 'asc' },
-  });
-  
-  // Convert Decimal to Number for Client Components
-  return products.map((p) => ({
-    ...p,
-    salePrice: Number(p.salePrice),
-    costPrice: Number(p.costPrice),
-  }));
+  const ctx = await requirePermission('PRODUCT_VIEW');
+  return ProductService.getForSelect({ userId: ctx.userId, shopId: ctx.shopId });
 }
 
 // Get Products for Purchase (แสดงสินค้าใน Select สำหรับหน้าซื้อสินค้า)
-// ใช้สำหรับหน้า Purchase - แสดงทุกสินค้า แม้สต็อกเป็น 0 เพราะกำลังจะซื้อเพิ่ม
 export async function getProductsForPurchase() {
   const ctx = await requirePermission('PRODUCT_VIEW');
-
-  const products = await db.product.findMany({
-    where: {
-      shopId: ctx.shopId,
-      isActive: true,
-      deletedAt: null,
-      // ไม่ filter by stock - แสดงทุกสินค้าเพื่อให้สั่งซื้อเพิ่มได้
-    },
-    select: {
-      id: true,
-      name: true,
-      sku: true,
-      salePrice: true,
-      costPrice: true,
-      stock: true,
-    },
-    orderBy: { name: 'asc' },
-  });
-  
-  return products.map((p) => ({
-    ...p,
-    salePrice: Number(p.salePrice),
-    costPrice: Number(p.costPrice),
-  }));
+  return ProductService.getForPurchase({ userId: ctx.userId, shopId: ctx.shopId });
 }
 
 export async function getLowStockProducts(limit: number = 5) {
   const ctx = await requirePermission('PRODUCT_VIEW');
-
-  // Optimized: Use Cached isLowStock Field
-  // Super fast, no calculation needed
-  const products = await db.product.findMany({
-    where: {
-      shopId: ctx.shopId,
-      isActive: true,
-      deletedAt: null,
-      isLowStock: true, // Only this!
-    },
-    orderBy: { stock: 'asc' },
-    take: limit,
-  });
-
-  return products.map(p => ({
-    ...p,
-    stock: Number(p.stock),
-    minStock: Number(p.minStock),
-  }));
+  return ProductService.getLowStock(limit, { userId: ctx.userId, shopId: ctx.shopId });
 }
   
 // Adjust Stock (เพิ่ม/ลดสต็อก)
@@ -429,256 +179,51 @@ interface AdjustStockInput {
 }
 
 export async function adjustStock(productId: string, input: AdjustStockInput): Promise<ActionResponse> {
-  // Use specific permission or PRODUCT_EDIT
   const ctx = await requirePermission('PRODUCT_EDIT'); 
-
   try {
-    await db.$transaction(async (tx) => {
-      const product = await tx.product.findUnique({
-        where: { id: productId },
-        select: { stock: true, shopId: true },
-      });
-      
-      // Safety check: product exists and belongs to this shop
-      if (!product || product.shopId !== ctx.shopId) {
-        throw new Error('ไม่พบสินค้า');
-      }
-
-      let change = 0;
-      let notePrefix = '';
-
-      switch (input.type) {
-        case 'ADD':
-          change = input.quantity;
-          notePrefix = '[Manual Add]';
-          break;
-        case 'REMOVE':
-          change = -input.quantity;
-          notePrefix = '[Manual Remove]';
-          break;
-        case 'SET':
-          change = input.quantity - product.stock;
-          notePrefix = '[Manual Set]';
-          break;
-      }
-
-      if (change === 0) return; // No change
-
-      await StockService.recordMovement({
-        productId,
-        type: 'ADJUSTMENT',
-        quantity: change,
-        userId: ctx.userId,
-        shopId: ctx.shopId,  // RBAC: Set shopId for stock log
-        note: `${notePrefix} ${input.note}`,
-        tx,
-      });
-    });
-
+    await ProductService.adjustStockManual(productId, input, { userId: ctx.userId, shopId: ctx.shopId });
     revalidatePath(`/products/${productId}`);
-    return {
-      success: true,
-      message: 'ปรับปรุงสต็อกสำเร็จ'
-    };
-  } catch (error: any) {
-    await logger.error('Adjust stock error', error as Error, { path: 'adjustStock', userId: ctx.userId, productId });
-    return {
-      success: false,
-      message: error.message || 'เกิดข้อผิดพลาดในการปรับปรุงสต็อก'
-    };
+    return { success: true, message: 'ปรับปรุงสต็อกสำเร็จ' };
+  } catch (error: unknown) {
+    if (error instanceof ServiceError) return { success: false, message: error.message };
+    const typedError = error as Error;
+    await logger.error('Adjust stock error', typedError, { path: 'adjustStock', userId: ctx.userId, productId });
+    return { success: false, message: typedError.message || 'เกิดข้อผิดพลาดในการปรับปรุงสต็อก' };
   }
 }
 
 export async function getLowStockProductsPaginated(params: GetProductsParams = {}) {
   const ctx = await requirePermission('PRODUCT_VIEW');
-  const { page = 1, limit = 20, search, category } = params;
-  
-  const searchFilter = buildSearchFilter(search, ['name', 'sku']);
-
-  const where = {
-    shopId: ctx.shopId,
-    isActive: true,
-    deletedAt: null,
-    isLowStock: true, // The Magic Filter
-    ...(searchFilter && searchFilter),
-    ...(category && { category }),
-  };
-
-  const result = await paginatedQuery<Product>(db.product, {
-    where,
-    page,
-    limit,
-    orderBy: { stock: 'asc' },
-  });
-
-  return {
-    ...result,
-    data: result.data.map(p => ({
-      ...p,
-      costPrice: Number(p.costPrice),
-      salePrice: Number(p.salePrice),
-    }))
-  };
+  return ProductService.getLowStockPaginated(params, { userId: ctx.userId, shopId: ctx.shopId });
 }
 
 // Batch Create Products (สร้างสินค้าหลายรายการพร้อมกัน - ใช้ createMany)
-export interface BatchProductInput {
-  name: string;
-  sku?: string | null;
-  category: string;
-  costPrice: number;
-  salePrice: number;
-  stock?: number;
-  minStock?: number;
-}
-
-export interface BatchCreateResult {
-  success: boolean;
-  created: Array<{ id: string; name: string; costPrice: number }>;
-  failed: Array<{ name: string; error: string }>;
-}
-
-export async function batchCreateProducts(
-  inputs: BatchProductInput[]
-): Promise<ActionResponse<BatchCreateResult>> {
+export async function batchCreateProducts(inputs: BatchProductInput[]): Promise<ActionResponse<BatchCreateResult>> {
   const ctx = await requirePermission('PRODUCT_CREATE');
 
-  if (!inputs || inputs.length === 0) {
-    return {
-      success: false,
-      message: 'ไม่มีข้อมูลสินค้าที่จะสร้าง',
-    };
-  }
-
-  // 1. Validate inputs first
-  const validInputs: BatchProductInput[] = [];
-  const failed: BatchCreateResult['failed'] = [];
-
-  for (let i = 0; i < inputs.length; i++) {
-    const input = inputs[i];
-
-    if (!input.name || !input.name.trim()) {
-      failed.push({ name: input.name || 'ไม่มีชื่อ', error: 'ไม่มีชื่อสินค้า' });
-      continue;
-    }
-
-    if (!input.category || !input.category.trim()) {
-      failed.push({ name: input.name, error: 'ไม่มีหมวดหมู่' });
-      continue;
-    }
-
-    validInputs.push({
-      name: input.name.trim(),
-      sku: input.sku?.trim() || null,
-      category: input.category.trim(),
-      costPrice: input.costPrice || 0,
-      salePrice: input.salePrice || 0,
-      stock: input.stock,
-      minStock: input.minStock,
-    });
-  }
-
-  if (validInputs.length === 0) {
-    return {
-      success: false,
-      message: `ข้อมูลไม่ถูกต้อง ${failed.length} รายการ`,
-      data: { success: false, created: [], failed },
-    };
-  }
-
-  const created: BatchCreateResult['created'] = [];
-
   try {
-    // 2. Check for existing products with same SKU (including inactive for reactivation)
-    const skusToCheck = validInputs.filter(i => i.sku).map(i => i.sku as string);
-    
-    let existingProducts: { id: string; sku: string | null; isActive: boolean }[] = [];
-    if (skusToCheck.length > 0) {
-      existingProducts = await db.product.findMany({
-        where: {
-          shopId: ctx.shopId,
-          sku: { in: skusToCheck },
-        },
-        select: { id: true, sku: true, isActive: true },
-      });
-    }
-
-    const existingSkuMap = new Map(existingProducts.map(p => [p.sku, p]));
-
-    // 3. Process each product - reactivate existing or create new
-    await db.$transaction(async (tx) => {
-      for (const input of validInputs) {
-        const existingProduct = input.sku ? existingSkuMap.get(input.sku) : null;
-
-        if (existingProduct) {
-          // Reactivate existing product
-          const reactivated = await tx.product.update({
-            where: { id: existingProduct.id },
-            data: {
-              name: input.name,
-              category: input.category,
-              costPrice: input.costPrice,
-              salePrice: input.salePrice,
-              ...(input.stock !== undefined && { stock: input.stock }),
-              ...(input.minStock !== undefined && { minStock: input.minStock }),
-              isActive: true,
-              deletedAt: null,
-            },
-          });
-          created.push({
-            id: reactivated.id,
-            name: reactivated.name,
-            costPrice: Number(reactivated.costPrice),
-          });
-        } else {
-          // Create new product
-          const newProduct = await tx.product.create({
-            data: {
-              name: input.name,
-              sku: input.sku,
-              category: input.category,
-              costPrice: input.costPrice,
-              salePrice: input.salePrice,
-              stock: input.stock ?? 0,
-              minStock: input.minStock ?? 5,
-              userId: ctx.userId,
-              shopId: ctx.shopId,
-            },
-          });
-          created.push({
-            id: newProduct.id,
-            name: newProduct.name,
-            costPrice: Number(newProduct.costPrice),
-          });
-        }
-      }
-    });
-
+    const result = await ProductService.batchCreate(inputs, { userId: ctx.userId, shopId: ctx.shopId });
     revalidatePath('/products');
 
     return {
       success: true,
-      message: `สร้างสินค้าสำเร็จ ${created.length} รายการ${failed.length > 0 ? `, ข้าม ${failed.length} รายการ` : ''}`,
-      data: { success: true, created, failed },
+      message: `สร้างสินค้าสำเร็จ ${result.created.length} รายการ${result.failed.length > 0 ? `, ข้าม ${result.failed.length} รายการ` : ''}`,
+      data: result,
     };
-  } catch (error: any) {
-    await logger.error('Batch create products error', error as Error, {
-      path: 'batchCreateProducts',
-      userId: ctx.userId,
-      inputCount: inputs.length,
-    });
-
-    if (error.code === 'P2002') {
+  } catch (error: unknown) {
+    if (error instanceof ServiceError) {
       return {
         success: false,
-        message: 'พบ SKU หรือชื่อซ้ำในระบบ',
-        data: { success: false, created: [], failed },
+        message: error.message,
+        data: { success: false, created: [], failed: (error.errors as any)?._batch || [] },
       };
     }
 
+    const typedError = error as Error;
+    await logger.error('Batch create products error', typedError, { path: 'batchCreateProducts', userId: ctx.userId, inputCount: inputs.length });
     return {
       success: false,
-      message: error.message || 'เกิดข้อผิดพลาดในการสร้างสินค้า',
+      message: typedError.message || 'เกิดข้อผิดพลาดในการสร้างสินค้า',
     };
   }
 }

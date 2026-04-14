@@ -3,7 +3,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { ProductForm } from '@/components/features/products/product-form';
 import { getProduct } from '@/actions/products';
 import { getLookupValues, seedDefaultLookupValues } from '@/actions/lookups';
-import { StockService } from '@/lib/stock-service';
+import { StockService } from '@/services';
 import { StockHistoryTableClientWrapper } from '@/components/features/products/stock-history-table-client-wrapper';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ProductBarcodeTab } from '@/components/features/products/product-barcode-tab';

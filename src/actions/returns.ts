@@ -3,11 +3,9 @@
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth-guard';
-import { StockService } from '@/lib/stock-service';
-import { NotificationService } from '@/lib/notification-service';
-import type { ActionResponse } from '@/types/action-response';
-import { money, toNumber, calcSubtotal } from '@/lib/money';
 import { z } from 'zod';
+import { ReturnService, ServiceError } from '@/services';
+import type { ActionResponse } from '@/types/action-response';
 
 // =============================================================================
 // G3: Partial Returns (คืนสินค้าบางส่วน)
@@ -35,41 +33,7 @@ type CreateReturnInput = z.infer<typeof createReturnSchema>;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-const MAX_RETURN_RETRIES = 5;
 
-/**
- * Auto-gen return number: RET-00001, RET-00002, ...
- * Race-condition safe with retry + collision check.
- */
-async function generateReturnNumber(tx: any, shopId: string): Promise<string> {
-  for (let attempt = 0; attempt < MAX_RETURN_RETRIES; attempt++) {
-    const lastReturn = await tx.return.findFirst({
-      where: { shopId },
-      orderBy: { returnNumber: 'desc' },
-      select: { returnNumber: true },
-    });
-
-    const lastNumber = lastReturn?.returnNumber
-      ? parseInt(lastReturn.returnNumber.split('-')[1] || '0')
-      : 0;
-
-    const newNumber = lastNumber + 1 + attempt;
-    const returnNumber = `RET-${String(newNumber).padStart(5, '0')}`;
-
-    // Collision check
-    const exists = await tx.return.findFirst({
-      where: { shopId, returnNumber },
-      select: { id: true },
-    });
-
-    if (!exists) {
-      return returnNumber;
-    }
-  }
-
-  // Fallback: timestamp-based
-  return `RET-${Date.now()}`;
-}
 
 // ── Actions ──────────────────────────────────────────────────────────────────
 
@@ -79,55 +43,7 @@ async function generateReturnNumber(tx: any, shopId: string): Promise<string> {
  */
 export async function getReturnableSaleItems(saleId: string) {
   const ctx = await requirePermission('RETURN_CREATE');
-
-  const sale = await db.sale.findFirst({
-    where: { id: saleId, shopId: ctx.shopId, status: { not: 'CANCELLED' } },
-    select: {
-      totalAmount: true,      // ✅ ใช้คำนวณ bill discount ratio
-      discountAmount: true,   // ✅ ส่วนลดบิล
-      items: {
-        include: {
-          product: { select: { id: true, name: true, sku: true } },
-          returnItems: { select: { quantity: true } },
-        },
-      },
-    },
-  });
-
-  if (!sale) return null;
-
-  // ✅ คำนวณ bill discount ratio (เช่น ส่วนลด 10% → ratio = 0.90)
-  const saleTotal = toNumber(sale.totalAmount);
-  const saleDiscount = toNumber(sale.discountAmount);
-  const billDiscountRatio = saleTotal > 0
-    ? money.divide(money.subtract(saleTotal, saleDiscount), saleTotal)
-    : 1;
-
-  return sale.items.map(item => {
-    const alreadyReturned = item.returnItems.reduce((sum, ri) => sum + ri.quantity, 0);
-    const maxReturnable = item.quantity - alreadyReturned;
-    
-    // Net price per unit = ((subtotal - itemDiscount) / quantity) × billDiscountRatio
-    const subtotal = toNumber(item.subtotal);
-    const discount = toNumber(item.discountAmount);
-    const itemNetPerUnit = item.quantity > 0
-      ? money.round(money.divide(money.subtract(subtotal, discount), item.quantity))
-      : 0;
-    // ✅ ปรับด้วย bill discount ratio → ได้ราคาที่ลูกค้าจ่ายจริงต่อชิ้น
-    const netPerUnit = money.round(money.multiply(itemNetPerUnit, billDiscountRatio));
-
-    return {
-      saleItemId: item.id,
-      productId: item.productId,
-      productName: item.product.name,
-      productSku: item.product.sku,
-      originalQuantity: item.quantity,
-      alreadyReturned,
-      maxReturnable,
-      salePrice: toNumber(item.salePrice),
-      netPerUnit, // ราคาคืนต่อชิ้น (หลังส่วนลดรายชิ้น + ส่วนลดบิล)
-    };
-  }).filter(item => item.maxReturnable > 0);
+  return ReturnService.getReturnableSaleItems(saleId, { userId: ctx.userId, shopId: ctx.shopId });
 }
 
 /**
@@ -136,145 +52,27 @@ export async function getReturnableSaleItems(saleId: string) {
 export async function createReturn(input: CreateReturnInput): Promise<ActionResponse> {
   try {
     const ctx = await requirePermission('RETURN_CREATE');
-    const shopId = ctx.shopId;
 
     // 1. Validate input
     const data = createReturnSchema.parse(input);
 
-    // 2. Atomic transaction
-    const result = await db.$transaction(async (tx) => {
-      // 2.1 Validate sale exists + belongs to shop
-      const sale = await tx.sale.findFirst({
-        where: { id: data.saleId, shopId, status: { not: 'CANCELLED' } },
-        include: {
-          items: {
-            include: {
-              returnItems: { select: { quantity: true } },
-            },
-          },
-        },
-      });
-
-      if (!sale) throw new Error('ไม่พบบิลขาย หรือบิลถูกยกเลิกแล้ว');
-
-      // 2.2 Validate each item: quantity doesn't exceed remaining
-      let totalRefund = 0;
-      const returnItemsData = [];
-
-      for (const item of data.items) {
-        const saleItem = sale.items.find(si => si.id === item.saleItemId);
-        if (!saleItem) throw new Error(`ไม่พบรายการสินค้า: ${item.saleItemId}`);
-
-        const alreadyReturned = saleItem.returnItems.reduce(
-          (sum, ri) => sum + ri.quantity, 0
-        );
-        const maxReturnable = saleItem.quantity - alreadyReturned;
-
-        if (item.quantity > maxReturnable) {
-          throw new Error(`สินค้ารายการ "${item.saleItemId}" คืนได้สูงสุด ${maxReturnable} ชิ้น`);
-        }
-
-        const refundAmount = calcSubtotal(item.quantity, item.refundPerUnit);
-        totalRefund = money.add(totalRefund, refundAmount);
-
-        returnItemsData.push({
-          saleItemId: item.saleItemId,
-          productId: item.productId,
-          quantity: item.quantity,
-          refundPerUnit: item.refundPerUnit,
-          refundAmount,
-        });
-      }
-
-      // 2.3 Generate return number
-      const returnNumber = await generateReturnNumber(tx, shopId);
-
-      // 2.4 Create Return + ReturnItems
-      const returnRecord = await tx.return.create({
-        data: {
-          returnNumber,
-          saleId: data.saleId,
-          reason: data.reason,
-          refundAmount: totalRefund,
-          refundMethod: data.refundMethod,
-          status: 'COMPLETED',
-          userId: ctx.userId,
-          shopId,
-          items: {
-            create: returnItemsData,
-          },
-        },
-        include: { items: true },
-      });
-
-      // 2.5 Restore stock for each item
-      for (const item of returnItemsData) {
-        await StockService.recordMovement({
-          productId: item.productId,
-          type: 'RETURN',
-          quantity: item.quantity, // Positive = add back to stock
-          userId: ctx.userId,
-          shopId,
-          returnId: returnRecord.id,
-          saleId: data.saleId,
-          note: `คืนสินค้า ${returnNumber} (${data.reason})`,
-          tx,
-        });
-      }
-
-      // 2.6 Adjust original Sale financials (profit, netAmount, totalAmount)
-      // Calculate cost of returned items to properly adjust profit
-      let totalReturnCost = 0;
-      for (const item of data.items) {
-        const saleItem = sale.items.find(si => si.id === item.saleItemId);
-        if (saleItem) {
-          const costPerUnit = toNumber(saleItem.costPrice);
-          totalReturnCost = money.add(totalReturnCost, calcSubtotal(item.quantity, costPerUnit));
-        }
-      }
-
-      // profit adjustment = refund - cost (we're losing the revenue but recovering the cost)
-      const profitAdjustment = money.subtract(totalRefund, totalReturnCost);
-
-      // totalAmount = pre-discount gross → must NOT change on return
-      // Only netAmount (actual revenue), totalCost, and profit are adjusted
-      await tx.sale.update({
-        where: { id: data.saleId },
-        data: {
-          netAmount:    { decrement: totalRefund },
-          totalCost:    { decrement: totalReturnCost },
-          profit:       { decrement: profitAdjustment },
-        },
-      });
-
-      return returnRecord;
-    });
+    // 2. Call Service
+    const result = await ReturnService.create(data, { userId: ctx.userId, shopId: ctx.shopId });
 
     revalidatePath('/sales');
     revalidatePath(`/sales/${data.saleId}`);
     revalidatePath('/returns');
     revalidatePath('/dashboard');
 
-    // Notification: Return created (non-blocking)
-    NotificationService.create({
-      shopId: ctx.shopId,
-      type: 'RETURN_CREATED',
-      severity: 'WARNING',
-      title: `คืนสินค้า ${result.returnNumber}`,
-      message: `คืนเงิน ${result.refundAmount} บาท`,
-      link: `/returns/${result.id}`,
-    }).catch(() => {});
-
     return {
       success: true,
       message: `บันทึกการคืนสินค้า ${result.returnNumber} สำเร็จ (คืนเงิน ${result.refundAmount} บาท)`,
       data: result,
     };
-  } catch (error: any) {
-    if (error instanceof z.ZodError) {
-      return { success: false, message: error.errors[0].message };
-    }
-    return { success: false, message: error.message || 'เกิดข้อผิดพลาด' };
+  } catch (error: unknown) {
+    if (error instanceof z.ZodError) return { success: false, message: error.errors[0].message };
+    if (error instanceof ServiceError) return { success: false, message: error.message };
+    return { success: false, message: (error as Error).message || 'เกิดข้อผิดพลาด' };
   }
 }
 
@@ -287,60 +85,7 @@ export async function getReturns(options?: {
   search?: string;
 }) {
   const ctx = await requirePermission('RETURN_VIEW');
-  const page = options?.page || 1;
-  const limit = options?.limit || 20;
-  const skip = (page - 1) * limit;
-
-  const where: any = { shopId: ctx.shopId };
-
-  if (options?.search) {
-    where.OR = [
-      { returnNumber: { contains: options.search, mode: 'insensitive' } },
-      { reason: { contains: options.search, mode: 'insensitive' } },
-      { sale: { invoiceNumber: { contains: options.search, mode: 'insensitive' } } },
-    ];
-  }
-
-  const [data, total] = await Promise.all([
-    db.return.findMany({
-      where,
-      include: {
-        sale: { select: { invoiceNumber: true } },
-        user: { select: { name: true } },
-        items: {
-          include: {
-            product: { select: { name: true, sku: true } },
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-      skip,
-      take: limit,
-    }),
-    db.return.count({ where }),
-  ]);
-
-  const totalPages = Math.ceil(total / limit);
-
-  return {
-    data: data.map(r => ({
-      ...r,
-      refundAmount: toNumber(r.refundAmount),
-      items: r.items.map(ri => ({
-        ...ri,
-        refundPerUnit: toNumber(ri.refundPerUnit),
-        refundAmount: toNumber(ri.refundAmount),
-      })),
-    })),
-    pagination: {
-      total,
-      page,
-      limit,
-      totalPages,
-      hasNextPage: page < totalPages,
-      hasPrevPage: page > 1,
-    },
-  };
+  return ReturnService.getList(options || {}, { userId: ctx.userId, shopId: ctx.shopId });
 }
 
 /**
@@ -348,36 +93,5 @@ export async function getReturns(options?: {
  */
 export async function getReturnById(returnId: string) {
   const ctx = await requirePermission('RETURN_VIEW');
-
-  const returnRecord = await db.return.findFirst({
-    where: { id: returnId, shopId: ctx.shopId },
-    include: {
-      sale: {
-        select: {
-          invoiceNumber: true,
-          date: true,
-          customerName: true,
-          customer: { select: { name: true, phone: true } },
-        },
-      },
-      user: { select: { name: true } },
-      items: {
-        include: {
-          product: { select: { name: true, sku: true } },
-        },
-      },
-    },
-  });
-
-  if (!returnRecord) return null;
-
-  return {
-    ...returnRecord,
-    refundAmount: toNumber(returnRecord.refundAmount),
-    items: returnRecord.items.map(ri => ({
-      ...ri,
-      refundPerUnit: toNumber(ri.refundPerUnit),
-      refundAmount: toNumber(ri.refundAmount),
-    })),
-  };
+  return ReturnService.getById(returnId, { userId: ctx.userId, shopId: ctx.shopId });
 }

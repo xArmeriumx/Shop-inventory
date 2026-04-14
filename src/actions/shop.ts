@@ -2,9 +2,9 @@
 
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { db } from '@/lib/db';
-import { requireAuth, requirePermission, getCurrentUserId } from '@/lib/auth-guard';
+import { requirePermission, requireAuth } from '@/lib/auth-guard';
 import { logger } from '@/lib/logger';
+import { SettingsService, ServiceError } from '@/services';
 
 const shopSchema = z.object({
   name: z.string().min(1, 'กรุณากรอกชื่อร้าน'),
@@ -29,26 +29,11 @@ export type ShopState = {
 
 export async function getShop() {
   const ctx = await requireAuth();
-  
-  // If user has a shopId in session, fetch that shop
-  if (ctx.shopId) {
-    return db.shop.findUnique({
-      where: { id: ctx.shopId },
-    });
-  }
-
-  // Fallback: Check if user owns a shop (legacy or if session stale)
-  const shop = await db.shop.findUnique({
-    where: { userId: ctx.userId },
-  });
-
-  return shop;
+  // Pass to service - usage of optional shopId is handled inside the service logic
+  return SettingsService.getShop({ userId: ctx.userId, shopId: ctx.shopId as string });
 }
 
-
-
 export async function updateShop(prevState: ShopState, formData: FormData): Promise<ShopState> {
-  // RBAC: Require SETTINGS_SHOP permission
   const ctx = await requirePermission('SETTINGS_SHOP');
   
   const rawFormData = {
@@ -70,33 +55,14 @@ export async function updateShop(prevState: ShopState, formData: FormData): Prom
   }
 
   try {
-    await db.shop.upsert({
-      where: { userId: ctx.userId },
-      update: {
-        name: validatedFields.data.name,
-        address: validatedFields.data.address,
-        phone: validatedFields.data.phone,
-        logo: validatedFields.data.logo,
-        taxId: validatedFields.data.taxId,
-        promptPayId: validatedFields.data.promptPayId,
-      },
-      create: {
-        userId: ctx.userId,
-        name: validatedFields.data.name,
-        address: validatedFields.data.address,
-        phone: validatedFields.data.phone,
-        logo: validatedFields.data.logo,
-        taxId: validatedFields.data.taxId,
-        promptPayId: validatedFields.data.promptPayId,
-      },
-    });
-
+    await SettingsService.updateShop(validatedFields.data, { userId: ctx.userId, shopId: ctx.shopId });
     revalidatePath('/settings');
     revalidatePath('/sales');
-    
     return { success: true };
-  } catch (error) {
-    await logger.error('Update shop error', error as Error, { path: 'updateShop', userId: ctx.userId });
+  } catch (error: unknown) {
+    if (error instanceof ServiceError) return { error: error.message };
+    const typedError = error as Error;
+    await logger.error('Update shop error', typedError, { path: 'updateShop', userId: ctx.userId });
     return { error: 'เกิดข้อผิดพลาดในการบันทึกข้อมูล' };
   }
 }

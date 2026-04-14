@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { Prisma } from '@prisma/client';
-import { NotificationService } from '@/lib/notification-service';
+import { NotificationService } from './notification.service';
 
 export type StockMovementType = 'SALE' | 'PURCHASE' | 'ADJUSTMENT' | 'RETURN' | 'WASTE' | 'CANCEL' | 'SALE_CANCEL' | 'PURCHASE_CANCEL';
 

@@ -2,7 +2,7 @@
 
 import { db } from '@/lib/db';
 import { AITool, ToolResult, ToolContext } from './types';
-import { StockService } from '@/lib/stock-service';
+import { StockService } from '@/services';
 
 export const createProductTool: AITool = {
   definition: {
