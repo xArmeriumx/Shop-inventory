@@ -2,6 +2,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { getPurchases } from '@/actions/purchases';
 import { PurchasesTable } from '@/components/features/purchases/purchases-table';
 import { PurchasesToolbar } from '@/components/features/purchases/purchases-toolbar';
+import { PurchaseStatus } from '@/types/domain';
 import { PurchasesHeaderActions } from '@/components/features/purchases/purchases-header-actions';
 
 interface PurchasesPageProps {
@@ -11,15 +12,17 @@ interface PurchasesPageProps {
     startDate?: string;
     endDate?: string;
     paymentMethod?: string;
+    status?: string;
   };
 }
 
 export default async function PurchasesPage({ searchParams }: PurchasesPageProps) {
   const page = Number(searchParams.page) || 1;
   const search = searchParams.search || '';
-  const startDate = searchParams.startDate;
-  const endDate = searchParams.endDate;
-  const paymentMethod = searchParams.paymentMethod;
+  const startDate = searchParams.startDate || '';
+  const endDate = searchParams.endDate || '';
+  const paymentMethod = searchParams.paymentMethod || '';
+  const status = searchParams.status as PurchaseStatus | undefined;
 
   const { data: purchases, pagination } = await getPurchases({
     page,
@@ -27,6 +30,7 @@ export default async function PurchasesPage({ searchParams }: PurchasesPageProps
     startDate,
     endDate,
     paymentMethod,
+    status,
   });
 
   return (

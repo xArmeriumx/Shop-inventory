@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/auth-guard';
 import { logger } from '@/lib/logger';
 import { supplierSchema, type SupplierInput } from '@/schemas/supplier';
-import type { ActionResponse } from '@/types/action-response';
+import type { ActionResponse, SerializedSupplier } from '@/types/domain';
 import type { Supplier } from '@prisma/client';
 import { SupplierService, ServiceError } from '@/services';
 
@@ -32,7 +32,7 @@ export async function getSupplier(id: string) {
   }
 }
 
-export async function createSupplier(input: SupplierInput): Promise<ActionResponse<Supplier>> {
+export async function createSupplier(input: SupplierInput): Promise<ActionResponse<SerializedSupplier>> {
   const ctx = await requirePermission('SUPPLIER_CREATE');
   
   const validated = supplierSchema.safeParse(input);
@@ -45,7 +45,7 @@ export async function createSupplier(input: SupplierInput): Promise<ActionRespon
   }
   
   try {
-    const supplier = await SupplierService.create(validated.data, { userId: ctx.userId, shopId: ctx.shopId });
+    const supplier = await SupplierService.create(ctx, validated.data);
     revalidatePath('/suppliers');
     return {
       success: true,
@@ -65,7 +65,7 @@ export async function createSupplier(input: SupplierInput): Promise<ActionRespon
 export async function updateSupplier(
   id: string,
   input: SupplierInput
-): Promise<ActionResponse<Supplier>> {
+): Promise<ActionResponse<SerializedSupplier>> {
   const ctx = await requirePermission('SUPPLIER_EDIT');
   
   const validated = supplierSchema.safeParse(input);
@@ -78,7 +78,7 @@ export async function updateSupplier(
   }
   
   try {
-    const supplier = await SupplierService.update(id, validated.data, { userId: ctx.userId, shopId: ctx.shopId });
+    const supplier = await SupplierService.update(id, ctx, validated.data);
     revalidatePath('/suppliers');
     revalidatePath(`/suppliers/${id}`);
     return {

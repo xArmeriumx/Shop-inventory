@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { RequestContext, ServiceError } from './product.service';
+import { RequestContext, ServiceError } from '@/types/domain';
 import { money, toNumber } from '@/lib/money';
 
 export const DashboardService = {

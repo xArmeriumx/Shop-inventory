@@ -7,13 +7,20 @@ import { logger } from '@/lib/logger';
 import { paginatedQuery, buildSearchFilter } from '@/lib/pagination';
 import { productSchema, productUpdateSchema, type ProductInput, type ProductUpdateInput } from '@/schemas/product';
 import { Product } from '@prisma/client';
-import { ActionResponse } from '@/types/action-response';
+import { ActionResponse } from '@/types/domain';
 
 import { Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { VERSION_CONFLICT_ERROR } from '@/lib/optimistic-lock';
 export type { BatchProductInput, BatchCreateResult } from '@/services';
-import { ProductService, ServiceError, GetProductsParams, type BatchProductInput, type BatchCreateResult } from '@/services';
+import { 
+  ProductService, 
+  ServiceError, 
+  GetProductsParams, 
+  type BatchProductInput, 
+  type BatchCreateResult,
+  type SerializedProduct 
+} from '@/services';
 
 //get product (paginated)
 export async function getProducts(params: any = {}) {
@@ -34,7 +41,7 @@ export async function getProduct(id: string) {
 }
 
 //create product  
-export async function createProduct(input: ProductInput): Promise<ActionResponse<Product>> {
+export async function createProduct(input: ProductInput): Promise<ActionResponse<SerializedProduct>> {
   // RBAC: Require PRODUCT_CREATE permission
   const ctx = await requirePermission('PRODUCT_CREATE');
 
@@ -81,7 +88,7 @@ export async function createProduct(input: ProductInput): Promise<ActionResponse
 }
 
 //update product  
-export async function updateProduct(id: string, input: ProductUpdateInput): Promise<ActionResponse<Product>> {
+export async function updateProduct(id: string, input: ProductUpdateInput): Promise<ActionResponse<SerializedProduct>> {
   // RBAC: Require PRODUCT_EDIT permission
   const ctx = await requirePermission('PRODUCT_EDIT');
 

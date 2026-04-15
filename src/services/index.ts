@@ -19,3 +19,19 @@ export * from './notification.service';
 export * from './ai.service';
 export * from './onboarding.service';
 export * from './system.service';
+
+export { ServiceError } from '@/types/domain';
+export type { 
+  RequestContext, 
+  GetCustomersParams, 
+  GetProductsParams,
+  GetSalesParams,
+  GetPurchasesParams,
+  BatchProductInput, 
+  BatchCreateResult,
+  PaginatedResult,
+  SerializedProduct,
+  SerializedSale,
+  SerializedPurchase,
+  SerializedSaleWithItems
+} from '@/types/domain';

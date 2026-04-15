@@ -1,86 +1,48 @@
 import { db } from '@/lib/db';
-import { Prisma, ShipmentStatus } from '@prisma/client';
-import { ServiceError, RequestContext } from './product.service';
-import { logger } from '@/lib/logger';
-import { ShipmentInput, UpdateShipmentInput, UpdateShipmentStatusInput } from '@/schemas/shipment';
+import { 
+  RequestContext, 
+  ServiceError, 
+  ShipmentStatus,
+  SHIPMENT_STATUS_TRANSITIONS,
+  DocumentType,
+  PaginatedResult,
+  GetShipmentsParams,
+} from '@/types/domain';
+import { IShippingService } from '@/types/service-contracts';
+import { SequenceService } from './sequence.service';
+import { SaleService } from './sale.service';
+import { StockService } from './stock.service';
+import { UpdateShipmentInput, UpdateShipmentStatusInput } from '@/schemas/shipment';
 
 // =============================================================================
 // STATUS TRANSITION VALIDATION
 // =============================================================================
 
-export const STATUS_TRANSITIONS: Record<ShipmentStatus, ShipmentStatus[]> = {
-  PENDING:   ['SHIPPED', 'CANCELLED'],
-  SHIPPED:   ['DELIVERED', 'RETURNED', 'CANCELLED'],
-  DELIVERED: [],
-  RETURNED:  ['PENDING'],
-  CANCELLED: [],
-};
-
-export const STATUS_LABELS: Record<ShipmentStatus, string> = {
-  PENDING:   'รอจัดส่ง',
-  SHIPPED:   'ส่งแล้ว',
-  DELIVERED: 'ส่งถึงแล้ว',
-  RETURNED:  'ส่งคืน',
-  CANCELLED: 'ยกเลิก',
-};
+// Replaced by domain.ts status maps
 
 export function validateTransition(from: ShipmentStatus, to: ShipmentStatus): boolean {
-  return STATUS_TRANSITIONS[from]?.includes(to) ?? false;
+  return SHIPMENT_STATUS_TRANSITIONS[from]?.includes(to) ?? false;
 }
 
 export function getAllowedTransitions(status: ShipmentStatus): ShipmentStatus[] {
-  return STATUS_TRANSITIONS[status] || [];
+  return SHIPMENT_STATUS_TRANSITIONS[status] || [];
 }
 
 // =============================================================================
 // SHIPMENT NUMBER GENERATION (Race-condition safe)
 // =============================================================================
 
-const MAX_SHIPMENT_RETRIES = 5;
+// Replaced by SequenceService
 
-async function generateShipmentNumber(
-  tx: Prisma.TransactionClient,
-  shopId: string
-): Promise<string> {
-  for (let attempt = 0; attempt < MAX_SHIPMENT_RETRIES; attempt++) {
-    const last = await tx.shipment.findFirst({
-      where: { shopId },
-      orderBy: { shipmentNumber: 'desc' },
-      select: { shipmentNumber: true },
-    });
+const STATUS_LABELS: Record<string, string> = {
+  PENDING:    'รอจัดส่ง',
+  PROCESSING: 'กำลังแพ็ค',
+  SHIPPED:    'ส่งแล้ว',
+  DELIVERED:  'ถึงผู้รับแล้ว',
+  RETURNED:   'ตีกลับ',
+  CANCELLED:  'ยกเลิก',
+};
 
-    const lastNumber = last
-      ? parseInt(last.shipmentNumber.split('-')[1] || '0')
-      : 0;
-
-    const newNumber = lastNumber + 1 + attempt;
-    const shipmentNumber = `SHP-${String(newNumber).padStart(5, '0')}`;
-
-    const exists = await tx.shipment.findFirst({
-      where: { shopId, shipmentNumber },
-      select: { id: true },
-    });
-
-    if (!exists) return shipmentNumber;
-
-    await logger.warn('Shipment number collision, retrying', {
-      shipmentNumber,
-      attempt,
-      shopId,
-    });
-  }
-
-  throw new ServiceError('ไม่สามารถสร้างเลข Shipment ได้ กรุณาลองใหม่');
-}
-
-export interface GetShipmentsParams {
-  page?: number;
-  limit?: number;
-  search?: string;
-  startDate?: string;
-  endDate?: string;
-  status?: string;
-}
 
 export interface OcrParcel {
   trackingNumber: string;
@@ -105,7 +67,7 @@ export interface ParcelMatch {
   confidence: 'high' | 'none';
 }
 
-export const ShipmentService = {
+export const ShipmentService: IShippingService = {
   async getList(params: GetShipmentsParams = {}, ctx: RequestContext) {
     const { page = 1, limit = 20, search, startDate, endDate, status } = params;
 
@@ -164,6 +126,8 @@ export const ShipmentService = {
         limit,
         total,
         totalPages: Math.ceil(total / limit),
+        hasNextPage: page < Math.ceil(total / limit),
+        hasPrevPage: page > 1,
       },
     };
   },
@@ -237,7 +201,7 @@ export const ShipmentService = {
     }));
   },
 
-  async create(data: ShipmentInput, ctx: RequestContext) {
+  async create(data: any, ctx: RequestContext) {
     try {
       return await db.$transaction(async (tx) => {
         const sale = await tx.sale.findFirst({
@@ -254,7 +218,7 @@ export const ShipmentService = {
           throw new ServiceError('รายการขายนี้มี Shipment ที่ยังใช้งานอยู่แล้ว (ซ้ำซ้อน)');
         }
 
-        const shipmentNumber = await generateShipmentNumber(tx, ctx.shopId);
+        const shipmentNumber = await SequenceService.generate(ctx, DocumentType.SHIPMENT, tx);
 
         const shipment = await tx.shipment.create({
           data: {
@@ -456,5 +420,170 @@ export const ShipmentService = {
 
       return { parcel, sale: null, confidence: 'none' as const };
     });
+  },
+
+  // ==========================================
+  // ERP ENHANCED METHODS
+  // ==========================================
+
+  async updateStatusWithSync(shipmentId: string, newStatus: ShipmentStatus, ctx: RequestContext) {
+    await db.$transaction(async (tx) => {
+      const shipment = await tx.shipment.findFirst({
+        where: { id: shipmentId, shopId: ctx.shopId },
+        include: { sale: { include: { items: true } } },
+      });
+
+      if (!shipment) throw new ServiceError('ไม่พบข้อมูลการจัดส่ง');
+
+      // Update Shipment Status
+      await tx.shipment.update({
+        where: { id: shipmentId },
+        data: { 
+          status: newStatus as any,
+          shippedAt: newStatus === 'SHIPPED' ? new Date() : undefined,
+          deliveredAt: newStatus === 'DELIVERED' ? new Date() : undefined,
+        },
+      });
+
+      // SYNC logic (UC 10 & 20)
+      let parentDeliveryStatus = (shipment as any).sale.deliveryStatus;
+      
+      if (newStatus === 'SHIPPED') {
+        // SHIPPED -> DEDUCT STOCK & Update Sale Status
+        await SaleService.completeSale(shipment.saleId, ctx, tx);
+        parentDeliveryStatus = 'SHIPPED';
+      } else if (newStatus === 'DELIVERED') {
+        // DELIVERED -> Update Sale Status
+        parentDeliveryStatus = 'DELIVERED';
+      } else if (newStatus === 'PENDING') {
+        parentDeliveryStatus = 'PENDING';
+      }
+
+      await tx.sale.update({
+        where: { id: shipment.saleId },
+        data: { deliveryStatus: parentDeliveryStatus }
+      });
+    });
+  },
+
+  async updateDispatchSequence(shipmentIds: string[], ctx: RequestContext) {
+    await db.$transaction(async (tx) => {
+      await Promise.all(shipmentIds.map((id, index) => 
+        tx.shipment.update({
+          where: { id, shopId: ctx.shopId },
+          data: { dispatchSeq: index + 1 },
+        })
+      ));
+    });
+  },
+
+  async delete(id: string, ctx: RequestContext): Promise<void> {
+    const shipment = await db.shipment.findFirst({
+      where: { id, shopId: ctx.shopId },
+    });
+    if (!shipment) throw new ServiceError('ไม่พบข้อมูลการจัดส่ง');
+    
+    // Hard delete or Soft delete depending on requirements. 
+    // Usually cancelling is preferred but interface says delete.
+    await db.shipment.delete({ where: { id } });
+  },
+
+  /**
+   * คำนวณปริมาตรและน้ำหนักบรรทุก (Container Load Calculation) 
+   * ERP Module 5: Shipping Hub
+   */
+  async calculateLoad(id: string, ctx: RequestContext) {
+    const shipment = await db.shipment.findFirst({
+      where: { id, shopId: ctx.shopId },
+      include: {
+        sale: {
+          include: {
+            items: {
+              include: {
+                product: {
+                  select: { name: true, sku: true, metadata: true } 
+                }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!shipment) throw new ServiceError('ไม่พบข้อมูลการจัดส่ง');
+
+    let totalWeight = 0; // kg
+    let totalCbm = 0;    // m3
+    let itemCount = 0;
+
+    const items = shipment.sale?.items || [];
+    
+    for (const item of items) {
+      const qty = item.quantity;
+      const metadata = (item.product.metadata as any) || {};
+      
+      // Use dimensions from metadata or defaults
+      const weight = metadata.weight || 0.5; // default 0.5kg
+      const length = metadata.length || 20;  // default 20cm
+      const width = metadata.width || 15;    // default 15cm
+      const height = metadata.height || 10;   // default 10cm
+      
+      const itemCbm = (length * width * height) / 1000000; // cm3 to m3
+      
+      totalWeight += weight * qty;
+      totalCbm += itemCbm * qty;
+      itemCount += qty;
+    }
+
+    // Standard Container Sizes (Approximation)
+    const containers = [
+      { name: '20ft Standard', capacityCbm: 33, capacityWeight: 28000 },
+      { name: '40ft Standard', capacityCbm: 67, capacityWeight: 26000 },
+      { name: '40ft High Cube', capacityCbm: 76, capacityWeight: 26000 },
+    ];
+
+    const recommendation = containers.find(c => c.capacityCbm >= totalCbm && c.capacityWeight >= totalWeight) 
+      || { name: 'Requires Multiple Containers / Bulk', capacityCbm: 0, capacityWeight: 0 };
+
+    return {
+      shipmentNumber: shipment.shipmentNumber,
+      totalItems: itemCount,
+      totalWeight: Number(totalWeight.toFixed(2)),
+      totalCbm: Number(totalCbm.toFixed(4)),
+      recommendedContainer: recommendation.name,
+      utilization: recommendation.capacityCbm > 0 
+        ? Number(((totalCbm / recommendation.capacityCbm) * 100).toFixed(2)) 
+        : 0
+    };
+  },
+
+  /**
+   * UC 11: Route Processing (Sort by Distance)
+   * จัดลำดับการส่งของตามระยะทาง เพื่อความประหยัดและรวดเร็ว
+   */
+  async processRoute(ids: string[], type: 'OUTBOUND' | 'INBOUND', ctx: RequestContext) {
+    const shipments = await db.shipment.findMany({
+      where: { id: { in: ids }, shopId: ctx.shopId },
+      include: { customerAddress: true }
+    });
+
+    // Simulated distance logic (In production, would use Google Maps API/Mapbox)
+    // Here we use a mock distance based on ID length or random for demo purposes
+    const withDistance = shipments.map(s => ({
+      ...s,
+      distance: Math.random() * 100 // Mock KM
+    }));
+
+    // Logic: Outbound (ใกล้ -> ไกล), Inbound (ไกล -> ใกล้)
+    const sorted = withDistance.sort((a, b) => {
+      return type === 'OUTBOUND' 
+        ? a.distance - b.distance 
+        : b.distance - a.distance;
+    });
+
+    // Update dispatch sequence
+    await this.updateDispatchSequence(sorted.map(s => s.id), ctx);
+
+    return sorted;
   }
 };

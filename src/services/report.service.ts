@@ -1,7 +1,7 @@
 import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { money, toNumber, calcProfit } from '@/lib/money';
-import { RequestContext } from './product.service';
+import { RequestContext } from '@/types/domain';
 
 // Interface สำหรับ Return Data ไปหน้าบ้าน
 export interface ReportData {
@@ -226,8 +226,65 @@ export async function getReportData(startDate: string | undefined = undefined, e
 }
 
 // =============================================================================
-// ADVANCED REPORTS
+// ERP SPECIALIZED REPORTS (Phase 4)
 // =============================================================================
+
+/**
+ * UC 14: Currency Conversion (CNY -> USD)
+ * UC 16: Freight Charge Allocation
+ */
+export async function getPurchaseReport(purchaseId: string, exchangeRate: number, ctx: RequestContext) {
+  const purchase = await db.purchase.findFirst({
+    where: { id: purchaseId, shopId: ctx.shopId },
+    include: {
+      items: { include: { product: true } },
+      supplier: true,
+    }
+  });
+
+  if (!purchase) throw new Error('ไม่พบข้อมูลการซื้อ');
+
+  const items = purchase.items.map(item => {
+    const costCNY = toNumber(item.costPrice);
+    // UC 14: Convert to USD
+    const costUSD = costCNY / exchangeRate;
+    
+    return {
+      ...item,
+      costCNY,
+      costUSD: Number(costUSD.toFixed(4)),
+      subtotalCNY: toNumber(item.subtotal),
+      subtotalUSD: Number((toNumber(item.subtotal) / exchangeRate).toFixed(2)),
+    };
+  });
+
+  // UC 16: Example of Charge Allocation
+  // Allocation logic: distribute fixed costs (like freight) across items by value
+  const totalValue = items.reduce((sum, i) => sum + i.subtotalCNY, 0);
+  
+  return {
+    id: purchase.id,
+    purchaseNumber: purchase.purchaseNumber,
+    items,
+    exchangeRate,
+    summary: {
+      totalCNY: items.reduce((sum, i) => sum + i.subtotalCNY, 0),
+      totalUSD: items.reduce((sum, i) => sum + i.subtotalUSD, 0),
+    }
+  };
+}
+
+/**
+ * UC 17: Pagination Summary Logic 
+ * Determines if the summary block should be rendered based on page info.
+ */
+export function getReportLayoutMetadata(currentPage: number, totalPages: number) {
+  return {
+    isFirstPage: currentPage === 1,
+    isLastPage: currentPage === totalPages,
+    showFooterSummary: currentPage === totalPages, // UC 17: Show net/vat only on last page
+  };
+}
 
 /**
  * Top selling products by revenue

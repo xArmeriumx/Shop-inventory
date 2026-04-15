@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { requireAuth, requirePermission, requireShop } from '@/lib/auth-guard';
 import { logger } from '@/lib/logger';
-import type { ActionResponse } from '@/types/action-response';
+import type { ActionResponse } from '@/types/domain';
 export type { InviteMemberInput } from '@/services';
 import { IamService, type InviteMemberInput, ServiceError } from '@/services';
 

@@ -13,6 +13,7 @@ export interface SessionContext {
   roleId?: string;
   permissions: Permission[];
   isOwner: boolean;
+  employeeDepartment?: string;
 }
 
 /**
@@ -43,6 +44,7 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
       shopId: true,
       roleId: true,
       isOwner: true,
+      departmentCode: true,
       role: { 
         select: { 
           permissions: true 
@@ -68,6 +70,7 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
     roleId: membership.roleId ?? undefined,
     permissions: membership.role?.permissions ?? [],
     isOwner: membership.isOwner,
+    employeeDepartment: membership.departmentCode ?? undefined,
   };
 });
 

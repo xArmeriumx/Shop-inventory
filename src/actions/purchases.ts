@@ -2,13 +2,16 @@
 
 import { revalidatePath } from 'next/cache';
 import { logger } from '@/lib/logger';
-import { requireAuth, requirePermission, getCurrentUserId } from '@/lib/auth-guard';
-import { paginatedQuery, buildSearchFilter, buildDateRangeFilter } from '@/lib/pagination';
+import { requirePermission } from '@/lib/auth-guard';
 import { purchaseSchema, type PurchaseInput } from '@/schemas/purchase';
-import type { Purchase } from '@prisma/client';
-export type { GetPurchasesParams, CancelPurchaseInput } from '@/services';
-import { PurchaseService, ServiceError, type GetPurchasesParams, type CancelPurchaseInput } from '@/services';
-import type { ActionResponse } from '@/types/action-response';
+import { 
+  PurchaseService, 
+  ServiceError, 
+  type GetPurchasesParams, 
+  type CancelPurchaseInput,
+  type SerializedPurchase 
+} from '@/services';
+import type { ActionResponse } from '@/types/domain';
 
 export async function getPurchases(params: GetPurchasesParams = {}) {
   const ctx = await requirePermission('PURCHASE_VIEW');
@@ -28,7 +31,7 @@ export async function getPurchase(id: string) {
 }
 
 // Create Purchase (สร้างการซื้อ)
-export async function createPurchase(input: PurchaseInput): Promise<ActionResponse<Purchase>> {
+export async function createPurchase(input: PurchaseInput): Promise<ActionResponse<SerializedPurchase>> {
   // RBAC: Require PURCHASE_CREATE permission
   const ctx = await requirePermission('PURCHASE_CREATE');
 

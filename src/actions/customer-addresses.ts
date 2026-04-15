@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/auth-guard';
 import { logger } from '@/lib/logger';
 import { customerAddressSchema, type CustomerAddressInput } from '@/schemas/customer-address';
-import type { ActionResponse } from '@/types/action-response';
+import type { ActionResponse } from '@/types/domain';
 import { CustomerService, ServiceError } from '@/services';
 
 export async function getCustomerAddresses(customerId: string) {
@@ -25,7 +25,7 @@ export async function createCustomerAddress(input: CustomerAddressInput): Promis
   }
 
   try {
-    const address = await CustomerService.createAddress(validated.data, { userId: ctx.userId, shopId: ctx.shopId });
+    const address = await CustomerService.createAddress(validated.data.customerId, ctx, validated.data);
     revalidatePath('/customers');
     return {
       success: true,
@@ -56,7 +56,7 @@ export async function updateCustomerAddress(id: string, input: CustomerAddressIn
   }
 
   try {
-    await CustomerService.updateAddress(id, validated.data, { userId: ctx.userId, shopId: ctx.shopId });
+    await CustomerService.updateAddress(id, ctx, validated.data);
     revalidatePath('/customers');
     return {
       success: true,
@@ -77,7 +77,7 @@ export async function deleteCustomerAddress(id: string): Promise<ActionResponse>
   const ctx = await requirePermission('CUSTOMER_EDIT');
 
   try {
-    await CustomerService.deleteAddress(id, { userId: ctx.userId, shopId: ctx.shopId });
+    await CustomerService.deleteAddress(id, ctx);
     revalidatePath('/customers');
     return {
       success: true,

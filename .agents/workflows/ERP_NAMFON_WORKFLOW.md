@@ -1,7 +1,3 @@
----
-description: Workflow for ERP-Implement
----
-
 # 🔄 ERP-Namfon Development Workflow
 
 เอกสารฉบับนี้กำหนดมาตรฐานขั้นตอนการพัฒนา (Standard Operating Procedure - SOP) สำหรับการปรับปรุงและเพิ่มฟีเจอร์ในระบบ ERP-Namfon เพื่อให้โค้ดมีความเป็นระเบียบและตรวจสอบย้อนกลับได้

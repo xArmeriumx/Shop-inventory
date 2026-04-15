@@ -4,45 +4,17 @@ import { StockService } from './stock.service';
 import { Prisma, Product } from '@prisma/client';
 import { paginatedQuery, buildSearchFilter } from '@/lib/pagination';
 
-export interface GetProductsParams {
-  page?: number;
-  limit?: number;
-  search?: string;
-  category?: string;
-  sortBy?: string;
-  sortOrder?: 'asc' | 'desc';
-  lowStockOnly?: boolean;
-}
+import { 
+  RequestContext, 
+  ServiceError, 
+  GetProductsParams, 
+  BatchProductInput, 
+  BatchCreateResult,
+  StockAvailability
+} from '@/types/domain';
+import { IProductService } from '@/types/service-contracts';
 
-export interface BatchProductInput {
-  name: string;
-  sku?: string | null;
-  category: string;
-  costPrice: number;
-  salePrice: number;
-  stock?: number;
-  minStock?: number;
-}
-
-export interface BatchCreateResult {
-  success: boolean;
-  created: Array<{ id: string; name: string; costPrice: number }>;
-  failed: Array<{ name: string; error: string }>;
-}
-
-export class ServiceError extends Error {
-  constructor(message: string, public errors?: Record<string, string[]>) {
-    super(message);
-    this.name = 'ServiceError';
-  }
-}
-
-export interface RequestContext {
-  userId: string;
-  shopId: string;
-}
-
-export const ProductService = {
+export const ProductService: IProductService = {
   /**
    * สร้างสินค้าใหม่ พร้อมตั้งค่าสต็อกเริ่มต้น
    */
@@ -72,6 +44,9 @@ export const ProductService = {
           stock: 0, // ให้ stock เริ่มที่ 0 เสมอ เพราะจะถูกเพิ่มด้วย StockLog
           description: payload.description || null,
           sku: payload.sku || null,
+          // ERP Rule: Sync isActive with isSaleable
+          isActive: payload.isActive ?? payload.isSaleable ?? true,
+          isSaleable: payload.isSaleable ?? payload.isActive ?? true,
           userId: ctx.userId,
           shopId: ctx.shopId,
         },
@@ -91,7 +66,11 @@ export const ProductService = {
         });
       }
 
-      return newProduct;
+      return {
+        ...newProduct,
+        costPrice: Number(newProduct.costPrice),
+        salePrice: Number(newProduct.salePrice),
+      };
     };
 
     // 3. Atomicity: รับประกันว่าถ้าเป็น root call จะทำ transaction ครอบเสมอ
@@ -162,6 +141,9 @@ export const ProductService = {
           ...otherData,
           description: otherData.description || null,
           ...(otherData.sku !== undefined ? { sku: otherData.sku || null } : {}),
+          // ERP Rule: Sync isActive with isSaleable
+          isActive: otherData.isSaleable ?? otherData.isActive ?? existing.isActive,
+          isSaleable: otherData.isActive ?? otherData.isSaleable ?? existing.isSaleable,
           version: { increment: 1 },  // Optimistic locking: ++ version เสมอเมื่อมีการเซฟ
         },
       });
@@ -177,7 +159,11 @@ export const ProductService = {
          updatedProduct.isLowStock = isLow;
       }
 
-      return updatedProduct;
+      return {
+        ...updatedProduct,
+        costPrice: Number(updatedProduct.costPrice),
+        salePrice: Number(updatedProduct.salePrice),
+      };
     };
 
     if (tx) {
@@ -204,7 +190,31 @@ export const ProductService = {
       throw new ServiceError('ไม่พบสินค้า');
     }
 
-    return product;
+    return {
+      ...product,
+      costPrice: Number(product.costPrice),
+      salePrice: Number(product.salePrice),
+    };
+  },
+
+  /**
+   *ดึงข้อมูลความพร้อมของสต็อก (Stock Availability)
+   */
+  async getAvailability(id: string, ctx: RequestContext): Promise<StockAvailability> {
+    const product = await db.product.findFirst({
+      where: { id, shopId: ctx.shopId, deletedAt: null },
+      select: { stock: true, reservedStock: true, minStock: true, isLowStock: true },
+    });
+
+    if (!product) throw new ServiceError('ไม่พบสินค้า');
+
+    return {
+      onHand: product.stock,
+      reserved: product.reservedStock,
+      available: product.stock - product.reservedStock,
+      isLowStock: product.isLowStock,
+      minStock: product.minStock,
+    };
   },
 
   /**
@@ -426,22 +436,42 @@ export const ProductService = {
     }
 
     const created: BatchCreateResult['created'] = [];
+    
+    // UC 13: Product Cleanup (Dedup) 
+    // ยึดค่าแรกที่พบ (First encounter), ค่าที่ซ้ำลำดับถัดไปให้ล้างเป็นค่าว่าง (Clear value), ห้ามขยับลำดับแถว
+    const seenSkus = new Set<string>();
+    for (const input of validInputs) {
+      if (input.sku) {
+        const normalizedSku = input.sku.toLowerCase();
+        if (seenSkus.has(normalizedSku)) {
+          // ค่าที่ซ้ำลำดับถัดไปให้ล้างเป็นค่าว่าง
+          input.sku = null; 
+        } else {
+          seenSkus.add(normalizedSku);
+        }
+      }
+    }
+
     const skusToCheck = validInputs.filter(i => i.sku).map(i => i.sku as string);
     
     let existingProducts: { id: string; sku: string | null; isActive: boolean }[] = [];
     if (skusToCheck.length > 0) {
       existingProducts = await db.product.findMany({
-        where: { shopId: ctx.shopId, sku: { in: skusToCheck } },
+        where: { 
+          shopId: ctx.shopId, 
+          sku: { in: skusToCheck, mode: 'insensitive' } 
+        },
         select: { id: true, sku: true, isActive: true },
       });
     }
 
-    const existingSkuMap = new Map(existingProducts.map(p => [p.sku, p]));
+    const existingSkuMap = new Map(existingProducts.map(p => [p.sku?.toLowerCase(), p]));
 
     try {
       await db.$transaction(async (tx) => {
         for (const input of validInputs) {
-          const existingProduct = input.sku ? existingSkuMap.get(input.sku) : null;
+          const skuKey = input.sku?.toLowerCase();
+          const existingProduct = skuKey ? existingSkuMap.get(skuKey) : null;
 
           if (existingProduct) {
             const reactivated = await tx.product.update({

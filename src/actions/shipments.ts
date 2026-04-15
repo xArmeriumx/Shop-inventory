@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { shipmentSchema, updateShipmentSchema, updateShipmentStatusSchema } from '@/schemas/shipment';
 import type { ShipmentInput, UpdateShipmentInput, UpdateShipmentStatusInput } from '@/schemas/shipment';
-import type { ActionResponse } from '@/types/action-response';
+import type { ActionResponse } from '@/types/domain';
 export type { OcrParcel, ParcelMatch } from '@/services';
 import { ShipmentService, type OcrParcel, type ParcelMatch, ServiceError } from '@/services';
 import { requirePermission } from '@/lib/auth-guard';

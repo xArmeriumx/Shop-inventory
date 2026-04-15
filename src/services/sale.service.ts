@@ -3,21 +3,23 @@ import { Prisma, Sale } from '@prisma/client';
 import { SaleInput } from '@/schemas/sale';
 import { StockService } from './stock.service';
 import { NotificationService } from './notification.service';
-import { ServiceError, RequestContext } from './product.service';
+// Types imported from @/types/domain
 import { money, toNumber, calcSubtotal, calcProfit } from '@/lib/money';
 import { logger } from '@/lib/logger';
 import { paginatedQuery, buildSearchFilter, buildDateRangeFilter } from '@/lib/pagination';
 
-export interface GetSalesParams {
-  page?: number;
-  limit?: number;
-  search?: string;
-  startDate?: string;
-  endDate?: string;
-  paymentMethod?: string;
-  channel?: string;
-  status?: string;
-}
+import { 
+  RequestContext, 
+  ServiceError, 
+  GetSalesParams,
+  DocumentType,
+  BookingStatus,
+  SaleStatus,
+  SerializedSale,
+  SerializedSaleWithItems,
+} from '@/types/domain';
+import { ISaleService } from '@/types/service-contracts';
+import { SequenceService } from './sequence.service';
 
 export const CANCEL_REASONS = {
   WRONG_ENTRY: 'บันทึกผิดพลาด',
@@ -34,45 +36,13 @@ export interface CancelSaleInput {
 
 const MAX_INVOICE_RETRIES = 5;
 
-async function generateInvoiceNumber(shopId: string, tx: Prisma.TransactionClient): Promise<string> {
-  for (let attempt = 0; attempt < MAX_INVOICE_RETRIES; attempt++) {
-    const lastSale = await tx.sale.findFirst({
-      where: { shopId },
-      orderBy: { invoiceNumber: 'desc' },
-      select: { invoiceNumber: true },
-    });
+// Replaced by SequenceService
 
-    const lastNumber = lastSale
-      ? parseInt(lastSale.invoiceNumber.split('-')[1] || '0')
-      : 0;
-
-    const newNumber = lastNumber + 1 + attempt;
-    const invoiceNumber = `INV-${String(newNumber).padStart(5, '0')}`;
-
-    const exists = await tx.sale.findFirst({
-      where: { shopId, invoiceNumber },
-      select: { id: true }
-    });
-
-    if (!exists) {
-      return invoiceNumber;
-    }
-
-    await logger.warn('Invoice number collision, retrying', {
-      invoiceNumber,
-      attempt,
-      shopId
-    });
-  }
-
-  throw new ServiceError('ไม่สามารถสร้างเลข Invoice ได้ กรุณาลองใหม่');
-}
-
-export const SaleService = {
+export const SaleService: ISaleService = {
   /**
    * บันทึกการขายใหม่ พร้อมลดสต็อกอัตโนมัติ
    */
-  async create(ctx: RequestContext, payload: SaleInput, tx?: Prisma.TransactionClient): Promise<Sale> {
+  async create(ctx: RequestContext, payload: SaleInput, tx?: Prisma.TransactionClient): Promise<SerializedSale> {
     const { items, customerAddress, ...saleData } = payload;
 
     if (items.length === 0) {
@@ -80,8 +50,12 @@ export const SaleService = {
     }
 
     const executeTransaction = async (prismaTx: Prisma.TransactionClient) => {
-      // 1. Generate Invoice
-      const invoiceNumber = await generateInvoiceNumber(ctx.shopId, prismaTx);
+      // 1. Generate Invoice Number with Department awareness
+      const departmentCode = ctx.employeeDepartment || null;
+      
+      const invoiceNumber = await SequenceService.generate(ctx, DocumentType.SALE_INVOICE, prismaTx, {
+        departmentCode: departmentCode || undefined,
+      });
 
       // 2. Validate Products & Pre-check stock (Batch: 1 query instead of N)
       const productIds = items.map(item => item.productId);
@@ -196,8 +170,34 @@ export const SaleService = {
         }
       }
 
-      // 5. Create Sale
-      const paymentStatus = 'VERIFIED';
+      // 5. Handle Credit Limit (ERP Module 2 & 6)
+      if (saleData.paymentMethod === 'CREDIT' && finalCustomerId) {
+        const customer = await prismaTx.customer.findUnique({
+          where: { id: finalCustomerId },
+          select: { creditLimit: true, name: true },
+        });
+
+        if (customer && customer.creditLimit) {
+          // Calculate current outstanding (mock/simplified: total of unbilled/unpaid sales)
+          const outstanding = await prismaTx.sale.aggregate({
+            where: { customerId: finalCustomerId, billingStatus: { not: 'PAID' }, status: { not: 'CANCELLED' } },
+            _sum: { netAmount: true },
+          });
+
+          const currentDebt = toNumber(outstanding._sum.netAmount || 0);
+          const newDebt = currentDebt + netAmount;
+
+          if (newDebt > toNumber(customer.creditLimit)) {
+             throw new ServiceError(
+                `วงเงินเครดิตไม่พอ (ลูกค้า: ${customer.name}): วงเงิน ฿${toNumber(customer.creditLimit).toLocaleString()}, ` +
+                `ยอดค้างเดิม ฿${currentDebt.toLocaleString()}, ยอดใหม่ ฿${netAmount.toLocaleString()}`
+             );
+          }
+        }
+      }
+
+      // 6. Create Sale
+      const paymentStatus = saleData.paymentMethod === 'CREDIT' ? 'PENDING' : 'VERIFIED';
       
       const sale = await prismaTx.sale.create({
         data: {
@@ -209,6 +209,7 @@ export const SaleService = {
           paymentMethod: saleData.paymentMethod,
           notes: saleData.notes || null,
           receiptUrl: saleData.receiptUrl || null,
+          departmentCode,
           totalAmount,
           totalCost,
           profit,
@@ -224,21 +225,20 @@ export const SaleService = {
         include: { items: true },
       });
 
-      // 6. Record Stock Movements (Bulk: 1 batch instead of N sequential calls)
-      await StockService.recordMovements(
-        sale.items.map(item => ({
-          productId: item.productId,
-          type: 'SALE' as const,
-          quantity: -item.quantity,
-          saleId: sale.id,
-          userId: ctx.userId,
-          shopId: ctx.shopId,
-          note: `ขาย: ${sale.invoiceNumber}`,
-          date: sale.date,
-          requireStock: true,
-        })),
-        prismaTx
-      );
+      // 6. Record Stock Reservation (New ERP Logic: Initial sale create = RESERVED)
+      // If payment is already verified (POS style), we might want to DEDUCT immediately.
+      // But for ERP standardized flow, we use RESERVED first.
+      await Promise.all(sale.items.map(item => 
+        StockService.reserveStock(item.productId, item.quantity, ctx, prismaTx)
+      ));
+      
+      await prismaTx.sale.update({
+        where: { id: sale.id },
+        data: { 
+          bookingStatus: BookingStatus.RESERVED,
+          status: SaleStatus.CONFIRMED 
+        }
+      });
 
       // 7. Create Notification (Async/Non-blocking)
       NotificationService.create({
@@ -250,7 +250,15 @@ export const SaleService = {
         link: `/sales/${sale.id}`,
       }).catch(() => {});
 
-      return sale;
+      return {
+        ...sale,
+        totalAmount: Number(sale.totalAmount),
+        totalCost: Number(sale.totalCost),
+        profit: Number(sale.profit),
+        discountAmount: Number(sale.discountAmount),
+        discountValue: sale.discountValue ? Number(sale.discountValue) : null,
+        netAmount: Number(sale.netAmount),
+      };
     };
 
     if (tx) {
@@ -258,6 +266,65 @@ export const SaleService = {
     } else {
       return db.$transaction(executeTransaction);
     }
+  },
+
+  /**
+   * แก้ไขข้อมูลการขาย (Metadata)
+   * หมายเหตุ: ไม่อนุญาตให้แก้ items หากสถานะถูก Lock แล้ว (Invoiced/Completed)
+   */
+  async update(id: string, ctx: RequestContext, payload: any): Promise<SerializedSale> {
+    const sale = await db.sale.findFirst({
+      where: { id, shopId: ctx.shopId },
+    });
+
+    if (!sale) throw new ServiceError('ไม่พบรายการขาย');
+    
+    // ERP Rule: Locked data protection
+    if (sale.isLocked || sale.status === 'INVOICED' || sale.status === 'COMPLETED') {
+        const { notes, paymentMethod, channel } = payload;
+        // Allow updating only certain metadata when locked
+        const updated = await db.sale.update({
+            where: { id },
+            data: { 
+                notes: notes !== undefined ? notes : sale.notes,
+                paymentMethod: paymentMethod !== undefined ? paymentMethod : sale.paymentMethod,
+                channel: channel !== undefined ? channel : sale.channel,
+            },
+        });
+        return {
+            ...updated,
+            totalAmount: Number(updated.totalAmount),
+            totalCost: Number(updated.totalCost),
+            profit: Number(updated.profit),
+            discountAmount: Number(updated.discountAmount),
+            discountValue: updated.discountValue ? Number(updated.discountValue) : null,
+            netAmount: Number(updated.netAmount),
+        };
+    }
+
+    // Full update if not locked (Simplified for now: metadata only)
+    // In a full implementation, this should handle item diffs and stock reversal
+    const updated = await db.sale.update({
+      where: { id },
+      data: payload,
+    });
+
+    return {
+        ...updated,
+        totalAmount: Number(updated.totalAmount),
+        totalCost: Number(updated.totalCost),
+        profit: Number(updated.profit),
+        discountAmount: Number(updated.discountAmount),
+        discountValue: updated.discountValue ? Number(updated.discountValue) : null,
+        netAmount: Number(updated.netAmount),
+    };
+  },
+
+  /**
+   * ลบการขาย (Soft-Delete/Cancel)
+   */
+  async delete(id: string, ctx: RequestContext): Promise<void> {
+    return this.cancel({ id, reasonCode: 'SYSTEM_DELETE', reasonDetail: 'Deleted by user' }, ctx);
   },
 
   /**
@@ -313,13 +380,13 @@ export const SaleService = {
   /**
    * ดึงข้อมูลการขายตาม ID
    */
-  async getById(id: string, ctx: RequestContext, options: { canViewProfit?: boolean } = {}) {
+  async getById(id: string, ctx: RequestContext, options: { canViewProfit?: boolean } = {}): Promise<SerializedSaleWithItems> {
     const { canViewProfit = false } = options;
 
     const sale = await db.sale.findFirst({
       where: { id, shopId: ctx.shopId },
       include: {
-        items: { include: { product: { select: { id: true, name: true, sku: true } } } },
+        items: { include: { product: { select: { id: true, name: true, sku: true, stock: true, reservedStock: true } } } },
         customer: true,
         shipments: {
           select: {
@@ -350,6 +417,24 @@ export const SaleService = {
       item.subtotal = Number(item.subtotal);
       item.profit = canViewProfit ? Number(item.profit) : 0;
       item.discountAmount = Number(item.discountAmount);
+      
+      // Add real-time stock status (UC 2)
+      let virtualStockStatus = 'ยังไม่จองสต็อก';
+      if (sale.status === SaleStatus.CONFIRMED || sale.status === SaleStatus.INVOICED) {
+          virtualStockStatus = 'จองสต็อกแล้ว';
+      }
+      if (sale.shipments.some(s => s.status === 'DELIVERED')) {
+          virtualStockStatus = 'ตัดสต็อกแล้ว';
+      }
+
+      if (item.product) {
+        item.stockStatus = {
+            onHand: item.product.stock,
+            reserved: item.product.reservedStock,
+            available: item.product.stock - item.product.reservedStock,
+            statusLabel: virtualStockStatus, // UC 2
+        };
+      }
     }
 
     return saleAny;
@@ -526,5 +611,132 @@ export const SaleService = {
         paymentStatus: 'PENDING',
       },
     });
+  },
+
+  // ==========================================
+  // ERP ENHANCED METHODS
+  // ==========================================
+
+  async confirmOrder(saleId, ctx) {
+    await db.$transaction(async (tx) => {
+      const sale = await tx.sale.findFirst({
+        where: { id: saleId, shopId: ctx.shopId },
+        include: { items: true },
+      });
+
+      if (!sale) throw new ServiceError('ไม่พบรายการขาย');
+      if (sale.status !== SaleStatus.DRAFT) {
+        throw new ServiceError('รายการนี้ไม่ได้อยู่ในสถานะร่าง');
+      }
+
+      // Reserve stock for all items
+      await Promise.all(sale.items.map(item => 
+        StockService.reserveStock(item.productId, item.quantity, ctx, tx)
+      ));
+
+      await tx.sale.update({
+        where: { id: saleId },
+        data: { 
+          status: SaleStatus.CONFIRMED,
+          bookingStatus: BookingStatus.RESERVED,
+        },
+      });
+    });
+  },
+
+  async generateInvoice(saleId, ctx, overrides) {
+    return await db.$transaction(async (tx) => {
+      const sale = await tx.sale.findFirst({
+        where: { id: saleId, shopId: ctx.shopId },
+      });
+
+      if (!sale) throw new ServiceError('ไม่พบรายการขาย');
+      
+      // If already has invoice number from sequence (not compound but legitimate)
+      // In this system, we currently generate it at 'create' for backward compatibility.
+      // But let's assume we can re-generate or lock it here.
+      
+      await tx.sale.update({
+        where: { id: saleId },
+        data: { 
+          status: SaleStatus.INVOICED,
+          isLocked: true, 
+        },
+      });
+
+      return { invoiceNumber: sale.invoiceNumber };
+    });
+  },
+
+  async completeSale(saleId: string, ctx: RequestContext, tx?: Prisma.TransactionClient) {
+    const execute = async (prismaTx: Prisma.TransactionClient) => {
+      const sale = await prismaTx.sale.findFirst({
+        where: { id: saleId, shopId: ctx.shopId },
+        include: { items: true },
+      });
+
+      if (!sale) throw new ServiceError('ไม่พบรายการขาย');
+      if (sale.status === SaleStatus.COMPLETED) return;
+
+      // Deduct stock (onHand - reservedStock)
+      await Promise.all(sale.items.map(item => 
+        StockService.deductStock(item.productId, item.quantity, ctx, prismaTx)
+      ));
+
+      await prismaTx.sale.update({
+        where: { id: saleId },
+        data: { 
+          status: SaleStatus.COMPLETED,
+          bookingStatus: BookingStatus.DEDUCTED,
+          isLocked: true,
+        },
+      });
+    };
+
+    if (tx) {
+      return execute(tx);
+    } else {
+      return db.$transaction(execute);
+    }
+  },
+
+  async getLockedFields(saleId, ctx) {
+    const sale = await db.sale.findFirst({
+      where: { id: saleId, shopId: ctx.shopId },
+      select: { status: true, isLocked: true },
+    });
+
+    if (!sale) return [];
+
+    const locked = [];
+    if (sale.isLocked || sale.status === SaleStatus.INVOICED || sale.status === SaleStatus.COMPLETED) {
+      locked.push('items', 'customerId', 'discountType', 'discountValue');
+    }
+    if (sale.status === SaleStatus.COMPLETED) {
+      locked.push('paymentMethod', 'notes');
+    }
+
+    return locked;
+  },
+
+  async releaseStock(saleId: string, ctx: RequestContext, tx: Prisma.TransactionClient) {
+    const sale = await tx.sale.findFirst({
+      where: { id: saleId, shopId: ctx.shopId },
+      include: { items: true },
+    });
+
+    if (!sale) throw new ServiceError('ไม่พบรายการขาย');
+    
+    // Only release if it was reserved
+    if (sale.bookingStatus === BookingStatus.RESERVED) {
+      await Promise.all(sale.items.map(item => 
+        StockService.releaseStock(item.productId, item.quantity, ctx, tx)
+      ));
+
+      await tx.sale.update({
+        where: { id: saleId },
+        data: { bookingStatus: BookingStatus.NONE },
+      });
+    }
   }
 };

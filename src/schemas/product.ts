@@ -39,11 +39,14 @@ export const productSchema = z.object({
     .min(0)
     .default(5),
   images: z.array(z.string().url()).optional().default([]),
+  isActive: z.boolean().optional().default(true),
+  isSaleable: z.boolean().optional().default(true),
 });
 
 export const productUpdateSchema = productSchema.partial().extend({
   version: z.number().int().optional(),  // Optimistic locking version
 });
 
-export type ProductInput = z.infer<typeof productSchema>;
-export type ProductUpdateInput = z.infer<typeof productUpdateSchema>;
+export type ProductInput = z.input<typeof productSchema>;
+export type ProductUpdateInput = z.input<typeof productUpdateSchema>;
+export type ProductOutput = z.infer<typeof productSchema>;

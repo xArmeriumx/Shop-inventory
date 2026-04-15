@@ -43,5 +43,6 @@ export const saleSchema = z.object({
   discountValue: z.number().min(0, 'ส่วนลดต้องไม่ติดลบ').optional().nullable(),
 });
 
-export type SaleInput = z.infer<typeof saleSchema>;
-export type SaleItemInput = z.infer<typeof saleItemSchema>;
+export type SaleInput = z.input<typeof saleSchema>;
+export type SaleItemInput = z.input<typeof saleItemSchema>;
+export type SaleOutput = z.infer<typeof saleSchema>;

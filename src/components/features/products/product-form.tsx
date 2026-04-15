@@ -2,8 +2,8 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import type { Product } from '@prisma/client';
 import { Button } from '@/components/ui/button';
+import { SerializedProduct } from '@/services';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
@@ -21,7 +21,7 @@ interface Category {
 }
 
 interface ProductFormProps {
-  product?: Product;
+  product?: SerializedProduct;
   categories: Category[];
 }
 

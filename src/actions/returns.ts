@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/auth-guard';
 import { z } from 'zod';
 import { ReturnService, ServiceError } from '@/services';
-import type { ActionResponse } from '@/types/action-response';
+import type { ActionResponse } from '@/types/domain';
 
 // =============================================================================
 // G3: Partial Returns (คืนสินค้าบางส่วน)

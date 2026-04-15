@@ -3,7 +3,7 @@
 import { auth } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 import { logger } from '@/lib/logger';
-import type { ActionResponse } from '@/types/action-response';
+import type { ActionResponse } from '@/types/domain';
 import { OnboardingService } from '@/services';
 
 export async function createShop(shopName: string): Promise<ActionResponse> {

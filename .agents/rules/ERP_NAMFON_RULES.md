@@ -1,7 +1,3 @@
----
-trigger: always_on
----
-
 # 🛡️ ERP-Namfon Master Business Rules
 
 เอกสารฉบับนี้คือ **"Business Rule Registry"** ที่รวบรวมเงื่อนไขและ Logic ทางธุรกิจทั้งหมดของระบบ ERP-Namfon เพื่อใช้เป็นมาตรฐานในการพัฒนา (Single Source of Logic)

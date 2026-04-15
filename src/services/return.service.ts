@@ -2,7 +2,7 @@ import { db } from '@/lib/db';
 import { Prisma } from '@prisma/client';
 import { StockService } from './stock.service';
 import { NotificationService } from './notification.service';
-import { ServiceError, RequestContext } from './product.service';
+import { ServiceError, RequestContext } from '@/types/domain';
 import { money, toNumber, calcSubtotal } from '@/lib/money';
 
 const MAX_RETURN_RETRIES = 5;

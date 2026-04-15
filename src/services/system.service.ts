@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { RequestContext } from './product.service';
+import { RequestContext } from '@/types/domain';
 import os from 'os';
 
 export interface SystemMetrics {

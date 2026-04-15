@@ -1,9 +1,11 @@
 import { db } from '@/lib/db';
-import { RequestContext, ServiceError } from './product.service';
+import { RequestContext, ServiceError } from '@/types/domain';
 import { SupplierInput } from '@/schemas/supplier';
 import { paginatedQuery, buildSearchFilter } from '@/lib/pagination';
 import type { Supplier } from '@prisma/client';
 import { toNumber } from '@/lib/money';
+import { ISupplierService } from '@/types/service-contracts';
+import { PaginatedResult, SerializedSupplier } from '@/types/domain';
 
 export interface GetSuppliersParams {
   page?: number;
@@ -11,7 +13,7 @@ export interface GetSuppliersParams {
   search?: string;
 }
 
-export const SupplierService = {
+export const SupplierService: ISupplierService = {
   async getForSelect(ctx: RequestContext) {
     return db.supplier.findMany({
       where: {
@@ -28,11 +30,11 @@ export const SupplierService = {
     });
   },
 
-  async getList(params: GetSuppliersParams = {}, ctx: RequestContext) {
+  async getList(params: GetSuppliersParams = {}, ctx: RequestContext): Promise<PaginatedResult<SerializedSupplier>> {
     const { page = 1, limit = 20, search } = params;
     const searchFilter = buildSearchFilter(search, ['name', 'code', 'phone', 'email', 'contactName']);
     
-    return paginatedQuery(db.supplier, {
+    const result = await paginatedQuery(db.supplier, {
       where: {
         shopId: ctx.shopId,
         deletedAt: null,
@@ -47,9 +49,17 @@ export const SupplierService = {
       limit,
       orderBy: { name: 'asc' },
     });
+
+    return {
+      ...result,
+      data: result.data.map((s: any) => ({
+        ...s,
+        moq: s.moq ? Number(s.moq) : null,
+      })),
+    };
   },
 
-  async getById(id: string, ctx: RequestContext) {
+  async getById(id: string, ctx: RequestContext): Promise<SerializedSupplier> {
     const supplier = await db.supplier.findFirst({
       where: {
         id,
@@ -67,20 +77,28 @@ export const SupplierService = {
       throw new ServiceError('ไม่พบข้อมูลผู้จำหน่าย');
     }
     
-    return supplier;
+    return {
+      ...supplier,
+      moq: supplier.moq ? Number(supplier.moq) : null,
+    };
   },
 
-  async create(data: SupplierInput, ctx: RequestContext) {
-    return db.supplier.create({
+  async create(ctx: RequestContext, data: SupplierInput): Promise<SerializedSupplier> {
+    const supplier = await db.supplier.create({
       data: {
         ...data,
         userId: ctx.userId,
         shopId: ctx.shopId,
       },
     });
+
+    return {
+      ...supplier,
+      moq: supplier.moq ? Number(supplier.moq) : null,
+    };
   },
 
-  async update(id: string, data: SupplierInput, ctx: RequestContext) {
+  async update(id: string, ctx: RequestContext, data: SupplierInput): Promise<SerializedSupplier> {
     const existing = await db.supplier.findFirst({
       where: { id, shopId: ctx.shopId, deletedAt: null },
     });
@@ -89,10 +107,15 @@ export const SupplierService = {
       throw new ServiceError('ไม่พบข้อมูลผู้จำหน่าย');
     }
 
-    return db.supplier.update({
+    const supplier = await db.supplier.update({
       where: { id },
       data,
     });
+
+    return {
+      ...supplier,
+      moq: supplier.moq ? Number(supplier.moq) : null,
+    };
   },
 
   async delete(id: string, ctx: RequestContext) {
@@ -112,7 +135,7 @@ export const SupplierService = {
       throw new ServiceError(`ไม่สามารถลบผู้จำหน่ายที่มีประวัติการซื้อ ${purchaseCount} รายการ`);
     }
     
-    return db.supplier.update({
+    await db.supplier.update({
       where: { id },
       data: { deletedAt: new Date() },
     });

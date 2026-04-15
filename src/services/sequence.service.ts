@@ -30,7 +30,7 @@ import {
   SequenceConfig,
   ServiceError,
   type RequestContext,
-} from '@/types/erp';
+} from '@/types/domain';
 
 // ============================================================================
 // DEFAULT CONFIGURATION
@@ -102,14 +102,25 @@ const DEFAULT_CONFIGS: Record<string, Omit<SequenceConfig, 'documentType'>> = {
  */
 function buildSequencePrefix(
   docType: DocumentType,
-  overrides?: Partial<SequenceConfig>,
+  overrides?: Partial<SequenceConfig> & { purchaseType?: string, invoiceType?: string },
 ): string {
   const dept = overrides?.departmentCode;
   const customPrefix = overrides?.prefix;
 
-  // Priority: customPrefix > dept-docType > docType
+  // 1. Explicit Custom Prefix (Highest Priority) - UC 8 (OD prefix)
   if (customPrefix) return customPrefix;
+  
+  // 2. Special Purchase Logic - UC 5 (Local/Foreign)
+  if (docType === DocumentType.PURCHASE_ORDER || docType === DocumentType.PURCHASE_REQUEST) {
+    const pType = overrides?.purchaseType;
+    if (pType === 'FOREIGN') return `T-${docType}`;
+    if (pType === 'LOCAL') return `C-${docType}`;
+  }
+
+  // 3. Department-based Logic - UC 7 & UC 1 (K-INV, etc.)
   if (dept) return `${dept}-${docType}`;
+
+  // 4. Default Document Type
   return docType;
 }
 
@@ -153,11 +164,13 @@ function formatSequenceNumber(
   }
 }
 
+import { ISequenceService } from '@/types/service-contracts';
+
 // ============================================================================
 // SERVICE IMPLEMENTATION
 // ============================================================================
 
-export const SequenceService = {
+export const SequenceService: ISequenceService = {
   /**
    * Generate — สร้างเลขเอกสารใหม่ (Atomic, Race-safe)
    *

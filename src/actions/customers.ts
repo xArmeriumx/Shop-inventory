@@ -5,9 +5,8 @@ import { requirePermission } from '@/lib/auth-guard';
 import { logger } from '@/lib/logger';
 import { customerSchema, type CustomerInput } from '@/schemas/customer';
 import type { Customer } from '@prisma/client';
-import type { ActionResponse } from '@/types/action-response';
-export type { GetCustomersParams } from '@/services';
-import { CustomerService, type GetCustomersParams, ServiceError } from '@/services';
+import type { ActionResponse, SerializedCustomer, GetCustomersParams } from '@/types/domain';
+import { CustomerService, ServiceError } from '@/services';
 
 export async function getCustomers(params: GetCustomersParams = {}) {
   const ctx = await requirePermission('CUSTOMER_VIEW');
@@ -24,7 +23,7 @@ export async function getCustomer(id: string) {
   }
 }
 
-export async function createCustomer(input: CustomerInput): Promise<ActionResponse<Customer>> {
+export async function createCustomer(input: CustomerInput): Promise<ActionResponse<SerializedCustomer>> {
   const ctx = await requirePermission('CUSTOMER_CREATE');
 
   const validated = customerSchema.safeParse(input);
@@ -37,7 +36,7 @@ export async function createCustomer(input: CustomerInput): Promise<ActionRespon
   }
 
   try {
-    const customer = await CustomerService.create(validated.data, { userId: ctx.userId, shopId: ctx.shopId });
+    const customer = await CustomerService.create(ctx, validated.data);
     revalidatePath('/customers');
     return {
       success: true,
@@ -54,7 +53,7 @@ export async function createCustomer(input: CustomerInput): Promise<ActionRespon
   }
 }
 
-export async function updateCustomer(id: string, input: CustomerInput): Promise<ActionResponse<Customer>> {
+export async function updateCustomer(id: string, input: CustomerInput): Promise<ActionResponse<SerializedCustomer>> {
   const ctx = await requirePermission('CUSTOMER_EDIT');
 
   const validated = customerSchema.safeParse(input);
@@ -67,7 +66,7 @@ export async function updateCustomer(id: string, input: CustomerInput): Promise<
   }
 
   try {
-    const customer = await CustomerService.update(id, validated.data, { userId: ctx.userId, shopId: ctx.shopId });
+    const customer = await CustomerService.update(id, ctx, validated.data);
     revalidatePath('/customers');
     revalidatePath(`/customers/${id}`);
     return {

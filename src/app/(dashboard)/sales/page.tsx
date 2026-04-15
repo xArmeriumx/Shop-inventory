@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { getSales } from '@/actions/sales';
 import { SalesTable } from '@/components/features/sales/sales-table';
 import { SalesToolbar } from '@/components/features/sales/sales-toolbar';
+import { SaleStatus } from '@/types/domain';
 import { SalesExportButton } from '@/components/features/sales/sales-export-button';
 
 import { requirePermission } from '@/lib/auth-guard';
@@ -27,11 +28,11 @@ export default async function SalesPage({ searchParams }: SalesPageProps) {
 
   const page = Number(searchParams.page) || 1;
   const search = searchParams.search || '';
-  const startDate = searchParams.startDate;
-  const endDate = searchParams.endDate;
-  const paymentMethod = searchParams.paymentMethod;
-  const channel = searchParams.channel;
-  const status = searchParams.status;
+  const startDate = searchParams.startDate || '';
+  const endDate = searchParams.endDate || '';
+  const paymentMethod = searchParams.paymentMethod || '';
+  const channel = searchParams.channel || '';
+  const status = searchParams.status as SaleStatus | undefined;
 
   const { data: sales, pagination } = await getSales({
     page,

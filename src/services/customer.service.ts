@@ -1,18 +1,21 @@
 import { db } from '@/lib/db';
-import { RequestContext, ServiceError } from './product.service';
+// Types imported from @/types/domain
 import { CustomerInput } from '@/schemas/customer';
 import { paginatedQuery, buildSearchFilter } from '@/lib/pagination';
 import { logger } from '@/lib/logger';
 import type { Customer } from '@prisma/client';
 
-export interface GetCustomersParams { 
-  page?: number;
-  limit?: number;
-  search?: string;
-}
+import { 
+  RequestContext, 
+  ServiceError, 
+  GetCustomersParams,
+  SerializedCustomer,
+  PaginatedResult,
+} from '@/types/domain';
+import { ICustomerService } from '@/types/service-contracts';
 
-export const CustomerService = {
-  async getList(params: GetCustomersParams = {}, ctx: RequestContext) {
+export const CustomerService: ICustomerService = {
+  async getList(params: GetCustomersParams = {}, ctx: RequestContext): Promise<PaginatedResult<SerializedCustomer>> {
     const { page = 1, limit = 20, search } = params;
     const searchFilter = buildSearchFilter(search, ['name', 'phone', 'address', 'email']);
 
@@ -22,28 +25,56 @@ export const CustomerService = {
       deletedAt: null,
     };
 
-    return paginatedQuery<Customer>(db.customer, {
+    const result = await paginatedQuery<Customer>(db.customer, {
       where,
       page,
       limit,
       orderBy: { name: 'asc' },
     });
+
+    return {
+      ...result,
+      data: result.data.map(c => ({
+        ...c,
+        creditLimit: c.creditLimit ? Number(c.creditLimit) : null,
+      })),
+    };
   },
 
-  async getById(id: string, ctx: RequestContext) {
+  async getById(id: string, ctx: RequestContext): Promise<SerializedCustomer> {
     const customer = await db.customer.findFirst({
       where: { id, shopId: ctx.shopId, deletedAt: null },
+      include: {
+        salesPersons: {
+          select: {
+            id: true,
+            userId: true,
+            departmentCode: true,
+            user: { select: { name: true, email: true } }
+          }
+        }
+      }
     });
 
     if (!customer) {
       throw new ServiceError('ไม่พบข้อมูลลูกค้า');
     }
 
-    return customer;
+    return {
+      ...customer,
+      creditLimit: customer.creditLimit ? Number(customer.creditLimit) : null,
+    };
   },
 
-  async create(data: CustomerInput, ctx: RequestContext) {
-    return db.customer.create({
+  async create(ctx: RequestContext, data: CustomerInput): Promise<SerializedCustomer> {
+    // ERP UC 3: Auto-assign Salespersons by Region
+    let assignedSalespersons: { id: string }[] = [];
+    if (data.region) {
+      const salesTeam = await this.getSalespersonsByRegion(data.region, ctx);
+      assignedSalespersons = salesTeam.map(s => ({ id: s.id }));
+    }
+
+    const customer = await db.customer.create({
       data: {
         ...data,
         name: data.name,
@@ -53,11 +84,19 @@ export const CustomerService = {
         notes: data.notes || null,
         userId: ctx.userId,
         shopId: ctx.shopId,
+        salesPersons: assignedSalespersons.length > 0 ? {
+          connect: assignedSalespersons
+        } : undefined,
       },
     });
+
+    return {
+      ...customer,
+      creditLimit: customer.creditLimit ? Number(customer.creditLimit) : null,
+    };
   },
 
-  async update(id: string, data: CustomerInput, ctx: RequestContext) {
+  async update(id: string, ctx: RequestContext, data: CustomerInput): Promise<SerializedCustomer> {
     const existing = await db.customer.findFirst({
       where: { id, shopId: ctx.shopId, deletedAt: null },
     });
@@ -66,7 +105,16 @@ export const CustomerService = {
       throw new ServiceError('ไม่พบข้อมูลลูกค้า หรือลูกค้าถูกลบไปแล้ว');
     }
 
-    return db.customer.update({
+    // ERP UC 3: Auto-update Salespersons if Region changed
+    let salespersonUpdate: any = undefined;
+    if (data.region && data.region !== existing.region) {
+      const salesTeam = await this.getSalespersonsByRegion(data.region, ctx);
+      salespersonUpdate = {
+        set: salesTeam.map(s => ({ id: s.id }))
+      };
+    }
+
+    const customer = await db.customer.update({
       where: { id },
       data: {
         ...data,
@@ -75,8 +123,14 @@ export const CustomerService = {
         address: data.address || null,
         taxId: data.taxId || null,
         notes: data.notes || null,
+        salesPersons: salespersonUpdate,
       },
     });
+
+    return {
+      ...customer,
+      creditLimit: customer.creditLimit ? Number(customer.creditLimit) : null,
+    };
   },
 
   async delete(id: string, ctx: RequestContext) {
@@ -88,7 +142,7 @@ export const CustomerService = {
       throw new ServiceError('ไม่พบข้อมูลลูกค้า');
     }
 
-    return db.customer.update({
+    await db.customer.update({
       where: { id },
       data: { deletedAt: new Date() },
     });
@@ -249,26 +303,34 @@ export const CustomerService = {
     });
   },
 
-  async createAddress(data: any, ctx: RequestContext) {
+  async getAddressById(id: string, ctx: RequestContext) {
+    const address = await db.customerAddress.findFirst({
+      where: { id, shopId: ctx.shopId, deletedAt: null },
+    });
+    if (!address) throw new ServiceError('ไม่พบข้อมูลที่อยู่');
+    return address;
+  },
+
+  async createAddress(customerId: string, ctx: RequestContext, data: any) {
     const customer = await db.customer.findFirst({
-      where: { id: data.customerId, shopId: ctx.shopId, deletedAt: null },
+      where: { id: customerId, shopId: ctx.shopId, deletedAt: null },
     });
 
     if (!customer) throw new ServiceError('ไม่พบข้อมูลลูกค้า');
 
     if (data.isDefault) {
       await db.customerAddress.updateMany({
-        where: { customerId: data.customerId, shopId: ctx.shopId, isDefault: true },
+        where: { customerId, shopId: ctx.shopId, isDefault: true },
         data: { isDefault: false },
       });
     }
 
     return db.customerAddress.create({
-      data: { ...data, shopId: ctx.shopId },
+      data: { ...data, customerId, shopId: ctx.shopId },
     });
   },
 
-  async updateAddress(id: string, data: any, ctx: RequestContext) {
+  async updateAddress(id: string, ctx: RequestContext, data: any) {
     const existing = await db.customerAddress.findFirst({
       where: { id, shopId: ctx.shopId, deletedAt: null },
     });
@@ -278,7 +340,7 @@ export const CustomerService = {
     if (data.isDefault) {
       await db.customerAddress.updateMany({
         where: {
-          customerId: data.customerId,
+          customerId: existing.customerId,
           shopId: ctx.shopId,
           isDefault: true,
           id: { not: id },
@@ -300,9 +362,65 @@ export const CustomerService = {
 
     if (!existing) throw new ServiceError('ไม่พบข้อมูลที่อยู่');
 
-    return db.customerAddress.update({
+    await db.customerAddress.update({
       where: { id },
       data: { deletedAt: new Date() },
     });
+  },
+
+  /**
+   * REAL: Region-Salesperson Mapping (ERP Module 2 - UC 3)
+   * ค้นหาพนักงานขายที่มีความเชี่ยวชาญหรือดูแลภูมิภาคนั้นๆ
+   */
+  async getSalespersonsByRegion(region: string, ctx: RequestContext) {
+    return db.shopMember.findMany({
+      where: {
+        shopId: ctx.shopId,
+        regionIds: { has: region }
+      },
+      select: {
+        id: true,
+        userId: true,
+        departmentCode: true,
+        user: { select: { name: true, email: true } }
+      }
+    });
+  },
+
+  /**
+   * UC 12: Contact Import Template (Strict Structure)
+   * รักษาโครงสร้างไฟล์ Import ให้คงเดิม 100% ห้ามสลับหรือลดคอลัมน์
+   */
+  async batchCreate(inputs: any[], ctx: RequestContext) {
+    // Expected Columns (Standard Template)
+    const REQUIRED_COLUMNS = ['name', 'phone', 'email', 'address', 'region'];
+    
+    const results = {
+      success: [] as any[],
+      failed: [] as any[],
+    };
+
+    for (const input of inputs) {
+      // Logic: ห้ามสลับ/เพิ่ม/ลดคอลัมน์ (Validate payload keys)
+      const inputKeys = Object.keys(input);
+      const isStructureValid = REQUIRED_COLUMNS.every(col => inputKeys.includes(col));
+
+      if (!isStructureValid) {
+        results.failed.push({ 
+          data: input, 
+          error: `Structure Mismatch: Missing required columns (${REQUIRED_COLUMNS.filter(c => !inputKeys.includes(c)).join(', ')})` 
+        });
+        continue;
+      }
+
+      try {
+        const created = await this.create(ctx, input);
+        results.success.push(created);
+      } catch (err: any) {
+        results.failed.push({ data: input, error: err.message });
+      }
+    }
+
+    return results;
   }
 };

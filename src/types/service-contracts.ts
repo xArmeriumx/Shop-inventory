@@ -11,28 +11,99 @@
  * 2. Code Review — ตรวจสอบว่า Implementation ตรงกับ Contract หรือไม่
  * 3. Testing — Mock Service ตาม Interface นี้ได้ทันที
  *
- * @module ERP Service Contracts
+ * @module Shop-Inventory Service Contracts
  */
 
-import type { Prisma } from '@prisma/client';
+import type { Prisma, Product, Customer } from '@prisma/client';
 import type {
   RequestContext,
   ActionResponse,
   DocumentType,
   SequenceFormat,
-  SequenceConfig,
-  BookingStatus,
-  SaleStatus,
+  BatchCreateResult,
+  BatchProductInput,
+  GetProductsParams,
+  GetSalesParams,
+  GetPurchasesParams,
+  GetCustomersParams,
+  PaginatedResult,
+  SerializedProduct,
+  SerializedSale,
+  SerializedPurchase,
+  SerializedPurchaseWithItems,
+  SerializedSaleWithItems,
+  SerializedCustomer,
+  SerializedSupplier,
+  ShipmentStatus,
+  StockAvailability,
   PurchaseType,
-  PurchaseDocType,
-  PurchaseStatus,
-  ShippingStatus,
   TaxType,
   BillingStatus,
   Region,
-  StockAvailability,
-  StockMovement,
-} from './erp';
+  SequenceConfig,
+} from './domain';
+
+// ============================================================================
+// PRODUCT SERVICE
+// ============================================================================
+
+export interface IProductService {
+  create(ctx: RequestContext, payload: any, tx?: Prisma.TransactionClient): Promise<SerializedProduct>;
+  update(id: string, ctx: RequestContext, payload: any, tx?: Prisma.TransactionClient): Promise<SerializedProduct>;
+  getById(id: string, ctx: RequestContext): Promise<SerializedProduct>;
+  getList(params: GetProductsParams, ctx: RequestContext): Promise<PaginatedResult<SerializedProduct>>;
+  delete(id: string, ctx: RequestContext): Promise<void>;
+  getForSelect(ctx: RequestContext): Promise<any[]>;
+  getForPurchase(ctx: RequestContext): Promise<any[]>;
+  getLowStock(limit: number, ctx: RequestContext): Promise<any[]>;
+  getLowStockPaginated(params: GetProductsParams, ctx: RequestContext): Promise<PaginatedResult<SerializedProduct>>;
+  adjustStockManual(productId: string, input: any, ctx: RequestContext): Promise<void>;
+  batchCreate(inputs: BatchProductInput[], ctx: RequestContext): Promise<BatchCreateResult>;
+  getAvailability(productId: string, ctx: RequestContext): Promise<StockAvailability>;
+}
+
+// ============================================================================
+// CUSTOMER SERVICE
+// ============================================================================
+
+export interface ICustomerService {
+  create(ctx: RequestContext, payload: any): Promise<SerializedCustomer>;
+  update(id: string, ctx: RequestContext, payload: any): Promise<SerializedCustomer>;
+  getById(id: string, ctx: RequestContext): Promise<SerializedCustomer>;
+  getList(params: GetCustomersParams, ctx: RequestContext): Promise<PaginatedResult<SerializedCustomer>>;
+  delete(id: string, ctx: RequestContext): Promise<void>;
+  
+  // UI Support
+  getForSelect(ctx: RequestContext): Promise<any[]>;
+  getProfile(id: string, ctx: RequestContext): Promise<any>;
+
+  // ERP Intelligence
+  getSalespersonsByRegion(region: string, ctx: RequestContext): Promise<any[]>;
+  batchCreate(inputs: any[], ctx: RequestContext): Promise<any>;
+
+  // Address Management
+  getAddresses(customerId: string, ctx: RequestContext): Promise<any[]>;
+  getAddressById(id: string, ctx: RequestContext): Promise<any>;
+  createAddress(customerId: string, ctx: RequestContext, payload: any): Promise<any>;
+  updateAddress(id: string, ctx: RequestContext, payload: any): Promise<any>;
+  deleteAddress(id: string, ctx: RequestContext): Promise<void>;
+}
+
+// ============================================================================
+// SUPPLIER SERVICE
+// ============================================================================
+
+export interface ISupplierService {
+  create(ctx: RequestContext, payload: any): Promise<SerializedSupplier>;
+  update(id: string, ctx: RequestContext, payload: any): Promise<SerializedSupplier>;
+  getById(id: string, ctx: RequestContext): Promise<SerializedSupplier>;
+  getList(params: any, ctx: RequestContext): Promise<PaginatedResult<SerializedSupplier>>;
+  delete(id: string, ctx: RequestContext): Promise<void>;
+  
+  // UI Support
+  getForSelect(ctx: RequestContext): Promise<any[]>;
+  getProfile(id: string, ctx: RequestContext): Promise<any>;
+}
 
 // ============================================================================
 // SEQUENCE SERVICE (SSOT: เลขที่เอกสาร)
@@ -161,6 +232,22 @@ export interface IStockService {
  * - completeSale:  Invoiced → Completed (ปิดรายการ)
  */
 export interface ISaleService {
+  // Existing CRUD & Utils
+  getList(params: GetSalesParams, ctx: RequestContext, options?: { canViewProfit?: boolean }): Promise<PaginatedResult<any>>;
+  getById(id: string, ctx: RequestContext, options?: { canViewProfit?: boolean }): Promise<SerializedSaleWithItems>;
+  create(ctx: RequestContext, payload: any): Promise<SerializedSale>;
+  update(id: string, ctx: RequestContext, payload: any): Promise<SerializedSale>;
+  delete(id: string, ctx: RequestContext): Promise<void>;
+  cancel(input: any, ctx: RequestContext): Promise<void>;
+  
+  // Aggregates & Dashboard
+  getTodayAggregate(ctx: RequestContext, options?: { canViewProfit?: boolean }): Promise<any>;
+  getRecentList(limit: number, ctx: RequestContext, options?: { canViewProfit?: boolean }): Promise<any[]>;
+  
+  // Payment Workflow
+  verifyPayment(id: string, status: 'VERIFIED' | 'REJECTED', note: string | undefined, ctx: RequestContext): Promise<void>;
+  uploadPaymentProof(id: string, proofUrl: string, ctx: RequestContext): Promise<void>;
+
   /**
    * ยืนยันคำสั่งซื้อ → จองสต็อกอัตโนมัติ
    * Business: Sale.status = CONFIRMED, BookingStatus = RESERVED
@@ -181,12 +268,22 @@ export interface ISaleService {
   ): Promise<{ invoiceNumber: string }>;
 
   /**
+   * ปล่อยการจอง (ใช้เมื่อยกเลิกการขายที่มีการจองไว้)
+   */
+  releaseStock(
+    saleId: string,
+    ctx: RequestContext,
+    tx: Prisma.TransactionClient,
+  ): Promise<void>;
+
+  /**
    * ปิดรายการขาย (เมื่อ Delivery สำเร็จและชำระเงินครบ)
    * Business: Sale.status = COMPLETED, ทุก field ถูก readonly
    */
   completeSale(
     saleId: string,
     ctx: RequestContext,
+    tx?: Prisma.TransactionClient,
   ): Promise<void>;
 
   /**
@@ -206,6 +303,12 @@ export interface ISaleService {
  * IPurchaseService — ระบบจัดซื้อพร้อม PR → PO Workflow
  */
 export interface IPurchaseService {
+  // Existing CRUD
+  getList(params: GetPurchasesParams, ctx: RequestContext): Promise<PaginatedResult<any>>;
+  getById(id: string, ctx: RequestContext): Promise<SerializedPurchaseWithItems>;
+  create(ctx: RequestContext, payload: any, tx?: Prisma.TransactionClient): Promise<SerializedPurchase>;
+  cancel(input: any, ctx: RequestContext): Promise<void>;
+
   /**
    * สร้างใบขอซื้อ (Purchase Request)
    * Business: docType = 'REQUEST', status = DRAFT
@@ -246,6 +349,14 @@ export interface IPurchaseService {
     requestedQty: number;
     moq: number;
   }>>;
+
+  /**
+   * ดึงข้อมูลเงื่อนไขการสั่งซื้อจากผู้จำหน่าย (MOQ, Note)
+   */
+  getSupplierPurchaseInfo(
+    supplierId: string, 
+    ctx: RequestContext
+  ): Promise<{ purchaseNote: string | null; moq: number | null }>;
 }
 
 /** Input สำหรับสร้างใบขอซื้อ */
@@ -268,6 +379,20 @@ export interface PurchaseRequestInput {
  * IShippingService — การจัดส่งพร้อม Auto-Sync กลับไปยัง Sale
  */
 export interface IShippingService {
+  // Existing CRUD & Utils
+  getList(params: any, ctx: RequestContext): Promise<PaginatedResult<any>>;
+  getById(id: string, ctx: RequestContext): Promise<any>;
+  create(payload: any, ctx: RequestContext): Promise<any>;
+  update(payload: any, ctx: RequestContext): Promise<any>;
+  updateStatus(payload: any, ctx: RequestContext): Promise<any>;
+  delete(id: string, ctx: RequestContext): Promise<void>;
+  cancel(id: string, reason: string | undefined, ctx: RequestContext): Promise<any>;
+  
+  // Logistics Logic
+  getStats(ctx: RequestContext): Promise<any>;
+  matchParcelsToSales(parcels: any[], ctx: RequestContext): Promise<any[]>;
+  getSalesWithoutShipment(ctx: RequestContext): Promise<any[]>;
+
   /**
    * อัปเดตสถานะจัดส่ง + Auto-Sync กลับไปยัง Sale
    * Business:
@@ -276,7 +401,7 @@ export interface IShippingService {
    */
   updateStatusWithSync(
     shipmentId: string,
-    newStatus: ShippingStatus,
+    newStatus: ShipmentStatus,
     ctx: RequestContext,
   ): Promise<void>;
 
@@ -288,6 +413,23 @@ export interface IShippingService {
     shipmentIds: string[],
     ctx: RequestContext,
   ): Promise<void>;
+
+  /**
+   * UC 11: Route Processing (Sort by Distance)
+   */
+  processRoute(
+    ids: string[],
+    type: 'OUTBOUND' | 'INBOUND',
+    ctx: RequestContext,
+  ): Promise<any[]>;
+
+  /**
+   * คำนวณปริมาตรและน้ำหนักบรรทุก (Container Load Calculation)
+   */
+  calculateLoad(
+    id: string,
+    ctx: RequestContext
+  ): Promise<any>;
 }
 
 // ============================================================================

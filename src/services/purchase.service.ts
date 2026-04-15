@@ -2,19 +2,23 @@ import { db } from '@/lib/db';
 import { Prisma, Purchase } from '@prisma/client';
 import { PurchaseInput } from '@/schemas/purchase';
 import { StockService } from './stock.service';
-import { ServiceError, RequestContext } from './product.service';
+// Types imported from @/types/domain
 import { money, toNumber, calcSubtotal } from '@/lib/money';
 import { logger } from '@/lib/logger';
 import { paginatedQuery, buildSearchFilter, buildDateRangeFilter } from '@/lib/pagination';
 
-export interface GetPurchasesParams {
-  page?: number;
-  limit?: number;
-  search?: string;
-  startDate?: string;
-  endDate?: string;
-  paymentMethod?: string;
-}
+import { 
+  RequestContext, 
+  ServiceError, 
+  GetPurchasesParams,
+  DocumentType,
+  PurchaseStatus,
+  PurchaseType,
+  SerializedPurchase,
+  SerializedPurchaseWithItems,
+} from '@/types/domain';
+import { IPurchaseService, PurchaseRequestInput } from '@/types/service-contracts';
+import { SequenceService } from './sequence.service';
 
 export const CANCEL_PURCHASE_REASONS = {
   WRONG_ENTRY: 'บันทึกผิดพลาด',
@@ -31,44 +35,9 @@ export interface CancelPurchaseInput {
 
 const MAX_PURCHASE_RETRIES = 5;
 
-/**
- * Generate a unique purchase number: PUR-00001, PUR-00002, ...
- */
-async function generatePurchaseNumber(shopId: string, tx: Prisma.TransactionClient): Promise<string> {
-  for (let attempt = 0; attempt < MAX_PURCHASE_RETRIES; attempt++) {
-    const lastPurchase = await tx.purchase.findFirst({
-      where: { shopId, purchaseNumber: { not: null } },
-      orderBy: { purchaseNumber: 'desc' },
-      select: { purchaseNumber: true },
-    });
+// Replaced by SequenceService
 
-    const lastNumber = lastPurchase?.purchaseNumber
-      ? parseInt(lastPurchase.purchaseNumber.split('-')[1] || '0')
-      : 0;
-
-    const newNumber = lastNumber + 1 + attempt;
-    const purchaseNumber = `PUR-${String(newNumber).padStart(5, '0')}`;
-
-    const exists = await tx.purchase.findFirst({
-      where: { shopId, purchaseNumber },
-      select: { id: true },
-    });
-
-    if (!exists) {
-      return purchaseNumber;
-    }
-
-    await logger.warn('Purchase number collision, retrying', {
-      purchaseNumber,
-      attempt,
-      shopId,
-    });
-  }
-
-  throw new ServiceError('ไม่สามารถสร้างเลข Purchase ได้ กรุณาลองใหม่');
-}
-
-export const PurchaseService = {
+export const PurchaseService: IPurchaseService = {
   /**
    * ดึงข้อมูลการซื้อทั้งหมด (Pagination)
    */
@@ -111,7 +80,7 @@ export const PurchaseService = {
   /**
    * ดึงข้อมูลการซื้อตาม ID
    */
-  async getById(id: string, ctx: RequestContext) {
+  async getById(id: string, ctx: RequestContext): Promise<SerializedPurchaseWithItems> {
     const purchase = await db.purchase.findFirst({
       where: { id, shopId: ctx.shopId },
       include: {
@@ -124,24 +93,35 @@ export const PurchaseService = {
       throw new ServiceError('ไม่พบข้อมูลการซื้อ');
     }
 
-    // Mutate in-place: avoid creating new objects
+    // Mutate in-place: avoid creating new objects (UC 6)
+    const supplierMoq = purchase.supplier?.moq ? Number(purchase.supplier.moq) : null;
     (purchase as any).totalCost = toNumber(purchase.totalCost);
     for (const i of (purchase as any).items) {
       i.costPrice = toNumber(i.costPrice);
       i.subtotal = toNumber(i.subtotal);
+      i.moq = supplierMoq; // UC 6: Display field
     }
 
-    return purchase;
+    return purchase as any;
   },
 
   /**
    * สร้างการสั่งซื้อเข้าร้าน พร้อมอัปเดตสต็อกและต้นทุน (FIFO / Weighted Avg concept applied here)
    */
-  async create(ctx: RequestContext, payload: PurchaseInput, tx?: Prisma.TransactionClient): Promise<any> {
+  async create(ctx: RequestContext, payload: PurchaseInput, tx?: Prisma.TransactionClient): Promise<SerializedPurchase> {
     const { items, ...purchaseData } = payload;
     
     if (items.length === 0) {
       throw new ServiceError('ต้องมีสินค้าอย่างน้อย 1 รายการ');
+    }
+
+    // 1. Business Logic: Check MOQ (Vendor Intelligence)
+    const moqFailures = await this.checkMOQ(items, ctx);
+    if (moqFailures.length > 0) {
+      const messages = moqFailures.map(f => 
+        `"${f.productName}" สั่ง ${f.requestedQty} ชิ้น (ขั้นต่ำคือ ${f.moq})`
+      ).join(', ');
+      throw new ServiceError(`ไม่สามารถสั่งได้เนื่องจากไม่ถึงยอดสั่งขั้นต่ำ (MOQ): ${messages}`);
     }
 
     const executeTransaction = async (prismaTx: Prisma.TransactionClient) => {
@@ -150,7 +130,9 @@ export const PurchaseService = {
         0
       );
 
-      const purchaseNumber = await generatePurchaseNumber(ctx.shopId, prismaTx);
+      const purchaseNumber = await SequenceService.generate(ctx, DocumentType.PURCHASE_ORDER, prismaTx, {
+        purchaseType: purchaseData.purchaseType as any,
+      });
 
       const newPurchase = await prismaTx.purchase.create({
         data: {
@@ -184,7 +166,7 @@ export const PurchaseService = {
           userId: ctx.userId,
           shopId: ctx.shopId,
           purchaseId: newPurchase.id,
-          note: `ซื้อสินค้า`,
+          note: `ซื้อสินค้า: ${newPurchase.purchaseNumber}`,
           date: newPurchase.date,
         })),
         prismaTx
@@ -200,7 +182,15 @@ export const PurchaseService = {
         )
       );
 
-      return newPurchase;
+      return {
+        ...newPurchase,
+        totalCost: toNumber(newPurchase.totalCost),
+        items: newPurchase.items.map(item => ({
+          ...item,
+          costPrice: toNumber(item.costPrice),
+          subtotal: toNumber(item.subtotal),
+        })),
+      } as any;
     };
 
     if (tx) {
@@ -302,5 +292,139 @@ export const PurchaseService = {
         },
       });
     });
+  },
+
+  // ==========================================
+  // ERP ENHANCED METHODS (PR/PO Workflow)
+  // ==========================================
+
+  async createRequest(payload, ctx) {
+    return await db.$transaction(async (tx) => {
+      const { items, purchaseType, notes, supplierId } = payload;
+      
+      const requestNumber = await SequenceService.generate(ctx, DocumentType.PURCHASE_REQUEST, tx, {
+        purchaseType: payload.purchaseType,
+      });
+      
+      const totalCost = items.reduce(
+        (sum, item) => money.add(sum, calcSubtotal(item.quantity, item.costPrice)),
+        0
+      );
+
+      const pr = await tx.purchase.create({
+        data: {
+          purchaseNumber: requestNumber,
+          purchaseType: purchaseType,
+          docType: 'REQUEST',
+          status: PurchaseStatus.DRAFT,
+          totalCost: totalCost,
+          notes: notes || null,
+          supplierId: supplierId || null,
+          userId: ctx.userId,
+          shopId: ctx.shopId,
+          items: {
+            create: items.map(item => ({
+              productId: item.productId,
+              quantity: item.quantity,
+              costPrice: item.costPrice,
+              subtotal: calcSubtotal(item.quantity, item.costPrice),
+            })),
+          },
+        },
+      });
+
+      return { id: pr.id, requestNumber: pr.purchaseNumber! };
+    });
+  },
+
+  async approveRequest(prId, ctx) {
+    await db.purchase.update({
+      where: { id: prId, shopId: ctx.shopId },
+      data: { status: PurchaseStatus.APPROVED },
+    });
+  },
+
+  async convertToPO(prId, ctx) {
+    return await db.$transaction(async (tx) => {
+      const pr = await tx.purchase.findFirst({
+        where: { id: prId, shopId: ctx.shopId },
+        include: { items: true },
+      });
+
+      if (!pr) throw new ServiceError('ไม่พบใบขอซื้อ');
+      if (pr.status !== PurchaseStatus.APPROVED && pr.status !== PurchaseStatus.DRAFT) {
+        throw new ServiceError('ใบขอซื้อต้องได้รับการอนุมัติก่อนแปลงเป็นใบสั่งซื้อ');
+      }
+
+      const poNumber = await SequenceService.generate(ctx, DocumentType.PURCHASE_ORDER, tx, {
+        purchaseType: pr.purchaseType as any,
+      });
+
+      const po = await tx.purchase.create({
+        data: {
+          purchaseNumber: poNumber,
+          purchaseType: pr.purchaseType,
+          docType: 'ORDER',
+          status: PurchaseStatus.ORDERED,
+          totalCost: pr.totalCost,
+          notes: pr.notes,
+          supplierId: pr.supplierId,
+          userId: ctx.userId,
+          shopId: ctx.shopId,
+          requestNumber: pr.purchaseNumber,
+          linkedPRId: pr.id,
+          items: {
+            create: pr.items.map(item => ({
+              productId: item.productId,
+              quantity: item.quantity,
+              costPrice: item.costPrice,
+              subtotal: item.subtotal,
+            })),
+          },
+        },
+      });
+
+      // Update PR status
+      await tx.purchase.update({
+        where: { id: pr.id },
+        data: { status: PurchaseStatus.ORDERED },
+      });
+
+      return { id: po.id, poNumber: po.purchaseNumber! };
+    });
+  },
+
+  async checkMOQ(items, ctx) {
+    const productIds = items.map(i => i.productId);
+    const products = await db.product.findMany({
+      where: { id: { in: productIds }, shopId: ctx.shopId },
+      select: { id: true, name: true, moq: true },
+    });
+
+    const failed = [];
+    for (const item of items) {
+      const p = products.find(prod => prod.id === item.productId);
+      if (p && p.moq && item.quantity < p.moq) {
+        failed.push({
+          productId: item.productId,
+          productName: p.name,
+          requestedQty: item.quantity,
+          moq: p.moq,
+        });
+      }
+    }
+    return failed;
+  },
+
+  async getSupplierPurchaseInfo(supplierId: string, ctx: RequestContext) {
+    const supplier = await db.supplier.findFirst({
+      where: { id: supplierId, shopId: ctx.shopId },
+      select: { purchaseNote: true, moq: true },
+    });
+    if (!supplier) throw new ServiceError('ไม่พบข้อมูลผู้จำหน่าย');
+    return {
+      purchaseNote: supplier.purchaseNote,
+      moq: supplier.moq ? Number(supplier.moq) : null,
+    };
   }
 };

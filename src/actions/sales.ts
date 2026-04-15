@@ -8,17 +8,21 @@ import { saleSchema, type SaleInput } from '@/schemas/sale';
 import { z } from 'zod';
 import type { Sale, SaleItem, Prisma } from '@prisma/client';
 
-import type { ActionResponse } from '@/types/action-response';
+import type { ActionResponse } from '@/types/domain';
 import { money, toNumber, calcSubtotal, calcProfit } from '@/lib/money';
 
 // =============================================================================
 // UTILITIES
 // =============================================================================
 
-
-
-export type { GetSalesParams, CancelSaleInput } from '@/services';
-import { StockService, SaleService, ServiceError, type GetSalesParams, type CancelSaleInput } from '@/services';
+import { 
+  StockService, 
+  SaleService, 
+  ServiceError, 
+  type GetSalesParams, 
+  type CancelSaleInput,
+  type SerializedSale 
+} from '@/services';
 
 // ดึงข้อมูลการขายทั้งหมด (Pagination)
 export async function getSales(params: GetSalesParams = {}) {
@@ -42,7 +46,7 @@ export async function getSale(id: string) {
 }
 
 // สร้างการขายใหม่
-export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>> {
+export async function createSale(input: SaleInput): Promise<ActionResponse<SerializedSale>> {
   // RBAC: Require SALE_CREATE permission
   const ctx = await requirePermission('SALE_CREATE');
 
@@ -58,7 +62,7 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>
 
   try {
     const sale = await SaleService.create(
-      { userId: ctx.userId, shopId: ctx.shopId }, 
+      ctx, 
       validated.data
     );
 

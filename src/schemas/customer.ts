@@ -38,6 +38,23 @@ export const customerSchema = z.object({
     .optional()
     .nullable()
     .transform((val) => val ? sanitizeText(val) : val),
+  region: z
+    .string()
+    .optional()
+    .nullable(),
+  groupCode: z
+    .string()
+    .optional()
+    .nullable(),
+  creditLimit: z
+    .number()
+    .optional()
+    .nullable(),
+  creditTerm: z
+    .number()
+    .int()
+    .optional()
+    .nullable(),
 });
 
 export type CustomerInput = z.infer<typeof customerSchema>;

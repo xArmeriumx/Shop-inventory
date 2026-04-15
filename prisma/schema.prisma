@@ -261,9 +261,15 @@ model ShopMember {
 
   isOwner   Boolean  @default(false)  // Shortcut flag for Owner
   
+  // ERP Foundational Metadata
+  departmentCode    String?         // UC 1 & 7: รหัสแผนก (e.g., 'K', 'M')
+  regionIds         String[]        // UC 3: ภูมิภาคที่ดูแล (e.g., ['NORTH', 'SOUTH'])
+  
   // Permission version counter - increments when role changes
-  // Used for smart client-side polling (only fetch full data when version changes)
   permissionVersion Int @default(0)
+
+  // CRM: Many-to-Many with Customers (Salespersons assignment)
+  customers         Customer[]      // UC 3
 
   joinedAt  DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -291,7 +297,14 @@ model Product {
   images      String[]
   isActive    Boolean  @default(true)
   isLowStock  Boolean  @default(false)
-  version     Int      @default(1)  // Optimistic locking version
+  isSaleable  Boolean  @default(true)  // ★ NEW: พร้อมขายหรือไม่ (Product Control)
+  version     Int      @default(1)     // Optimistic locking version
+
+  // ERP Enhanced Stock logic
+  reservedStock Int     @default(0)     // ★ NEW: จำนวนที่จองไว้
+  moq           Int?                    // ★ NEW: ยอดสั่งซื้อขั้นต่ำ (Vendor Intelligence)
+  metadata      Json?                   // ★ NEW: ข้อมูลเพิ่มเติม (ขนาด, น้ำหนัก, ฯลฯ)
+  avgLeadTime   Int?                    // ★ NEW: ระยะเวลาส่งมอบล่วงหน้าเฉลี่ย (วัน)
 
   // Ownership (keeping userId for audit, adding shopId for RBAC)
   userId      String
@@ -343,6 +356,10 @@ model Supplier {
   // Tax Info
   taxId       String?  @db.VarChar(20)  // เลขผู้เสียภาษี
   
+  moq         Decimal? @db.Decimal(10, 2) // ★ NEW: ยอดสั่งซื้อขั้นต่ำของ Vendor
+  purchaseNote String? @db.Text          // ★ NEW: หมายเหตุการซื้อถาวร
+  groupCode   String? @db.VarChar(50)   // ★ NEW: รหัสกลุ่มผู้จำหน่าย (Clustering)
+  
   notes       String?  @db.Text
 
   // Ownership
@@ -374,6 +391,10 @@ model Customer {
   email     String?
   address   String?
   taxId     String?
+  region    String?   // ★ NEW: ภูมิภาค (Region-Salesperson Mapping)
+  groupCode String?   // ★ NEW: รหัสกลุ่มลูกค้า (Industrial Contacts)
+  creditLimit Decimal? @db.Decimal(10, 2) // ★ NEW: วงเงินเครดิต
+  creditTerm  Int?     // ★ NEW: เครดิตเทอม (วัน)
   notes     String?
 
   // Ownership
@@ -385,6 +406,9 @@ model Customer {
 
   sales     Sale[]
   addresses CustomerAddress[]
+  
+  // CRM: Salespersons assigned to this customer
+  salesPersons ShopMember[] // UC 3
 
   // Soft Delete
   deletedAt DateTime?
@@ -411,6 +435,13 @@ model Purchase {
 
   totalCost   Decimal  @db.Decimal(10, 2)
   paymentMethod String  @default("CASH")  // CASH | TRANSFER | CREDIT
+
+  // ERP Strategy fields
+  purchaseType  String   @default("LOCAL") // ★ NEW: LOCAL | FOREIGN
+  docType       String   @default("ORDER") // ★ NEW: REQUEST (PR) | ORDER (PO)
+  requestNumber String?                    // ★ NEW: เลขที่ใบขอซื้อ (ถ้ามี)
+  linkedPRId    String?                    // ★ NEW: Link กลับไปยัง PR ต้นทาง
+  
   receiptUrl  String?
   notes       String?
 
@@ -483,6 +514,14 @@ model Sale {
   netAmount     Decimal  @default(0) @db.Decimal(10, 2)  // ยอดสุทธิ = totalAmount - discountAmount
 
   paymentMethod String
+  
+  // ERP Booking & Locking logic
+  bookingStatus String   @default("NONE") // ★ NEW: NONE | RESERVED | DEDUCTED
+  departmentCode String?                  // ★ NEW: รหัสแผนก (Dynamic Numbering)
+  isLocked      Boolean  @default(false)  // ★ NEW: ล็อกข้อมูลหลังออก INV
+  deliveryStatus String   @default("PENDING") // ★ NEW: PENDING | SHIPPED | DELIVERED
+  billingStatus String   @default("UNBILLED") // ★ NEW: UNBILLED | BILLED | PAID
+  
   notes         String?
   receiptUrl    String?
 
@@ -645,6 +684,8 @@ enum StockMovementType {
   CANCEL
   SALE_CANCEL
   PURCHASE_CANCEL
+  RESERVATION     // ★ NEW: จองสต็อก
+  RELEASE         // ★ NEW: ปลดจอง
 }
 
 model StockLog {
@@ -780,6 +821,7 @@ model Shipment {
 
   // Status
   status           ShipmentStatus @default(PENDING)
+  dispatchSeq      Int?            // ★ NEW: ลำดับการวิ่งรถ (Dispatch Planning)
   shippedAt        DateTime?
   deliveredAt      DateTime?
   notes            String?        @db.Text

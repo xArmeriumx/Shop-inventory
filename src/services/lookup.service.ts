@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { RequestContext, ServiceError } from './product.service';
+import { RequestContext, ServiceError } from '@/types/domain';
 import { LookupTypeCode } from '@prisma/client';
 
 export interface CreateLookupValueInput {
