@@ -1,7 +1,3 @@
----
-trigger: always_on
----
-
 # 🛡️ ERP-Namfon: Master Architecture & Business Rules
 
 เอกสารฉบับนี้คือ **"Single Source of Truth"** สำหรับการพัฒนาและปรับปรุงระบบ Shop-Inventory สู่ระดับ **Customized ERP** ที่รองรับ Workflow ธุรกิจจริงอย่างเต็มรูปแบบ และทำหน้าที่เป็นคู่มือการออกแบบ (Design Framework) สำหรับทีมพัฒนา

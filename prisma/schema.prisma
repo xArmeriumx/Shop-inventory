@@ -882,3 +882,21 @@ model Notification {
   @@index([shopId, userId, isRead, createdAt])
   @@index([shopId, createdAt])
 }
+
+// ==================== ERP: Document Sequence (SSOT) ====================
+// ศูนย์กลางการรันเลขเอกสาร — ทุก Service ต้องเรียกผ่าน SequenceService เท่านั้น
+
+model DocSequence {
+  id        String   @id @default(cuid())
+  shopId    String
+  prefix    String   // e.g., "INV", "K-INV", "PO", "C-PO"
+  year      Int      // Gregorian or Buddhist year (0 = no reset)
+  month     Int      // 1-12 (0 = yearly/no reset)
+  counter   Int      @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([shopId, prefix, year, month])
+  @@index([shopId])
+}

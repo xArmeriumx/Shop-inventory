@@ -1,7 +1,3 @@
----
-description: Workflow for ERP-Implement
----
-
 # 🔄 ERP-Namfon: Core Business Workflows
 
 เอกสารฉบับนี้อธิบายลำดับขั้นตอนการทำงาน (Workflow) ของโมดูลต่างๆ ในระบบ ERP-Namfon เพื่อให้ทีมงานเข้าใจภาพรวมของ Business Logic ทั้งหมด

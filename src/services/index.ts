@@ -4,6 +4,7 @@ export * from './sale.service';
 export * from './purchase.service';
 export * from './return.service';
 export * from './shipment.service';
+export * from './sequence.service';
 export * as ReportService from './report.service';
 export type { ReportData } from './report.service';
 export * from './customer.service';
