@@ -6,18 +6,36 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { withAuth } from '@/lib/auth/api-guard';
 import { extractReceiptData } from '@/lib/ocr/extract-receipt';
+import { rateLimiters, checkRateLimit } from '@/lib/rate-limit';
 
 export const maxDuration = 30;
 export const dynamic = 'force-dynamic';
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request, session) => {
   try {
-    // Check authentication
-    const session = await auth();
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const shopId = session?.user?.shopId;
+    if (shopId) {
+      const rlResult = await checkRateLimit(rateLimiters.ocr, `shop:${shopId}:ocr`);
+      if (!rlResult.success) {
+        return NextResponse.json(
+          { 
+            success: false, 
+            error: 'เรียกใช้งาน OCR เกินขีดจำกัด กรุณารอสักครู่ (5 ครั้ง/นาที)',
+            code: 'RATE_LIMIT_EXCEEDED',
+            retryAfterSeconds: Math.ceil((rlResult.reset - Date.now()) / 1000)
+          },
+          { 
+            status: 429,
+            headers: {
+              'Retry-After': Math.ceil((rlResult.reset - Date.now()) / 1000).toString(),
+              'X-RateLimit-Limit': rlResult.limit.toString(),
+              'X-RateLimit-Remaining': rlResult.remaining.toString(),
+            }
+          }
+        );
+      }
     }
 
     // Get OCR text from request
@@ -55,4 +73,4 @@ export async function POST(request: NextRequest) {
       error: error.message || 'เกิดข้อผิดพลาดในการประมวลผล',
     }, { status: 500 });
   }
-}
+});

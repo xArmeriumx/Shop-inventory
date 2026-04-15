@@ -10,13 +10,13 @@ import { CustomerService, ServiceError } from '@/services';
 
 export async function getCustomers(params: GetCustomersParams = {}) {
   const ctx = await requirePermission('CUSTOMER_VIEW');
-  return CustomerService.getList(params, { userId: ctx.userId, shopId: ctx.shopId });
+  return CustomerService.getList(params, ctx);
 }
 
 export async function getCustomer(id: string) { 
   const ctx = await requirePermission('CUSTOMER_VIEW');
   try {
-    return await CustomerService.getById(id, { userId: ctx.userId, shopId: ctx.shopId });
+    return await CustomerService.getById(id, ctx);
   } catch (error: unknown) {
     if (error instanceof ServiceError) throw new Error(error.message);
     throw error;
@@ -89,7 +89,7 @@ export async function deleteCustomer(id: string): Promise<ActionResponse> {
   const ctx = await requirePermission('CUSTOMER_DELETE');
 
   try {
-    await CustomerService.delete(id, { userId: ctx.userId, shopId: ctx.shopId });
+    await CustomerService.delete(id, ctx);
     revalidatePath('/customers');
     return {
       success: true,
@@ -108,13 +108,13 @@ export async function deleteCustomer(id: string): Promise<ActionResponse> {
 
 export async function getCustomersForSelect() { 
   const ctx = await requirePermission('CUSTOMER_VIEW');
-  return CustomerService.getForSelect({ userId: ctx.userId, shopId: ctx.shopId });
+  return CustomerService.getForSelect(ctx);
 }
 
 export async function getCustomerProfile(id: string) {
   const ctx = await requirePermission('CUSTOMER_VIEW');
   try {
-    return await CustomerService.getProfile(id, { userId: ctx.userId, shopId: ctx.shopId });
+    return await CustomerService.getProfile(id, ctx);
   } catch (error: unknown) {
     if (error instanceof ServiceError) throw new Error(error.message);
     throw error;

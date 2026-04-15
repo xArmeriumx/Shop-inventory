@@ -26,14 +26,14 @@ import {
 export async function getProducts(params: any = {}) {
   // RBAC: Require PRODUCT_VIEW permission for list
   const ctx = await requirePermission('PRODUCT_VIEW');
-  return ProductService.getList(params, { userId: ctx.userId, shopId: ctx.shopId });
+  return ProductService.getList(params, ctx);
 }
 
 //get product by id 
 export async function getProduct(id: string) {
   const ctx = await requirePermission('PRODUCT_VIEW');
   try {
-    return await ProductService.getById(id, { userId: ctx.userId, shopId: ctx.shopId });
+    return await ProductService.getById(id, ctx);
   } catch (error: unknown) {
     if (error instanceof ServiceError) throw new Error(error.message);
     throw error;
@@ -58,7 +58,7 @@ export async function createProduct(input: ProductInput): Promise<ActionResponse
   try {
     // โยนงานต่อให้ Service Layer ซึ่งจะจัดการเรื่องเช็คซ้ำ การสร้างของ และโยง Stock
     const product = await ProductService.create(
-      { userId: ctx.userId, shopId: ctx.shopId },
+      ctx,
       validated.data
     );
 
@@ -105,7 +105,7 @@ export async function updateProduct(id: string, input: ProductUpdateInput): Prom
   try {
     const product = await ProductService.update(
       id,
-      { userId: ctx.userId, shopId: ctx.shopId },
+      ctx,
       validated.data
     );
 
@@ -141,7 +141,7 @@ export async function deleteProduct(id: string): Promise<ActionResponse> {
   const ctx = await requirePermission('PRODUCT_DELETE');
 
   try {
-    await ProductService.delete(id, { userId: ctx.userId, shopId: ctx.shopId });
+    await ProductService.delete(id, ctx);
 
     revalidatePath('/products');
     return {
@@ -165,18 +165,18 @@ export async function deleteProduct(id: string): Promise<ActionResponse> {
 // Get Products for Select (แสดงสินค้าใน Select)  
 export async function getProductsForSelect() {
   const ctx = await requirePermission('PRODUCT_VIEW');
-  return ProductService.getForSelect({ userId: ctx.userId, shopId: ctx.shopId });
+  return ProductService.getForSelect(ctx);
 }
 
 // Get Products for Purchase (แสดงสินค้าใน Select สำหรับหน้าซื้อสินค้า)
 export async function getProductsForPurchase() {
   const ctx = await requirePermission('PRODUCT_VIEW');
-  return ProductService.getForPurchase({ userId: ctx.userId, shopId: ctx.shopId });
+  return ProductService.getForPurchase(ctx);
 }
 
 export async function getLowStockProducts(limit: number = 5) {
   const ctx = await requirePermission('PRODUCT_VIEW');
-  return ProductService.getLowStock(limit, { userId: ctx.userId, shopId: ctx.shopId });
+  return ProductService.getLowStock(limit, ctx);
 }
   
 // Adjust Stock (เพิ่ม/ลดสต็อก)
@@ -189,7 +189,7 @@ interface AdjustStockInput {
 export async function adjustStock(productId: string, input: AdjustStockInput): Promise<ActionResponse> {
   const ctx = await requirePermission('PRODUCT_EDIT'); 
   try {
-    await ProductService.adjustStockManual(productId, input, { userId: ctx.userId, shopId: ctx.shopId });
+    await ProductService.adjustStockManual(productId, input, ctx);
     revalidatePath(`/products/${productId}`);
     return { success: true, message: 'ปรับปรุงสต็อกสำเร็จ' };
   } catch (error: unknown) {
@@ -202,7 +202,7 @@ export async function adjustStock(productId: string, input: AdjustStockInput): P
 
 export async function getLowStockProductsPaginated(params: GetProductsParams = {}) {
   const ctx = await requirePermission('PRODUCT_VIEW');
-  return ProductService.getLowStockPaginated(params, { userId: ctx.userId, shopId: ctx.shopId });
+  return ProductService.getLowStockPaginated(params, ctx);
 }
 
 // Batch Create Products (สร้างสินค้าหลายรายการพร้อมกัน - ใช้ createMany)
@@ -210,7 +210,7 @@ export async function batchCreateProducts(inputs: BatchProductInput[]): Promise<
   const ctx = await requirePermission('PRODUCT_CREATE');
 
   try {
-    const result = await ProductService.batchCreate(inputs, { userId: ctx.userId, shopId: ctx.shopId });
+    const result = await ProductService.batchCreate(inputs, ctx);
     revalidatePath('/products');
 
     return {

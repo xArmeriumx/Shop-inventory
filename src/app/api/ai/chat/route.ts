@@ -3,11 +3,30 @@ import { groq, DEFAULT_MODEL, SHOP_AI_SYSTEM_PROMPT, detectToolFromMessage } fro
 import { getShopContextForAI } from '@/actions/ai';
 import { getToolDefinitions, executeTool } from '@/lib/ai/tools';
 import { requireShop } from '@/lib/auth-guard';
+import { rateLimiters, checkRateLimit } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
   try {
     // Check authentication - all shop members can use AI
     const ctx = await requireShop();
+    
+    // Apply Rate Limiting for AI Chat
+    const rlResult = await checkRateLimit(rateLimiters.ai, `shop:${ctx.shopId}:ai`, ctx, 'AI_CHAT');
+    if (!rlResult.success) {
+      return new Response(JSON.stringify({ 
+        error: 'เรียกใช้งานผู้ช่วย AI เกินขีดจำกัด กรุณารอสักครู่ (10 ครั้ง/นาที)',
+        code: 'RATE_LIMIT_EXCEEDED',
+        retryAfterSeconds: Math.ceil((rlResult.reset - Date.now()) / 1000)
+      }), { 
+        status: 429,
+        headers: { 
+          'Content-Type': 'application/json',
+          'Retry-After': Math.ceil((rlResult.reset - Date.now()) / 1000).toString(),
+          'X-RateLimit-Limit': rlResult.limit.toString(),
+          'X-RateLimit-Remaining': rlResult.remaining.toString(),
+        }
+      });
+    }
     
     const { messages, confirmTool, confirmParams } = await request.json();
 

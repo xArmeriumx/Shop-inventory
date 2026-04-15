@@ -29,7 +29,7 @@ export async function getSales(params: GetSalesParams = {}) {
   const ctx = await requirePermission('SALE_VIEW');
   const canViewProfit = hasPermission(ctx, 'SALE_VIEW_PROFIT');
   
-  return SaleService.getList(params, { userId: ctx.userId, shopId: ctx.shopId }, { canViewProfit });
+  return SaleService.getList(params, ctx, { canViewProfit });
 }
 
 // ดึงข้อมูลการขายตาม ID
@@ -38,7 +38,7 @@ export async function getSale(id: string) {
   const canViewProfit = hasPermission(ctx, 'SALE_VIEW_PROFIT');
 
   try {
-    return await SaleService.getById(id, { userId: ctx.userId, shopId: ctx.shopId }, { canViewProfit });
+    return await SaleService.getById(id, ctx, { canViewProfit });
   } catch (error: unknown) {
     if (error instanceof ServiceError) throw new Error(error.message);
     throw error;
@@ -96,10 +96,7 @@ export async function cancelSale(input: CancelSaleInput) {
   const ctx = await requirePermission('SALE_CANCEL');
   
   try {
-    await SaleService.cancel(input, { 
-      userId: ctx.userId, 
-      shopId: ctx.shopId, 
-    });
+    await SaleService.cancel(input, ctx);
 
     revalidatePath('/sales');
     revalidatePath('/products');
@@ -124,14 +121,14 @@ export async function getTodaySales() {
   const ctx = await requirePermission('SALE_VIEW');
   const canViewProfit = hasPermission(ctx, 'SALE_VIEW_PROFIT');
   
-  return SaleService.getTodayAggregate({ userId: ctx.userId, shopId: ctx.shopId }, { canViewProfit });
+  return SaleService.getTodayAggregate(ctx, { canViewProfit });
 }
 
 export async function getRecentSales(limit: number = 5) {
   const ctx = await requirePermission('SALE_VIEW');
   const canViewProfit = hasPermission(ctx, 'SALE_VIEW_PROFIT');
 
-  return SaleService.getRecentList(limit, { userId: ctx.userId, shopId: ctx.shopId }, { canViewProfit });
+  return SaleService.getRecentList(limit, ctx, { canViewProfit });
 }
 
 // =================================================================
@@ -156,7 +153,7 @@ export async function verifyPayment(
     const sanitizedNote = note ? z.string().max(500).safeParse(note.trim()) : undefined;
     if (sanitizedNote && !sanitizedNote.success) return { success: false, message: 'หมายเหตุยาวเกินไป (สูงสุด 500 ตัวอักษร)' };
 
-    await SaleService.verifyPayment(sanitizedSaleId.data, status, sanitizedNote?.data, { userId: ctx.userId, shopId: ctx.shopId });
+    await SaleService.verifyPayment(sanitizedSaleId.data, status, sanitizedNote?.data, ctx);
 
     revalidatePath('/sales');
     revalidatePath(`/sales/${saleId}`);
@@ -184,7 +181,7 @@ export async function uploadPaymentProof(
     const sanitizedUrl = z.string().url().max(2048).safeParse(proofUrl);
     if (!sanitizedUrl.success) return { success: false, message: 'URL หลักฐานไม่ถูกต้อง' };
 
-    await SaleService.uploadPaymentProof(sanitizedSaleId.data, sanitizedUrl.data, { userId: ctx.userId, shopId: ctx.shopId });
+    await SaleService.uploadPaymentProof(sanitizedSaleId.data, sanitizedUrl.data, ctx);
 
     revalidatePath('/sales');
     revalidatePath(`/sales/${saleId}`);

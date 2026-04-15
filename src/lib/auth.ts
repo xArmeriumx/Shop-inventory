@@ -55,6 +55,17 @@ async function getActiveShopMembership(userId: string) {
   return null;
 }
 
+/**
+ * Get the session version for a user (from DB)
+ */
+async function getSessionVersion(userId: string) {
+  const user = await db.user.findUnique({
+    where: { id: userId },
+    select: { sessionVersion: true }
+  });
+  return user?.sessionVersion ?? 1;
+}
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   adapter: PrismaAdapter(db),
@@ -95,17 +106,26 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           delete token.permissions;
           delete token.isOwner;
         }
+
+        // Add session version to token on sign in or update
+        token.sessionVersion = await getSessionVersion(userId);
       }
       return token;
     },
     session: async ({ session, token }) => {
       if (token && session.user) {
         session.user.id = token.id as string;
-        // Pass RBAC data to session
+        // Pass essential flags to session (Pruned)
         session.user.shopId = token.shopId as string | undefined;
-        session.user.roleId = token.roleId as string | undefined;
-        session.user.permissions = token.permissions as Permission[] | undefined;
         session.user.isOwner = token.isOwner as boolean | undefined;
+        // Role ID might be useful for some UI logic
+        session.user.roleId = token.roleId as string | undefined;
+        
+        // Add session version for revocation checks
+        session.user.sessionVersion = token.sessionVersion as number | undefined;
+        
+        // IMPORTANT: permissions are NOT passed to the client session anymore
+        // to prevent RBAC model exposure. Use Server Actions or API routes for checks.
       }
       return session;
     },

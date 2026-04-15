@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { getCurrentUserId } from '@/lib/auth-guard';
+import { requireAuth } from '@/lib/auth-guard';
 import { logger } from '@/lib/logger';
 import { SettingsService, ServiceError } from '@/services';
 
@@ -19,7 +19,8 @@ export type ProfileState = {
 };
 
 export async function updateProfile(prevState: ProfileState, formData: FormData): Promise<ProfileState> {
-  const userId = await getCurrentUserId();
+  const ctx = await requireAuth();
+  const userId = ctx.userId;
   
   const rawFormData = {
     name: formData.get('name'),
@@ -48,7 +49,8 @@ export async function updateProfile(prevState: ProfileState, formData: FormData)
 }
 
 export async function getUserProfile() {
-  const userId = await getCurrentUserId();
+  const ctx = await requireAuth();
+  const userId = ctx.userId;
   try {
     return await SettingsService.getUserProfile(userId);
   } catch (error: unknown) {

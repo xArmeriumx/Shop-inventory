@@ -42,7 +42,7 @@ type CreateReturnInput = z.infer<typeof createReturnSchema>;
  */
 export async function getReturnableSaleItems(saleId: string) {
   const ctx = await requirePermission('RETURN_CREATE');
-  return ReturnService.getReturnableSaleItems(saleId, { userId: ctx.userId, shopId: ctx.shopId });
+  return ReturnService.getReturnableSaleItems(saleId, ctx);
 }
 
 /**
@@ -56,7 +56,7 @@ export async function createReturn(input: CreateReturnInput): Promise<ActionResp
     const data = createReturnSchema.parse(input);
 
     // 2. Call Service
-    const result = await ReturnService.create(data, { userId: ctx.userId, shopId: ctx.shopId });
+    const result = await ReturnService.create(data, ctx);
 
     revalidatePath('/sales');
     revalidatePath(`/sales/${data.saleId}`);
@@ -84,7 +84,7 @@ export async function getReturns(options?: {
   search?: string;
 }) {
   const ctx = await requirePermission('RETURN_VIEW');
-  return ReturnService.getList(options || {}, { userId: ctx.userId, shopId: ctx.shopId });
+  return ReturnService.getList(options || {}, ctx);
 }
 
 /**
@@ -92,5 +92,5 @@ export async function getReturns(options?: {
  */
 export async function getReturnById(returnId: string) {
   const ctx = await requirePermission('RETURN_VIEW');
-  return ReturnService.getById(returnId, { userId: ctx.userId, shopId: ctx.shopId });
+  return ReturnService.getById(returnId, ctx);
 }

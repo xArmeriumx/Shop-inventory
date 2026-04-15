@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { ProductInput } from '@/schemas/product';
 import { StockService } from './stock.service';
+import { AuditService } from './audit.service';
 import { Prisma, Product } from '@prisma/client';
 import { paginatedQuery, buildSearchFilter } from '@/lib/pagination';
 
@@ -359,13 +360,14 @@ export const ProductService: IProductService = {
     await db.$transaction(async (tx) => {
       const product = await tx.product.findUnique({
         where: { id: productId },
-        select: { stock: true, shopId: true },
+        select: { stock: true, shopId: true, name: true },
       });
-      
+
       if (!product || product.shopId !== ctx.shopId) {
         throw new ServiceError('ไม่พบสินค้า');
       }
 
+      const stockBefore = product.stock;
       let change = 0;
       let notePrefix = '';
 
@@ -394,6 +396,16 @@ export const ProductService: IProductService = {
         shopId: ctx.shopId,
         note: `${notePrefix} ${input.note}`,
         tx,
+      });
+
+      await AuditService.log(ctx, {
+        action: 'STOCK_MANUAL_ADJUST',
+        targetType: 'Product',
+        targetId: productId,
+        beforeSnapshot: { stock: stockBefore, productName: product.name },
+        afterSnapshot: { stock: stockBefore + change, adjustType: input.type, change, productName: product.name },
+        reason: input.note,
+        note: `${notePrefix} สต็อกเปลี่ยน ${stockBefore} → ${stockBefore + change}`,
       });
     });
   },

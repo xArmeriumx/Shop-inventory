@@ -9,7 +9,7 @@
  * @module Domain Types
  */
 
-import type { Prisma } from '@prisma/client';
+import type { Prisma, Permission } from '@prisma/client';
 
 // ============================================================================
 // SHARED / CROSS-MODULE TYPES
@@ -18,10 +18,15 @@ import type { Prisma } from '@prisma/client';
 /**
  * RequestContext — ตัวตนของผู้ใช้ในทุก Service call
  * ถูกสร้างจาก Action Layer (auth-guard) และส่งลงมายัง Service Layer
+ * 
+ * ขยายให้ครอบคลุม RBAC เพื่อให้ Service ตรวจสอบสิทธิ์เองได้ (Defense in Depth)
  */
 export interface RequestContext {
   userId: string;
   shopId: string;
+  permissions: Permission[];
+  isOwner: boolean;
+  sessionVersion?: number;
   employeeDepartment?: string; // e.g., 'SALES', 'WH', 'ACC'
 }
 

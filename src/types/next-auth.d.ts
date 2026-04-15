@@ -13,6 +13,7 @@ declare module 'next-auth' {
       roleId?: string;
       permissions?: Permission[];
       isOwner?: boolean;
+      sessionVersion?: number;
     };
   }
 
@@ -21,6 +22,7 @@ declare module 'next-auth' {
     email: string;
     name?: string | null;
     image?: string | null;
+    sessionVersion?: number;
   }
 }
 
@@ -32,5 +34,6 @@ declare module 'next-auth/jwt' {
     roleId?: string;
     permissions?: Permission[];
     isOwner?: boolean;
+    sessionVersion?: number;
   }
 }

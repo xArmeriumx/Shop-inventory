@@ -6,22 +6,23 @@ import { logger } from '@/lib/logger';
 import type { ActionResponse } from '@/types/domain';
 export type { InviteMemberInput } from '@/services';
 import { IamService, type InviteMemberInput, ServiceError } from '@/services';
+import { rateLimiters, checkRateLimit } from '@/lib/rate-limit';
 
 export async function getTeamMembers() {
   const ctx = await requirePermission('TEAM_VIEW');
-  return IamService.getTeamMembers({ userId: ctx.userId, shopId: ctx.shopId });
+  return IamService.getTeamMembers(ctx);
 }
 
 export async function getShopTeamInfo() {
   const ctx = await requireShop();
-  return IamService.getShopTeamInfo({ userId: ctx.userId, shopId: ctx.shopId });
+  return IamService.getShopTeamInfo(ctx);
 }
 
 export async function updateMemberRole(memberId: string, roleId: string): Promise<ActionResponse> {
   const ctx = await requirePermission('TEAM_EDIT');
 
   try {
-    await IamService.updateMemberRole(memberId, roleId, { userId: ctx.userId, shopId: ctx.shopId });
+    await IamService.updateMemberRole(memberId, roleId, ctx);
     revalidatePath('/settings/team');
     return { success: true, message: 'อัปเดต Role สมาชิกสำเร็จ' };
   } catch (error: unknown) {
@@ -36,7 +37,7 @@ export async function removeMember(memberId: string): Promise<ActionResponse> {
   const ctx = await requirePermission('TEAM_REMOVE');
 
   try {
-    const member = await IamService.removeMember(memberId, { userId: ctx.userId, shopId: ctx.shopId });
+    const member = await IamService.removeMember(memberId, ctx);
     revalidatePath('/settings/team');
     return { 
       success: true, 
@@ -53,8 +54,17 @@ export async function removeMember(memberId: string): Promise<ActionResponse> {
 export async function inviteMember(input: InviteMemberInput): Promise<ActionResponse> {
   const ctx = await requirePermission('TEAM_INVITE');
 
+  // Apply Rate Limiting for sending invitations
+  const rlResult = await checkRateLimit(rateLimiters.invite, `user:${ctx.userId}:invite`, ctx, 'TEAM_INVITE');
+  if (!rlResult.success) {
+    return { 
+      success: false, 
+      message: 'ส่งคำเชิญบ่อยเกินไป กรุณารอสักครู่ (จำกัด 5 ครั้ง/นาที)' 
+    };
+  }
+
   try {
-    const user = await IamService.inviteMember(input, { userId: ctx.userId, shopId: ctx.shopId });
+    const user = await IamService.inviteMember(input, ctx);
     revalidatePath('/settings/team');
     return { success: true, message: `เพิ่ม ${user.name || user.email} เข้าทีมสำเร็จ` };
   } catch (error: unknown) {

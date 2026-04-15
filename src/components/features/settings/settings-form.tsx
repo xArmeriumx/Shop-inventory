@@ -9,9 +9,12 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Mail, Store, MapPin, Phone, FileText, Package, Wallet, TrendingUp, Users, Shield, QrCode } from 'lucide-react';
+import { Mail, Store, MapPin, Phone, FileText, Package, Wallet, TrendingUp, Users, Shield, QrCode, LogOut, AlertTriangle } from 'lucide-react';
 import { CategoryManager } from '@/components/features/lookups/category-manager';
 import { usePermissions } from '@/hooks/use-permissions';
+import { revokeAllMySessions } from '@/actions/security';
+import { useTransition } from 'react';
+import { toast } from 'sonner';
 
 const initialProfileState: ProfileState = {};
 const initialShopState: ShopState = {};
@@ -56,6 +59,21 @@ export function SettingsForm({ initialData, shopData, productCategories, expense
   const [profileState, profileAction] = useFormState(updateProfile, initialProfileState);
   const [shopState, shopAction] = useFormState(updateShop, initialShopState);
   const { hasPermission } = usePermissions();
+  const [isRevoking, startRevokeTransition] = useTransition();
+
+  const handleRevokeAllSessions = () => {
+    if (confirm('คุณแน่ใจหรือไม่ว่าต้องการออกจากระบบในทุกอุปกรณ์? (รวมถึงอุปกรณ์นี้ด้วย)')) {
+      startRevokeTransition(async () => {
+        const result = await revokeAllMySessions();
+        if (result?.success) {
+          toast.success(result.message || 'ออกจากระบบทุกอุปกรณ์เรียบร้อยแล้ว');
+          window.location.reload(); // Refresh to ensure client state is cleared
+        } else {
+          toast.error(result?.message || 'เกิดข้อผิดพลาด');
+        }
+      });
+    }
+  };
 
   return (
     <Tabs defaultValue="profile" className="space-y-6">
@@ -75,6 +93,11 @@ export function SettingsForm({ initialData, shopData, productCategories, expense
         {hasPermission('TEAM_VIEW') && (
              <a href="/settings/roles" className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm hover:bg-background/50 text-muted-foreground">
                 จัดการ Roles
+             </a>
+        )}
+        {(hasPermission('TEAM_EDIT') || hasPermission('SETTINGS_SHOP')) && (
+             <a href="/settings/audit" className="inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm hover:bg-background/50 text-muted-foreground">
+                ประวัติความปลอดภัย (Audit Logs)
              </a>
         )}
       </TabsList>
@@ -131,6 +154,40 @@ export function SettingsForm({ initialData, shopData, productCategories, expense
                 <SubmitButton text="บันทึกข้อมูลผู้ใช้" />
               </div>
             </form>
+          </CardContent>
+        </Card>
+
+        <Card className="border-destructive/20 mt-6">
+          <CardHeader>
+            <CardTitle className="text-destructive flex items-center gap-2">
+              <Shield className="h-5 w-5" />
+              ความปลอดภัย
+            </CardTitle>
+            <CardDescription>
+              จัดการความปลอดภัยของบัญชีผู้ใช้งาน
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 border rounded-lg bg-red-50/50 dark:bg-red-950/10">
+              <div>
+                <h4 className="font-medium flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-500" />
+                  ออกจากระบบทุกอุปกรณ์
+                </h4>
+                <p className="text-sm text-muted-foreground mt-1">
+                  หากคุณสงสัยว่าบัญชีของคุณถูกใช้งานโดยผู้อื่น 
+                  คลิกที่นี่เพื่อเตะอุปกรณ์ทั้งหมด (รวมถึงเครื่องนี้) ออกจากระบบทันที
+                </p>
+              </div>
+              <Button 
+                variant="destructive" 
+                onClick={handleRevokeAllSessions}
+                disabled={isRevoking}
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                {isRevoking ? 'กำลังดำเนินการ...' : 'ออกจากระบบทุกอุปกรณ์'}
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </TabsContent>

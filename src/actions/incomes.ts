@@ -9,13 +9,13 @@ import { FinanceService, type GetFinanceParams, ServiceError } from '@/services'
 
 export async function getIncomes(params: GetFinanceParams = {}) {
   const ctx = await requirePermission('INCOME_VIEW');
-  return FinanceService.getIncomes(params, { userId: ctx.userId, shopId: ctx.shopId });
+  return FinanceService.getIncomes(params, ctx);
 }
 
 export async function getIncome(id: string) {
   const ctx = await requirePermission('INCOME_VIEW');
   try {
-    return await FinanceService.getIncomeById(id, { userId: ctx.userId, shopId: ctx.shopId });
+    return await FinanceService.getIncomeById(id, ctx);
   } catch (error: unknown) {
     if (error instanceof ServiceError) throw new Error(error.message);
     throw error;
@@ -31,7 +31,7 @@ export async function createIncome(input: IncomeInput) {
   }
 
   try {
-    const income = await FinanceService.createIncome(validated.data, { userId: ctx.userId, shopId: ctx.shopId });
+    const income = await FinanceService.createIncome(validated.data, ctx);
     revalidatePath('/incomes');
     revalidatePath('/dashboard');
     return { 
@@ -57,7 +57,7 @@ export async function updateIncome(id: string, input: IncomeInput) {
   }
 
   try {
-    const income = await FinanceService.updateIncome(id, validated.data, { userId: ctx.userId, shopId: ctx.shopId });
+    const income = await FinanceService.updateIncome(id, validated.data, ctx);
     revalidatePath('/incomes');
     revalidatePath(`/incomes/${id}`);
     return { 
@@ -79,7 +79,7 @@ export async function deleteIncome(id: string) {
   const ctx = await requirePermission('INCOME_DELETE');
 
   try {
-    await FinanceService.deleteIncome(id, { userId: ctx.userId, shopId: ctx.shopId });
+    await FinanceService.deleteIncome(id, ctx);
     revalidatePath('/incomes');
     revalidatePath('/dashboard');
     return { success: true, message: 'ลบรายรับสำเร็จ' };
@@ -93,5 +93,5 @@ export async function deleteIncome(id: string) {
 
 export async function getMonthlyIncomes() {
   const ctx = await requirePermission('INCOME_VIEW');
-  return FinanceService.getMonthlyIncomes({ userId: ctx.userId, shopId: ctx.shopId });
+  return FinanceService.getMonthlyIncomes(ctx);
 }

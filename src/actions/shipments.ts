@@ -13,13 +13,13 @@ import { logger } from '@/lib/logger';
 // STATUS TRANSITION VALIDATION
 export async function getShipments(params: any = {}) {
   const ctx = await requirePermission('SHIPMENT_VIEW');
-  return ShipmentService.getList(params, { userId: ctx.userId, shopId: ctx.shopId });
+  return ShipmentService.getList(params, ctx);
 }
 
 export async function getShipment(id: string) {
   const ctx = await requirePermission('SHIPMENT_VIEW');
   try {
-    return await ShipmentService.getById(id, { userId: ctx.userId, shopId: ctx.shopId });
+    return await ShipmentService.getById(id, ctx);
   } catch (error: unknown) {
     if (error instanceof ServiceError) throw new Error(error.message);
     throw error;
@@ -29,7 +29,7 @@ export async function getShipment(id: string) {
 // =============================================================================
 export async function getSalesWithoutShipment() {
   const ctx = await requirePermission('SHIPMENT_CREATE');
-  return ShipmentService.getSalesWithoutShipment({ userId: ctx.userId, shopId: ctx.shopId });
+  return ShipmentService.getSalesWithoutShipment(ctx);
 }
 
 // =============================================================================
@@ -46,7 +46,7 @@ export async function createShipment(input: ShipmentInput): Promise<ActionRespon
   }
 
   try {
-    const result = await ShipmentService.create(validated.data, { userId: ctx.userId, shopId: ctx.shopId });
+    const result = await ShipmentService.create(validated.data, ctx);
 
     revalidatePath('/shipments');
     revalidatePath('/sales');
@@ -85,7 +85,7 @@ export async function updateShipment(input: UpdateShipmentInput): Promise<Action
   }
 
   try {
-    await ShipmentService.update(validated.data, { userId: ctx.userId, shopId: ctx.shopId });
+    await ShipmentService.update(validated.data, ctx);
 
     revalidatePath('/shipments');
     revalidatePath(`/shipments/${validated.data.id}`);
@@ -122,7 +122,7 @@ export async function updateShipmentStatus(input: UpdateShipmentStatusInput): Pr
 
   try {
     // Calling the sync version to ensure stock deduction on SHIPPED
-    await ShipmentService.updateStatusWithSync(validated.data.id, validated.data.status as any, { userId: ctx.userId, shopId: ctx.shopId });
+    await ShipmentService.updateStatusWithSync(validated.data.id, validated.data.status as any, ctx);
 
     revalidatePath('/shipments');
     revalidatePath(`/shipments/${validated.data.id}`);
@@ -156,7 +156,7 @@ export async function cancelShipment(
   const ctx = await requirePermission('SHIPMENT_CANCEL');
 
   try {
-    await ShipmentService.cancel(id, reason, { userId: ctx.userId, shopId: ctx.shopId });
+    await ShipmentService.cancel(id, reason, ctx);
 
     revalidatePath('/shipments');
     revalidatePath(`/shipments/${id}`);
@@ -184,14 +184,14 @@ export async function cancelShipment(
 
 export async function matchParcelsToSales(parcels: OcrParcel[]): Promise<ParcelMatch[]> {
   const ctx = await requirePermission('SHIPMENT_CREATE');
-  return ShipmentService.matchParcelsToSales(parcels, { userId: ctx.userId, shopId: ctx.shopId });
+  return ShipmentService.matchParcelsToSales(parcels, ctx);
 }
 
 // =============================================================================
 export async function calculateShipmentLoad(id: string): Promise<ActionResponse<any>> {
   const ctx = await requirePermission('SHIPMENT_VIEW');
   try {
-    const result = await ShipmentService.calculateLoad(id, { userId: ctx.userId, shopId: ctx.shopId });
+    const result = await ShipmentService.calculateLoad(id, ctx);
     return { success: true, data: result };
   } catch (error: any) {
     return { success: false, message: error.message || 'เกิดข้อผิดพลาด' };
@@ -201,7 +201,7 @@ export async function calculateShipmentLoad(id: string): Promise<ActionResponse<
 export async function processShipmentRoute(ids: string[], type: 'OUTBOUND' | 'INBOUND'): Promise<ActionResponse<any>> {
   const ctx = await requirePermission('SHIPMENT_EDIT');
   try {
-    const result = await ShipmentService.processRoute(ids, type, { userId: ctx.userId, shopId: ctx.shopId });
+    const result = await ShipmentService.processRoute(ids, type, ctx);
     revalidatePath('/shipments');
     return { success: true, message: 'จัดลำดับเส้นทางสำเร็จ', data: result };
   } catch (error: any) {
@@ -211,5 +211,5 @@ export async function processShipmentRoute(ids: string[], type: 'OUTBOUND' | 'IN
 
 export async function getShipmentStats() {
   const ctx = await requirePermission('SHIPMENT_VIEW');
-  return ShipmentService.getStats({ userId: ctx.userId, shopId: ctx.shopId });
+  return ShipmentService.getStats(ctx);
 }

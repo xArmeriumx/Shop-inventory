@@ -9,13 +9,13 @@ import { FinanceService, type GetFinanceParams, ServiceError } from '@/services'
 
 export async function getExpenses(params: GetFinanceParams = {}) {
   const ctx = await requirePermission('EXPENSE_VIEW');
-  return FinanceService.getExpenses(params, { userId: ctx.userId, shopId: ctx.shopId });
+  return FinanceService.getExpenses(params, ctx);
 }
 
 export async function getExpense(id: string) {
   const ctx = await requirePermission('EXPENSE_VIEW');
   try {
-    return await FinanceService.getExpenseById(id, { userId: ctx.userId, shopId: ctx.shopId });
+    return await FinanceService.getExpenseById(id, ctx);
   } catch (error: unknown) {
     if (error instanceof ServiceError) throw new Error(error.message);
     throw error;
@@ -31,7 +31,7 @@ export async function createExpense(input: ExpenseInput) {
   }
 
   try {
-    const expense = await FinanceService.createExpense(validated.data, { userId: ctx.userId, shopId: ctx.shopId });
+    const expense = await FinanceService.createExpense(validated.data, ctx);
     revalidatePath('/expenses');
     revalidatePath('/dashboard');
     return { 
@@ -57,7 +57,7 @@ export async function updateExpense(id: string, input: ExpenseInput) {
   }
 
   try {
-    const expense = await FinanceService.updateExpense(id, validated.data, { userId: ctx.userId, shopId: ctx.shopId });
+    const expense = await FinanceService.updateExpense(id, validated.data, ctx);
     revalidatePath('/expenses');
     revalidatePath(`/expenses/${id}`);
     return { 
@@ -79,7 +79,7 @@ export async function deleteExpense(id: string) {
   const ctx = await requirePermission('EXPENSE_DELETE');
 
   try {
-    await FinanceService.deleteExpense(id, { userId: ctx.userId, shopId: ctx.shopId });
+    await FinanceService.deleteExpense(id, ctx);
     revalidatePath('/expenses');
     revalidatePath('/dashboard');
     return { success: true, message: 'ลบค่าใช้จ่ายสำเร็จ' };
@@ -93,5 +93,5 @@ export async function deleteExpense(id: string) {
 
 export async function getMonthlyExpenses() {
   const ctx = await requirePermission('EXPENSE_VIEW');
-  return FinanceService.getMonthlyExpenses({ userId: ctx.userId, shopId: ctx.shopId });
+  return FinanceService.getMonthlyExpenses(ctx);
 }

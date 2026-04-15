@@ -20,6 +20,7 @@ import {
 import { IPurchaseService, PurchaseRequestInput } from '@/types/service-contracts';
 import { SequenceService } from './sequence.service';
 import { AuditService } from './audit.service';
+import { Security } from './security';
 
 export const CANCEL_PURCHASE_REASONS = {
   WRONG_ENTRY: 'บันทึกผิดพลาด',
@@ -43,6 +44,7 @@ export const PurchaseService: IPurchaseService = {
    * ดึงข้อมูลการซื้อทั้งหมด (Pagination)
    */
   async getList(params: GetPurchasesParams = {}, ctx: RequestContext) {
+    Security.requirePermission(ctx, 'PURCHASE_VIEW');
     const { page = 1, limit = 20, search, startDate, endDate, paymentMethod } = params;
 
     const searchFilter = buildSearchFilter(search, ['notes']);
@@ -82,6 +84,7 @@ export const PurchaseService: IPurchaseService = {
    * ดึงข้อมูลการซื้อตาม ID
    */
   async getById(id: string, ctx: RequestContext): Promise<SerializedPurchaseWithItems> {
+    Security.requirePermission(ctx, 'PURCHASE_VIEW');
     const purchase = await db.purchase.findFirst({
       where: { id, shopId: ctx.shopId },
       include: {
@@ -110,6 +113,7 @@ export const PurchaseService: IPurchaseService = {
    * สร้างการสั่งซื้อเข้าร้าน พร้อมอัปเดตสต็อกและต้นทุน (FIFO / Weighted Avg concept applied here)
    */
   async create(ctx: RequestContext, payload: PurchaseInput, tx?: Prisma.TransactionClient): Promise<SerializedPurchase> {
+    Security.requirePermission(ctx, 'PURCHASE_CREATE');
     const { items, ...purchaseData } = payload;
     
     if (items.length === 0) {
@@ -193,12 +197,11 @@ export const PurchaseService: IPurchaseService = {
         })),
       } as any;
 
-      // ERP Rule 12.1: Audit Create (Level 2 Snapshot)
       await AuditService.log(ctx, {
         action: 'PURCHASE_CREATE',
-        entityType: 'Purchase',
-        entityId: newPurchase.id,
-        metadata: purchaseToReturn,
+        targetType: 'Purchase',
+        targetId: newPurchase.id,
+        afterSnapshot: purchaseToReturn as any,
         note: `สร้างรายการซื้อ ${newPurchase.purchaseNumber}`,
       });
 
@@ -216,6 +219,7 @@ export const PurchaseService: IPurchaseService = {
    * ยกเลิกการซื้อ (คืนสต็อก และลดยอดใช้จ่าย)
    */
   async cancel(input: CancelPurchaseInput, ctx: RequestContext) {
+    Security.requirePermission(ctx, 'PURCHASE_CANCEL');
     const { id, reasonCode, reasonDetail } = input;
 
     const user = await db.user.findUnique({
@@ -304,12 +308,11 @@ export const PurchaseService: IPurchaseService = {
         },
       });
 
-      // ERP Rule 12.1: Audit Cancel (Level 2 Snapshot)
       await AuditService.log(ctx, {
         action: 'PURCHASE_CANCEL',
-        entityType: 'Purchase',
-        entityId: id,
-        metadata: purchase,
+        targetType: 'Purchase',
+        targetId: id,
+        afterSnapshot: purchase as any,
         note: `ยกเลิกการซื้อ ${purchase.purchaseNumber}: ${cancelReason}`,
       });
     });
@@ -320,6 +323,7 @@ export const PurchaseService: IPurchaseService = {
   // ==========================================
 
   async createRequest(payload, ctx) {
+    Security.requirePermission(ctx, 'PURCHASE_CREATE');
     return await db.$transaction(async (tx) => {
       const { items, purchaseType, notes, supplierId } = payload;
       
@@ -366,6 +370,7 @@ export const PurchaseService: IPurchaseService = {
   },
 
   async convertToPO(prId, ctx) {
+    Security.requirePermission(ctx, 'PURCHASE_CREATE');
     return await db.$transaction(async (tx) => {
       const pr = await tx.purchase.findFirst({
         where: { id: prId, shopId: ctx.shopId },
@@ -411,12 +416,11 @@ export const PurchaseService: IPurchaseService = {
         data: { status: PurchaseStatus.ORDERED },
       });
 
-      // ERP Rule 12.1: Audit Convert PR -> PO
       await AuditService.log(ctx, {
         action: 'PURCHASE_CONVERT_PR_TO_PO',
-        entityType: 'Purchase',
-        entityId: po.id,
-        metadata: { prId: pr.id, poId: po.id, poNumber: po.purchaseNumber },
+        targetType: 'Purchase',
+        targetId: po.id,
+        afterSnapshot: { prId: pr.id, poId: po.id, poNumber: po.purchaseNumber },
         note: `แปลงใบขอซื้อ ${pr.purchaseNumber} เป็นใบสั่งซื้อ ${po.purchaseNumber}`,
       });
 
@@ -538,17 +542,17 @@ export const PurchaseService: IPurchaseService = {
       });
     }
 
-    // Optional: Log the allocation event
     await AuditService.log(ctx, {
       action: 'PURCHASE_CHARGE_ALLOCATION',
-      entityType: 'Purchase',
-      entityId: purchaseId,
-      metadata: { totalCharges, distributedTo: productItems.length },
+      targetType: 'Purchase',
+      targetId: purchaseId,
+      afterSnapshot: { totalCharges, distributedTo: productItems.length },
       note: `กระจายค่าใช้จ่ายเพิ่มเติม (รวม ${totalCharges}) ลงในรายการสินค้า`,
     });
   },
 
   async receivePurchase(purchaseId: string, ctx: RequestContext) {
+    Security.requirePermission(ctx, 'PURCHASE_CREATE');
     await db.$transaction(async (tx) => {
       // 1. First, allocate any charges (Rule 10.3)
       await this.allocateCharges(purchaseId, ctx, tx);
@@ -619,12 +623,11 @@ export const PurchaseService: IPurchaseService = {
         },
       });
 
-      // ERP Rule 12.1: Audit Receipt
       await AuditService.log(ctx, {
         action: 'PURCHASE_RECEIVE',
-        entityType: 'Purchase',
-        entityId: purchaseId,
-        metadata: purchase,
+        targetType: 'Purchase',
+        targetId: purchaseId,
+        afterSnapshot: purchase as any,
         note: `รับสินค้าจากการสั่งซื้อ ${purchase.purchaseNumber}`,
       });
     });

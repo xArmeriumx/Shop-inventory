@@ -22,6 +22,7 @@ import { ISaleService } from '@/types/service-contracts';
 import { SequenceService } from './sequence.service';
 import { CustomerService } from './customer.service';
 import { AuditService } from './audit.service';
+import { Security } from './security';
 
 export const CANCEL_REASONS = {
   WRONG_ENTRY: 'บันทึกผิดพลาด',
@@ -45,6 +46,7 @@ export const SaleService: ISaleService = {
    * บันทึกการขายใหม่ พร้อมลดสต็อกอัตโนมัติ
    */
   async create(ctx: RequestContext, payload: SaleInput, tx?: Prisma.TransactionClient): Promise<SerializedSale> {
+    Security.requirePermission(ctx, 'SALE_CREATE');
     const { items, customerAddress, ...saleData } = payload;
 
     if (items.length === 0) {
@@ -258,9 +260,9 @@ export const SaleService: ISaleService = {
       // ERP Rule 12.1: Audit Create (Level 2 Snapshot)
       await AuditService.log(ctx, {
         action: 'SALE_CREATE',
-        entityType: 'Sale',
-        entityId: sale.id,
-        metadata: sale,
+        targetType: 'Sale',
+        targetId: sale.id,
+        afterSnapshot: sale as any,
         note: `สร้างรายการขาย ${sale.invoiceNumber}`,
       });
 
@@ -297,6 +299,7 @@ export const SaleService: ISaleService = {
    * หมายเหตุ: ไม่อนุญาตให้แก้ items หากสถานะถูก Lock แล้ว (Invoiced/Completed)
    */
   async update(id: string, ctx: RequestContext, payload: any): Promise<SerializedSale> {
+    Security.requirePermission(ctx, 'SALE_CREATE'); // Assuming SALE_CREATE covers edit
     const sale = await db.sale.findFirst({
       where: { id, shopId: ctx.shopId },
     });
@@ -355,8 +358,13 @@ export const SaleService: ISaleService = {
    * ดึงข้อมูลการขายทั้งหมด (Pagination)
    */
   async getList(params: GetSalesParams = {}, ctx: RequestContext, options: { canViewProfit?: boolean } = {}) {
+    Security.requirePermission(ctx, 'SALE_VIEW');
     const { page = 1, limit = 20, search, startDate, endDate, paymentMethod, channel, status } = params;
     const { canViewProfit = false } = options;
+
+    if (canViewProfit) {
+      Security.requirePermission(ctx, 'SALE_VIEW_PROFIT');
+    }
 
     const searchFilter = buildSearchFilter(search, ['invoiceNumber', 'customerName', 'notes']);
     const dateFilter = buildDateRangeFilter(startDate, endDate);
@@ -405,7 +413,12 @@ export const SaleService: ISaleService = {
    * ดึงข้อมูลการขายตาม ID
    */
   async getById(id: string, ctx: RequestContext, options: { canViewProfit?: boolean } = {}): Promise<SerializedSaleWithItems> {
+    Security.requirePermission(ctx, 'SALE_VIEW');
     const { canViewProfit = false } = options;
+
+    if (canViewProfit) {
+      Security.requirePermission(ctx, 'SALE_VIEW_PROFIT');
+    }
 
     const sale = await db.sale.findFirst({
       where: { id, shopId: ctx.shopId },
@@ -521,6 +534,7 @@ export const SaleService: ISaleService = {
    * ยกเลิกการขาย (Soft Cancel + คืนสต็อก)
    */
   async cancel(input: CancelSaleInput, ctx: RequestContext) {
+    Security.requirePermission(ctx, 'SALE_CANCEL');
     const { id, reasonCode, reasonDetail } = input;
 
     const user = await db.user.findUnique({
@@ -613,9 +627,9 @@ export const SaleService: ISaleService = {
       // ERP Rule 12.1: Audit Cancel (Level 2 Snapshot)
       await AuditService.log(ctx, {
         action: 'SALE_CANCEL',
-        entityType: 'Sale',
-        entityId: id,
-        metadata: sale,
+        targetType: 'Sale',
+        targetId: id,
+        afterSnapshot: sale as any,
         note: `ยกเลิกรายการขาย ${sale.invoiceNumber}: ${cancelReason}`,
       });
     });
@@ -625,6 +639,7 @@ export const SaleService: ISaleService = {
    * ยืนยัน/ปฏิเสธ การชำระเงิน
    */
   async verifyPayment(saleId: string, status: 'VERIFIED' | 'REJECTED', note: string | undefined, ctx: RequestContext) {
+    Security.requirePermission(ctx, 'PAYMENT_VERIFY');
     const sale = await db.sale.findFirst({
       where: { id: saleId, shopId: ctx.shopId },
     });
@@ -645,9 +660,9 @@ export const SaleService: ISaleService = {
     // ERP Rule 12.1: Audit Payment Verification
     await AuditService.log(ctx, {
       action: 'SALE_PAYMENT_VERIFY',
-      entityType: 'Sale',
-      entityId: saleId,
-      metadata: { status, note },
+      targetType: 'Sale',
+      targetId: saleId,
+      afterSnapshot: { status, note },
       note: `ยืนยันการชำระเงิน: ${status}`,
     });
   },
@@ -703,9 +718,9 @@ export const SaleService: ISaleService = {
       // ERP Rule 12.1: Audit Confirm
       await AuditService.log(ctx, {
         action: 'SALE_CONFIRM',
-        entityType: 'Sale',
-        entityId: saleId,
-        metadata: sale,
+        targetType: 'Sale',
+        targetId: saleId,
+        afterSnapshot: sale as any,
         note: `ยืนยันการขาย ${sale.invoiceNumber}`,
       });
     });
@@ -762,9 +777,9 @@ export const SaleService: ISaleService = {
       // ERP Rule 12.1: Audit Complete
       await AuditService.log(ctx, {
         action: 'SALE_COMPLETE',
-        entityType: 'Sale',
-        entityId: saleId,
-        metadata: sale,
+        targetType: 'Sale',
+        targetId: saleId,
+        afterSnapshot: sale as any,
         note: `จบการขาย (ตัดสต็อกแล้ว) ${sale.invoiceNumber}`,
       });
     };

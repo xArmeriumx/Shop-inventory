@@ -10,7 +10,7 @@ import { SupplierService, ServiceError } from '@/services';
 
 export async function getSuppliersForSelect() {
   const ctx = await requirePermission('SUPPLIER_VIEW');
-  return SupplierService.getForSelect({ userId: ctx.userId, shopId: ctx.shopId });
+  return SupplierService.getForSelect(ctx);
 }
 
 export async function getSuppliers(params: {
@@ -19,13 +19,13 @@ export async function getSuppliers(params: {
   search?: string;
 } = {}) {
   const ctx = await requirePermission('SUPPLIER_VIEW');
-  return SupplierService.getList(params, { userId: ctx.userId, shopId: ctx.shopId });
+  return SupplierService.getList(params, ctx);
 }
 
 export async function getSupplier(id: string) {
   const ctx = await requirePermission('SUPPLIER_VIEW');
   try {
-    return await SupplierService.getById(id, { userId: ctx.userId, shopId: ctx.shopId });
+    return await SupplierService.getById(id, ctx);
   } catch (error: unknown) {
     if (error instanceof ServiceError) throw new Error(error.message);
     throw error;
@@ -101,7 +101,7 @@ export async function deleteSupplier(id: string): Promise<ActionResponse<void>> 
   const ctx = await requirePermission('SUPPLIER_DELETE');
   
   try {
-    await SupplierService.delete(id, { userId: ctx.userId, shopId: ctx.shopId });
+    await SupplierService.delete(id, ctx);
     revalidatePath('/suppliers');
     return {
       success: true,
@@ -121,7 +121,7 @@ export async function deleteSupplier(id: string): Promise<ActionResponse<void>> 
 export async function getSupplierProfile(id: string) {
   const ctx = await requirePermission('SUPPLIER_VIEW');
   try {
-    return await SupplierService.getProfile(id, { userId: ctx.userId, shopId: ctx.shopId });
+    return await SupplierService.getProfile(id, ctx);
   } catch (error: unknown) {
     if (error instanceof ServiceError) throw new Error(error.message);
     throw error;

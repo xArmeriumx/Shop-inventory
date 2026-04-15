@@ -30,7 +30,7 @@ export type ShopState = {
 export async function getShop() {
   const ctx = await requireAuth();
   // Pass to service - usage of optional shopId is handled inside the service logic
-  return SettingsService.getShop({ userId: ctx.userId, shopId: ctx.shopId as string });
+  return SettingsService.getShop(ctx as unknown as import('@/types/domain').RequestContext);
 }
 
 export async function updateShop(prevState: ShopState, formData: FormData): Promise<ShopState> {
@@ -55,7 +55,7 @@ export async function updateShop(prevState: ShopState, formData: FormData): Prom
   }
 
   try {
-    await SettingsService.updateShop(validatedFields.data, { userId: ctx.userId, shopId: ctx.shopId });
+    await SettingsService.updateShop(validatedFields.data, ctx);
     revalidatePath('/settings');
     revalidatePath('/sales');
     return { success: true };

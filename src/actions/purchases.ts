@@ -15,7 +15,7 @@ import type { ActionResponse } from '@/types/domain';
 
 export async function getPurchases(params: GetPurchasesParams = {}) {
   const ctx = await requirePermission('PURCHASE_VIEW');
-  return PurchaseService.getList(params, { userId: ctx.userId, shopId: ctx.shopId });
+  return PurchaseService.getList(params, ctx);
 }
 
 // Get Purchase (ดึงข้อมูลการซื้อ)
@@ -23,7 +23,7 @@ export async function getPurchase(id: string) {
   const ctx = await requirePermission('PURCHASE_VIEW');
   
   try {
-    return await PurchaseService.getById(id, { userId: ctx.userId, shopId: ctx.shopId });
+    return await PurchaseService.getById(id, ctx);
   } catch (error: unknown) {
     if (error instanceof ServiceError) throw new Error(error.message);
     throw error;
@@ -56,7 +56,7 @@ export async function createPurchase(input: PurchaseInput): Promise<ActionRespon
   // 2. Loop update Stock & Cost Price
 
   try {
-    const purchase = await PurchaseService.create({ userId: ctx.userId, shopId: ctx.shopId }, validated.data);
+    const purchase = await PurchaseService.create(ctx, validated.data);
 
     revalidatePath('/purchases');
     revalidatePath('/products');
@@ -94,7 +94,7 @@ export async function createPurchaseRequest(input: PurchaseInput): Promise<Actio
   }
 
   try {
-    const result = await PurchaseService.createRequest(validated.data, { userId: ctx.userId, shopId: ctx.shopId });
+    const result = await PurchaseService.createRequest(validated.data, ctx);
     revalidatePath('/purchases');
     return { success: true, message: 'สร้างใบขอซื้อสำเร็จ', data: result };
   } catch (error: any) {
@@ -105,7 +105,7 @@ export async function createPurchaseRequest(input: PurchaseInput): Promise<Actio
 export async function approvePurchaseRequest(id: string): Promise<ActionResponse> {
   const ctx = await requirePermission('PURCHASE_APPROVE'); // Needs this permission set up
   try {
-    await PurchaseService.approveRequest(id, { userId: ctx.userId, shopId: ctx.shopId });
+    await PurchaseService.approveRequest(id, ctx);
     revalidatePath('/purchases');
     revalidatePath(`/purchases/${id}`);
     return { success: true, message: 'อนุมัติใบขอซื้อสำเร็จ' };
@@ -117,7 +117,7 @@ export async function approvePurchaseRequest(id: string): Promise<ActionResponse
 export async function convertToPurchaseOrder(id: string): Promise<ActionResponse<{ id: string; poNumber: string }>> {
   const ctx = await requirePermission('PURCHASE_CREATE');
   try {
-    const result = await PurchaseService.convertToPO(id, { userId: ctx.userId, shopId: ctx.shopId });
+    const result = await PurchaseService.convertToPO(id, ctx);
     revalidatePath('/purchases');
     revalidatePath('/products');
     return { success: true, message: `แปลงเป็นใบสั่งซื้อสำเร็จ: ${result.poNumber}`, data: result };
@@ -130,10 +130,7 @@ export async function cancelPurchase(input: CancelPurchaseInput): Promise<Action
   const ctx = await requirePermission('PURCHASE_CANCEL');
   
   try {
-    await PurchaseService.cancel(input, { 
-      userId: ctx.userId, 
-      shopId: ctx.shopId, 
-    });
+    await PurchaseService.cancel(input, ctx);
 
     revalidatePath('/purchases');
     revalidatePath('/products');

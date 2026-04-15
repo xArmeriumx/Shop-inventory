@@ -1,5 +1,7 @@
 import { db } from '@/lib/db';
 import { RequestContext, ServiceError } from '@/types/domain';
+import { Security } from './security';
+import { AuditService } from './audit.service';
 
 export const SettingsService = {
   // ============================================================================
@@ -18,7 +20,14 @@ export const SettingsService = {
   },
 
   async updateShop(data: any, ctx: RequestContext) {
-    return db.shop.upsert({
+    Security.requirePermission(ctx, 'SETTINGS_SHOP');
+
+    // Capture before snapshot
+    const before = ctx.shopId
+      ? await db.shop.findUnique({ where: { id: ctx.shopId }, select: { name: true, address: true, phone: true, taxId: true, promptPayId: true } })
+      : null;
+
+    const result = await db.shop.upsert({
       where: { userId: ctx.userId },
       update: {
         name: data.name,
@@ -38,6 +47,17 @@ export const SettingsService = {
         promptPayId: data.promptPayId,
       },
     });
+
+    await AuditService.log(ctx, {
+      action: 'SETTINGS_SHOP_UPDATE',
+      targetType: 'Shop',
+      targetId: result.id,
+      beforeSnapshot: before as any,
+      afterSnapshot: { name: result.name, address: result.address, phone: result.phone, taxId: result.taxId, promptPayId: result.promptPayId },
+      note: 'อัปเดตข้อมูลร้านค้า',
+    });
+
+    return result;
   },
 
   // ============================================================================

@@ -18,10 +18,9 @@ export const authConfig = {
         session.user.id = token.id as string;
         session.user.shopId = token.shopId as string | undefined;
         session.user.roleId = token.roleId as string | undefined;
-        // Note: permissions might be large, be careful if header size limits hit. 
-        // For middleware checks, we mainly need simple flags, but let's map it all for consistency.
-        session.user.permissions = token.permissions as any; 
         session.user.isOwner = token.isOwner as boolean | undefined;
+        session.user.sessionVersion = token.sessionVersion as number | undefined;
+        // IMPORTANT: permissions are NOT passed to the client session anymore
       }
       return session;
     },

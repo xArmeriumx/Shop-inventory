@@ -238,9 +238,9 @@ export const FinanceService = {
     // ERP Rule 12.1: Audit Billing
     await AuditService.log(ctx, {
       action: 'SALE_BILLING_MARK',
-      entityType: 'Sale',
-      entityId: saleId,
-      metadata: sale,
+      targetType: 'Sale',
+      targetId: saleId,
+      afterSnapshot: sale as any,
       note: `วางบิลรายการขาย ${sale.invoiceNumber}`,
     });
 

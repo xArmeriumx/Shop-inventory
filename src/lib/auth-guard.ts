@@ -6,6 +6,7 @@ import { db } from '@/lib/db';
 
 /**
  * Session context with RBAC information
+ * This is the server-side context used for authorization
  */
 export interface SessionContext {
   userId: string;
@@ -14,20 +15,23 @@ export interface SessionContext {
   permissions: Permission[];
   isOwner: boolean;
   employeeDepartment?: string;
+  sessionVersion?: number;
 }
 
 /**
- * Session context with guaranteed shopId (after requirePermission)
- * Use this type when you know the user has a shop membership
+ * Session context with guaranteed shopId
  */
 export interface ShopSessionContext extends SessionContext {
   shopId: string;
 }
 
 /**
- * Cached session context fetcher - memoized per request
- * This prevents duplicate DB queries when requireAuth() is called multiple times
- * in the same request (e.g., in layout + page + components)
+ * Cached session context fetcher - memoized per request.
+ * 
+ * Source of Truth: 
+ * - Identity/Metadata: Auth.js Session (JWT)
+ * - Permissions/Roles: Database (ShopMember)
+ * - Revocation: Database (User.sessionVersion)
  */
 export const getSessionContext = cache(async (): Promise<SessionContext | null> => {
   const session = await auth();
@@ -36,10 +40,14 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
     return null;
   }
 
-  // Optimized query: Use select instead of include to avoid unnecessary JOINs
-  // shopId is directly on ShopMember, no need to fetch shop.id
+  // Identity from Session (JWT)
+  const userId = session.user.id;
+  const sessionVersion = (session.user as any).sessionVersion;
+
+  // Permissions from Database (Source of Truth)
+  // This satisfies Rule 2.2: Single Source of Truth
   const membership = await db.shopMember.findFirst({
-    where: { userId: session.user.id },
+    where: { userId },
     select: {
       shopId: true,
       roleId: true,
@@ -54,29 +62,45 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
   });
 
   if (!membership) {
-    // User exists but has no shop membership
     return {
-      userId: session.user.id,
+      userId,
       shopId: undefined,
       roleId: undefined,
       permissions: [],
       isOwner: false,
+      sessionVersion,
     };
   }
 
   return {
-    userId: session.user.id,
+    userId,
     shopId: membership.shopId,
     roleId: membership.roleId ?? undefined,
-    permissions: membership.role?.permissions ?? [],
+    permissions: (membership.role?.permissions as Permission[]) ?? [],
     isOwner: membership.isOwner,
     employeeDepartment: membership.departmentCode ?? undefined,
+    sessionVersion,
   };
 });
 
 /**
+ * Check if the session is still valid (not revoked)
+ * Only call this for sensitive operations to minimize DB load
+ */
+export async function validateSessionFreshness(ctx: SessionContext): Promise<boolean> {
+  if (!ctx.userId || ctx.sessionVersion === undefined) return false;
+
+  const user = await db.user.findUnique({
+    where: { id: ctx.userId },
+    select: { sessionVersion: true }
+  });
+
+  // If version in DB is higher than version in JWT, session is stale/revoked
+  return user?.sessionVersion === ctx.sessionVersion;
+}
+
+/**
  * Get current user session, redirect to login if not authenticated
- * Enhanced for Real-time RBAC with request-level caching
  */
 export async function requireAuth(): Promise<SessionContext> {
   const ctx = await getSessionContext();
@@ -89,23 +113,7 @@ export async function requireAuth(): Promise<SessionContext> {
 }
 
 /**
- * Get current user ID, throw if not authenticated
- * @deprecated Use requireAuth() for RBAC context
- */
-export async function getCurrentUserId(): Promise<string> {
-  const ctx = await getSessionContext();
-
-  if (!ctx) {
-    throw new Error('Unauthorized');
-  }
-
-  return ctx.userId;
-}
-
-/**
- * Require user to have a shop membership (no specific permission needed)
- * Use for features that should be available to all shop members
- * Returns ShopSessionContext with guaranteed shopId
+ * Require user to have a shop membership
  */
 export async function requireShop(): Promise<ShopSessionContext> {
   const ctx = await requireAuth();
@@ -118,14 +126,34 @@ export async function requireShop(): Promise<ShopSessionContext> {
 }
 
 /**
- * Require a specific permission, throw if not authorized
- * Returns ShopSessionContext with guaranteed shopId
+ * List of sensitive permissions that require session freshness check
+ */
+const SENSITIVE_PERMISSIONS: Permission[] = [
+  'TEAM_REMOVE', 'TEAM_EDIT', 'TEAM_INVITE',
+  'PURCHASE_CANCEL', 'SALE_CANCEL',
+  'SETTINGS_SHOP', 'SETTINGS_LOOKUPS',
+  'PRODUCT_DELETE'
+];
+
+/**
+ * Require a specific permission, throw if not authorized.
+ * For sensitive permissions, also validates session freshness.
  */
 export async function requirePermission(permission: Permission): Promise<ShopSessionContext> {
-  const ctx = await requireShop(); // Reuse requireShop for DRY
+  const ctx = await requireShop();
   
+  // 1. RBAC Check
   if (!hasPermission(ctx, permission)) {
     redirect('/dashboard');
+  }
+
+  // 2. Freshness Check for sensitive operations (Revocation support)
+  if (SENSITIVE_PERMISSIONS.includes(permission)) {
+    const isFresh = await validateSessionFreshness(ctx);
+    if (!isFresh) {
+      // Session revoked (e.g. password change, "Logout all devices")
+      redirect('/login?error=SessionExpired');
+    }
   }
   
   return ctx;
@@ -135,32 +163,14 @@ export async function requirePermission(permission: Permission): Promise<ShopSes
  * Check if session context has a specific permission
  */
 export function hasPermission(ctx: SessionContext, permission: Permission): boolean {
-  // Owner has all permissions
   if (ctx.isOwner) return true;
-  
   return ctx.permissions.includes(permission);
 }
 
 /**
- * Check if session has any of the specified permissions
+ * Helper to get the trusted Shop ID for services
  */
-export function hasAnyPermission(ctx: SessionContext, permissions: Permission[]): boolean {
-  if (ctx.isOwner) return true;
-  return permissions.some(p => ctx.permissions.includes(p));
-}
-
-/**
- * Check if session has all of the specified permissions
- */
-export function hasAllPermissions(ctx: SessionContext, permissions: Permission[]): boolean {
-  if (ctx.isOwner) return true;
-  return permissions.every(p => ctx.permissions.includes(p));
-}
-
-/**
- * Check if user is authenticated without redirecting
- */
-export async function isAuthenticated(): Promise<boolean> {
-  const ctx = await getSessionContext();
-  return ctx !== null;
+export async function getTrustedShopId(): Promise<string> {
+  const ctx = await requireShop();
+  return ctx.shopId;
 }

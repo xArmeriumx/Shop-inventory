@@ -37,12 +37,12 @@ export async function getLookupTypes() {
 
 export async function getLookupValues(typeCode: LookupTypeCode) {
   const ctx = await requireAuth();
-  return LookupService.getLookupValues(typeCode, { userId: ctx.userId, shopId: ctx.shopId as string });
+  return LookupService.getLookupValues(typeCode, ctx as unknown as import('@/types/domain').RequestContext);
 }
 
 export async function getLookupValuesForSettings(typeCode: LookupTypeCode) {
   const ctx = await requirePermission('SETTINGS_LOOKUPS');
-  return LookupService.getLookupValuesForSettings(typeCode, { userId: ctx.userId, shopId: ctx.shopId });
+  return LookupService.getLookupValuesForSettings(typeCode, ctx);
 }
 
 // ==================== Quick Add (for inline dropdowns) ====================
@@ -54,7 +54,7 @@ export async function quickAddCategory(
   const ctx = await requireAuth();
   
   try {
-    const created = await LookupService.quickAddCategory(typeCode, name, { userId: ctx.userId, shopId: ctx.shopId as string });
+    const created = await LookupService.quickAddCategory(typeCode, name, ctx as unknown as import('@/types/domain').RequestContext);
     return { success: true, data: { id: created.id, name: created.name } };
   } catch (error: unknown) {
     if (error instanceof ServiceError) return { success: false, error: error.message };
@@ -85,7 +85,7 @@ export async function createLookupValue(
   }
 
   try {
-    await LookupService.createLookupValue(typeCode, validated.data, { userId: ctx.userId, shopId: ctx.shopId });
+    await LookupService.createLookupValue(typeCode, validated.data, ctx);
     revalidatePath('/settings');
     return { success: true };
   } catch (error: unknown) {
@@ -115,7 +115,7 @@ export async function updateLookupValue(
   }
 
   try {
-    await LookupService.updateLookupValue(id, validated.data, { userId: ctx.userId, shopId: ctx.shopId });
+    await LookupService.updateLookupValue(id, validated.data, ctx);
     revalidatePath('/settings');
     return { success: true };
   } catch (error: unknown) {
@@ -130,7 +130,7 @@ export async function deleteLookupValue(id: string): Promise<LookupValueState> {
   const ctx = await requirePermission('SETTINGS_LOOKUPS');
 
   try {
-    await LookupService.deleteLookupValue(id, { userId: ctx.userId, shopId: ctx.shopId });
+    await LookupService.deleteLookupValue(id, ctx);
     revalidatePath('/settings');
     return { success: true };
   } catch (error: unknown) {
@@ -145,7 +145,7 @@ export async function seedDefaultLookupValues() {
   const ctx = await requirePermission('SETTINGS_LOOKUPS');
 
   try {
-    await LookupService.seedDefaultLookupValues({ userId: ctx.userId, shopId: ctx.shopId });
+    await LookupService.seedDefaultLookupValues(ctx);
     revalidatePath('/settings');
     return { success: true };
   } catch (error: unknown) {

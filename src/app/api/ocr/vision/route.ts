@@ -7,6 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { withAuth } from '@/lib/auth/api-guard';
 import { groq } from '@/lib/groq';
 import type { ReceiptData } from '@/lib/ocr/types';
 
@@ -83,16 +84,16 @@ KT-1688-0052
 function isRateLimitError(error: any): boolean {
   const message = error?.message?.toLowerCase() || '';
   const status = error?.status || error?.response?.status;
-  return status === 429 || 
-         message.includes('rate limit') || 
-         message.includes('quota') ||
-         message.includes('too many requests');
+  return status === 429 ||
+    message.includes('rate limit') ||
+    message.includes('quota') ||
+    message.includes('too many requests');
 }
 
 // Check if error is JSON validation error with recoverable data
 function isJsonValidationError(error: any): boolean {
   return error?.error?.error?.code === 'json_validate_failed' &&
-         error?.error?.error?.failed_generation;
+    error?.error?.error?.failed_generation;
 }
 
 // Try to fix and parse malformed JSON
@@ -103,29 +104,29 @@ function tryFixMalformedJson(jsonStr: string): any | null {
   } catch {
     // Try to fix common issues
     let fixed = jsonStr;
-    
+
     // Fix Thai characters in dates: "2025-09-ง16" -> "2025-09-16"
     fixed = fixed.replace(/"date":\s*"(\d{4}-\d{2})-[ก-๙]?(\d{1,2})"/g, '"date": "$1-$2"');
-    
+
     // Fix malformed date like "2026-01-{"16"]] -> "2026-01-16"
     fixed = fixed.replace(/"date":\s*"(\d{4}-\d{2})-\{?"?(\d{1,2})"?\]?\]?/g, '"date": "$1-$2"');
-    
+
     // Fix extra brackets in arrays: {"code": "...", {"model" -> {"code": "...", "model"
     fixed = fixed.replace(/,\s*\{"/g, ', "');
-    
+
     // Fix double opening brackets: {{ -> {
     fixed = fixed.replace(/\{\s*\{/g, '{');
-    
+
     // Fix missing comma before object: } { -> }, {
     fixed = fixed.replace(/\}\s*\{/g, '}, {');
-    
+
     // Fix trailing commas
     fixed = fixed.replace(/,\s*}/g, '}');
     fixed = fixed.replace(/,\s*]/g, ']');
-    
+
     // Fix missing quotes
     fixed = fixed.replace(/:\s*([a-zA-Z0-9ก-๙]+)([,\}])/g, ': "$1"$2');
-    
+
     try {
       return JSON.parse(fixed);
     } catch {
@@ -166,7 +167,7 @@ async function callVisionAPI(model: string, imageUrl: string) {
   });
 }
 
-export async function POST(request: NextRequest) {
+export const POST = withAuth(async (request) => {
   try {
     const { imageBase64, imageUrl, mimeType = 'image/jpeg' } = await request.json();
 
@@ -209,7 +210,7 @@ export async function POST(request: NextRequest) {
     }
 
     const content = response.choices[0]?.message?.content;
-    
+
     if (!content) {
       return NextResponse.json(
         { success: false, error: 'No response from Vision AI' },
@@ -249,21 +250,21 @@ export async function POST(request: NextRequest) {
 
   } catch (error: any) {
     console.error('Vision OCR error:', error);
-    
+
     // Try to recover from JSON validation errors
     if (isJsonValidationError(error)) {
       const failedGeneration = error?.error?.error?.failed_generation;
       console.log('[Vision OCR] Attempting to recover from malformed JSON...');
-      
+
       const recovered = tryFixMalformedJson(failedGeneration);
       if (recovered) {
         console.log('[Vision OCR] Successfully recovered JSON');
-        
+
         let confidence = recovered.confidence || 75; // Lower confidence for recovered data
         if (confidence > 0 && confidence <= 1) {
           confidence = Math.round(confidence * 100);
         }
-        
+
         return NextResponse.json({
           success: true,
           data: {
@@ -276,13 +277,13 @@ export async function POST(request: NextRequest) {
         });
       }
     }
-    
+
     return NextResponse.json(
-      { 
-        success: false, 
+      {
+        success: false,
         error: error instanceof Error ? error.message : 'Vision OCR failed',
       },
       { status: 500 }
     );
   }
-}
+});

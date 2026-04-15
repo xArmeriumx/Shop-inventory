@@ -12,7 +12,7 @@ export async function getShopContextForAI() {
   const ctx = await requireShop();
 
   try {
-    return await AiService.getShopContextForAI({ userId: ctx.userId, shopId: ctx.shopId });
+    return await AiService.getShopContextForAI(ctx);
   } catch (error) {
     const typedError = error as Error;
     await logger.error('Error getting shop context for AI', typedError, { path: 'getShopContextForAI' });

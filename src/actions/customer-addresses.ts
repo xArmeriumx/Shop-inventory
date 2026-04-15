@@ -9,7 +9,7 @@ import { CustomerService, ServiceError } from '@/services';
 
 export async function getCustomerAddresses(customerId: string) {
   const ctx = await requirePermission('CUSTOMER_VIEW');
-  return CustomerService.getAddresses(customerId, { userId: ctx.userId, shopId: ctx.shopId });
+  return CustomerService.getAddresses(customerId, ctx);
 }
 
 export async function createCustomerAddress(input: CustomerAddressInput): Promise<ActionResponse> {

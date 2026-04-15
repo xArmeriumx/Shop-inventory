@@ -22,6 +22,7 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   lastActiveAt  DateTime  @default(now()) // Track online status
+  sessionVersion Int      @default(1)    // Revocation check version
 
   // Relations
   shop          Shop?
@@ -953,22 +954,30 @@ model DocSequence {
 // บันทึกธุรกรรมสำคัญ พร้อม Snapshot ข้อมูล (Level 2) เพื่อใช้ตรวจสอบและกู้คืน
 
 model AuditLog {
-  id          String   @id @default(cuid())
-  shopId      String
-  userId      String
-  action      String   // e.g., "SALE_CANCEL", "PURCHASE_CONFIRM", "BILLING_LINK"
+  id             String   @id @default(cuid())
+  shopId         String
+  actorUserId    String   // ผู้กระทำ (actor)
   
-  entityType  String?  // e.g., "Sale", "Purchase", "Customer"
-  entityId    String?  // ID ของเอกสารที่เกี่ยวข้อง
+  action         String   // e.g., "SALE_CANCEL", "TEAM_INVITE", "PERMISSION_DENIED"
+  status         String   @default("SUCCESS") // "SUCCESS" | "DENIED"
   
-  metadata    Json?    // ★ NEW: Snapshot ข้อมูล ณ ขณะเกิด Action (Level 2)
-  note        String?  // เหตุผลหรือรายละเอียดเพิ่มเติม
+  targetType     String?  // e.g., "Sale", "Purchase", "User", "Role"
+  targetId       String?  // ID ของ entity ที่ถูกกระทำ
   
-  createdAt   DateTime @default(now())
+  beforeSnapshot Json?    // Snapshot ก่อนการเปลี่ยนแปลง
+  afterSnapshot  Json?    // Snapshot หลังการเปลี่ยนแปลง
+  changedFields  String[] // รายชื่อ field ที่เปลี่ยน (optional, computed)
+  
+  reason         String?  // เหตุผล (โดยเฉพาะกรณี cancel / deny)
+  note           String?  // หมายเหตุเพิ่มเติม (human-readable)
+  
+  createdAt      DateTime @default(now())
 
   @@index([shopId, createdAt])
-  @@index([entityType, entityId])
-  @@index([userId])
+  @@index([shopId, action])
+  @@index([shopId, status])
+  @@index([targetType, targetId])
+  @@index([actorUserId])
 }
 
 // ==================== ERP: Supplier Intelligence (Rule 4.4) ====================

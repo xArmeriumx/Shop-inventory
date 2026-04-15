@@ -9,13 +9,13 @@ import { IamService, type RoleInput, ServiceError } from '@/services';
 
 export async function getRoles() {
   const ctx = await requirePermission('TEAM_VIEW');
-  return IamService.getRoles({ userId: ctx.userId, shopId: ctx.shopId });
+  return IamService.getRoles(ctx);
 }
 
 export async function getRole(id: string) {
   const ctx = await requirePermission('TEAM_VIEW');
   try {
-    return await IamService.getRole(id, { userId: ctx.userId, shopId: ctx.shopId });
+    return await IamService.getRole(id, ctx);
   } catch (error: unknown) {
     if (error instanceof ServiceError) throw new Error(error.message);
     throw error;
@@ -26,7 +26,7 @@ export async function createRole(input: RoleInput): Promise<ActionResponse<{ id:
   const ctx = await requirePermission('TEAM_EDIT');
 
   try {
-    const role = await IamService.createRole(input, { userId: ctx.userId, shopId: ctx.shopId });
+    const role = await IamService.createRole(input, ctx);
     revalidatePath('/settings/roles');
     return { success: true, data: { id: role.id }, message: 'สร้าง Role สำเร็จ' };
   } catch (error: unknown) {
@@ -41,7 +41,7 @@ export async function updateRole(id: string, input: RoleInput): Promise<ActionRe
   const ctx = await requirePermission('TEAM_EDIT');
 
   try {
-    await IamService.updateRole(id, input, { userId: ctx.userId, shopId: ctx.shopId });
+    await IamService.updateRole(id, input, ctx);
     revalidatePath('/settings/roles');
     return { success: true, message: 'อัปเดต Role สำเร็จ' };
   } catch (error: unknown) {
@@ -56,7 +56,7 @@ export async function deleteRole(id: string): Promise<ActionResponse> {
   const ctx = await requirePermission('TEAM_EDIT');
 
   try {
-    await IamService.deleteRole(id, { userId: ctx.userId, shopId: ctx.shopId });
+    await IamService.deleteRole(id, ctx);
     revalidatePath('/settings/roles');
     return { success: true, message: 'ลบ Role สำเร็จ' };
   } catch (error: unknown) {
