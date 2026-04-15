@@ -23,6 +23,13 @@ export async function getMyPermissions(): Promise<PermissionData | null> {
   return IamService.getMyPermissions(session.user.id);
 }
 
+export async function getMyProfile() {
+  const session = await auth();
+  if (!session?.user?.id) return null;
+
+  return IamService.getProfile(session.user.id);
+}
+
 /**
  * Register a new user
  */

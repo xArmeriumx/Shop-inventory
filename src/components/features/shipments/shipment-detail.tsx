@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { ShipmentStatusBadge } from './shipment-status-badge';
 import { ShipmentTimeline } from './shipment-timeline';
-import { updateShipment, updateShipmentStatus, cancelShipment } from '@/actions/shipments';
+import { updateShipment, updateShipmentStatus, cancelShipment, calculateShipmentLoad } from '@/actions/shipments';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { toast } from 'sonner';
 import {
@@ -57,6 +57,24 @@ export function ShipmentDetail({ shipment }: ShipmentDetailProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [cancelReason, setCancelReason] = useState('');
+  const [loadData, setLoadData] = useState<any>(null);
+  const [isCalculating, setIsCalculating] = useState(false);
+
+  const handleCalculateLoad = async () => {
+    setIsCalculating(true);
+    try {
+      const result = await calculateShipmentLoad(shipment.id);
+      if (result.success) {
+        setLoadData(result.data);
+      } else {
+        toast.error(result.message);
+      }
+    } catch {
+      toast.error('เกิดข้อผิดพลาดในการคำนวณ');
+    } finally {
+      setIsCalculating(false);
+    }
+  };
 
   const handleStatusChange = (newStatus: ShipmentStatus) => {
     startTransition(async () => {
@@ -337,6 +355,65 @@ export function ShipmentDetail({ shipment }: ShipmentDetailProps) {
               </Card>
             )}
           </Guard>
+
+          {/* Logistics Load Hub (Phase 4) */}
+          <Card className="border-blue-100 bg-blue-50/10 dark:border-blue-900 dark:bg-blue-950/10">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold flex items-center justify-between">
+                <span>การคำนวณน้ำหนักและปริมาตร</span>
+                <Truck className="h-4 w-4 text-blue-500" />
+              </CardTitle>
+              <CardDescription className="text-xs">Logistics Load Center</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {!loadData ? (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full text-xs" 
+                  onClick={handleCalculateLoad}
+                  disabled={isCalculating}
+                >
+                  {isCalculating ? <Loader2 className="h-3 w-3 mr-2 animate-spin" /> : <Save className="h-3 w-3 mr-2" />}
+                  คำนวณ Load
+                </Button>
+              ) : (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="p-2 rounded bg-background border">
+                      <p className="text-muted-foreground mb-1">น้ำหนักรวม</p>
+                      <p className="font-bold">{loadData.totalWeight} kg</p>
+                    </div>
+                    <div className="p-2 rounded bg-background border">
+                      <p className="text-muted-foreground mb-1">ปริมาตร (CBM)</p>
+                      <p className="font-bold">{loadData.totalCbm} m³</p>
+                    </div>
+                  </div>
+                  
+                  <div className="p-2 rounded bg-blue-100/30 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800">
+                    <p className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold uppercase tracking-wider mb-1">แนะนำตู้คอนเทนเนอร์</p>
+                    <p className="text-sm font-bold">{loadData.recommendedContainer}</p>
+                    <div className="mt-2 space-y-1">
+                      <div className="flex justify-between text-[10px]">
+                        <span>อัตราการใช้งานตู้</span>
+                        <span>{loadData.utilization}%</span>
+                      </div>
+                      <div className="h-1.5 w-full bg-blue-200 dark:bg-blue-800 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-blue-600 rounded-full" 
+                          style={{ width: `${Math.min(loadData.utilization, 100)}%` }} 
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <Button variant="ghost" size="sm" className="w-full text-[10px] h-6" onClick={handleCalculateLoad}>
+                    คำนวณใหม่
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Cancel Action */}
           <Guard permission="SHIPMENT_CANCEL">

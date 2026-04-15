@@ -18,9 +18,11 @@ import { formatCurrency } from '@/lib/formatters';
 import { PRODUCT_CATEGORIES } from '@/lib/constants';
 import { Edit, Trash2, ChevronLeft, ChevronRight, Package } from 'lucide-react';
 import { deleteProduct } from '@/actions/products';
+import { cn } from '@/lib/utils';
 import { useState, useTransition } from 'react';
 import { usePermissions } from '@/hooks/use-permissions';
 import { Guard } from '@/components/auth/guard';
+import { toast } from 'sonner';
 
 interface ProductsTableProps {
   products: SerializedProduct[];
@@ -102,16 +104,17 @@ export function ProductsTable({ products, pagination }: ProductsTableProps) {
                 <TableHead className="hidden sm:table-cell">หมวดหมู่</TableHead>
                 {canViewCost && <TableHead className="text-right hidden md:table-cell">ราคาทุน</TableHead>}
                 <TableHead className="text-right">ราคาขาย</TableHead>
-                <TableHead className="text-right">สต็อก</TableHead>
+                <TableHead className="text-right">สต็อก (พร้อมขาย)</TableHead>
                 <TableHead className="w-[80px] sm:w-[100px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {products.map((product) => {
-                const isLowStock = product.stock <= product.minStock;
+                const available = product.stock - (product.reservedStock || 0);
+                const isLowStock = available <= product.minStock;
                 const productImage = product.images?.[0];
                 return (
-                  <TableRow key={product.id} className="group">
+                  <TableRow key={product.id} className={cn("group", !product.isActive && "opacity-60 bg-muted/30")}>
                     <TableCell className="p-2">
                       <div className="relative w-10 h-10 rounded-md overflow-hidden bg-muted flex items-center justify-center">
                         {productImage ? (
@@ -128,15 +131,26 @@ export function ProductsTable({ products, pagination }: ProductsTableProps) {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div>
-                        <p className="font-medium line-clamp-1">{product.name}</p>
-                        <div className="flex flex-wrap gap-1 mt-0.5">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium line-clamp-1">{product.name}</p>
+                          {!product.isActive && (
+                            <Badge variant="outline" className="text-[10px] h-4 px-1 text-muted-foreground border-muted-foreground">
+                              ปิดใช้งาน
+                            </Badge>
+                          )}
+                          {!product.isSaleable && product.isActive && (
+                            <Badge variant="outline" className="text-[10px] h-4 px-1 text-orange-500 border-orange-500">
+                              งดขาย
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-1">
                           {product.sku && (
-                            <span className="text-xs text-muted-foreground">
+                            <span className="text-xs text-muted-foreground font-mono">
                               {product.sku}
                             </span>
                           )}
-                          {/* Show category on mobile as badge */}
                           <Badge variant="secondary" className="sm:hidden text-[10px] px-1.5 py-0">
                             {getCategoryLabel(product.category)}
                           </Badge>
@@ -153,16 +167,18 @@ export function ProductsTable({ products, pagination }: ProductsTableProps) {
                         {formatCurrency(product.costPrice.toString())}
                       </TableCell>
                     )}
-                    <TableCell className="text-right font-medium">
+                    <TableCell className="text-right font-medium text-primary">
                       {formatCurrency(product.salePrice.toString())}
                     </TableCell>
                     <TableCell className="text-right">
-                      <span className={isLowStock ? 'text-destructive font-medium' : ''}>
-                        {product.stock}
-                      </span>
-                      {isLowStock && (
-                        <span className="ml-1 text-xs text-destructive">!</span>
-                      )}
+                      <div className="flex flex-col items-end">
+                        <span className={cn("font-semibold", isLowStock ? 'text-destructive' : 'text-green-600')}>
+                          {available}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">
+                          จากทั้งหมด {product.stock}
+                        </span>
+                      </div>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center justify-end gap-0.5">

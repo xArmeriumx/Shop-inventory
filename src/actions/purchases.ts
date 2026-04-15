@@ -86,6 +86,46 @@ export async function createPurchase(input: PurchaseInput): Promise<ActionRespon
 
 
 
+export async function createPurchaseRequest(input: PurchaseInput): Promise<ActionResponse<{ id: string; requestNumber: string }>> {
+  const ctx = await requirePermission('PURCHASE_CREATE');
+  const validated = purchaseSchema.safeParse(input);
+  if (!validated.success) {
+    return { success: false, errors: validated.error.flatten().fieldErrors, message: 'ข้อมูลใบขอซื้อไม่ถูกต้อง' };
+  }
+
+  try {
+    const result = await PurchaseService.createRequest(validated.data, { userId: ctx.userId, shopId: ctx.shopId });
+    revalidatePath('/purchases');
+    return { success: true, message: 'สร้างใบขอซื้อสำเร็จ', data: result };
+  } catch (error: any) {
+    return { success: false, message: error.message || 'เกิดข้อผิดพลาด' };
+  }
+}
+
+export async function approvePurchaseRequest(id: string): Promise<ActionResponse> {
+  const ctx = await requirePermission('PURCHASE_APPROVE'); // Needs this permission set up
+  try {
+    await PurchaseService.approveRequest(id, { userId: ctx.userId, shopId: ctx.shopId });
+    revalidatePath('/purchases');
+    revalidatePath(`/purchases/${id}`);
+    return { success: true, message: 'อนุมัติใบขอซื้อสำเร็จ' };
+  } catch (error: any) {
+    return { success: false, message: error.message || 'เกิดข้อผิดพลาด' };
+  }
+}
+
+export async function convertToPurchaseOrder(id: string): Promise<ActionResponse<{ id: string; poNumber: string }>> {
+  const ctx = await requirePermission('PURCHASE_CREATE');
+  try {
+    const result = await PurchaseService.convertToPO(id, { userId: ctx.userId, shopId: ctx.shopId });
+    revalidatePath('/purchases');
+    revalidatePath('/products');
+    return { success: true, message: `แปลงเป็นใบสั่งซื้อสำเร็จ: ${result.poNumber}`, data: result };
+  } catch (error: any) {
+    return { success: false, message: error.message || 'เกิดข้อผิดพลาด' };
+  }
+}
+
 export async function cancelPurchase(input: CancelPurchaseInput): Promise<ActionResponse> {
   const ctx = await requirePermission('PURCHASE_CANCEL');
   

@@ -38,6 +38,16 @@ export const productSchema = z.object({
     .int()
     .min(0)
     .default(5),
+  moq: z
+    .number()
+    .int()
+    .min(0)
+    .optional()
+    .nullable(),
+  metadata: z
+    .record(z.any())
+    .optional()
+    .nullable(),
   images: z.array(z.string().url()).optional().default([]),
   isActive: z.boolean().optional().default(true),
   isSaleable: z.boolean().optional().default(true),

@@ -121,14 +121,17 @@ export async function updateShipmentStatus(input: UpdateShipmentStatusInput): Pr
   }
 
   try {
-    await ShipmentService.updateStatus(validated.data, { userId: ctx.userId, shopId: ctx.shopId });
+    // Calling the sync version to ensure stock deduction on SHIPPED
+    await ShipmentService.updateStatusWithSync(validated.data.id, validated.data.status as any, { userId: ctx.userId, shopId: ctx.shopId });
 
     revalidatePath('/shipments');
     revalidatePath(`/shipments/${validated.data.id}`);
+    revalidatePath('/sales');
+    revalidatePath('/products');
     revalidatePath('/dashboard');
     return {
       success: true,
-      message: 'เปลี่ยนสถานะเป็นสำเร็จ',
+      message: 'บันทึกความคืบหน้าสำเร็จ',
     };
   } catch (error: unknown) {
     if (error instanceof ServiceError) return { success: false, message: error.message };
@@ -185,6 +188,27 @@ export async function matchParcelsToSales(parcels: OcrParcel[]): Promise<ParcelM
 }
 
 // =============================================================================
+export async function calculateShipmentLoad(id: string): Promise<ActionResponse<any>> {
+  const ctx = await requirePermission('SHIPMENT_VIEW');
+  try {
+    const result = await ShipmentService.calculateLoad(id, { userId: ctx.userId, shopId: ctx.shopId });
+    return { success: true, data: result };
+  } catch (error: any) {
+    return { success: false, message: error.message || 'เกิดข้อผิดพลาด' };
+  }
+}
+
+export async function processShipmentRoute(ids: string[], type: 'OUTBOUND' | 'INBOUND'): Promise<ActionResponse<any>> {
+  const ctx = await requirePermission('SHIPMENT_EDIT');
+  try {
+    const result = await ShipmentService.processRoute(ids, type, { userId: ctx.userId, shopId: ctx.shopId });
+    revalidatePath('/shipments');
+    return { success: true, message: 'จัดลำดับเส้นทางสำเร็จ', data: result };
+  } catch (error: any) {
+    return { success: false, message: error.message || 'เกิดข้อผิดพลาด' };
+  }
+}
+
 export async function getShipmentStats() {
   const ctx = await requirePermission('SHIPMENT_VIEW');
   return ShipmentService.getStats({ userId: ctx.userId, shopId: ctx.shopId });

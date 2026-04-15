@@ -283,6 +283,25 @@ export const IamService = {
     };
   },
 
+  async getProfile(userId: string) {
+    const membership = await db.shopMember.findFirst({
+      where: { userId },
+      select: {
+        departmentCode: true,
+        user: { select: { id: true, name: true, email: true } }
+      }
+    });
+
+    if (!membership) return null;
+
+    return {
+      id: membership.user.id,
+      name: membership.user.name,
+      email: membership.user.email,
+      departmentCode: membership.departmentCode
+    };
+  },
+
   async registerUser(data: { name: string; email: string; passwordHash: string }): Promise<User> {
     const existingUser = await db.user.findUnique({
       where: { email: data.email },

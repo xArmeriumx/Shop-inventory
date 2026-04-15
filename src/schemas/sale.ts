@@ -41,6 +41,7 @@ export const saleSchema = z.object({
   // G4: Bill-level discount (ส่วนลดทั้งบิล)
   discountType: z.enum(['PERCENT', 'FIXED']).optional().nullable(),
   discountValue: z.number().min(0, 'ส่วนลดต้องไม่ติดลบ').optional().nullable(),
+  departmentCode: z.string().max(50).optional().nullable(),
 });
 
 export type SaleInput = z.input<typeof saleSchema>;

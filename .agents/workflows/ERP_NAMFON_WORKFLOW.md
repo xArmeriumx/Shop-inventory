@@ -1,59 +1,41 @@
-# 🔄 ERP-Namfon Development Workflow
+---
+description: 
+---
 
-เอกสารฉบับนี้กำหนดมาตรฐานขั้นตอนการพัฒนา (Standard Operating Procedure - SOP) สำหรับการปรับปรุงและเพิ่มฟีเจอร์ในระบบ ERP-Namfon เพื่อให้โค้ดมีความเป็นระเบียบและตรวจสอบย้อนกลับได้
+# 🔄 ERP-Namfon Operational Workflows (Master)
+
+คู่มือขั้นตอนการทำงาน (Step-by-Step) เพื่อให้การประสานงานระหว่าง UI และ Data Layer เป็นไปอย่างถูกต้อง
 
 ---
 
-## 🛠️ Step-by-Step Feature Implementation
+## 🛒 1. Workflow: งานจัดซื้อ (Procurement Cycle)
 
-ในการสร้างฟังก์ชันใหม่ หรือแก้ไขฟังก์ชันเดิม ให้ยึดตามโครงสร้าง **Use Case Standard** ดังนี้:
-
-### 1. Planning: แตก Use Case
-ก่อนลงมือเขียนโค้ด ต้องระบุ 4 องค์ประกอบหลัก:
-1.  **Objective (เป้าหมาย)**: ฟังก์ชันนี้ทำเพื่ออะไร แก้ปัญหาไหนให้ธุรกิจ?
-2.  **Input (ข้อมูลขาเข้า)**: ต้องการข้อมูลอะไรบ้าง? (User, Fields, Model, RequestContext)
-3.  **Business Logic (เงื่อนไขและขั้นตอน)**: สูตรคำนวณคืออะไร? เงื่อนไข IF/ELSE มีอะไรบ้าง? ต้องทำ $transaction ไหม?
-4.  **Output (ข้อมูลขาออก/ผลลัพธ์)**: ข้อมูลที่บันทึกลง DB หรือค่าที่ส่งกลับหน้าบ้านคืออะไร?
-
-### 2. Implementation: การเขียนโค้ด (Clean Architecture)
-*   **Action Layer**: รับ Input และทำการ Validation ด้วย Zod
-*   **Service Layer**: รับข้อมูลที่ Validate แล้วมาทำ Business Logic (ห้ามแตะ HTTP/Cookie)
-*   **Atomic Call**: หากมีการแก้ไขหลาย Table ต้องใช้ `db.$transaction` เสมอ
-
-### 3. Verification: การตรวจสอบ
-*   **Success Path**: บันทึกข้อมูลถูกต้อง, สถานะเปลี่ยนตาม Logic
-*   **Edge Cases**: ข้อมูลเป็น Null, หา Record ไม่เจอ, Sequence ซ้ำ
-*   **UI Feedback**: แจ้งเตือนผู้ใช้ด้วย Message ที่ชัดเจน (เช่น "วงเงินเครดิตไม่พอ")
+1.  **ขอซื้อ (PR Request)**: ผู้ใช้สร้างรายการในสถานะ `REQUEST` -> ระบบรันเลขชุด `C-PUR-` หรือ `T-PUR-`
+2.  **อนุมัติ (PR Approved)**: ผู้จัดการตรวจสอบและกดอนุมัติ -> เปลี่ยนสถานะเป็น `APPROVED`
+3.  **แปลงใบสั่งซื้อ (Convert to PO)**: กดปุ่ม "Convert" -> ระบบสร้างใบ `Purchase` ใหม่ (เลขชุด `C-PO-` / `T-PO-`) พร้อมเชื่อมโยง `originPrId`
+4.  **รับของ (Receive Goods)**: คลังสินค้ากดรับของ -> ระบบอัปเดตราคาต้นทุนเฉลี่ย และเพิ่มจำนวนสต็อกจริง (Stock On-Hand)
 
 ---
 
-## 📝 Use Case Template (สำหรับ Developer)
+## 🛍️ 2. Workflow: การจองและขาย (Sales Fulfillment)
 
-ใช้ Template นี้ทุกครั้งเมื่อสรุปงานหรือเตรียม Spec:
-
-```markdown
-### [ชื่อฟังก์ชัน]
-- **Objective**: [ระบุเป้าหมาย]
-- **Trigger**: [เหตุการณ์ที่ทำให้ระบบทำงาน เช่น Create/Update/Button Click]
-- **Inputs**:
-  - [Input 1]
-  - [Input 2]
-- **Business Logic**:
-  1. [ขั้นตอนที่ 1]
-  2. [ขั้นตอนที่ 2]
-  - [เงื่อนไข IF/ELSE]
-- **Outputs**:
-  - [ผลลัพธ์ 1]
-  - [ผลลัพธ์ 2]
-- **Examples**:
-  - Input: [ตัวอย่าง]
-  - Output: [ผลลัพธ์ที่คาดหวัง]
-```
+1.  **เสนอราคา/จอง (Confirmed Order)**: เมื่อกดยืนยันการขาย -> ระบบรัน Action `confirmSale` -> ทำการเพิ่มค่าใน `Product.reservedStock`
+2.  **ออกใบแจ้งหนี้ (Invoice Issuance)**: กดออกบิล -> ระบบดึงเลขที่เอกสารตามแผนกพนักงาน -> ล็อกใบสั่งซื้อ (`isLocked = true`) เพื่อป้องกันการแก้ไข
+3.  **แจ้งขนส่ง (Shipment Creation)**: ข้อมูล Sale จะถูกดึงไปสร้างใบ `Shipment` โดยอัตโนมัติ
 
 ---
 
-## 🛡️ กฎเหล็ก (Iron Rules)
-1.  **No Direct DB in Actions**: Business Logic ต้องอยู่ใน Service เสมอ
-2.  **No Placeholders**: ห้ามใช้ข้อมูลหลอกในระดับ Production ระบบต้องใช้ข้อมูลจริงจาก Schema
-3.  **Sync always**: ขนะเปลี่ยนสถานะ (Status) ต้อง Sync ข้อมูลที่เกี่ยวข้องให้ครบตามกฎใน `ERP_NAMFON_RULES.md`
-4.  **Security First**: ตรวจสอบ `shopId` ในทุก Query เพื่อป้องกันการเข้าถึงข้ามร้าน (Multi-tenancy)
+## 🚛 3. Workflow: การขนส่งและส่งมอบ (Logistics Pipeline)
+
+1.  **วางแผนโหลด (Load Planning)**: กดคำนวณปริมาตรในหน้า Shipment -> ระบบดึงค่า Dimension จาก Metadata -> แนะนำขนาดรถ
+2.  **วางแผนเส้นทาง (Route Planning)**: เลือกใบขนส่ง -> กดจัดลำดับเส้นทาง -> ระบบจัดเรียงตามระยะทางและบันทึกใน `dispatchSeq`
+3.  **ปล่อยรถ (Dispatch)**: กด "Ship" -> ระบบเปลี่ยนสถานะเป็น `SHIPPED` -> **Trigger: หักสต็อกจริงออกจากคลังอัตโนมัติ**
+4.  **ส่งมอบ (Delivery)**: บันทึกวันและเวลาที่ถึงมือลูกค้า -> ปิดสถานะ Shipment และ Sale เป็นสำเร็จ
+
+---
+
+## 🏭 4. Workflow: การจัดการสินค้า (Inventory Lifecycle)
+
+1.  **เพิ่มสินค้าใหม่ (Onboarding)**: ระบุข้อมูลเบื้องต้น + ตั้งค่า `isActive`/`isSaleable` และ `moq`
+2.  **ตั้งค่า Dimension**: ระบุขนาดและน้ำหนักสินค้าในส่วน Metadata (JSON) เพื่อให้ระบบ Logistics คำนวณได้แม่นยำ
+3.  **ตรวจสต็อก (Availability Check)**: หน้าจอ Stock Report จะแสดงผลลัพธ์จาก `Stock - Reserved` เพื่อเตือนให้ฝ่ายจัดซื้อเรียกของเพิ่ม (PR) ได้ทันเวลา

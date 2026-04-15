@@ -1,7 +1,3 @@
----
-description: Workflow for ERP-Implement
----
-
 # 🔄 ERP-Namfon Operational Workflows (Master)
 
 คู่มือขั้นตอนการทำงาน (Step-by-Step) เพื่อให้การประสานงานระหว่าง UI และ Data Layer เป็นไปอย่างถูกต้อง

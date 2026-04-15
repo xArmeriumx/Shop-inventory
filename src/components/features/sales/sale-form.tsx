@@ -11,6 +11,7 @@ import { PAYMENT_METHODS } from '@/lib/constants';
 import { createSale } from '@/actions/sales';
 import { getProductsForSelect } from '@/actions/products';
 import { getCustomersForSelect } from '@/actions/customers';
+import { getMyProfile } from '@/actions/auth';
 import { formatCurrency } from '@/lib/formatters';
 import { Plus, Trash2, ScanBarcode, Tag, Percent, Sparkles } from 'lucide-react';
 import { CustomerCombobox } from '@/components/features/customers/customer-combobox';
@@ -59,16 +60,18 @@ export function SaleForm() {
   const [discountValue, setDiscountValue] = useState<number | string>(0);
   // Payment method (controlled for AI autofill)
   const [paymentMethod, setPaymentMethod] = useState<string>('');
+  const [departmentCode, setDepartmentCode] = useState<string | null>(null);
 
   // AI autofill tracking
   const [aiFilled, setAiFilled] = useState<Set<string>>(new Set());
 
-  // Load products and customers
+  // Load products, customers and profile
   useEffect(() => {
     Promise.all([
       getProductsForSelect(),
       getCustomersForSelect(),
-    ]).then(([productsData, customersData]) => {
+      getMyProfile()
+    ]).then(([productsData, customersData, profile]) => {
       const mappedProducts = productsData.map((p: any) => ({
         ...p,
         salePrice: Number(p.salePrice),
@@ -76,6 +79,9 @@ export function SaleForm() {
       }));
       setProducts(mappedProducts);
       setCustomers(customersData);
+      if (profile?.departmentCode) {
+        setDepartmentCode(profile.departmentCode);
+      }
     });
   }, []);
 
@@ -532,10 +538,10 @@ export function SaleForm() {
                   className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
                 >
                   <option value="">เลือกสินค้า</option>
-                  {products.map((product) => (
+                  {products.map((product: any) => (
                     <option key={product.id} value={product.id}>
-                      {product.name} {product.sku && `(${product.sku})`} - สต็อก:{' '}
-                      {product.stock}
+                      {product.name} {product.sku && `(${product.sku})`} - ว่าง:{' '}
+                      {(product.stock || 0) - (product.reservedStock || 0)}
                     </option>
                   ))}
                 </select>

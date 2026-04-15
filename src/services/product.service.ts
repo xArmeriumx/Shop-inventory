@@ -47,6 +47,7 @@ export const ProductService: IProductService = {
           // ERP Rule: Sync isActive with isSaleable
           isActive: payload.isActive ?? payload.isSaleable ?? true,
           isSaleable: payload.isSaleable ?? payload.isActive ?? true,
+          metadata: (payload.metadata as Prisma.InputJsonValue) ?? Prisma.JsonNull,
           userId: ctx.userId,
           shopId: ctx.shopId,
         },
@@ -141,10 +142,10 @@ export const ProductService: IProductService = {
           ...otherData,
           description: otherData.description || null,
           ...(otherData.sku !== undefined ? { sku: otherData.sku || null } : {}),
-          // ERP Rule: Sync isActive with isSaleable
-          isActive: otherData.isSaleable ?? otherData.isActive ?? existing.isActive,
-          isSaleable: otherData.isActive ?? otherData.isSaleable ?? existing.isSaleable,
-          version: { increment: 1 },  // Optimistic locking: ++ version เสมอเมื่อมีการเซฟ
+          isActive: otherData.isActive ?? (otherData.isSaleable !== undefined ? otherData.isSaleable : existing.isActive),
+          isSaleable: otherData.isSaleable ?? (otherData.isActive !== undefined ? otherData.isActive : existing.isSaleable),
+          metadata: otherData.metadata === null ? Prisma.JsonNull : (otherData.metadata as Prisma.InputJsonValue),
+          version: { increment: 1 },
         },
       });
 
@@ -181,7 +182,6 @@ export const ProductService: IProductService = {
       where: {
         id,
         shopId: ctx.shopId,
-        isActive: true,
         deletedAt: null,
       },
     });
@@ -235,7 +235,6 @@ export const ProductService: IProductService = {
 
     const whereClause = {
       shopId: ctx.shopId,
-      isActive: true,
       deletedAt: null,
       ...(searchFilter && searchFilter),
       ...(category && { category }),
@@ -291,7 +290,7 @@ export const ProductService: IProductService = {
         deletedAt: null,
         stock: { gt: 0 }, 
       },
-      select: { id: true, name: true, sku: true, salePrice: true, costPrice: true, stock: true },
+      select: { id: true, name: true, sku: true, salePrice: true, costPrice: true, stock: true, reservedStock: true },
       orderBy: { name: 'asc' },
     });
     
@@ -304,7 +303,7 @@ export const ProductService: IProductService = {
   async getForPurchase(ctx: RequestContext) {
     const products = await db.product.findMany({
       where: { shopId: ctx.shopId, isActive: true, deletedAt: null },
-      select: { id: true, name: true, sku: true, salePrice: true, costPrice: true, stock: true },
+      select: { id: true, name: true, sku: true, salePrice: true, costPrice: true, stock: true, reservedStock: true },
       orderBy: { name: 'asc' },
     });
     

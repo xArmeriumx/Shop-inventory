@@ -1,7 +1,3 @@
----
-trigger: always_on
----
-
 # 🛡️ ERP-Namfon Technical Business Rules (Master)
 
 เอกสารฉบับนี้คือ **"กฎเหล็ก"** ของระบบ ERP-Namfon ที่เชื่อมโยงความต้องการทางธุรกิจเข้ากับการทำงานทางเทคนิค 
