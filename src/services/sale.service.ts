@@ -20,6 +20,7 @@ import {
 } from '@/types/domain';
 import { ISaleService } from '@/types/service-contracts';
 import { SequenceService } from './sequence.service';
+import { CustomerService } from './customer.service';
 
 export const CANCEL_REASONS = {
   WRONG_ENTRY: 'บันทึกผิดพลาด',
@@ -61,7 +62,7 @@ export const SaleService: ISaleService = {
       const productIds = items.map(item => item.productId);
       const products = await prismaTx.product.findMany({
         where: { id: { in: productIds } },
-        select: { id: true, name: true, costPrice: true, stock: true },
+        select: { id: true, name: true, costPrice: true, stock: true, reservedStock: true },
       });
 
       interface ProductData {
@@ -69,6 +70,7 @@ export const SaleService: ISaleService = {
         name: string;
         costPrice: number;
         stock: number;
+        reservedStock: number;
       }
       const productDataMap = new Map<string, ProductData>(
         products.map(p => [p.id, {
@@ -76,6 +78,7 @@ export const SaleService: ISaleService = {
           name: p.name,
           costPrice: toNumber(p.costPrice),
           stock: p.stock,
+          reservedStock: p.reservedStock,
         }])
       );
 
@@ -84,8 +87,9 @@ export const SaleService: ISaleService = {
         if (!product) {
           throw new ServiceError(`ไม่พบสินค้า ID: ${item.productId}`);
         }
-        if (product.stock < item.quantity) {
-          throw new ServiceError(`สินค้า "${product.name}" มีสต็อกไม่พอ (เหลือ ${product.stock})`);
+        const available = product.stock - product.reservedStock;
+        if (available < item.quantity) {
+          throw new ServiceError(`สินค้า "${product.name}" มีสต็อกไม่พอ (สั่งซื้อได้ ${available})`);
         }
       }
 
@@ -136,7 +140,17 @@ export const SaleService: ISaleService = {
       const netAmount = money.subtract(totalAmount, billDiscountAmount);
       const profit = calcProfit(netAmount, totalCost);
 
-      // 4. Handle Customer
+      // 4. ERP Rule 6: Check Credit Limit
+      if (saleData.customerId) {
+        const creditStatus = await CustomerService.checkCreditLimit(saleData.customerId, netAmount, ctx);
+        if (!creditStatus.isWithinLimit) {
+          throw new ServiceError(
+            `ไม่สามารถเปิดบิลได้เนื่องจากเกินวงเงินเครดิต (วงเงินคงเหลือ: ${creditStatus.availableCredit}, ยอดบิลนี้: ${netAmount})`
+          );
+        }
+      }
+
+      // 5. Handle Customer
       let finalCustomerId = saleData.customerId;
 
       if (finalCustomerId && customerAddress) {
@@ -543,26 +557,42 @@ export const SaleService: ISaleService = {
         data: { status: 'CANCELLED' },
       });
 
-      // คืนสต็อก (Bulk: compute all quantities, then batch update)
-      const stockRestoreMovements = sale.items
-        .map(item => {
-          const alreadyReturned = item.returnItems.reduce((sum: number, ri: any) => sum + ri.quantity, 0);
-          const restoreQty = item.quantity - alreadyReturned;
-          return { item, restoreQty, alreadyReturned };
-        })
-        .filter(({ restoreQty }) => restoreQty > 0)
-        .map(({ item, restoreQty, alreadyReturned }) => ({
-          productId: item.productId,
-          type: 'SALE_CANCEL' as const,
-          quantity: restoreQty,
-          saleId: sale.id,
-          userId: ctx.userId,
-          shopId: sale.shopId || ctx.shopId,
-          note: `ยกเลิกการขาย ${sale.invoiceNumber} - ${cancelReason}` + (alreadyReturned > 0 ? ` (คืนแล้ว ${alreadyReturned} ชิ้น)` : ''),
+      // คืนสต็อก (Smart Standard Logic)
+      // - ถ้า BookingStatus = RESERVED -> เรียก releaseStock (คืนโควต้าจอง ไม่บวกสต็อกจริง)
+      // - ถ้า BookingStatus = DEDUCTED -> เรียก recordMovements (บวกสต็อกจริง เพราะเคยหักไปแล้ว)
+      
+      if (sale.bookingStatus === BookingStatus.RESERVED) {
+        // คืนโควต้าจอง
+        await Promise.all(sale.items.map(item => {
+           const alreadyReturned = item.returnItems.reduce((sum: number, ri: any) => sum + ri.quantity, 0);
+           const releaseQty = item.quantity - alreadyReturned;
+           if (releaseQty > 0) {
+             return StockService.releaseStock(item.productId, releaseQty, ctx, tx);
+           }
+           return Promise.resolve();
         }));
+      } else if (sale.bookingStatus === BookingStatus.DEDUCTED) {
+        // คืนสต็อกจริง
+        const stockRestoreMovements = sale.items
+          .map(item => {
+            const alreadyReturned = item.returnItems.reduce((sum: number, ri: any) => sum + ri.quantity, 0);
+            const restoreQty = item.quantity - alreadyReturned;
+            return { item, restoreQty, alreadyReturned };
+          })
+          .filter(({ restoreQty }) => restoreQty > 0)
+          .map(({ item, restoreQty, alreadyReturned }) => ({
+            productId: item.productId,
+            type: 'SALE_CANCEL' as const,
+            quantity: restoreQty,
+            saleId: sale.id,
+            userId: ctx.userId,
+            shopId: sale.shopId || ctx.shopId,
+            note: `ยกเลิกการขาย ${sale.invoiceNumber} - ${cancelReason}` + (alreadyReturned > 0 ? ` (คืนแล้ว ${alreadyReturned} ชิ้น)` : ''),
+          }));
 
-      if (stockRestoreMovements.length > 0) {
-        await StockService.recordMovements(stockRestoreMovements, tx);
+          if (stockRestoreMovements.length > 0) {
+            await StockService.recordMovements(stockRestoreMovements, tx);
+          }
       }
 
       await tx.sale.update({

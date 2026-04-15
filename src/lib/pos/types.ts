@@ -13,6 +13,7 @@ export interface POSProduct {
   salePrice: number;
   costPrice: number;
   stock: number;
+  reservedStock: number;
   image: string | null;
 }
 

@@ -412,7 +412,6 @@ export const CustomerService: ICustomerService = {
         });
         continue;
       }
-
       try {
         const created = await this.create(ctx, input);
         results.success.push(created);
@@ -422,5 +421,50 @@ export const CustomerService: ICustomerService = {
     }
 
     return results;
+  },
+
+  /**
+   * ตรวจสอบสถานะเครดิตของลูกค้า (ERP Rule 6)
+   */
+  async checkCreditLimit(customerId: string, requestedAmount: number, ctx: RequestContext) {
+    const customer = await db.customer.findFirst({
+      where: { id: customerId, shopId: ctx.shopId, deletedAt: null },
+      select: { creditLimit: true },
+    });
+
+    if (!customer) throw new ServiceError('ไม่พบข้อมูลลูกค้า');
+    
+    // ถ้าไม่มีการตั้งวงเงิน (null หรือ 0) ถือว่าไม่มีขีดจำกัด (ใช้งานง่ายสำหรับร้านทั่วไป)
+    const limit = customer.creditLimit ? Number(customer.creditLimit) : 0;
+    if (limit <= 0) {
+      return {
+        creditLimit: 0,
+        currentOutstanding: 0,
+        availableCredit: 999999999,
+        isWithinLimit: true,
+      };
+    }
+
+    // คำนวณยอดค้างชำระ (บิลที่ยังไม่ชำระและไม่ได้ยกเลิก)
+    const unpaidSales = await db.sale.aggregate({
+      where: {
+        customerId,
+        shopId: ctx.shopId,
+        status: { not: 'CANCELLED' },
+        billingStatus: { not: 'PAID' },
+      },
+      _sum: { netAmount: true },
+    });
+
+    const currentOutstanding = Number(unpaidSales._sum?.netAmount || 0);
+    const availableCredit = limit - currentOutstanding;
+    const isWithinLimit = (currentOutstanding + requestedAmount) <= limit;
+
+    return {
+      creditLimit: limit,
+      currentOutstanding,
+      availableCredit,
+      isWithinLimit,
+    };
   }
 };

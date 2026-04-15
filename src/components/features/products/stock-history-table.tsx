@@ -11,6 +11,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency } from '@/lib/formatters';
 import { ClientDate } from '@/components/ui/client-date';
+import Link from 'next/link';
 
 interface StockLog {
   id: string;
@@ -136,10 +137,23 @@ export function StockHistoryTable(props: StockHistoryTableProps) {
                 <TableCell className="text-right font-bold">
                   {log.balance}
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {(log.type === 'SALE' || log.type === 'SALE_CANCEL') && log.saleId && 'Sale'}
-                  {(log.type === 'PURCHASE' || log.type === 'PURCHASE_CANCEL') && log.purchaseId && 'Purchase'}
-                  {log.type === 'RETURN' && log.returnId && 'Return'}
+                <TableCell className="text-sm">
+                  {((log.type === 'SALE' || log.type === 'SALE_CANCEL' || log.type === 'RESERVATION' || log.type === 'RELEASE') && log.saleId) ? (
+                    <Link href={`/sales/${log.saleId}`} className="text-blue-600 hover:underline inline-flex items-center gap-1">
+                      Sale 🔗
+                    </Link>
+                  ) : null}
+                  {(log.type === 'PURCHASE' || log.type === 'PURCHASE_CANCEL') && log.purchaseId ? (
+                    <Link href={`/purchases/${log.purchaseId}`} className="text-orange-600 hover:underline inline-flex items-center gap-1">
+                      Purchase 🔗
+                    </Link>
+                  ) : null}
+                  {log.type === 'RETURN' && log.returnId ? (
+                    <Link href={`/returns/${log.returnId}`} className="text-green-600 hover:underline inline-flex items-center gap-1">
+                      Return 🔗
+                    </Link>
+                  ) : null}
+                  {!log.saleId && !log.purchaseId && !log.returnId && <span className="text-muted-foreground">-</span>}
                 </TableCell>
                 <TableCell className="text-sm max-w-[200px] truncate" title={log.note || ''}>
                    {log.note || '-'}

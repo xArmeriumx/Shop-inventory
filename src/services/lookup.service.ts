@@ -22,7 +22,7 @@ export const LookupService = {
 
     if (!lookupType) return [];
 
-    return db.lookupValue.findMany({
+    const values = await db.lookupValue.findMany({
       where: {
         lookupTypeId: lookupType.id,
         isActive: true,
@@ -38,6 +38,33 @@ export const LookupService = {
         { name: 'asc' },
       ],
     });
+
+    // Auto-seed if empty for specific types (Defense mechanism)
+    if (values.length === 0 && ctx.shopId) {
+      const typeWithDefaults = ['PRODUCT_CATEGORY', 'EXPENSE_CATEGORY', 'PAYMENT_METHOD', 'UNIT'];
+      if (typeWithDefaults.includes(typeCode)) {
+        await this.seedDefaultLookupValues(ctx);
+        // Retry fetch once
+        return db.lookupValue.findMany({
+          where: {
+            lookupTypeId: lookupType.id,
+            isActive: true,
+            deletedAt: null,
+            OR: [
+              { isSystem: true },
+              { shopId: ctx.shopId },
+            ],
+          },
+          orderBy: [
+            { isDefault: 'desc' },
+            { order: 'asc' },
+            { name: 'asc' },
+          ],
+        });
+      }
+    }
+
+    return values;
   },
 
   async getLookupValuesForSettings(typeCode: LookupTypeCode, ctx: RequestContext) {
@@ -190,10 +217,18 @@ export const LookupService = {
 
     if (existingCount > 0) return { success: true };
 
-    const [productCategoryType, expenseCategoryType, incomeCategoryType] = await Promise.all([
+    const [
+      productCategoryType, 
+      expenseCategoryType, 
+      incomeCategoryType,
+      paymentMethodType,
+      unitType
+    ] = await Promise.all([
       db.lookupType.findUnique({ where: { code: 'PRODUCT_CATEGORY' } }),
       db.lookupType.findUnique({ where: { code: 'EXPENSE_CATEGORY' } }),
       db.lookupType.findUnique({ where: { code: 'INCOME_CATEGORY' } }),
+      db.lookupType.findUnique({ where: { code: 'PAYMENT_METHOD' } }),
+      db.lookupType.findUnique({ where: { code: 'UNIT' } }),
     ]);
 
     if (!productCategoryType || !expenseCategoryType) {
@@ -239,6 +274,24 @@ export const LookupService = {
         { name: 'ค่าจัดส่ง', code: 'delivery', color: '#f59e0b' },
         { name: 'อื่นๆ', code: 'other_income', color: '#6b7280' },
       ], incomeCategoryType.id);
+    }
+
+    if (paymentMethodType) {
+      addCategories([
+        { name: 'เงินสด', code: 'cash', color: '#10b981', isDefault: true },
+        { name: 'เงินโอน (PromptPay)', code: 'transfer', color: '#3b82f6' },
+        { name: 'บัตรเครดิต', code: 'credit_card', color: '#8b5cf6' },
+      ], paymentMethodType.id);
+    }
+
+    if (unitType) {
+      addCategories([
+        { name: 'ชิ้น', code: 'pcs', isDefault: true },
+        { name: 'กล่อง', code: 'box' },
+        { name: 'ชุด', code: 'set' },
+        { name: 'กิโลกรัม', code: 'kg' },
+        { name: 'เมตร', code: 'meter' },
+      ], unitType.id);
     }
 
     return db.lookupValue.createMany({ data: dataToCreate });

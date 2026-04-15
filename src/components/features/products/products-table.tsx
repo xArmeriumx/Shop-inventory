@@ -175,8 +175,8 @@ export function ProductsTable({ products, pagination }: ProductsTableProps) {
                         <span className={cn("font-semibold", isLowStock ? 'text-destructive' : 'text-green-600')}>
                           {available}
                         </span>
-                        <span className="text-[10px] text-muted-foreground">
-                          จากทั้งหมด {product.stock}
+                        <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                          จริง {product.stock} | จอง {product.reservedStock || 0}
                         </span>
                       </div>
                     </TableCell>

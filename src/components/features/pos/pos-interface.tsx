@@ -128,7 +128,8 @@ export function POSInterface({ initialProducts, categories, promptPayId }: POSIn
       if (existingIndex >= 0) {
         // Increment existing
         newItems = prev.items.map((item, idx) => {
-          if (idx === existingIndex && item.quantity < product.stock) {
+          const available = product.stock - product.reservedStock;
+          if (idx === existingIndex && item.quantity < available) {
             const newQty = item.quantity + 1;
             return {
               ...item,
@@ -259,6 +260,7 @@ export function POSInterface({ initialProducts, categories, promptPayId }: POSIn
               return {
                 ...product,
                 stock: Math.max(0, product.stock - soldItem.quantity),
+                reservedStock: Math.max(0, product.reservedStock + soldItem.quantity),
               };
             }
             return product;

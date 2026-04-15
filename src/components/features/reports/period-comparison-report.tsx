@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -28,16 +28,16 @@ export function PeriodComparisonReport() {
   const [p2Start, setP2Start] = useState(lastMonthStart);
   const [p2End, setP2End] = useState(lastMonthEnd);
 
-  const fetchData = () => {
+  const fetchData = useCallback(() => {
     setLoading(true);
     getComparisonReport(p1Start, p1End, p2Start, p2End)
       .then(setData)
       .finally(() => setLoading(false));
-  };
+  }, [p1Start, p1End, p2Start, p2End]);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   const ChangeIndicator = ({ value }: { value: number }) => {
     if (value === 0) return <Minus className="h-4 w-4 text-muted-foreground" />;

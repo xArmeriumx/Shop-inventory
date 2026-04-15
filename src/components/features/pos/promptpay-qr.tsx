@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { QrCode, Smartphone } from 'lucide-react';
 import { formatCurrency } from '@/lib/formatters';
 
@@ -95,12 +96,13 @@ export function PromptPayQR({ promptPayId, amount }: PromptPayQRProps) {
       {/* QR Code — clean, system-style card */}
       <div className="bg-white rounded-xl p-2.5 border shadow-sm">
         {qrDataUrl && (
-          <img
+          <Image
             src={qrDataUrl}
             alt="PromptPay QR Code"
             width={260}
             height={260}
             className="block rounded"
+            unoptimized
           />
         )}
       </div>

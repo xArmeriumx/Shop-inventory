@@ -458,10 +458,12 @@ model Purchase {
   stockLogs   StockLog[]
 
   // Cancel/Void (Audit-Ready)
-  status        String    @default("ACTIVE")  // ACTIVE | CANCELLED
+  status        String    @default("ACTIVE")  // ACTIVE | CANCELLED | RECEIVED
   cancelledAt   DateTime?
   cancelledBy   String?   // User name who cancelled
   cancelReason  String?   // Reason for cancellation
+  receivedAt    DateTime?
+  receivedBy    String?   // User ID who received the goods
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

@@ -426,5 +426,74 @@ export const PurchaseService: IPurchaseService = {
       purchaseNote: supplier.purchaseNote,
       moq: supplier.moq ? Number(supplier.moq) : null,
     };
+  },
+
+  async receivePurchase(purchaseId: string, ctx: RequestContext) {
+    await db.$transaction(async (tx) => {
+      const purchase = await tx.purchase.findFirst({
+        where: { id: purchaseId, shopId: ctx.shopId },
+        include: { items: true },
+      });
+
+      if (!purchase) throw new ServiceError('ไม่พบข้อมูลการสั่งซื้อ');
+      if (purchase.status === PurchaseStatus.RECEIVED) {
+        throw new ServiceError('รายการนี้ได้รับสินค้าไปแล้ว');
+      }
+
+      // Intelligence: Calculate Moving Average Cost (Weighted Average)
+      const productIds = purchase.items.map(item => item.productId);
+      const currentProducts = await tx.product.findMany({
+        where: { id: { in: productIds } },
+        select: { id: true, stock: true, costPrice: true },
+      });
+
+      const productMap = new Map(currentProducts.map(p => [p.id, p]));
+
+      // Bulk stock add & Cost Update (Parallel)
+      await Promise.all([
+        StockService.recordMovements(
+          purchase.items.map(item => ({
+            productId: item.productId,
+            type: 'PURCHASE' as const,
+            quantity: item.quantity,
+            userId: ctx.userId,
+            shopId: ctx.shopId,
+            purchaseId: purchase.id,
+            note: `รับสินค้าจากการสั่งซื้อ: ${purchase.purchaseNumber}`,
+            date: new Date(),
+          })),
+          tx
+        ),
+        ...purchase.items.map(item => {
+          const product = productMap.get(item.productId);
+          if (!product) return Promise.resolve();
+
+          const oldStock = product.stock || 0;
+          const oldCost = toNumber(product.costPrice) || 0;
+          const newQty = item.quantity;
+          const newCost = toNumber(item.costPrice);
+
+          // Moving Average Formula: ((S1*C1) + (S2*C2)) / (S1+S2)
+          // Handle case where stock is currently 0 or negative
+          const totalQty = Math.max(1, oldStock + newQty);
+          const weightedCost = ((Math.max(0, oldStock) * oldCost) + (newQty * newCost)) / totalQty;
+          const finalCost = Number(weightedCost.toFixed(2));
+
+          return tx.product.update({
+            where: { id: item.productId },
+            data: { costPrice: finalCost },
+          });
+        })
+      ]);
+
+      await tx.purchase.update({
+        where: { id: purchaseId },
+        data: { 
+          status: PurchaseStatus.RECEIVED,
+          receivedAt: new Date(),
+          receivedBy: ctx.userId,
+        },
+      });
+    });
   }
 };

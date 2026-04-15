@@ -177,10 +177,11 @@ export const ShipmentService: IShippingService = {
   },
 
   async getSalesWithoutShipment(ctx: RequestContext) {
+    console.log(`[ShipmentService] Fetching sales for shopId: ${ctx.shopId}`);
     const sales = await db.sale.findMany({
       where: {
         shopId: ctx.shopId,
-        status: 'ACTIVE',
+        status: { in: ['ACTIVE', 'CONFIRMED', 'INVOICED'] },
         OR: [
           { shipments: { none: {} } },
           { shipments: { every: { status: 'CANCELLED' } } },
@@ -371,7 +372,7 @@ export const ShipmentService: IShippingService = {
     const sales = await db.sale.findMany({
       where: {
         shopId: ctx.shopId,
-        status: 'ACTIVE',
+        status: { in: ['ACTIVE', 'CONFIRMED', 'INVOICED'] },
         OR: [
           { shipments: { none: {} } },
           { shipments: { every: { status: 'CANCELLED' } } },

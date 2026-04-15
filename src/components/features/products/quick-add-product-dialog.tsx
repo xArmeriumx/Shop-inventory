@@ -98,7 +98,7 @@ export function QuickAddProductDialog({
         setSalePrice(Math.round(cost * 1.2).toString());
       }
     }
-  }, [costPrice]);
+  }, [costPrice, salePrice]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

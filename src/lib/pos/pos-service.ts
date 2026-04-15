@@ -78,6 +78,7 @@ export async function getProductsForPOS(): Promise<POSProduct[]> {
       salePrice: true,
       costPrice: true,
       stock: true,
+      reservedStock: true,
       images: true,
     },
     orderBy: [
@@ -94,6 +95,7 @@ export async function getProductsForPOS(): Promise<POSProduct[]> {
     salePrice: Number(p.salePrice),
     costPrice: Number(p.costPrice),
     stock: p.stock,
+    reservedStock: p.reservedStock,
     image: p.images[0] || null,
   }));
 }
@@ -119,6 +121,7 @@ export async function getProductBySKU(sku: string): Promise<POSProduct | null> {
       salePrice: true,
       costPrice: true,
       stock: true,
+      reservedStock: true,
       images: true,
     },
   });
@@ -133,6 +136,7 @@ export async function getProductBySKU(sku: string): Promise<POSProduct | null> {
     salePrice: Number(product.salePrice),
     costPrice: Number(product.costPrice),
     stock: product.stock,
+    reservedStock: product.reservedStock,
     image: product.images[0] || null,
   };
 }

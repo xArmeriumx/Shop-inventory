@@ -16,7 +16,8 @@ interface POSProductCardProps {
  * POS Product Card - Touch-friendly product card for grid
  */
 export function POSProductCard({ product, onAdd, disabled }: POSProductCardProps) {
-  const isOutOfStock = product.stock <= 0;
+  const available = product.stock - product.reservedStock;
+  const isOutOfStock = available <= 0;
   const isDisabled = disabled || isOutOfStock;
 
   return (
@@ -75,7 +76,7 @@ export function POSProductCard({ product, onAdd, disabled }: POSProductCardProps
           {formatCurrency(product.salePrice.toString())}
         </span>
         <span className="text-xs text-muted-foreground">
-          คงเหลือ {product.stock}
+          สั่งซื้อได้ {available}
         </span>
       </div>
     </button>

@@ -152,14 +152,23 @@ export function ShipmentDetail({ shipment }: ShipmentDetailProps) {
           <ShipmentStatusBadge status={shipment.status} />
         </div>
 
-        <Guard permission="SHIPMENT_EDIT">
-          {!isEditing && shipment.status !== 'CANCELLED' && shipment.status !== 'DELIVERED' && (
-            <Button variant="outline" onClick={() => setIsEditing(true)}>
-              <Edit2 className="h-4 w-4 mr-2" />
-              แก้ไข
-            </Button>
-          )}
-        </Guard>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" asChild>
+            <Link href={`/shipments/${shipment.id}/print`} target="_blank">
+              <Package className="h-4 w-4 mr-2" />
+              พิมพ์ใบส่งของ
+            </Link>
+          </Button>
+
+          <Guard permission="SHIPMENT_EDIT">
+            {!isEditing && shipment.status !== 'CANCELLED' && shipment.status !== 'DELIVERED' && (
+              <Button variant="outline" onClick={() => setIsEditing(true)}>
+                <Edit2 className="h-4 w-4 mr-2" />
+                แก้ไข
+              </Button>
+            )}
+          </Guard>
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">

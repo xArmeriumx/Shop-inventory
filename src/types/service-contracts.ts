@@ -81,6 +81,21 @@ export interface ICustomerService {
   getSalespersonsByRegion(region: string, ctx: RequestContext): Promise<any[]>;
   batchCreate(inputs: any[], ctx: RequestContext): Promise<any>;
 
+  /**
+   * ตรวจสอบสถานะเครดิตของลูกค้า
+   * คำนวณยอดค้างชำระทั้งหมดเทียบกับวงเงิน
+   */
+  checkCreditLimit(
+    customerId: string,
+    requestedAmount: number,
+    ctx: RequestContext,
+  ): Promise<{
+    creditLimit: number;
+    currentOutstanding: number;
+    availableCredit: number;
+    isWithinLimit: boolean;
+  }>;
+
   // Address Management
   getAddresses(customerId: string, ctx: RequestContext): Promise<any[]>;
   getAddressById(id: string, ctx: RequestContext): Promise<any>;
@@ -349,6 +364,15 @@ export interface IPurchaseService {
     requestedQty: number;
     moq: number;
   }>>;
+
+  /**
+   * รับสินค้าจากการสั่งซื้อ (ORDERED -> RECEIVED) 
+   * Business: เพิ่มสินค้าเข้าสต็อกจริง
+   */
+  receivePurchase(
+    purchaseId: string,
+    ctx: RequestContext,
+  ): Promise<void>;
 
   /**
    * ดึงข้อมูลเงื่อนไขการสั่งซื้อจากผู้จำหน่าย (MOQ, Note)
