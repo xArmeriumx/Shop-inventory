@@ -10,7 +10,7 @@ import { AiService } from '@/services';
  */
 export async function getShopContextForAI() {
   const ctx = await requireShop();
-  
+
   try {
     return await AiService.getShopContextForAI({ userId: ctx.userId, shopId: ctx.shopId });
   } catch (error) {

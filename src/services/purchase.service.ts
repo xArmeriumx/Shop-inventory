@@ -96,18 +96,16 @@ export const PurchaseService = {
       orderBy: { date: 'desc' },
     });
 
-    return {
-      ...result,
-      data: result.data.map((p: any) => ({
-        ...p,
-        totalCost: toNumber(p.totalCost),
-        items: p.items.map((i: any) => ({
-          ...i,
-          costPrice: toNumber(i.costPrice),
-          subtotal: toNumber(i.subtotal),
-        })),
-      })),
-    };
+    // Mutate in-place: avoid creating new objects (reduces GC pressure)
+    for (const p of result.data) {
+      (p as any).totalCost = toNumber(p.totalCost);
+      for (const i of (p as any).items) {
+        i.costPrice = toNumber(i.costPrice);
+        i.subtotal = toNumber(i.subtotal);
+      }
+    }
+
+    return result;
   },
 
   /**
@@ -126,15 +124,14 @@ export const PurchaseService = {
       throw new ServiceError('ไม่พบข้อมูลการซื้อ');
     }
 
-    return {
-      ...purchase,
-      totalCost: toNumber(purchase.totalCost),
-      items: purchase.items.map((i: any) => ({
-        ...i,
-        costPrice: toNumber(i.costPrice),
-        subtotal: toNumber(i.subtotal),
-      })),
-    };
+    // Mutate in-place: avoid creating new objects
+    (purchase as any).totalCost = toNumber(purchase.totalCost);
+    for (const i of (purchase as any).items) {
+      i.costPrice = toNumber(i.costPrice);
+      i.subtotal = toNumber(i.subtotal);
+    }
+
+    return purchase;
   },
 
   /**
@@ -178,24 +175,30 @@ export const PurchaseService = {
         include: { items: true },
       });
 
-      for (const item of items) {
-        await StockService.recordMovement({
+      // Bulk stock movement (1 batch instead of N sequential calls)
+      await StockService.recordMovements(
+        items.map(item => ({
           productId: item.productId,
-          type: 'PURCHASE',
+          type: 'PURCHASE' as const,
           quantity: item.quantity,
           userId: ctx.userId,
           shopId: ctx.shopId,
           purchaseId: newPurchase.id,
           note: `ซื้อสินค้า`,
           date: newPurchase.date,
-          tx: prismaTx,
-        });
+        })),
+        prismaTx
+      );
 
-        await prismaTx.product.update({
-          where: { id: item.productId },
-          data: { costPrice: item.costPrice },
-        });
-      }
+      // Batch update cost prices in parallel
+      await Promise.all(
+        items.map(item =>
+          prismaTx.product.update({
+            where: { id: item.productId },
+            data: { costPrice: item.costPrice },
+          })
+        )
+      );
 
       return newPurchase;
     };
@@ -235,6 +238,7 @@ export const PurchaseService = {
       if (!purchase) throw new ServiceError('ไม่พบข้อมูลการซื้อ');
       if (purchase.status === 'CANCELLED') throw new ServiceError('รายการนี้ถูกยกเลิกไปแล้ว');
 
+      // Pre-validate: check all items won't cause negative stock
       for (const item of purchase.items) {
         const newStock = item.product.stock - item.quantity;
         if (newStock < 0) {
@@ -244,38 +248,48 @@ export const PurchaseService = {
         }
       }
 
-      for (const item of purchase.items) {
-        await StockService.recordMovement({
+      // Bulk stock restore (1 batch instead of N sequential calls)
+      await StockService.recordMovements(
+        purchase.items.map(item => ({
           productId: item.productId,
-          type: 'PURCHASE_CANCEL',
+          type: 'PURCHASE_CANCEL' as const,
           quantity: -item.quantity,
           userId: ctx.userId,
           shopId: ctx.shopId,
           purchaseId: purchase.id,
           note: `ยกเลิกการซื้อ - ${cancelReason}`,
           date: new Date(),
-          tx,
-        });
+        })),
+        tx
+      );
 
-        const previousPurchaseItem = await tx.purchaseItem.findFirst({
-          where: {
-            productId: item.productId,
-            purchase: {
-              id: { not: purchase.id },
-              status: { not: 'CANCELLED' },
-              shopId: ctx.shopId,
+      // Batch rollback cost prices: find previous purchase prices in parallel
+      const costRollbackOps = await Promise.all(
+        purchase.items.map(async item => {
+          const prev = await tx.purchaseItem.findFirst({
+            where: {
+              productId: item.productId,
+              purchase: {
+                id: { not: purchase.id },
+                status: { not: 'CANCELLED' },
+                shopId: ctx.shopId,
+              },
             },
-          },
-          orderBy: { purchase: { date: 'desc' } },
-          select: { costPrice: true },
-        });
-
-        if (previousPurchaseItem) {
-          await tx.product.update({
-            where: { id: item.productId },
-            data: { costPrice: previousPurchaseItem.costPrice },
+            orderBy: { purchase: { date: 'desc' } },
+            select: { costPrice: true },
           });
-        }
+          return prev ? { productId: item.productId, costPrice: prev.costPrice } : null;
+        })
+      );
+
+      // Execute all cost price updates in parallel
+      const validRollbacks = costRollbackOps.filter(Boolean) as { productId: string; costPrice: any }[];
+      if (validRollbacks.length > 0) {
+        await Promise.all(
+          validRollbacks.map(r =>
+            tx.product.update({ where: { id: r.productId }, data: { costPrice: r.costPrice } })
+          )
+        );
       }
 
       await tx.purchase.update({

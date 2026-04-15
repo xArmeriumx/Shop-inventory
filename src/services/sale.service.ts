@@ -83,35 +83,36 @@ export const SaleService = {
       // 1. Generate Invoice
       const invoiceNumber = await generateInvoiceNumber(ctx.shopId, prismaTx);
 
-      // 2. Validate Products & Pre-check stock
+      // 2. Validate Products & Pre-check stock (Batch: 1 query instead of N)
+      const productIds = items.map(item => item.productId);
+      const products = await prismaTx.product.findMany({
+        where: { id: { in: productIds } },
+        select: { id: true, name: true, costPrice: true, stock: true },
+      });
+
       interface ProductData {
         id: string;
         name: string;
         costPrice: number;
         stock: number;
       }
-      const productDataMap = new Map<string, ProductData>();
+      const productDataMap = new Map<string, ProductData>(
+        products.map(p => [p.id, {
+          id: p.id,
+          name: p.name,
+          costPrice: toNumber(p.costPrice),
+          stock: p.stock,
+        }])
+      );
 
       for (const item of items) {
-        const product = await prismaTx.product.findUnique({
-          where: { id: item.productId },
-          select: { id: true, name: true, costPrice: true, stock: true },
-        });
-
+        const product = productDataMap.get(item.productId);
         if (!product) {
           throw new ServiceError(`ไม่พบสินค้า ID: ${item.productId}`);
         }
-
         if (product.stock < item.quantity) {
           throw new ServiceError(`สินค้า "${product.name}" มีสต็อกไม่พอ (เหลือ ${product.stock})`);
         }
-
-        productDataMap.set(item.productId, {
-          id: product.id,
-          name: product.name,
-          costPrice: toNumber(product.costPrice),
-          stock: product.stock,
-        });
       }
 
       // 3. Calculate Totals
@@ -223,11 +224,11 @@ export const SaleService = {
         include: { items: true },
       });
 
-      // 6. Record Stock Movements
-      for (const item of sale.items) {
-        await StockService.recordMovement({
+      // 6. Record Stock Movements (Bulk: 1 batch instead of N sequential calls)
+      await StockService.recordMovements(
+        sale.items.map(item => ({
           productId: item.productId,
-          type: 'SALE',
+          type: 'SALE' as const,
           quantity: -item.quantity,
           saleId: sale.id,
           userId: ctx.userId,
@@ -235,9 +236,9 @@ export const SaleService = {
           note: `ขาย: ${sale.invoiceNumber}`,
           date: sale.date,
           requireStock: true,
-          tx: prismaTx,
-        });
-      }
+        })),
+        prismaTx
+      );
 
       // 7. Create Notification (Async/Non-blocking)
       NotificationService.create({
@@ -289,26 +290,24 @@ export const SaleService = {
       orderBy: { date: 'desc' },
     });
 
-    return {
-      ...result,
-      data: result.data.map((sale: any) => ({
-        ...sale,
-        totalAmount: Number(sale.totalAmount),
-        totalCost: canViewProfit ? Number(sale.totalCost) : 0,
-        profit: canViewProfit ? Number(sale.profit) : 0,
-        discountAmount: Number(sale.discountAmount),
-        discountValue: sale.discountValue ? Number(sale.discountValue) : null,
-        netAmount: Number(sale.netAmount),
-        items: sale.items.map((item: any) => ({
-          ...item,
-          salePrice: Number(item.salePrice),
-          costPrice: canViewProfit ? Number(item.costPrice) : 0,
-          subtotal: Number(item.subtotal),
-          profit: canViewProfit ? Number(item.profit) : 0,
-          discountAmount: Number(item.discountAmount),
-        }))
-      }))
-    };
+    // Mutate in-place: avoid creating new objects (reduces GC pressure significantly)
+    for (const sale of result.data) {
+      (sale as any).totalAmount = Number(sale.totalAmount);
+      (sale as any).totalCost = canViewProfit ? Number(sale.totalCost) : 0;
+      (sale as any).profit = canViewProfit ? Number(sale.profit) : 0;
+      (sale as any).discountAmount = Number(sale.discountAmount);
+      (sale as any).discountValue = sale.discountValue ? Number(sale.discountValue) : null;
+      (sale as any).netAmount = Number(sale.netAmount);
+      for (const item of (sale as any).items) {
+        item.salePrice = Number(item.salePrice);
+        item.costPrice = canViewProfit ? Number(item.costPrice) : 0;
+        item.subtotal = Number(item.subtotal);
+        item.profit = canViewProfit ? Number(item.profit) : 0;
+        item.discountAmount = Number(item.discountAmount);
+      }
+    }
+
+    return result;
   },
 
   /**
@@ -337,23 +336,23 @@ export const SaleService = {
       throw new ServiceError('ไม่พบข้อมูลการขาย');
     }
 
-    return {
-      ...sale,
-      totalAmount: Number(sale.totalAmount),
-      totalCost: canViewProfit ? Number(sale.totalCost) : 0,
-      profit: canViewProfit ? Number(sale.profit) : 0,
-      discountAmount: Number(sale.discountAmount),
-      discountValue: sale.discountValue ? Number(sale.discountValue) : null,
-      netAmount: Number(sale.netAmount),
-      items: sale.items.map((item: any) => ({
-        ...item,
-        salePrice: Number(item.salePrice),
-        costPrice: canViewProfit ? Number(item.costPrice) : 0,
-        subtotal: Number(item.subtotal),
-        profit: canViewProfit ? Number(item.profit) : 0,
-        discountAmount: Number(item.discountAmount),
-      }))
-    };
+    // Mutate in-place: avoid creating new objects
+    const saleAny = sale as any;
+    saleAny.totalAmount = Number(sale.totalAmount);
+    saleAny.totalCost = canViewProfit ? Number(sale.totalCost) : 0;
+    saleAny.profit = canViewProfit ? Number(sale.profit) : 0;
+    saleAny.discountAmount = Number(sale.discountAmount);
+    saleAny.discountValue = sale.discountValue ? Number(sale.discountValue) : null;
+    saleAny.netAmount = Number(sale.netAmount);
+    for (const item of saleAny.items) {
+      item.salePrice = Number(item.salePrice);
+      item.costPrice = canViewProfit ? Number(item.costPrice) : 0;
+      item.subtotal = Number(item.subtotal);
+      item.profit = canViewProfit ? Number(item.profit) : 0;
+      item.discountAmount = Number(item.discountAmount);
+    }
+
+    return saleAny;
   },
 
   /**
@@ -397,14 +396,16 @@ export const SaleService = {
       take: limit,
     });
 
-    return sales.map(sale => ({
-      ...sale,
-      totalAmount: Number(sale.totalAmount),
-      totalCost: canViewProfit ? Number(sale.totalCost) : 0,
-      profit: canViewProfit ? Number(sale.profit) : 0,
-      discountAmount: Number(sale.discountAmount),
-      netAmount: Number(sale.netAmount),
-    }));
+    // Mutate in-place: avoid creating new objects
+    for (const sale of sales) {
+      (sale as any).totalAmount = Number(sale.totalAmount);
+      (sale as any).totalCost = canViewProfit ? Number(sale.totalCost) : 0;
+      (sale as any).profit = canViewProfit ? Number(sale.profit) : 0;
+      (sale as any).discountAmount = Number(sale.discountAmount);
+      (sale as any).netAmount = Number(sale.netAmount);
+    }
+
+    return sales;
   },
 
   /**
@@ -457,23 +458,26 @@ export const SaleService = {
         data: { status: 'CANCELLED' },
       });
 
-      // คืนสต็อก
-      for (const item of sale.items) {
-        const alreadyReturned = item.returnItems.reduce((sum: number, ri: any) => sum + ri.quantity, 0);
-        const restoreQty = item.quantity - alreadyReturned;
+      // คืนสต็อก (Bulk: compute all quantities, then batch update)
+      const stockRestoreMovements = sale.items
+        .map(item => {
+          const alreadyReturned = item.returnItems.reduce((sum: number, ri: any) => sum + ri.quantity, 0);
+          const restoreQty = item.quantity - alreadyReturned;
+          return { item, restoreQty, alreadyReturned };
+        })
+        .filter(({ restoreQty }) => restoreQty > 0)
+        .map(({ item, restoreQty, alreadyReturned }) => ({
+          productId: item.productId,
+          type: 'SALE_CANCEL' as const,
+          quantity: restoreQty,
+          saleId: sale.id,
+          userId: ctx.userId,
+          shopId: sale.shopId || ctx.shopId,
+          note: `ยกเลิกการขาย ${sale.invoiceNumber} - ${cancelReason}` + (alreadyReturned > 0 ? ` (คืนแล้ว ${alreadyReturned} ชิ้น)` : ''),
+        }));
 
-        if (restoreQty > 0) {
-          await StockService.recordMovement({
-            productId: item.productId,
-            type: 'SALE_CANCEL',
-            quantity: restoreQty,
-            saleId: sale.id,
-            userId: ctx.userId,
-            shopId: sale.shopId || ctx.shopId,
-            note: `ยกเลิกการขาย ${sale.invoiceNumber} - ${cancelReason}` + (alreadyReturned > 0 ? ` (คืนแล้ว ${alreadyReturned} ชิ้น)` : ''),
-            tx,
-          });
-        }
+      if (stockRestoreMovements.length > 0) {
+        await StockService.recordMovements(stockRestoreMovements, tx);
       }
 
       await tx.sale.update({

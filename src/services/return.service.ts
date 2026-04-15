@@ -170,19 +170,20 @@ export const ReturnService = {
         include: { items: true },
       });
 
-      for (const item of returnItemsData) {
-        await StockService.recordMovement({
+      // Bulk stock restore (1 batch instead of N sequential calls)
+      await StockService.recordMovements(
+        returnItemsData.map(item => ({
           productId: item.productId,
-          type: 'RETURN',
+          type: 'RETURN' as const,
           quantity: item.quantity,
           userId: ctx.userId,
           shopId: ctx.shopId,
           returnId: returnRecord.id,
           saleId: input.saleId,
           note: `คืนสินค้า ${returnNumber} (${input.reason})`,
-          tx: prismaTx,
-        });
-      }
+        })),
+        prismaTx
+      );
 
       let totalReturnCost = 0;
       for (const item of input.items) {
@@ -263,16 +264,17 @@ export const ReturnService = {
 
     const totalPages = Math.ceil(total / limit);
 
+    // Mutate in-place: avoid creating new objects (reduces GC pressure)
+    for (const r of data) {
+      (r as any).refundAmount = toNumber(r.refundAmount);
+      for (const ri of (r as any).items) {
+        ri.refundPerUnit = toNumber(ri.refundPerUnit);
+        ri.refundAmount = toNumber(ri.refundAmount);
+      }
+    }
+
     return {
-      data: data.map((r: any) => ({
-        ...r,
-        refundAmount: toNumber(r.refundAmount),
-        items: (r.items as any[]).map((ri: any) => ({
-          ...ri,
-          refundPerUnit: toNumber(ri.refundPerUnit),
-          refundAmount: toNumber(ri.refundAmount),
-        })),
-      })),
+      data,
       pagination: {
         total,
         page,
@@ -310,14 +312,13 @@ export const ReturnService = {
 
     if (!returnRecord) return null;
 
-    return {
-      ...returnRecord,
-      refundAmount: toNumber(returnRecord.refundAmount),
-      items: (returnRecord.items as any[]).map((ri: any) => ({
-        ...ri,
-        refundPerUnit: toNumber(ri.refundPerUnit),
-        refundAmount: toNumber(ri.refundAmount),
-      })),
-    };
+    // Mutate in-place: avoid creating new objects
+    (returnRecord as any).refundAmount = toNumber(returnRecord.refundAmount);
+    for (const ri of (returnRecord as any).items) {
+      ri.refundPerUnit = toNumber(ri.refundPerUnit);
+      ri.refundAmount = toNumber(ri.refundAmount);
+    }
+
+    return returnRecord as any;
   }
 };

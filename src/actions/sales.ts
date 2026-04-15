@@ -56,24 +56,11 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<Sale>
     };
   }
 
-  const { items, customerAddress, ...saleData } = validated.data;
-
-  // Validate items
-  if (items.length === 0) {
-    return {
-      success: false,
-      message: 'ต้องมีสินค้าอย่างน้อย 1 รายการ',
-    };
-  }
-
   try {
     const sale = await SaleService.create(
       { userId: ctx.userId, shopId: ctx.shopId }, 
       validated.data
     );
-
-    revalidatePath('/sales');
-    revalidatePath('/dashboard');
 
     revalidatePath('/sales');
     revalidatePath('/dashboard');
