@@ -21,6 +21,7 @@ import {
 import { ISaleService } from '@/types/service-contracts';
 import { SequenceService } from './sequence.service';
 import { CustomerService } from './customer.service';
+import { AuditService } from './audit.service';
 
 export const CANCEL_REASONS = {
   WRONG_ENTRY: 'บันทึกผิดพลาด',
@@ -252,6 +253,15 @@ export const SaleService: ISaleService = {
           bookingStatus: BookingStatus.RESERVED,
           status: SaleStatus.CONFIRMED 
         }
+      });
+
+      // ERP Rule 12.1: Audit Create (Level 2 Snapshot)
+      await AuditService.log(ctx, {
+        action: 'SALE_CREATE',
+        entityType: 'Sale',
+        entityId: sale.id,
+        metadata: sale,
+        note: `สร้างรายการขาย ${sale.invoiceNumber}`,
       });
 
       // 7. Create Notification (Async/Non-blocking)
@@ -599,6 +609,15 @@ export const SaleService: ISaleService = {
         where: { id },
         data: { status: 'CANCELLED', cancelledAt: new Date(), cancelledBy: userName, cancelReason },
       });
+
+      // ERP Rule 12.1: Audit Cancel (Level 2 Snapshot)
+      await AuditService.log(ctx, {
+        action: 'SALE_CANCEL',
+        entityType: 'Sale',
+        entityId: id,
+        metadata: sale,
+        note: `ยกเลิกรายการขาย ${sale.invoiceNumber}: ${cancelReason}`,
+      });
     });
   },
 
@@ -621,6 +640,15 @@ export const SaleService: ISaleService = {
         paymentVerifiedBy: ctx.userId,
         paymentNote: note || null,
       },
+    });
+
+    // ERP Rule 12.1: Audit Payment Verification
+    await AuditService.log(ctx, {
+      action: 'SALE_PAYMENT_VERIFY',
+      entityType: 'Sale',
+      entityId: saleId,
+      metadata: { status, note },
+      note: `ยืนยันการชำระเงิน: ${status}`,
     });
   },
 
@@ -671,6 +699,15 @@ export const SaleService: ISaleService = {
           bookingStatus: BookingStatus.RESERVED,
         },
       });
+
+      // ERP Rule 12.1: Audit Confirm
+      await AuditService.log(ctx, {
+        action: 'SALE_CONFIRM',
+        entityType: 'Sale',
+        entityId: saleId,
+        metadata: sale,
+        note: `ยืนยันการขาย ${sale.invoiceNumber}`,
+      });
     });
   },
 
@@ -720,6 +757,15 @@ export const SaleService: ISaleService = {
           bookingStatus: BookingStatus.DEDUCTED,
           isLocked: true,
         },
+      });
+
+      // ERP Rule 12.1: Audit Complete
+      await AuditService.log(ctx, {
+        action: 'SALE_COMPLETE',
+        entityType: 'Sale',
+        entityId: saleId,
+        metadata: sale,
+        note: `จบการขาย (ตัดสต็อกแล้ว) ${sale.invoiceNumber}`,
       });
     };
 

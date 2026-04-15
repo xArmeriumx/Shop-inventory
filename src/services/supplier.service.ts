@@ -244,5 +244,54 @@ export const SupplierService: ISupplierService = {
       },
       topProducts: topProductsWithNames,
     };
+  },
+
+  /**
+   * ERP ENHANCED: Get all products specifically mapped to this supplier
+   */
+  async getProducts(supplierId: string, ctx: RequestContext) {
+    return db.supplierProduct.findMany({
+      where: { supplierId, shopId: ctx.shopId, deletedAt: null },
+      include: {
+        product: {
+          select: { name: true, sku: true, stock: true }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+  },
+
+  /**
+   * ERP ENHANCED: Update or Link a product to a supplier with specific terms (MOQ, Price)
+   */
+  async upsertProduct(supplierId: string, productId: string, data: any, ctx: RequestContext) {
+    return db.supplierProduct.upsert({
+      where: {
+        supplierId_productId: { supplierId, productId }
+      },
+      create: {
+        ...data,
+        supplierId,
+        productId,
+        shopId: ctx.shopId
+      },
+      update: {
+        ...data,
+        deletedAt: null // Restore if it was deleted
+      }
+    });
+  },
+
+  /**
+   * ERP ENHANCED: Remove the link between a product and a supplier
+   */
+  async removeProduct(supplierId: string, productId: string, ctx: RequestContext) {
+    // We use soft delete for supplier-product mapping to keep history
+    return db.supplierProduct.update({
+      where: {
+        supplierId_productId: { supplierId, productId }
+      },
+      data: { deletedAt: new Date() }
+    });
   }
 };

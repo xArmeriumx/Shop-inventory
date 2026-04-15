@@ -118,6 +118,11 @@ export interface ISupplierService {
   // UI Support
   getForSelect(ctx: RequestContext): Promise<any[]>;
   getProfile(id: string, ctx: RequestContext): Promise<any>;
+
+  // Supplier info management (Rule 4.4)
+  getProducts(supplierId: string, ctx: RequestContext): Promise<any[]>;
+  upsertProduct(supplierId: string, productId: string, data: any, ctx: RequestContext): Promise<any>;
+  removeProduct(supplierId: string, productId: string, ctx: RequestContext): Promise<any>;
 }
 
 // ============================================================================
@@ -358,12 +363,22 @@ export interface IPurchaseService {
   checkMOQ(
     items: Array<{ productId: string; quantity: number }>,
     ctx: RequestContext,
+    supplierId?: string,
   ): Promise<Array<{
     productId: string;
     productName: string;
     requestedQty: number;
     moq: number;
   }>>;
+
+  /**
+   * แบ่งสรรปันส่วนค่าใช้จ่าย (Rule 10.3)
+   */
+  allocateCharges(
+    purchaseId: string,
+    ctx: RequestContext,
+    tx: Prisma.TransactionClient,
+  ): Promise<void>;
 
   /**
    * รับสินค้าจากการสั่งซื้อ (ORDERED -> RECEIVED) 

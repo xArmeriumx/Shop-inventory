@@ -11,6 +11,7 @@
  */
 
 import { useState, useRef } from 'react';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -341,7 +342,14 @@ export function SaleScannerButton({
               <div className="space-y-4">
                 {previewUrl && (
                   <div className="relative rounded-lg overflow-hidden max-h-48">
-                    <img src={previewUrl} alt="Preview" className="w-full object-cover" />
+                    <Image 
+                      src={previewUrl} 
+                      alt="Preview" 
+                      className="w-full object-cover" 
+                      width={400} 
+                      height={200}
+                      unoptimized
+                    />
                     <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                       <div className="text-center text-white">
                         <Loader2 className="h-9 w-9 animate-spin mx-auto mb-2" />
@@ -358,7 +366,14 @@ export function SaleScannerButton({
               <div className="space-y-4">
                 {/* Preview */}
                 {previewUrl && (
-                  <img src={previewUrl} alt="Preview" className="w-full rounded-lg max-h-36 object-cover" />
+                  <Image 
+                    src={previewUrl} 
+                    alt="Preview" 
+                    className="w-full rounded-lg max-h-36 object-cover" 
+                    width={400} 
+                    height={144}
+                    unoptimized
+                  />
                 )}
 
                 {/* Source type badge */}

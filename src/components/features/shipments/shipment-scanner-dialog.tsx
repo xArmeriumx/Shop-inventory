@@ -15,6 +15,7 @@
  */
 
 import { useState, useRef, useTransition } from 'react';
+import Image from 'next/image';
 import {
   Dialog,
   DialogContent,
@@ -386,7 +387,14 @@ export function ShipmentScannerDialog({
             <div className="space-y-4">
               {previewUrl && (
                 <div className="relative rounded-lg overflow-hidden max-h-52">
-                  <img src={previewUrl} alt="Preview" className="w-full object-cover" />
+                    <Image 
+                      src={previewUrl} 
+                      alt="Preview" 
+                      className="w-full object-cover" 
+                      width={400} 
+                      height={200}
+                      unoptimized
+                    />
                   <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                     <div className="text-center text-white">
                       <div className="relative mb-3">
@@ -426,7 +434,14 @@ export function ShipmentScannerDialog({
 
               {/* Preview */}
               {previewUrl && (
-                <img src={previewUrl} alt="Scanned" className="w-full rounded-lg max-h-36 object-cover" />
+                <Image 
+                  src={previewUrl} 
+                  alt="Scanned" 
+                  className="w-full rounded-lg max-h-36 object-cover" 
+                  width={400} 
+                  height={144}
+                  unoptimized
+                />
               )}
 
               {/* Parcels list */}

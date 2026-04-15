@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import Image from 'next/image';
 import { X, FileImage, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -80,10 +81,13 @@ export function FileUpload({
 
       {preview ? (
         <div className="relative inline-block">
-          <img
+          <Image
             src={preview}
             alt="Receipt preview"
             className="max-w-[200px] max-h-[150px] object-contain rounded-lg border"
+            width={200}
+            height={150}
+            unoptimized
           />
           {!disabled && (
             <button

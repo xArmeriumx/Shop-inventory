@@ -19,6 +19,7 @@ import {
 } from '@/types/domain';
 import { IPurchaseService, PurchaseRequestInput } from '@/types/service-contracts';
 import { SequenceService } from './sequence.service';
+import { AuditService } from './audit.service';
 
 export const CANCEL_PURCHASE_REASONS = {
   WRONG_ENTRY: 'บันทึกผิดพลาด',
@@ -115,8 +116,8 @@ export const PurchaseService: IPurchaseService = {
       throw new ServiceError('ต้องมีสินค้าอย่างน้อย 1 รายการ');
     }
 
-    // 1. Business Logic: Check MOQ (Vendor Intelligence)
-    const moqFailures = await this.checkMOQ(items, ctx);
+    // 1. Business Logic: Check MOQ (Vendor Intelligence - Rule 5.5)
+    const moqFailures = await this.checkMOQ(items, ctx, purchaseData.supplierId || undefined);
     if (moqFailures.length > 0) {
       const messages = moqFailures.map(f => 
         `"${f.productName}" สั่ง ${f.requestedQty} ชิ้น (ขั้นต่ำคือ ${f.moq})`
@@ -182,7 +183,7 @@ export const PurchaseService: IPurchaseService = {
         )
       );
 
-      return {
+      const purchaseToReturn = {
         ...newPurchase,
         totalCost: toNumber(newPurchase.totalCost),
         items: newPurchase.items.map(item => ({
@@ -191,6 +192,17 @@ export const PurchaseService: IPurchaseService = {
           subtotal: toNumber(item.subtotal),
         })),
       } as any;
+
+      // ERP Rule 12.1: Audit Create (Level 2 Snapshot)
+      await AuditService.log(ctx, {
+        action: 'PURCHASE_CREATE',
+        entityType: 'Purchase',
+        entityId: newPurchase.id,
+        metadata: purchaseToReturn,
+        note: `สร้างรายการซื้อ ${newPurchase.purchaseNumber}`,
+      });
+
+      return purchaseToReturn;
     };
 
     if (tx) {
@@ -291,6 +303,15 @@ export const PurchaseService: IPurchaseService = {
           cancelReason,
         },
       });
+
+      // ERP Rule 12.1: Audit Cancel (Level 2 Snapshot)
+      await AuditService.log(ctx, {
+        action: 'PURCHASE_CANCEL',
+        entityType: 'Purchase',
+        entityId: id,
+        metadata: purchase,
+        note: `ยกเลิกการซื้อ ${purchase.purchaseNumber}: ${cancelReason}`,
+      });
     });
   },
 
@@ -390,26 +411,59 @@ export const PurchaseService: IPurchaseService = {
         data: { status: PurchaseStatus.ORDERED },
       });
 
+      // ERP Rule 12.1: Audit Convert PR -> PO
+      await AuditService.log(ctx, {
+        action: 'PURCHASE_CONVERT_PR_TO_PO',
+        entityType: 'Purchase',
+        entityId: po.id,
+        metadata: { prId: pr.id, poId: po.id, poNumber: po.purchaseNumber },
+        note: `แปลงใบขอซื้อ ${pr.purchaseNumber} เป็นใบสั่งซื้อ ${po.purchaseNumber}`,
+      });
+
       return { id: po.id, poNumber: po.purchaseNumber! };
     });
   },
 
-  async checkMOQ(items, ctx) {
+  async checkMOQ(items, ctx, supplierId) {
     const productIds = items.map(i => i.productId);
+    
+    // Get general product MOQ
     const products = await db.product.findMany({
       where: { id: { in: productIds }, shopId: ctx.shopId },
       select: { id: true, name: true, moq: true },
     });
 
+    // Get supplier-specific MOQ if supplierId is provided
+    let supplierProducts: any[] = [];
+    if (supplierId) {
+      supplierProducts = await db.supplierProduct.findMany({
+        where: { 
+          supplierId, 
+          productId: { in: productIds },
+          shopId: ctx.shopId,
+          deletedAt: null 
+        },
+        select: { productId: true, moq: true }
+      });
+    }
+
+    const supplierMoqMap = new Map(supplierProducts.map(sp => [sp.productId, sp.moq]));
+
     const failed = [];
     for (const item of items) {
       const p = products.find(prod => prod.id === item.productId);
-      if (p && p.moq && item.quantity < p.moq) {
+      if (!p) continue;
+
+      // Rule 5.5: Priority = SupplierProduct.moq > Product.moq
+      const sMoq = supplierMoqMap.get(item.productId);
+      const effectiveMoq = (sMoq !== undefined && sMoq !== null) ? sMoq : (p.moq || 0);
+
+      if (effectiveMoq > 0 && item.quantity < effectiveMoq) {
         failed.push({
           productId: item.productId,
           productName: p.name,
           requestedQty: item.quantity,
-          moq: p.moq,
+          moq: effectiveMoq,
         });
       }
     }
@@ -428,8 +482,78 @@ export const PurchaseService: IPurchaseService = {
     };
   },
 
+  /**
+   * ERP Rule 10.3: Distribute indirect charges (Shipping, Handling) into product unit costs
+   */
+  async allocateCharges(purchaseId: string, ctx: RequestContext, tx: Prisma.TransactionClient) {
+    const purchase = await tx.purchase.findFirst({
+      where: { id: purchaseId, shopId: ctx.shopId },
+      include: { 
+        items: { 
+          include: { 
+            product: { 
+              include: { categoryRef: true } 
+            } 
+          } 
+        } 
+      },
+    });
+
+    if (!purchase) return;
+
+    // 1. Identify "Charge" items vs "Product" items
+    const chargeItems = purchase.items.filter(item => {
+      const metadata = item.product?.categoryRef?.metadata as any;
+      return metadata?.isCharge === true;
+    });
+
+    const productItems = purchase.items.filter(item => {
+      const metadata = item.product?.categoryRef?.metadata as any;
+      return !(metadata?.isCharge === true);
+    });
+
+    if (chargeItems.length === 0 || productItems.length === 0) return;
+
+    // 2. Calculate Total Charges to distribute
+    const totalCharges = chargeItems.reduce((sum, item) => money.add(sum, toNumber(item.subtotal)), 0);
+    const totalProductValue = productItems.reduce((sum, item) => money.add(sum, toNumber(item.subtotal)), 0);
+
+    if (totalProductValue <= 0) return;
+
+    // 3. Distribute proportionally
+    for (const item of productItems) {
+      const itemRatio = money.divide(toNumber(item.subtotal), totalProductValue);
+      const allocatedAmount = money.multiply(totalCharges, itemRatio);
+      
+      const newSubtotal = money.add(toNumber(item.subtotal), allocatedAmount);
+      const newUnitPrice = money.divide(newSubtotal, item.quantity);
+
+      // Update the PurchaseItem with the 'Landed Cost'
+      await tx.purchaseItem.update({
+        where: { id: item.id },
+        data: { 
+          costPrice: newUnitPrice, // Update the effective cost for this shipment
+          subtotal: newSubtotal
+        }
+      });
+    }
+
+    // Optional: Log the allocation event
+    await AuditService.log(ctx, {
+      action: 'PURCHASE_CHARGE_ALLOCATION',
+      entityType: 'Purchase',
+      entityId: purchaseId,
+      metadata: { totalCharges, distributedTo: productItems.length },
+      note: `กระจายค่าใช้จ่ายเพิ่มเติม (รวม ${totalCharges}) ลงในรายการสินค้า`,
+    });
+  },
+
   async receivePurchase(purchaseId: string, ctx: RequestContext) {
     await db.$transaction(async (tx) => {
+      // 1. First, allocate any charges (Rule 10.3)
+      await this.allocateCharges(purchaseId, ctx, tx);
+
+      // 2. Then proceed with normal reception (which now uses updated costPrice)
       const purchase = await tx.purchase.findFirst({
         where: { id: purchaseId, shopId: ctx.shopId },
         include: { items: true },
@@ -493,6 +617,15 @@ export const PurchaseService: IPurchaseService = {
           receivedAt: new Date(),
           receivedBy: ctx.userId,
         },
+      });
+
+      // ERP Rule 12.1: Audit Receipt
+      await AuditService.log(ctx, {
+        action: 'PURCHASE_RECEIVE',
+        entityType: 'Purchase',
+        entityId: purchaseId,
+        metadata: purchase,
+        note: `รับสินค้าจากการสั่งซื้อ ${purchase.purchaseNumber}`,
       });
     });
   }

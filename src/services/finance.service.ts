@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { RequestContext, ServiceError } from '@/types/domain';
+import { AuditService } from './audit.service';
 import { IncomeInput } from '@/schemas/income';
 import { ExpenseInput } from '@/schemas/expense';
 import { paginatedQuery, buildSearchFilter, buildDateRangeFilter } from '@/lib/pagination';
@@ -229,10 +230,21 @@ export const FinanceService = {
       throw new ServiceError(`รายการนี้ถูกวางบิลไปแล้ว (สถานะ: ${sale.billingStatus})`);
     }
 
-    return db.sale.update({
+    const updated = await db.sale.update({
       where: { id: saleId },
       data: { billingStatus: 'BILLED' },
     });
+
+    // ERP Rule 12.1: Audit Billing
+    await AuditService.log(ctx, {
+      action: 'SALE_BILLING_MARK',
+      entityType: 'Sale',
+      entityId: saleId,
+      metadata: sale,
+      note: `วางบิลรายการขาย ${sale.invoiceNumber}`,
+    });
+
+    return updated;
   },
 
   async generateTaxReport(params: { startDate: string, endDate: string }, ctx: RequestContext) {

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -97,22 +98,21 @@ export function ReceiptScanner({ onScanComplete, onClose }: ReceiptScannerProps)
     setEditedReceiptNumber(data.receiptNumber || '');
   };
 
-  // Handle file selection
-  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setImagePreview(e.target?.result as string);
-    };
-    reader.readAsDataURL(file);
-
-    await processImage(file);
+  const fileToBase64 = useCallback((file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        const base64 = result.split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
   }, []);
 
   // Process image with Vision OCR
-  const processImage = async (file: File) => {
+  const processImage = useCallback(async (file: File) => {
     setState('ai');
     setError('');
     setOcrProgress(0);
@@ -151,20 +151,21 @@ export function ReceiptScanner({ onScanComplete, onClose }: ReceiptScannerProps)
       setError(err.message || 'ไม่สามารถประมวลผลได้');
       setState('error');
     }
-  };
+  }, [fileToBase64]);
 
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        const base64 = result.split(',')[1];
-        resolve(base64);
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  };
+  // Handle file selection
+  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setImagePreview(e.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+
+    await processImage(file);
+  }, [processImage]);
 
   // Reset scanner
   const handleReset = () => {
@@ -263,10 +264,13 @@ export function ReceiptScanner({ onScanComplete, onClose }: ReceiptScannerProps)
           <div className="space-y-4">
             {imagePreview ? (
               <div className="relative rounded-lg overflow-hidden border">
-                <img 
+                <Image 
                   src={imagePreview} 
                   alt="Receipt preview" 
                   className="w-full max-h-64 object-contain bg-muted"
+                  width={600}
+                  height={300}
+                  unoptimized
                 />
                 <Button
                   variant="secondary"

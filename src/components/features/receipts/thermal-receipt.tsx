@@ -2,6 +2,7 @@
 
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
+import Image from 'next/image';
 import { formatCurrency } from '@/lib/formatters';
 import '@/styles/thermal-receipt.css';
 
@@ -81,7 +82,14 @@ export function ThermalReceipt({ data, className = '' }: ThermalReceiptProps) {
       {/* Header */}
       <div className="receipt-header">
         {shopLogo && (
-          <img src={shopLogo} alt={shopName} className="shop-logo" />
+          <Image 
+            src={shopLogo} 
+            alt={shopName} 
+            className="shop-logo" 
+            width={64} 
+            height={64} 
+            unoptimized
+          />
         )}
         <div className="shop-name">{shopName}</div>
         {shopAddress && <div className="shop-info">{shopAddress}</div>}

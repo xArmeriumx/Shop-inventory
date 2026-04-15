@@ -1,6 +1,7 @@
 'use client';
 
 import { X } from 'lucide-react';
+import Image from 'next/image';
 import { Dialog, DialogContent, DialogClose } from '@/components/ui/dialog';
 
 interface ImageModalProps {
@@ -18,10 +19,13 @@ export function ImageModal({ src, alt, open, onOpenChange }: ImageModalProps) {
           <X className="h-4 w-4" />
           <span className="sr-only">Close</span>
         </DialogClose>
-        <img
+        <Image
           src={src}
           alt={alt}
           className="w-full h-auto object-contain"
+          width={1200}
+          height={800}
+          unoptimized
         />
       </DialogContent>
     </Dialog>

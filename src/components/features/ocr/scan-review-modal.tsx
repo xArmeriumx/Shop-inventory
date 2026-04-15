@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -133,15 +133,7 @@ export function ScanReviewModal({
     });
   }, []);
 
-  // Process scan data when modal opens - WAIT for categories to load first
-  useEffect(() => {
-    if (open && scanData && categoriesLoaded && defaultCategory) {
-      console.log('🔧 Processing with category:', defaultCategory);
-      processMatchData();
-    }
-  }, [open, scanData, products, suppliers, categoriesLoaded, defaultCategory]); // Added categoriesLoaded dependency
-
-  const processMatchData = () => {
+  const processMatchData = useCallback(() => {
     if (!scanData) return;
 
     // Match supplier
@@ -202,7 +194,15 @@ export function ScanReviewModal({
     } else {
       setReviewedItems([]);
     }
-  };
+  }, [scanData, suppliers, products, defaultCategory, categories]);
+
+  // Process scan data when modal opens - WAIT for categories to load first
+  useEffect(() => {
+    if (open && scanData && categoriesLoaded && defaultCategory) {
+      console.log('🔧 Processing with category:', defaultCategory);
+      processMatchData();
+    }
+  }, [open, scanData, categoriesLoaded, defaultCategory, processMatchData]); // Added processMatchData dependency
 
   // Update new product data
   const updateNewProduct = (index: number, field: keyof NonNullable<ReviewedItem['newProduct']>, value: string | number) => {

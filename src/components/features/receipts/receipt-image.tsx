@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { ImageModal } from '@/components/ui/image-modal';
 
 interface ReceiptImageProps {
@@ -19,10 +20,13 @@ export function ReceiptImage({ receiptUrl, alt }: ReceiptImageProps) {
           onClick={() => setModalOpen(true)}
           className="inline-block"
         >
-          <img
+          <Image
             src={receiptUrl}
             alt={alt}
             className="max-w-xs max-h-48 object-contain rounded-lg border hover:opacity-80 transition-opacity cursor-pointer"
+            width={320}
+            height={192}
+            unoptimized
           />
         </button>
         <p className="text-xs text-muted-foreground mt-2">คลิกที่รูปเพื่อดูขนาดเต็ม</p>

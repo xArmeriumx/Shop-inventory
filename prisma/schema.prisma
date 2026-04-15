@@ -325,6 +325,7 @@ model Product {
   saleItems     SaleItem[]
   stockLogs     StockLog[]
   returnItems   ReturnItem[]  // G3: Returns
+  supplierProducts SupplierProduct[] // ERP: Supplier Intelligence
 
   // Soft Delete
   deletedAt   DateTime?
@@ -373,6 +374,7 @@ model Supplier {
 
   purchases Purchase[]
   products  Product[]
+  supplierProducts SupplierProduct[] // ERP: Supplier Intelligence
 
   // Soft Delete
   deletedAt DateTime?
@@ -945,4 +947,55 @@ model DocSequence {
 
   @@unique([shopId, prefix, year, month])
   @@index([shopId])
+}
+
+// ==================== ERP: Business Audit (Rule 12.1) ====================
+// บันทึกธุรกรรมสำคัญ พร้อม Snapshot ข้อมูล (Level 2) เพื่อใช้ตรวจสอบและกู้คืน
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  shopId      String
+  userId      String
+  action      String   // e.g., "SALE_CANCEL", "PURCHASE_CONFIRM", "BILLING_LINK"
+  
+  entityType  String?  // e.g., "Sale", "Purchase", "Customer"
+  entityId    String?  // ID ของเอกสารที่เกี่ยวข้อง
+  
+  metadata    Json?    // ★ NEW: Snapshot ข้อมูล ณ ขณะเกิด Action (Level 2)
+  note        String?  // เหตุผลหรือรายละเอียดเพิ่มเติม
+  
+  createdAt   DateTime @default(now())
+
+  @@index([shopId, createdAt])
+  @@index([entityType, entityId])
+  @@index([userId])
+}
+
+// ==================== ERP: Supplier Intelligence (Rule 4.4) ====================
+// ข้อมูลเฉพาะระหว่าง Vendor + Product เช่น MOQ และราคาทุนพิเศษ
+
+model SupplierProduct {
+  id          String   @id @default(cuid())
+  shopId      String
+  
+  supplierId  String
+  supplier    Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  moq         Int?     @default(0)    // ★ NEW: ยอดสั่งซื้อขั้นต่ำแยกตาม Vendor
+  vendorPrice Decimal? @db.Decimal(10, 2) // ★ NEW: ราคาที่ Vendor เจ้านี้เสนอ
+  vendorSku   String?  @db.VarChar(100)  // ★ NEW: รหัสสินค้าของฝั่ง Vendor
+  
+  notes       String?  @db.Text
+  
+  deletedAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([supplierId, productId])
+  @@index([shopId])
+  @@index([productId])
+  @@index([supplierId])
 }
