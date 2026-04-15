@@ -68,8 +68,9 @@ export function AuditLogViewer() {
       headers.join(',') + '\n' +
       logs.map(log => {
         const date = format(new Date(log.createdAt), 'yyyy-MM-dd HH:mm:ss');
+        const actor = log.actorName || log.actorUserId || 'System';
         const note = log.note ? `"${log.note.replace(/"/g, '""')}"` : '';
-        return `${date},${log.actorUserId},${log.action},${log.targetType || ''},${log.targetId || ''},${log.status},${note}`;
+        return `${date},${actor},${log.action},${log.targetType || ''},${log.targetId || ''},${log.status},${note}`;
       }).join('\n');
 
     const encodedUri = encodeURI(csvContent);
@@ -176,8 +177,22 @@ export function AuditLogViewer() {
                       <TableCell className="whitespace-nowrap">
                         {format(new Date(log.createdAt), 'dd MMM yyyy HH:mm', { locale: th })}
                       </TableCell>
-                      <TableCell className="font-mono text-xs max-w-[150px] truncate" title={log.actorUserId}>
-                        {log.actorUserId}
+                      <TableCell className="max-w-[200px]">
+                        <div className="flex flex-col">
+                          <span className="font-medium truncate" title={log.actorName || 'System'}>
+                            {log.actorName || (log.actorUserId ? 'Unknown User' : 'System')}
+                          </span>
+                          {log.actorEmail && (
+                            <span className="text-[10px] text-muted-foreground truncate">
+                              {log.actorEmail}
+                            </span>
+                          )}
+                          {log.actorUserId && (
+                            <span className="text-[9px] text-muted-foreground/60 font-mono mt-0.5">
+                              ID: {log.actorUserId.slice(0, 8)}...
+                            </span>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="bg-background">

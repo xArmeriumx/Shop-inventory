@@ -955,8 +955,10 @@ model DocSequence {
 
 model AuditLog {
   id             String   @id @default(cuid())
-  shopId         String
-  actorUserId    String   // ผู้กระทำ (actor)
+  shopId         String?  // Nullable for system-wide or pre-onboarding events
+  actorUserId    String?  // ผู้กระทำ (actor) - Nullable for System events
+  actorName      String?  // ★ NEW: Snapshot of user name at time of action
+  actorEmail     String?  // ★ NEW: Snapshot of user email at time of action
   
   action         String   // e.g., "SALE_CANCEL", "TEAM_INVITE", "PERMISSION_DENIED"
   status         String   @default("SUCCESS") // "SUCCESS" | "DENIED"

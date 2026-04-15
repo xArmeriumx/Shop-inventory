@@ -101,7 +101,7 @@ export const AuditService = {
    * Log a business action with before/after snapshots.
    * Must NEVER throw — always best-effort.
    */
-  async log(ctx: RequestContext, params: AuditLogParams): Promise<void> {
+  async log(ctx: { userId: string; shopId?: string; userName?: string; userEmail?: string }, params: AuditLogParams): Promise<void> {
     const {
       action,
       status = AUDIT_STATUS.SUCCESS,
@@ -118,7 +118,9 @@ export const AuditService = {
       await db.auditLog.create({
         data: {
           shopId: ctx.shopId,
-          actorUserId: ctx.userId,
+          actorUserId: ctx.userId ?? null,
+          actorName: ctx.userName ?? null,
+          actorEmail: ctx.userEmail ?? null,
           action,
           status,
           targetType: targetType ?? null,
@@ -139,7 +141,7 @@ export const AuditService = {
   /**
    * Log a PERMISSION_DENIED event (best-effort, never throws).
    */
-  async logDenied(ctx: RequestContext, params: {
+  async logDenied(ctx: { userId: string; shopId?: string; userName?: string; userEmail?: string }, params: {
     action: string;
     permission: string;
     targetType?: string;

@@ -8,13 +8,12 @@ import {
   getProductImageUrl 
 } from '@/lib/supabase';
 
-export async function POST(request: NextRequest) {
-  try {
-    // Check authentication using NextAuth v5
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+import { withAuth } from '@/lib/auth/api-guard';
+
+export const POST = withAuth(
+  async (request: NextRequest, session: any) => {
+    try {
+      const userId = session.user.id;
 
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
@@ -61,7 +60,7 @@ export async function POST(request: NextRequest) {
     const timestamp = Date.now();
     const random = Math.random().toString(36).substring(2, 8);
     const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-    const fileName = `${folder}/${session.user.id}/${timestamp}-${random}.${ext}`;
+    const fileName = `${folder}/${userId}/${timestamp}-${random}.${ext}`;
 
     // Convert File to ArrayBuffer
     const arrayBuffer = await file.arrayBuffer();
@@ -93,10 +92,12 @@ export async function POST(request: NextRequest) {
       path: data.path,
       bucket: targetBucket,
     });
-  } catch (error) {
-    console.error('Upload error:', error);
-    return NextResponse.json({ 
-      error: 'Internal server error' 
-    }, { status: 500 });
-  }
-}
+    } catch (error) {
+      console.error('Upload error:', error);
+      return NextResponse.json({ 
+        error: 'Internal server error' 
+      }, { status: 500 });
+    }
+  },
+  { rateLimitPolicy: 'upload' }
+);

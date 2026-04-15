@@ -6,7 +6,6 @@ import { logger } from '@/lib/logger';
 import type { ActionResponse } from '@/types/domain';
 export type { InviteMemberInput } from '@/services';
 import { IamService, type InviteMemberInput, ServiceError } from '@/services';
-import { rateLimiters, checkRateLimit } from '@/lib/rate-limit';
 
 export async function getTeamMembers() {
   const ctx = await requirePermission('TEAM_VIEW');
@@ -52,16 +51,7 @@ export async function removeMember(memberId: string): Promise<ActionResponse> {
 }
 
 export async function inviteMember(input: InviteMemberInput): Promise<ActionResponse> {
-  const ctx = await requirePermission('TEAM_INVITE');
-
-  // Apply Rate Limiting for sending invitations
-  const rlResult = await checkRateLimit(rateLimiters.invite, `user:${ctx.userId}:invite`, ctx, 'TEAM_INVITE');
-  if (!rlResult.success) {
-    return { 
-      success: false, 
-      message: 'ส่งคำเชิญบ่อยเกินไป กรุณารอสักครู่ (จำกัด 5 ครั้ง/นาที)' 
-    };
-  }
+  const ctx = await requirePermission('TEAM_INVITE', { rateLimitPolicy: 'invite' });
 
   try {
     const user = await IamService.inviteMember(input, ctx);

@@ -398,9 +398,9 @@ export function PurchaseForm() {
           {items.map((item, index) => (
             <div
               key={index}
-              className="flex flex-col gap-4 rounded-lg border p-4 sm:flex-row"
+              className="grid grid-cols-1 md:grid-cols-12 gap-4 rounded-lg border p-4 items-start"
             >
-              <div className="flex-1 space-y-2">
+              <div className="md:col-span-5 space-y-2">
                 <Label>สินค้า *</Label>
                 <div className="flex gap-2">
                   <select
@@ -419,7 +419,6 @@ export function PurchaseForm() {
                       </option>
                     ))}
                   </select>
-                  {/* Quick Add Product - show when no product selected */}
                   {!item.productId && (
                     <QuickAddProductDialog
                       defaultData={{
@@ -433,7 +432,7 @@ export function PurchaseForm() {
                 </div>
               </div>
 
-              <div className="w-full sm:w-24 space-y-2">
+              <div className="md:col-span-2 space-y-2">
                 <Label>จำนวน *</Label>
                 <Input
                   type="number"
@@ -448,7 +447,7 @@ export function PurchaseForm() {
                 />
               </div>
 
-              <div className="w-full sm:w-32 space-y-2">
+              <div className="md:col-span-3 space-y-2">
                 <Label>ต้นทุน/หน่วย *</Label>
                 <Input
                   type="number"
@@ -464,20 +463,19 @@ export function PurchaseForm() {
                 />
               </div>
 
-              <div className="flex items-end">
-                <div className="space-y-2">
-                  <Label>รวม</Label>
-                  <div className="text-sm font-medium">
-                    {formatCurrency(((Number(item.quantity) || 0) * (Number(item.costPrice) || 0)).toString())}
-                  </div>
+              <div className="md:col-span-1 space-y-2">
+                <Label>รวม</Label>
+                <div className="text-sm font-medium h-9 flex items-center">
+                  {formatCurrency(((Number(item.quantity) || 0) * (Number(item.costPrice) || 0)).toString())}
                 </div>
               </div>
 
-              <div className="flex items-end">
+              <div className="md:col-span-1 flex items-end justify-end pt-6 md:pt-0">
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
+                  className="h-9 w-9 text-muted-foreground hover:text-destructive"
                   onClick={() => handleRemoveItem(index)}
                   disabled={items.length === 1}
                 >

@@ -23,6 +23,8 @@ import type { Prisma, Permission } from '@prisma/client';
  */
 export interface RequestContext {
   userId: string;
+  userName?: string;
+  userEmail?: string;
   shopId: string;
   permissions: Permission[];
   isOwner: boolean;

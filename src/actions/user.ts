@@ -1,11 +1,11 @@
 'use server';
 
-import { auth } from '@/lib/auth';
+import { getSessionContext } from '@/lib/auth-guard';
 import { IamService } from '@/services';
 
 export async function updateUserActivity() {
-  const session = await auth();
-  if (!session?.user?.id) return;
+  const ctx = await getSessionContext();
+  if (!ctx) return;
 
-  await IamService.updateUserActivity(session.user.id);
+  await IamService.updateUserActivity(ctx.userId);
 }

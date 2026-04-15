@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { cache } from 'react';
 import type { Permission } from '@prisma/client';
 import { db } from '@/lib/db';
+import { rateLimiters, checkRateLimit, type RateLimitPolicy } from '@/lib/rate-limit';
 
 /**
  * Session context with RBAC information
@@ -10,6 +11,8 @@ import { db } from '@/lib/db';
  */
 export interface SessionContext {
   userId: string;
+  userName?: string;
+  userEmail?: string;
   shopId?: string;
   roleId?: string;
   permissions: Permission[];
@@ -27,11 +30,6 @@ export interface ShopSessionContext extends SessionContext {
 
 /**
  * Cached session context fetcher - memoized per request.
- * 
- * Source of Truth: 
- * - Identity/Metadata: Auth.js Session (JWT)
- * - Permissions/Roles: Database (ShopMember)
- * - Revocation: Database (User.sessionVersion)
  */
 export const getSessionContext = cache(async (): Promise<SessionContext | null> => {
   const session = await auth();
@@ -42,71 +40,90 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
 
   // Identity from Session (JWT)
   const userId = session.user.id;
-  const sessionVersion = (session.user as any).sessionVersion;
+  const sessionVersion = (session.user as any).sessionVersion || 1;
 
-  // Permissions from Database (Source of Truth)
-  // This satisfies Rule 2.2: Single Source of Truth
-  const membership = await db.shopMember.findFirst({
-    where: { userId },
+  // Single Source of Truth: Fetch User and their latest Membership
+  const user = await db.user.findUnique({
+    where: { id: userId },
     select: {
-      shopId: true,
-      roleId: true,
-      isOwner: true,
-      departmentCode: true,
-      role: { 
-        select: { 
-          permissions: true 
-        } 
+      sessionVersion: true,
+      name: true,
+      email: true,
+      memberships: {
+        take: 1, // Currently assuming 1 active shop per user
+        select: {
+          shopId: true,
+          roleId: true,
+          isOwner: true,
+          departmentCode: true,
+          role: { 
+            select: { 
+              permissions: true 
+            } 
+          }
+        }
       }
     }
   });
 
+  if (!user) {
+    return null;
+  }
+
+  // GLOBAL REVOCATION CHECK
+  if (user.sessionVersion > sessionVersion) {
+    return null; // This will violently log the user out everywhere
+  }
+
+  const userName = user.name || user.email || "Unknown User";
+  const userEmail = user.email;
+  const membership = user.memberships[0];
+
   if (!membership) {
     return {
       userId,
+      userName,
+      userEmail,
       shopId: undefined,
       roleId: undefined,
       permissions: [],
       isOwner: false,
-      sessionVersion,
+      sessionVersion: user.sessionVersion,
     };
   }
 
   return {
     userId,
+    userName,
+    userEmail,
     shopId: membership.shopId,
     roleId: membership.roleId ?? undefined,
     permissions: (membership.role?.permissions as Permission[]) ?? [],
     isOwner: membership.isOwner,
     employeeDepartment: membership.departmentCode ?? undefined,
-    sessionVersion,
+    sessionVersion: user.sessionVersion,
   };
 });
 
 /**
- * Check if the session is still valid (not revoked)
- * Only call this for sensitive operations to minimize DB load
+ * Get current user session, redirect to login if not authenticated.
+ * Supports selective Engine-Level Rate Limiting.
  */
-export async function validateSessionFreshness(ctx: SessionContext): Promise<boolean> {
-  if (!ctx.userId || ctx.sessionVersion === undefined) return false;
-
-  const user = await db.user.findUnique({
-    where: { id: ctx.userId },
-    select: { sessionVersion: true }
-  });
-
-  // If version in DB is higher than version in JWT, session is stale/revoked
-  return user?.sessionVersion === ctx.sessionVersion;
-}
-
-/**
- * Get current user session, redirect to login if not authenticated
- */
-export async function requireAuth(): Promise<SessionContext> {
+export async function requireAuth(options?: { rateLimitPolicy?: RateLimitPolicy; actionName?: string }): Promise<SessionContext> {
   const ctx = await getSessionContext();
   
   if (!ctx) {
     redirect('/login');
+  }
+
+  if (options?.rateLimitPolicy && options.rateLimitPolicy !== 'none') {
+    const limiter = rateLimiters[options.rateLimitPolicy];
+    const identifier = ctx.shopId ? `shop:${ctx.shopId}:${options.rateLimitPolicy}` : `user:${ctx.userId}:${options.rateLimitPolicy}`;
+    const rlResult = await checkRateLimit(limiter, identifier, ctx, options.actionName || options.rateLimitPolicy);
+    
+    if (!rlResult.success) {
+      throw new Error(`Rate limit exceeded for action: ${options.actionName || options.rateLimitPolicy}. Please try again later.`);
+    }
   }
 
   return ctx;
@@ -115,8 +132,8 @@ export async function requireAuth(): Promise<SessionContext> {
 /**
  * Require user to have a shop membership
  */
-export async function requireShop(): Promise<ShopSessionContext> {
-  const ctx = await requireAuth();
+export async function requireShop(options?: { rateLimitPolicy?: RateLimitPolicy; actionName?: string }): Promise<ShopSessionContext> {
+  const ctx = await requireAuth(options);
   
   if (!ctx.shopId) {
     redirect('/onboarding');
@@ -126,36 +143,17 @@ export async function requireShop(): Promise<ShopSessionContext> {
 }
 
 /**
- * List of sensitive permissions that require session freshness check
- */
-const SENSITIVE_PERMISSIONS: Permission[] = [
-  'TEAM_REMOVE', 'TEAM_EDIT', 'TEAM_INVITE',
-  'PURCHASE_CANCEL', 'SALE_CANCEL',
-  'SETTINGS_SHOP', 'SETTINGS_LOOKUPS',
-  'PRODUCT_DELETE'
-];
-
-/**
  * Require a specific permission, throw if not authorized.
  * For sensitive permissions, also validates session freshness.
  */
-export async function requirePermission(permission: Permission): Promise<ShopSessionContext> {
-  const ctx = await requireShop();
+export async function requirePermission(permission: Permission, options?: { rateLimitPolicy?: RateLimitPolicy; actionName?: string }): Promise<ShopSessionContext> {
+  const ctx = await requireShop(options);
   
   // 1. RBAC Check
   if (!hasPermission(ctx, permission)) {
     redirect('/dashboard');
   }
 
-  // 2. Freshness Check for sensitive operations (Revocation support)
-  if (SENSITIVE_PERMISSIONS.includes(permission)) {
-    const isFresh = await validateSessionFreshness(ctx);
-    if (!isFresh) {
-      // Session revoked (e.g. password change, "Logout all devices")
-      redirect('/login?error=SessionExpired');
-    }
-  }
-  
   return ctx;
 }
 

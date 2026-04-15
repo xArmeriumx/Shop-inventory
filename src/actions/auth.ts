@@ -1,6 +1,6 @@
 'use server';
 
-import { auth } from '@/lib/auth';
+import { getSessionContext } from '@/lib/auth-guard';
 import { logger } from '@/lib/logger';
 export type { PermissionData } from '@/services';
 import { IamService, type PermissionData } from '@/services';
@@ -10,24 +10,24 @@ export type PermissionVersionData = {
 } | null;
 
 export async function getPermissionVersion(): Promise<PermissionVersionData> {
-  const session = await auth();
-  if (!session?.user?.id) return null;
+  const ctx = await getSessionContext();
+  if (!ctx) return null;
 
-  return IamService.getPermissionVersion(session.user.id);
+  return IamService.getPermissionVersion(ctx.userId);
 }
 
 export async function getMyPermissions(): Promise<PermissionData | null> {
-  const session = await auth();
-  if (!session?.user?.id) return null;
+  const ctx = await getSessionContext();
+  if (!ctx) return null;
 
-  return IamService.getMyPermissions(session.user.id);
+  return IamService.getMyPermissions(ctx.userId);
 }
 
 export async function getMyProfile() {
-  const session = await auth();
-  if (!session?.user?.id) return null;
+  const ctx = await getSessionContext();
+  if (!ctx) return null;
 
-  return IamService.getProfile(session.user.id);
+  return IamService.getProfile(ctx.userId);
 }
 
 /**
