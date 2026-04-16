@@ -174,7 +174,7 @@ export const DashboardService = {
         where: { 
           shopId: ctx.shopId, 
           status: { notIn: ['CANCELLED', 'DELIVERED'] },
-          OR: [{ lat: null }, { lng: null }]
+          OR: [{ latitude: null }, { longitude: null }]
         }
       }),
       // ADV 3: Stuck Sales (> 3 days)

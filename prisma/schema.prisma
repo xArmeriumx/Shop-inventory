@@ -840,6 +840,10 @@ model Shipment {
   shippedAt        DateTime?
   deliveredAt      DateTime?
   notes            String?        @db.Text
+  
+  // Spatial Coordinates (Logistics Load Center)
+  latitude         Float?         // พิกัดละติจูด
+  longitude        Float?         // พิกัดลองจิจูด
 
   // Ownership
   userId           String
