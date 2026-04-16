@@ -14,6 +14,7 @@ import type { Product, Sale, SaleItem, Purchase, PurchaseItem, Expense, Customer
 export type SerializedProduct = Omit<Product, 'costPrice' | 'salePrice'> & {
   costPrice: number;
   salePrice: number;
+  packagingQty: number; // Ensure it exists for Rule 6.3/14.4
 };
 
 /**

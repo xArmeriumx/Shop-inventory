@@ -12,6 +12,7 @@ import { Separator } from '@/components/ui/separator';
 import { getPurchase } from '@/actions/purchases';
 import { getShop } from '@/actions/shop';
 import { formatCurrency } from '@/lib/formatters';
+import { getPurchaseStatusLabel, calculateCtn } from '@/lib/erp-utils';
 import Loading from '@/app/(dashboard)/loading';
 import { PrintButton } from '@/components/features/sales/print-button';
 import { ReceiptImage } from '@/components/features/receipts/receipt-image';
@@ -109,9 +110,8 @@ async function PurchaseDetails({ id }: { id: string }) {
               )}
             </div>
             <div className="text-right">
-              <h3 className="font-semibold mb-2">สถานะ</h3>
-              <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
-                รับสินค้าแล้ว
+              <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">
+                {getPurchaseStatusLabel(purchase.status, purchase.docType as any)}
               </span>
             </div>
           </div>
@@ -125,7 +125,9 @@ async function PurchaseDetails({ id }: { id: string }) {
                   <th className="p-3 font-medium">รายการ</th>
                   <th className="p-3 font-medium">SKU</th>
                   <th className="p-3 font-medium text-right">ราคาต่อหน่วย</th>
-                  <th className="p-3 font-medium text-right">จำนวน</th>
+                  <th className="p-3 font-medium text-right">จำนวน (Unit)</th>
+                  <th className="p-3 font-medium text-right">บรรจุภัณฑ์ (Pack)</th>
+                  <th className="p-3 font-medium text-right">จำนวนกล่อง (CTN)</th>
                   <th className="p-3 font-medium text-right">รวม</th>
                 </tr>
               </thead>
@@ -136,7 +138,11 @@ async function PurchaseDetails({ id }: { id: string }) {
                     <td className="p-3">{item.product.name}</td>
                     <td className="p-3 text-muted-foreground">{item.product.sku || '-'}</td>
                     <td className="p-3 text-right">{formatCurrency(Number(item.costPrice))}</td>
-                    <td className="p-3 text-right">{item.quantity}</td>
+                    <td className="p-3 text-right font-medium">{item.quantity}</td>
+                    <td className="p-3 text-right text-muted-foreground">{item.packagingQty || 1}</td>
+                    <td className="p-3 text-right font-bold text-primary">
+                      {calculateCtn(item.quantity, item.packagingQty || 1)}
+                    </td>
                     <td className="p-3 text-right">{formatCurrency(Number(item.subtotal))}</td>
                   </tr>
                 ))}

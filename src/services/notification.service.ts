@@ -5,7 +5,11 @@ export type NotificationType =
   | 'LOW_STOCK' 
   | 'NEW_SALE' 
   | 'PAYMENT_PENDING' 
-  | 'RETURN_CREATED';
+  | 'RETURN_CREATED'
+  | 'STALE_DOCS'
+  | 'GOVERNANCE_INCIDENT'
+  | 'SHIPMENT_GAP'
+  | 'PR_PENDING';
 
 export type NotificationSeverity = 'INFO' | 'WARNING' | 'CRITICAL';
 
@@ -135,6 +139,106 @@ export const NotificationService = {
       },
     });
 
+
     return result.count;
+  },
+
+  /**
+   * ตรวจสอบสุขภาพการทำงาน (Operational Health) และสร้างสรุปการแจ้งเตือน
+   */
+  async checkOperationalHealth(shopId: string): Promise<void> {
+    const limitDate = new Date();
+    limitDate.setDate(limitDate.getDate() - 3);
+
+    const [staleSales, stalePurchases, incompleteShipments, pendingPrs, lowStockCount] = await Promise.all([
+      // 1. Stuck Sales (> 3 days)
+      db.sale.count({
+        where: { shopId, status: { in: ['DRAFT', 'CONFIRMED'] }, createdAt: { lt: limitDate } }
+      }),
+      // 2. Stuck Purchases (> 3 days)
+      db.purchase.count({
+        where: { shopId, status: { in: ['DRAFT', 'PENDING', 'APPROVED', 'ORDERED'] }, createdAt: { lt: limitDate } }
+      }),
+      // 3. Shipment พิกัดไม่ครบ
+      db.shipment.count({
+        where: { 
+          shopId, 
+          status: { notIn: ['CANCELLED', 'DELIVERED'] },
+          OR: [{ lat: null }, { lng: null }]
+        }
+      }),
+      // 4. PR รอออก PO
+      db.purchase.count({
+        where: { shopId, docType: 'REQUEST', status: 'DRAFT', supplierId: null }
+      }),
+      // 5. สินค้าสต็อกต่ำ
+      db.product.count({
+        where: { shopId, isLowStock: true, isActive: true, deletedAt: null }
+      })
+    ]);
+
+    const totalStale = staleSales + stalePurchases;
+
+    // --- Create/Update Summary Notifications ---
+
+    // Stale Documents Summary
+    if (totalStale > 0) {
+      await this.create({
+        shopId,
+        type: 'STALE_DOCS',
+        severity: 'WARNING',
+        title: 'มีเอกสารค้างดำเนินการ',
+        message: `พบรายการขาย/สั่งซื้อ ${totalStale} รายการ ที่ไม่มีความคืบหน้าเกิน 3 วัน`,
+        link: '/system/ops?tab=stale',
+        groupKey: `stale-docs:${shopId}`,
+      });
+    } else {
+      await this.removeByGroupKey(shopId, `stale-docs:${shopId}`);
+    }
+
+    // Shipment Gaps Summary
+    if (incompleteShipments > 0) {
+      await this.create({
+        shopId,
+        type: 'SHIPMENT_GAP',
+        severity: 'INFO',
+        title: 'พิกัดจัดส่งไม่ครบ',
+        message: `มี ${incompleteShipments} รายการจัดส่งที่คำนวณเส้นทางไม่ได้เนื่องจากขาดพิกัด`,
+        link: '/system/ops?tab=logistics',
+        groupKey: `shipment-gap:${shopId}`,
+      });
+    } else {
+      await this.removeByGroupKey(shopId, `shipment-gap:${shopId}`);
+    }
+
+    // PR Pending Summary
+    if (pendingPrs > 0) {
+      await this.create({
+        shopId,
+        type: 'PR_PENDING',
+        severity: 'INFO',
+        title: 'ใบขอซื้อรอคนระบุผู้ขาย',
+        message: `มี ${pendingPrs} ใบขอซื้อ (PR) ที่ยังไม่มีผู้ขาย ทำให้ยังไม่ออก PO`,
+        link: '/system/ops?tab=procurement',
+        groupKey: `pr-pending:${shopId}`,
+      });
+    } else {
+      await this.removeByGroupKey(shopId, `pr-pending:${shopId}`);
+    }
+
+    // Low Stock Summary
+    if (lowStockCount > 0) {
+      await this.create({
+        shopId,
+        type: 'LOW_STOCK',
+        severity: 'WARNING',
+        title: 'สินค้าสต็อกต่ำ',
+        message: `มีสินค้า ${lowStockCount} รายการ ที่จำนวนคงเหลือต่ำกว่าจุดสั่งซื้อ`,
+        link: '/products/low-stock',
+        groupKey: `low-stock-summary:${shopId}`,
+      });
+    } else {
+      await this.removeByGroupKey(shopId, `low-stock-summary:${shopId}`);
+    }
   }
 };

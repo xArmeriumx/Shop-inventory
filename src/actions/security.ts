@@ -3,7 +3,7 @@
 import { signOut } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { requireAuth, requirePermission } from '@/lib/auth-guard';
-import { AuditService } from '@/services/audit.service';
+import { IamService } from '@/services/iam.service';
 import { ServiceError } from '@/types/domain';
 import type { ActionResponse } from '@/types/domain';
 
@@ -23,19 +23,8 @@ export async function revokeAllMySessions(): Promise<ActionResponse> {
   const ctx = await requireAuth();
 
   try {
-    // 1. Increment sessionVersion in DB → invalidates all current JWTs
-    await db.user.update({
-      where: { id: ctx.userId },
-      data: { sessionVersion: { increment: 1 } },
-    });
-
-    // 2. Audit log before signing out
-    await AuditService.log(ctx as any, {
-      action: 'SESSION_REVOKE_ALL',
-      targetType: 'User',
-      targetId: ctx.userId,
-      note: 'ผู้ใช้ออกจากระบบทุกอุปกรณ์',
-    });
+    // 1. Centralized session revocation via service
+    await IamService.revokeSessions(ctx.userId, ctx as any);
 
     // 3. Sign out current session immediately
     // (self-revoke: "all devices" includes this device)
@@ -67,47 +56,12 @@ export async function revokeUserSessionsByAdmin(targetUserId: string): Promise<A
   }
 
   try {
-    // 1. Verify target is a member of the same shop
-    const targetMember = await db.shopMember.findFirst({
-      where: { userId: targetUserId, shopId: ctx.shopId },
-      include: { user: { select: { name: true, email: true } } },
-    });
-
-    if (!targetMember) {
-      throw new ServiceError('ไม่พบสมาชิกในทีม');
-    }
-
-    if (targetMember.isOwner && !ctx.isOwner) {
-      throw new ServiceError('ไม่สามารถ revoke session ของเจ้าของร้านได้');
-    }
-
-    // 2. Increment sessionVersion → forces re-login on next sensitive operation
-    await db.user.update({
-      where: { id: targetUserId },
-      data: { sessionVersion: { increment: 1 } },
-    });
-
-    // 3. Bump permissionVersion too → ensures RBAC refresh
-    await db.shopMember.update({
-      where: { id: targetMember.id },
-      data: { permissionVersion: { increment: 1 } },
-    });
-
-    // 4. Audit log (Admin's perspective)
-    await AuditService.log(ctx, {
-      action: 'SESSION_REVOKE_BY_ADMIN',
-      targetType: 'User',
-      targetId: targetUserId,
-      afterSnapshot: {
-        targetEmail: targetMember.user?.email,
-        targetName: targetMember.user?.name,
-      },
-      note: `Admin เพิกถอน session ของ ${targetMember.user?.name ?? targetUserId}`,
-    });
+    // 1. Centralized session revocation via service (includes authz checks)
+    await IamService.revokeSessions(targetUserId, ctx);
 
     return {
       success: true,
-      message: `เพิกถอน session ของ ${targetMember.user?.name ?? targetUserId} เรียบร้อยแล้ว`,
+      message: `เพิกถอน session ของผู้ใช้ ID: ${targetUserId} เรียบร้อยแล้ว`,
     };
   } catch (error: any) {
     if (error instanceof ServiceError) {

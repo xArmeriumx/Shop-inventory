@@ -69,7 +69,7 @@ export async function createPurchase(input: PurchaseInput): Promise<ActionRespon
     };
   } catch (error: unknown) {
     if (error instanceof ServiceError) {
-      return { success: false, message: error.message };
+      return { success: false, message: error.message, action: error.action };
     }
     const typedError = error as Error;
     await logger.error('Failed to create purchase', typedError, { 
@@ -98,7 +98,11 @@ export async function createPurchaseRequest(input: PurchaseInput): Promise<Actio
     revalidatePath('/purchases');
     return { success: true, message: 'สร้างใบขอซื้อสำเร็จ', data: result };
   } catch (error: any) {
-    return { success: false, message: error.message || 'เกิดข้อผิดพลาด' };
+    return { 
+      success: false, 
+      message: error.message || 'เกิดข้อผิดพลาด',
+      action: error instanceof ServiceError ? error.action : undefined
+    };
   }
 }
 
@@ -110,7 +114,11 @@ export async function approvePurchaseRequest(id: string): Promise<ActionResponse
     revalidatePath(`/purchases/${id}`);
     return { success: true, message: 'อนุมัติใบขอซื้อสำเร็จ' };
   } catch (error: any) {
-    return { success: false, message: error.message || 'เกิดข้อผิดพลาด' };
+    return { 
+      success: false, 
+      message: error.message || 'เกิดข้อผิดพลาด',
+      action: error instanceof ServiceError ? error.action : undefined
+    };
   }
 }
 
@@ -122,7 +130,11 @@ export async function convertToPurchaseOrder(id: string): Promise<ActionResponse
     revalidatePath('/products');
     return { success: true, message: `แปลงเป็นใบสั่งซื้อสำเร็จ: ${result.poNumber}`, data: result };
   } catch (error: any) {
-    return { success: false, message: error.message || 'เกิดข้อผิดพลาด' };
+    return { 
+      success: false, 
+      message: error.message || 'เกิดข้อผิดพลาด',
+      action: error instanceof ServiceError ? error.action : undefined
+    };
   }
 }
 
@@ -138,7 +150,7 @@ export async function cancelPurchase(input: CancelPurchaseInput): Promise<Action
     
     return { success: true, message: 'ยกเลิกรายการซื้อสำเร็จ' };
   } catch (error: unknown) {
-    if (error instanceof ServiceError) return { success: false, message: error.message };
+    if (error instanceof ServiceError) return { success: false, message: error.message, action: error.action };
     const typedError = error as Error;
     await logger.error('Failed to cancel purchase', typedError, { 
       path: 'cancelPurchase', 

@@ -21,7 +21,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { adjustStock } from '@/actions/products'; // We will create this action next
+import { adjustStock } from '@/actions/products';
+import { GuidedErrorAlert } from '@/components/ui/guided-error-alert';
+import { ErrorAction } from '@/types/domain';
 
 interface StockAdjustmentDialogProps {
   productId: string;
@@ -34,7 +36,7 @@ export function StockAdjustmentDialog({ productId, currentStock }: StockAdjustme
   const [isPending, startTransition] = useTransition();
   const [type, setType] = useState('ADD');
   const [quantity, setQuantity] = useState<number>(0);
-  const [error, setError] = useState<string | null>(null);
+  const [errorInfo, setErrorInfo] = useState<{ message: string; action?: ErrorAction } | null>(null);
 
   const calculateNewStock = () => {
     switch (type) {
@@ -50,18 +52,18 @@ export function StockAdjustmentDialog({ productId, currentStock }: StockAdjustme
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setError(null);
+    setErrorInfo(null);
 
     const formData = new FormData(e.currentTarget);
     const reason = formData.get('reason') as string;
 
     if (!quantity || quantity <= 0) {
-      setError('กรุณาระบุจำนวนที่ถูกต้อง');
+      setErrorInfo({ message: 'กรุณาระบุจำนวนที่ถูกต้อง' });
       return;
     }
 
     if (!reason || reason.trim().length === 0) {
-      setError('กรุณาระบุเหตุผล');
+      setErrorInfo({ message: 'กรุณาระบุเหตุผล' });
       return;
     }
 
@@ -73,7 +75,7 @@ export function StockAdjustmentDialog({ productId, currentStock }: StockAdjustme
       });
 
       if (!result.success) {
-        setError(result.message || 'เกิดข้อผิดพลาด');
+        setErrorInfo({ message: result.message || 'เกิดข้อผิดพลาด', action: result.action });
       } else {
         setOpen(false);
         router.refresh();
@@ -146,7 +148,13 @@ export function StockAdjustmentDialog({ productId, currentStock }: StockAdjustme
                 required
               />
             </div>
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            {errorInfo && (
+              <GuidedErrorAlert 
+                message={errorInfo.message} 
+                action={errorInfo.action} 
+                className="mt-2"
+              />
+            )}
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>

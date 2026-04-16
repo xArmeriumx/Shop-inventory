@@ -72,7 +72,7 @@ export const SaleService: ISaleService = {
           const productIds = items.map(item => item.productId);
           const products = await prisma.product.findMany({
             where: { id: { in: productIds } },
-            select: { id: true, name: true, costPrice: true, stock: true, reservedStock: true },
+            select: { id: true, name: true, costPrice: true, stock: true, reservedStock: true, packagingQty: true },
           });
 
           const productDataMap = new Map(
@@ -107,9 +107,12 @@ export const SaleService: ISaleService = {
             totalAmount = money.add(totalAmount, subtotal);
             totalCost = money.add(totalCost, itemCost);
 
+            // Fetch packagingQty for snapshot
+            
             saleItemsToCreate.push({
               productId: item.productId,
               quantity: item.quantity,
+              packagingQty: (product as any).packagingQty || 1,
               salePrice: item.salePrice,
               costPrice: product.costPrice,
               subtotal: subtotal,
@@ -652,6 +655,14 @@ export const SaleService: ISaleService = {
 
           if (!fullSale) throw new ServiceError('ไม่พบรายการขาย');
           if (fullSale.status === SaleStatus.COMPLETED) return fullSale;
+
+          if (fullSale.paymentStatus === 'PENDING') {
+            throw new ServiceError(
+              'กรุณายืนยันการชำระเงินก่อนปิดการขาย',
+              undefined,
+              { label: 'ไปที่หน้าตรวจสอบการชำระเงิน', href: `/sales/${saleId}` }
+            );
+          }
 
           await Promise.all(fullSale.items.map(item => 
             StockService.deductStock(item.productId, item.quantity, ctx, prisma)

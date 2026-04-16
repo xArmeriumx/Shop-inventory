@@ -31,7 +31,7 @@ export async function createIncome(input: IncomeInput) {
   }
 
   try {
-    const income = await FinanceService.createIncome(validated.data, ctx);
+    const income = await FinanceService.createIncome(validated.data, ctx) as Record<string, any>;
     revalidatePath('/incomes');
     revalidatePath('/dashboard');
     return { 
@@ -57,7 +57,7 @@ export async function updateIncome(id: string, input: IncomeInput) {
   }
 
   try {
-    const income = await FinanceService.updateIncome(id, validated.data, ctx);
+    const income = await FinanceService.updateIncome(id, validated.data, ctx) as Record<string, any>;
     revalidatePath('/incomes');
     revalidatePath(`/incomes/${id}`);
     return { 

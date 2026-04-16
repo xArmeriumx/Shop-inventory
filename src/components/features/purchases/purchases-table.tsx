@@ -13,12 +13,15 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency, formatDate } from '@/lib/formatters';
+import { getPurchaseStatusLabel } from '@/lib/erp-utils';
 import { XCircle, ChevronLeft, ChevronRight, Eye, Package, Edit, Trash2 } from 'lucide-react';
 import { cancelPurchase, convertToPurchaseOrder } from '@/actions/purchases';
 import { useState, useTransition } from 'react';
 import { CancelDialog, PURCHASE_CANCEL_REASONS } from '@/components/features/shared/cancel-dialog';
 import { usePermissions } from '@/hooks/use-permissions';
 import { toast } from 'sonner';
+import { GuidedErrorAlert } from '@/components/ui/guided-error-alert';
+import { ErrorAction } from '@/types/domain';
 
 interface Purchase {
   id: string;
@@ -52,20 +55,13 @@ export function PurchasesTable({ purchases, pagination }: PurchasesTableProps) {
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [cancelDialogPurchase, setCancelDialogPurchase] = useState<Purchase | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [errorInfo, setErrorInfo] = useState<{ message: string; action?: ErrorAction } | null>(null);
   
   // RBAC: Check permissions for actions
   const { hasPermission } = usePermissions();
 
-  const getStatusLabel = (status?: string) => {
-    switch (status) {
-      case 'DRAFT': return 'ฉบับร่าง';
-      case 'PENDING': return 'รอตรวจสอบ';
-      case 'APPROVED': return 'อนุมัติแล้ว';
-      case 'ORDERED': return 'สั่งซื้อแล้ว';
-      case 'RECEIVED': return 'รับสินค้าแล้ว';
-      case 'CANCELLED': return 'ยกเลิก';
-      default: return status || 'N/A';
-    }
+  const getStatusLabel = (status: string, docType: string) => {
+    return getPurchaseStatusLabel(status, docType as any);
   };
 
   const getStatusVariant = (status?: string): any => {
@@ -96,9 +92,12 @@ export function PurchasesTable({ purchases, pagination }: PurchasesTableProps) {
       const result = await convertToPurchaseOrder(id);
       if (result.success) {
         toast.success(result.message);
+        setErrorInfo(null);
         router.refresh();
       } else {
-        toast.error(result.message);
+        const fallbackMsg = result.message || 'ไม่สามารถแปลงเอกสารได้';
+        setErrorInfo({ message: fallbackMsg, action: result.action });
+        toast.error(fallbackMsg);
       }
     } catch {
       toast.error('เกิดข้อผิดพลาดในการแปลงเอกสาร');
@@ -119,9 +118,9 @@ export function PurchasesTable({ purchases, pagination }: PurchasesTableProps) {
         reasonDetail,
       });
       if (!result.success) {
-        toast.error(result.message);
+        toast.error(result.message || 'ไม่สามารถยกเลิกรายการได้');
       } else {
-        toast.success('ยกเลิกรายการสำเร็จ');
+        toast.success(result.message || 'ยกเลิกรายการสำเร็จ');
         setCancelDialogPurchase(null);
       }
       router.refresh();
@@ -146,6 +145,13 @@ export function PurchasesTable({ purchases, pagination }: PurchasesTableProps) {
 
   return (
     <div className="space-y-4">
+      {errorInfo && (
+        <GuidedErrorAlert 
+          message={errorInfo.message} 
+          action={errorInfo.action} 
+          className="mb-4"
+        />
+      )}
       <div className="rounded-lg border bg-card overflow-hidden">
         <div className="overflow-x-auto">
           <Table>
@@ -191,7 +197,7 @@ export function PurchasesTable({ purchases, pagination }: PurchasesTableProps) {
                   </TableCell>
                   <TableCell className="text-right">
                     <Badge variant={getStatusVariant(purchase.status)}>
-                      {getStatusLabel(purchase.status)}
+                      {getStatusLabel(purchase.status, purchase.docType)}
                     </Badge>
                   </TableCell>
                   <TableCell>

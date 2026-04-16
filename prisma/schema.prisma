@@ -310,6 +310,7 @@ model Product {
   // ERP Enhanced Stock logic
   reservedStock Int     @default(0)     // ★ NEW: จำนวนที่จองไว้
   moq           Int?                    // ★ NEW: ยอดสั่งซื้อขั้นต่ำ (Vendor Intelligence)
+  packagingQty  Int     @default(1)     // ★ NEW: จำนวนหน่วยสินค้าต่อแพ็ก/กล่อง (Rule 6.3/14.4)
   metadata      Json?                   // ★ NEW: ข้อมูลเพิ่มเติม (ขนาด, น้ำหนัก, ฯลฯ)
   avgLeadTime   Int?                    // ★ NEW: ระยะเวลาส่งมอบล่วงหน้าเฉลี่ย (วัน)
 
@@ -498,6 +499,7 @@ model PurchaseItem {
   product     Product  @relation(fields: [productId], references: [id])
 
   quantity    Int
+  packagingQty Int     @default(1)     // ★ NEW: Snapshot packaging at time of purchase
   costPrice   Decimal  @db.Decimal(10, 2)
   subtotal    Decimal  @db.Decimal(10, 2)
 
@@ -593,6 +595,7 @@ model SaleItem {
   product     Product  @relation(fields: [productId], references: [id])
 
   quantity    Int
+  packagingQty Int     @default(1)     // ★ NEW: Snapshot packaging at time of sale
   salePrice   Decimal  @db.Decimal(10, 2)
   costPrice   Decimal  @db.Decimal(10, 2)
   subtotal    Decimal  @db.Decimal(10, 2)

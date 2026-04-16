@@ -12,7 +12,11 @@ import { isDynamicServerError } from "@/lib/next-utils";
 export async function getDashboardStats() {
   try {
     const ctx = await requirePermission("SALE_VIEW");
-    return await DashboardService.getDashboardStats(ctx);
+    const [stats, operational] = await Promise.all([
+      DashboardService.getDashboardStats(ctx),
+      DashboardService.getOperationalMetrics(ctx),
+    ]);
+    return { ...stats, operational };
   } catch (error) {
     if (!isDynamicServerError(error) && !(error instanceof Error && error.message.includes('NEXT_REDIRECT'))) {
       console.error('[Action: getDashboardStats] Failed:', error);
@@ -28,7 +32,18 @@ export async function getDashboardStats() {
       pendingPayments: { count: 0, amount: 0 },
       pendingShipments: 0,
       todayExpenses: { total: 0, count: 0 },
-      stockValue: { total: 0, itemCount: 0 }
+      stockValue: { total: 0, itemCount: 0 },
+      governanceHealth: { 
+        auditWriteFailures: 0, 
+        permissionDeniedCount: 0, 
+        rateLimitExceededCount: 0, 
+        lastIncidentAt: null, 
+        status: 'HEALTHY' 
+      },
+      operational: {
+        sme: { pendingSales: 0, pendingProcurement: 0, pendingShipments: 0, recentStockMoves: [] },
+        advanced: { prToOrder: 0, incompleteShipments: 0, stuckDocs: 0, governanceIncidents: 0 }
+      }
     };
   }
 }

@@ -14,7 +14,8 @@ import { ExpenseCategoryReport } from './expense-category-report';
 import { SalesChannelReport } from './sales-channel-report';
 import { CustomerRankingReport } from './customer-ranking-report';
 import { getReportData } from '@/actions/reports';
-import { BarChart3, Package, TrendingUp, GitCompare, LayoutDashboard, Wallet, PieChart, Store, Users } from 'lucide-react';
+import { BarChart3, Package, TrendingUp, GitCompare, LayoutDashboard, Wallet, PieChart, Store, Users, Sparkles } from 'lucide-react';
+import { IntelligenceDashboard } from './intelligence-dashboard';
 
 type ReportData = Awaited<ReturnType<typeof getReportData>>;
 
@@ -76,12 +77,23 @@ export function ReportTabs({ activeTab, startDate, endDate, overviewData }: Repo
             <TrendingUp className="h-3.5 w-3.5 hidden sm:block" />
             กำไรรายสินค้า
           </TabsTrigger>
+          <TabsTrigger value="intelligence" className="gap-1.5 text-xs sm:text-sm shrink-0 border-b-2 border-primary/50 data-[state=active]:bg-primary/5">
+            <Sparkles className="h-3.5 w-3.5 hidden sm:block text-primary" />
+            บทวิเคราะห์อัจฉริยะ
+          </TabsTrigger>
           <TabsTrigger value="comparison" className="gap-1.5 text-xs sm:text-sm shrink-0">
             <GitCompare className="h-3.5 w-3.5 hidden sm:block" />
             เปรียบเทียบ
           </TabsTrigger>
         </TabsList>
       </div>
+
+      {/* 2. Content for each tab */}
+      
+      {/* Intelligence Tab (Deep Analytics) */}
+      <TabsContent value="intelligence">
+        <IntelligenceDashboard startDate={startDate} endDate={endDate} />
+      </TabsContent>
 
       {/* Overview Tab */}
       <TabsContent value="overview">

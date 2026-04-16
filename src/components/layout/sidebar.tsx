@@ -60,6 +60,12 @@ const navItems = [
     permission: 'PRODUCT_VIEW' as Permission,
   },
   {
+    title: 'คลังสินค้า (Mobile)',
+    href: '/warehouse',
+    icon: Truck,
+    permission: 'STOCK_VIEW' as Permission,
+  },
+  {
     title: 'ซื้อสินค้า',
     href: '/purchases',
     icon: Receipt,

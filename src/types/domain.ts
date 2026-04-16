@@ -40,6 +40,7 @@ export type ActionResponse<T = unknown> = {
   message?: string;
   data?: T;
   errors?: Record<string, string[]> | string;
+  action?: ErrorAction;
 };
 
 /**
@@ -57,13 +58,19 @@ export interface PaginatedResult<T> {
   };
 }
 
+export interface ErrorAction {
+  label: string;
+  href: string;
+}
+
 /**
  * ServiceError — Business Logic error ที่มี context ชัดเจน
  */
 export class ServiceError extends Error {
   constructor(
     message: string,
-    public errors?: Record<string, string[]>
+    public errors?: Record<string, string[]>,
+    public action?: ErrorAction
   ) {
     super(message);
     this.name = 'ServiceError';
@@ -156,6 +163,10 @@ export type SaleStatus = (typeof SaleStatus)[keyof typeof SaleStatus];
 export interface GetPurchasesParams extends BaseQueryParams {
   paymentMethod?: string;
   supplierId?: string;
+  status?: string;
+}
+
+export interface GetIncompletePurchasesParams extends BaseQueryParams {
   status?: string;
 }
 

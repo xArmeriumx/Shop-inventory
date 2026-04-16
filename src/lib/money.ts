@@ -108,6 +108,16 @@ export const money = {
    */
   isLessOrEqual: (a: number, b: number): boolean =>
     new Decimal(a).lessThanOrEqualTo(b),
+  
+  /**
+   * Format number in highly compact form (e.g. 1.2K, 500)
+   */
+  short: (val: number): string => {
+    if (val === 0) return '0';
+    if (val < 1000) return val.toString();
+    if (val < 1000000) return (val / 1000).toFixed(1) + 'K';
+    return (val / 1000000).toFixed(1) + 'M';
+  }
 };
 
 /**

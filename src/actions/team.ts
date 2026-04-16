@@ -36,11 +36,11 @@ export async function removeMember(memberId: string): Promise<ActionResponse> {
   const ctx = await requirePermission('TEAM_REMOVE');
 
   try {
-    const member = await IamService.removeMember(memberId, ctx);
+    await IamService.removeMember(memberId, ctx);
     revalidatePath('/settings/team');
     return { 
       success: true, 
-      message: `ลบ ${member.user.name || member.user.email} ออกจากทีมสำเร็จ` 
+      message: 'ลบสมาชิกออกจากทีมสำเร็จ' 
     };
   } catch (error: unknown) {
     if (error instanceof ServiceError) return { success: false, message: error.message };
@@ -54,9 +54,9 @@ export async function inviteMember(input: InviteMemberInput): Promise<ActionResp
   const ctx = await requirePermission('TEAM_INVITE', { rateLimitPolicy: 'invite' });
 
   try {
-    const user = await IamService.inviteMember(input, ctx);
+    await IamService.inviteMember(input, ctx);
     revalidatePath('/settings/team');
-    return { success: true, message: `เพิ่ม ${user.name || user.email} เข้าทีมสำเร็จ` };
+    return { success: true, message: `ส่งคำเชิญให้ ${input.email} สำเร็จ` };
   } catch (error: unknown) {
     if (error instanceof ServiceError) return { success: false, message: error.message };
     const typedError = error as Error;

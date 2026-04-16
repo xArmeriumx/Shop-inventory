@@ -3,65 +3,61 @@ import { Package, TrendingUp, ShoppingCart, AlertCircle, Truck, Wallet, Warehous
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getDashboardStats, getMonthlyStats } from '@/actions/dashboard';
+import { refreshOperationalAlerts } from '@/actions/notifications';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { SafeBoundary } from '@/components/ui/safe-boundary';
+import { GovernanceHealthCard } from '@/components/dashboard/governance-health-card';
+import { ActionableSmeDashboard } from '@/components/features/dashboard/action-cards';
+import { AdvancedOpsDashboard } from '@/components/features/dashboard/advanced-dashboard';
+import { requireAuth } from '@/lib/auth-guard';
 
 
 async function DashboardContent() {
-  const [stats, monthlyStats] = await Promise.all([
+  const [stats, monthlyStats, ctx] = await Promise.all([
     getDashboardStats(),
     getMonthlyStats(),
+    requireAuth(),
   ]);
+
+  await refreshOperationalAlerts(); // Proactive Health Check (Phase 5 Heartbeat)
 
   const statsCards = [
     {
-      title: 'Today Sales',
+      title: 'วันนี้ยอดขาย',
       value: formatCurrency(stats.todaySales.revenue.toString()),
-      subtitle: `${stats.todaySales.count} orders`,
+      subtitle: `${stats.todaySales.count} รายการ`,
       icon: ShoppingCart,
       iconColor: 'text-blue-600',
     },
     {
-      title: 'Today Profit',
+      title: 'วันนี้กำไร',
       value: formatCurrency(stats.todaySales.profit.toString()),
-      subtitle: `from ${stats.todaySales.count} orders`,
+      subtitle: `จาก ${stats.todaySales.count} รายการ`,
       icon: TrendingUp,
       iconColor: 'text-green-600',
     },
     {
-      title: 'Products',
+      title: 'สินค้าทั้งหมด',
       value: stats.totalProducts.toString(),
-      subtitle: 'active items',
+      subtitle: 'รายการที่เปืดขาย',
       icon: Package,
       iconColor: 'text-purple-600',
     },
     {
-      title: 'Low Stock',
-      value: stats.lowStockCount.toString(),
-      subtitle: 'need restock',
-      icon: AlertCircle,
-      iconColor: 'text-red-600',
-    },
-    {
-      title: 'Pending Shipments',
-      value: stats.pendingShipments.toString(),
-      subtitle: 'awaiting dispatch',
-      icon: Truck,
-      iconColor: 'text-cyan-600',
-      href: '/shipments?status=PENDING',
-    },
-    {
-      title: 'Stock Value',
+      title: 'มูลค่าสต็อกรวม',
       value: formatCurrency(stats.stockValue.total.toString()),
-      subtitle: `${stats.stockValue.itemCount} items in stock`,
+      subtitle: `${stats.stockValue.itemCount} ชิ้นในคลัง`,
       icon: Warehouse,
       iconColor: 'text-indigo-600',
       href: '/reports?tab=stock-value',
     },
   ];
+
+  // We consider a user "Admin" if they can view reports or delete products
+  const isAdmin = ctx.permissions.includes('REPORT_VIEW_SALES' as any);
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -91,29 +87,45 @@ async function DashboardContent() {
         </div>
       </SafeBoundary>
 
-      {/* Monthly Summary + Today Expenses */}
-      <SafeBoundary variant="compact" componentName="Dashboard:MonthlySummary">
-        <div className="grid gap-4 lg:grid-cols-3">
+      {/* SME Operational Priorities (Rule: Easy Language) */}
+      <SafeBoundary variant="compact" componentName="Dashboard:ActionableSme">
+        <ActionableSmeDashboard 
+          metrics={(stats as any).operational.sme} 
+          lowStockCount={stats.lowStockCount}
+        />
+      </SafeBoundary>
+
+      {/* Advanced ERP Operations (Collapsible) */}
+      <SafeBoundary variant="compact" componentName="Dashboard:AdvancedOps">
+        <AdvancedOpsDashboard 
+          metrics={(stats as any).operational.advanced}
+          isAdmin={isAdmin}
+        />
+      </SafeBoundary>
+
+      {/* Monthly Summary + Today Expenses + Governance */}
+      <SafeBoundary variant="compact" componentName="Dashboard:OperationsOverview">
+        <div className="grid gap-4 lg:grid-cols-4">
           <Card className="lg:col-span-2">
             <CardHeader className="pb-2 sm:pb-4">
-              <CardTitle className="text-base sm:text-lg">Monthly Summary</CardTitle>
+              <CardTitle className="text-base sm:text-lg">สรุปรายเดือน</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-3 gap-2 sm:gap-4">
                 <div className="text-center sm:text-left">
-                  <p className="text-[10px] sm:text-sm text-muted-foreground">Revenue</p>
+                  <p className="text-[10px] sm:text-sm text-muted-foreground">ยอดขาย</p>
                   <p className="text-sm sm:text-2xl font-bold truncate">
                     {formatCurrency(monthlyStats.revenue.toString())}
                   </p>
                 </div>
                 <div className="text-center sm:text-left">
-                  <p className="text-[10px] sm:text-sm text-muted-foreground">Profit</p>
+                  <p className="text-[10px] sm:text-sm text-muted-foreground">กำไร</p>
                   <p className="text-sm sm:text-2xl font-bold text-green-600 truncate">
                     {formatCurrency(monthlyStats.profit.toString())}
                   </p>
                 </div>
                 <div className="text-center sm:text-left">
-                  <p className="text-[10px] sm:text-sm text-muted-foreground">Orders</p>
+                  <p className="text-[10px] sm:text-sm text-muted-foreground">รายการขาย</p>
                   <p className="text-sm sm:text-2xl font-bold">{monthlyStats.count}</p>
                 </div>
               </div>
@@ -123,16 +135,18 @@ async function DashboardContent() {
             <CardHeader className="pb-2 sm:pb-4">
               <div className="flex items-center gap-2">
                 <Wallet className="h-4 w-4 text-muted-foreground" />
-                <CardTitle className="text-base sm:text-lg">Today Expenses</CardTitle>
+                <CardTitle className="text-base sm:text-lg">ค่าใช้จ่ายวันนี้</CardTitle>
               </div>
             </CardHeader>
             <CardContent>
               <p className="text-lg sm:text-2xl font-bold text-red-600">
                 {formatCurrency(stats.todayExpenses.total.toString())}
               </p>
-              <p className="text-xs text-muted-foreground">{stats.todayExpenses.count} items</p>
+              <p className="text-xs text-muted-foreground">{stats.todayExpenses.count} รายการ</p>
             </CardContent>
           </Card>
+          
+          <GovernanceHealthCard data={(stats as any).governanceHealth} />
         </div>
       </SafeBoundary>
 
@@ -238,13 +252,20 @@ async function DashboardContent() {
                             </p>
                           )}
                         </div>
-                        <div className="text-right">
-                          <p className="text-sm font-bold text-red-600">
-                            {product.stock} left
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            min: {product.minStock}
-                          </p>
+                        <div className="flex flex-col items-end gap-2 text-right">
+                          <div>
+                            <p className="text-sm font-bold text-red-600">
+                              {product.stock} left
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              min: {product.minStock}
+                            </p>
+                          </div>
+                          <Button variant="ghost" size="icon" asChild className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-100">
+                            <Link href={`/purchases/new?productId=${product.id}&quantity=${Math.max(product.minStock * 2 - product.stock, 1)}`}>
+                              <ShoppingCart className="h-4 w-4" />
+                            </Link>
+                          </Button>
                         </div>
                       </div>
                     ))}

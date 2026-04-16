@@ -12,6 +12,8 @@ import {
   SerializedCustomer,
   PaginatedResult,
 } from '@/types/domain';
+import { AuditService } from './audit.service';
+import { CUSTOMER_AUDIT_POLICIES } from './customer.policy';
 import { ICustomerService } from '@/types/service-contracts';
 
 export const CustomerService: ICustomerService = {
@@ -67,33 +69,39 @@ export const CustomerService: ICustomerService = {
   },
 
   async create(ctx: RequestContext, data: CustomerInput): Promise<SerializedCustomer> {
-    // ERP UC 3: Auto-assign Salespersons by Region
-    let assignedSalespersons: { id: string }[] = [];
-    if (data.region) {
-      const salesTeam = await this.getSalespersonsByRegion(data.region, ctx);
-      assignedSalespersons = salesTeam.map(s => ({ id: s.id }));
-    }
+    return AuditService.runWithAudit(
+      ctx,
+      CUSTOMER_AUDIT_POLICIES.CREATE(data.name),
+      async () => {
+        // ERP UC 3: Auto-assign Salespersons by Region
+        let assignedSalespersons: { id: string }[] = [];
+        if (data.region) {
+          const salesTeam = await this.getSalespersonsByRegion(data.region, ctx);
+          assignedSalespersons = salesTeam.map(s => ({ id: s.id }));
+        }
 
-    const customer = await db.customer.create({
-      data: {
-        ...data,
-        name: data.name,
-        phone: data.phone || null,
-        address: data.address || null,
-        taxId: data.taxId || null,
-        notes: data.notes || null,
-        userId: ctx.userId,
-        shopId: ctx.shopId,
-        salesPersons: assignedSalespersons.length > 0 ? {
-          connect: assignedSalespersons
-        } : undefined,
-      },
-    });
+        const customer = await db.customer.create({
+          data: {
+            ...data,
+            name: data.name,
+            phone: data.phone || null,
+            address: data.address || null,
+            taxId: data.taxId || null,
+            notes: data.notes || null,
+            userId: ctx.userId,
+            shopId: ctx.shopId,
+            salesPersons: assignedSalespersons.length > 0 ? {
+              connect: assignedSalespersons
+            } : undefined,
+          },
+        });
 
-    return {
-      ...customer,
-      creditLimit: customer.creditLimit ? Number(customer.creditLimit) : null,
-    };
+        return {
+          ...customer,
+          creditLimit: customer.creditLimit ? Number(customer.creditLimit) : null,
+        };
+      }
+    );
   },
 
   async update(id: string, ctx: RequestContext, data: CustomerInput): Promise<SerializedCustomer> {
@@ -105,35 +113,45 @@ export const CustomerService: ICustomerService = {
       throw new ServiceError('ไม่พบข้อมูลลูกค้า หรือลูกค้าถูกลบไปแล้ว');
     }
 
-    // ERP UC 3: Auto-update Salespersons if Region changed
-    let salespersonUpdate: any = undefined;
-    if (data.region && data.region !== existing.region) {
-      const salesTeam = await this.getSalespersonsByRegion(data.region, ctx);
-      salespersonUpdate = {
-        set: salesTeam.map(s => ({ id: s.id }))
-      };
-    }
-
-    const customer = await db.customer.update({
-      where: { id },
-      data: {
-        ...data,
-        name: data.name,
-        phone: data.phone || null,
-        address: data.address || null,
-        taxId: data.taxId || null,
-        notes: data.notes || null,
-        salesPersons: salespersonUpdate,
+    return AuditService.runWithAudit(
+      ctx,
+      {
+        ...CUSTOMER_AUDIT_POLICIES.UPDATE(id, existing.name),
+        beforeSnapshot: () => existing,
+        afterSnapshot: () => db.customer.findFirst({ where: { id } }),
       },
-    });
+      async () => {
+        // ERP UC 3: Auto-update Salespersons if Region changed
+        let salespersonUpdate: any = undefined;
+        if (data.region && data.region !== existing.region) {
+          const salesTeam = await this.getSalespersonsByRegion(data.region, ctx);
+          salespersonUpdate = {
+            set: salesTeam.map(s => ({ id: s.id }))
+          };
+        }
 
-    return {
-      ...customer,
-      creditLimit: customer.creditLimit ? Number(customer.creditLimit) : null,
-    };
+        const customer = await db.customer.update({
+          where: { id },
+          data: {
+            ...data,
+            name: data.name,
+            phone: data.phone || null,
+            address: data.address || null,
+            taxId: data.taxId || null,
+            notes: data.notes || null,
+            salesPersons: salespersonUpdate,
+          },
+        });
+
+        return {
+          ...customer,
+          creditLimit: customer.creditLimit ? Number(customer.creditLimit) : null,
+        };
+      }
+    );
   },
 
-  async delete(id: string, ctx: RequestContext) {
+  async delete(id: string, ctx: RequestContext): Promise<void> {
     const existing = await db.customer.findFirst({
       where: { id, shopId: ctx.shopId, deletedAt: null },
     });
@@ -142,10 +160,19 @@ export const CustomerService: ICustomerService = {
       throw new ServiceError('ไม่พบข้อมูลลูกค้า');
     }
 
-    await db.customer.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-    });
+    await AuditService.runWithAudit(
+      ctx,
+      {
+        ...CUSTOMER_AUDIT_POLICIES.DELETE(id, existing.name),
+        beforeSnapshot: () => existing,
+      },
+      async () => {
+        await db.customer.update({
+          where: { id },
+          data: { deletedAt: new Date() },
+        });
+      }
+    );
   },
 
   async getForSelect(ctx: RequestContext) {
@@ -311,61 +338,88 @@ export const CustomerService: ICustomerService = {
     return address;
   },
 
-  async createAddress(customerId: string, ctx: RequestContext, data: any) {
+  async createAddress(customerId: string, ctx: RequestContext, data: any): Promise<any> {
     const customer = await db.customer.findFirst({
       where: { id: customerId, shopId: ctx.shopId, deletedAt: null },
     });
 
     if (!customer) throw new ServiceError('ไม่พบข้อมูลลูกค้า');
 
-    if (data.isDefault) {
-      await db.customerAddress.updateMany({
-        where: { customerId, shopId: ctx.shopId, isDefault: true },
-        data: { isDefault: false },
-      });
-    }
+    return AuditService.runWithAudit(
+      ctx,
+      CUSTOMER_AUDIT_POLICIES.ADDRESS_CREATE(customer.name),
+      async () => {
+        if (data.isDefault) {
+          await db.customerAddress.updateMany({
+            where: { customerId, shopId: ctx.shopId, isDefault: true },
+            data: { isDefault: false },
+          });
+        }
 
-    return db.customerAddress.create({
-      data: { ...data, customerId, shopId: ctx.shopId },
-    });
+        return db.customerAddress.create({
+          data: { ...data, customerId, shopId: ctx.shopId },
+        });
+      }
+    );
   },
 
-  async updateAddress(id: string, ctx: RequestContext, data: any) {
+  async updateAddress(id: string, ctx: RequestContext, data: any): Promise<void> {
     const existing = await db.customerAddress.findFirst({
       where: { id, shopId: ctx.shopId, deletedAt: null },
+      include: { customer: { select: { name: true } } }
     });
 
     if (!existing) throw new ServiceError('ไม่พบข้อมูลที่อยู่');
 
-    if (data.isDefault) {
-      await db.customerAddress.updateMany({
-        where: {
-          customerId: existing.customerId,
-          shopId: ctx.shopId,
-          isDefault: true,
-          id: { not: id },
-        },
-        data: { isDefault: false },
-      });
-    }
+    await AuditService.runWithAudit(
+      ctx,
+      {
+        ...CUSTOMER_AUDIT_POLICIES.ADDRESS_UPDATE(id, existing.customer.name),
+        beforeSnapshot: () => existing,
+        afterSnapshot: () => db.customerAddress.findFirst({ where: { id } }),
+      },
+      async () => {
+        if (data.isDefault) {
+          await db.customerAddress.updateMany({
+            where: {
+              customerId: existing.customerId,
+              shopId: ctx.shopId,
+              isDefault: true,
+              id: { not: id },
+            },
+            data: { isDefault: false },
+          });
+        }
 
-    return db.customerAddress.update({
-      where: { id },
-      data,
-    });
+        await db.customerAddress.update({
+          where: { id },
+          data,
+        });
+      }
+    );
   },
 
-  async deleteAddress(id: string, ctx: RequestContext) {
+  async deleteAddress(id: string, ctx: RequestContext): Promise<void> {
     const existing = await db.customerAddress.findFirst({
       where: { id, shopId: ctx.shopId, deletedAt: null },
+      include: { customer: { select: { name: true } } }
     });
 
     if (!existing) throw new ServiceError('ไม่พบข้อมูลที่อยู่');
 
-    await db.customerAddress.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-    });
+    await AuditService.runWithAudit(
+      ctx,
+      {
+        ...CUSTOMER_AUDIT_POLICIES.ADDRESS_DELETE(id, existing.customer.name),
+        beforeSnapshot: () => existing,
+      },
+      async () => {
+        await db.customerAddress.update({
+          where: { id },
+          data: { deletedAt: new Date() },
+        });
+      }
+    );
   },
 
   /**

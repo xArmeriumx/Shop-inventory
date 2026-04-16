@@ -10,11 +10,7 @@ export const IAM_AUDIT_POLICIES = {
     action: 'IAM_ROLE_CREATE',
     targetType: 'Role',
     note: `สร้างบทบาทใหม่: ${roleName}`,
-    afterSnapshot: (data: any) => ({
-      id: data.id,
-      name: data.name,
-      permissions: data.permissions,
-    })
+    allowlist: ['id', 'name', 'permissions', 'description', 'isDefault'],
   }),
 
   UPDATE_ROLE: (roleId: string, roleName: string, shopId?: string | null): AuditPolicy => ({
@@ -22,11 +18,7 @@ export const IAM_AUDIT_POLICIES = {
     targetType: 'Role',
     targetId: roleId,
     note: `แก้ไขบทบาท: ${roleName}`,
-    afterSnapshot: (data: any) => ({
-      id: data.id,
-      name: data.name,
-      permissions: data.permissions,
-    })
+    allowlist: ['id', 'name', 'permissions', 'description', 'isDefault'],
   }),
 
   DELETE_ROLE: (roleId: string, shopId?: string | null): AuditPolicy => ({
@@ -42,11 +34,7 @@ export const IAM_AUDIT_POLICIES = {
     targetType: 'Shop',
     targetId: shopId,
     note: `เชิญสมาชิกใหม่เข้าร้าน`,
-    afterSnapshot: (data: any) => ({
-      userId: data.id,
-      email: data.email,
-      name: data.name,
-    })
+    allowlist: ['id', 'email', 'name', 'roleId'],
   }),
 
   UPDATE_MEMBER_ROLE: (memberId: string, shopId?: string | null): AuditPolicy => ({
@@ -54,11 +42,7 @@ export const IAM_AUDIT_POLICIES = {
     targetType: 'ShopMember',
     targetId: memberId,
     note: `เปลี่ยนบทบาทสมาชิก`,
-    afterSnapshot: (data: any) => ({
-      memberId: data.id,
-      roleId: data.roleId,
-      userId: data.userId,
-    })
+    allowlist: ['id', 'roleId', 'userId', 'permissionVersion'],
   }),
 
   REMOVE_MEMBER: (memberId: string, shopId?: string | null): AuditPolicy => ({
@@ -73,5 +57,19 @@ export const IAM_AUDIT_POLICIES = {
     action: 'IAM_SHOP_TRANSFER',
     targetType: 'Shop',
     note: `โอนกรรมสิทธิ์ร้าน ${shopName} จาก ${fromUser} ไปยัง ${toUser}`,
+  }),
+
+  SESSION_REVOKE_ALL: (userId: string): AuditPolicy => ({
+    action: 'SESSION_REVOKE_ALL',
+    targetType: 'User',
+    targetId: userId,
+    note: 'ผู้ใช้ออกจากระบบทุกอุปกรณ์',
+  }),
+
+  SESSION_REVOKE_BY_ADMIN: (targetUserId: string, adminName: string): AuditPolicy => ({
+    action: 'SESSION_REVOKE_BY_ADMIN',
+    targetType: 'User',
+    targetId: targetUserId,
+    note: `Admin (${adminName}) เพิกถอน session ของผู้ใช้`,
   })
 };

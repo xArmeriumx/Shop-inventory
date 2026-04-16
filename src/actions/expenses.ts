@@ -31,7 +31,7 @@ export async function createExpense(input: ExpenseInput) {
   }
 
   try {
-    const expense = await FinanceService.createExpense(validated.data, ctx);
+    const expense = await FinanceService.createExpense(validated.data, ctx) as Record<string, any>;
     revalidatePath('/expenses');
     revalidatePath('/dashboard');
     return { 
@@ -57,7 +57,7 @@ export async function updateExpense(id: string, input: ExpenseInput) {
   }
 
   try {
-    const expense = await FinanceService.updateExpense(id, validated.data, ctx);
+    const expense = await FinanceService.updateExpense(id, validated.data, ctx) as Record<string, any>;
     revalidatePath('/expenses');
     revalidatePath(`/expenses/${id}`);
     return { 

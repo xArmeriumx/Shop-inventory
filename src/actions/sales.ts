@@ -103,16 +103,16 @@ export async function cancelSale(input: CancelSaleInput) {
     revalidatePath('/expenses');
     revalidatePath('/shipments');
     revalidatePath('/dashboard');
-    return { success: true };
+    return { success: true, message: 'ยกเลิกรายการขายเรียบร้อย' };
   } catch (error: unknown) {
-    if (error instanceof ServiceError) return { error: error.message };
+    if (error instanceof ServiceError) return { success: false, message: error.message };
     const typedError = error as Error;
     await logger.error('Failed to cancel sale', typedError, { 
       path: 'cancelSale', 
       userId: ctx.userId, 
       saleId: input.id,
     });
-    return { error: typedError.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง' };
+    return { success: false, message: typedError.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง' };
   }
 }
 

@@ -90,8 +90,8 @@ export function SalesTable({ sales, pagination }: SalesTableProps) {
         reasonCode,
         reasonDetail,
       });
-      if (result.error) {
-        alert(result.error);
+      if (!result.success) {
+        alert(result.message || 'เกิดข้อผิดพลาดในการยกเลิก');
       } else {
         setCancelDialogSale(null);
       }

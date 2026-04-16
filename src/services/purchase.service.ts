@@ -16,6 +16,7 @@ import {
   PurchaseType,
   SerializedPurchase,
   SerializedPurchaseWithItems,
+  GetIncompletePurchasesParams,
 } from '@/types/domain';
 import { IPurchaseService, PurchaseRequestInput } from '@/types/service-contracts';
 import { SequenceService } from './sequence.service';
@@ -132,6 +133,13 @@ export const PurchaseService: IPurchaseService = {
       PURCHASE_AUDIT_POLICIES.CREATE('New Purchase'),
       async () => {
         return runInTransaction(tx, async (prisma) => {
+          const productIds = items.map(i => i.productId);
+          const products = await prisma.product.findMany({
+            where: { id: { in: productIds } },
+            select: { id: true, packagingQty: true }
+          });
+          const productPackMap = new Map(products.map(p => [p.id, p.packagingQty]));
+
           const totalCost = items.reduce((sum, item) => money.add(sum, calcSubtotal(item.quantity, item.costPrice)), 0);
           const purchaseNumber = await SequenceService.generate(ctx, DocumentType.PURCHASE_ORDER, prisma, {
             purchaseType: purchaseData.purchaseType as any,
@@ -149,6 +157,7 @@ export const PurchaseService: IPurchaseService = {
                 create: items.map((item) => ({
                   productId: item.productId,
                   quantity: item.quantity,
+                  packagingQty: productPackMap.get(item.productId) || 1,
                   costPrice: item.costPrice,
                   subtotal: calcSubtotal(item.quantity, item.costPrice),
                 })),
@@ -260,6 +269,13 @@ export const PurchaseService: IPurchaseService = {
     return await runInTransaction(undefined, async (prisma) => {
       const { items, purchaseType, notes, supplierId } = payload;
       
+      const productIds = items.map(i => i.productId);
+      const products = await prisma.product.findMany({
+        where: { id: { in: productIds } },
+        select: { id: true, packagingQty: true }
+      });
+      const productPackMap = new Map(products.map(p => [p.id, p.packagingQty]));
+
       const requestNumber = await SequenceService.generate(ctx, DocumentType.PURCHASE_REQUEST, prisma, {
         purchaseType: payload.purchaseType,
       });
@@ -284,6 +300,7 @@ export const PurchaseService: IPurchaseService = {
             create: items.map(item => ({
               productId: item.productId,
               quantity: item.quantity,
+              packagingQty: productPackMap.get(item.productId) || 1,
               costPrice: item.costPrice,
               subtotal: calcSubtotal(item.quantity, item.costPrice),
             })),
@@ -321,6 +338,14 @@ export const PurchaseService: IPurchaseService = {
             throw new ServiceError('ใบขอซื้อต้องได้รับการอนุมัติก่อน');
           }
 
+          if (!fullPR.supplierId) {
+            throw new ServiceError(
+              'ไม่สามารถออก PO ได้เนื่องจากยังไม่ได้ระบุผู้จำหน่ายในใบขอซื้อ',
+              undefined,
+              { label: 'ระบุผู้จำหน่ายตอนนี้', href: `/purchases/${prId}` }
+            );
+          }
+
           const poNumber = await SequenceService.generate(ctx, DocumentType.PURCHASE_ORDER, prisma, {
             purchaseType: fullPR.purchaseType as any,
           });
@@ -342,6 +367,7 @@ export const PurchaseService: IPurchaseService = {
                 create: fullPR.items.map(item => ({
                   productId: item.productId,
                   quantity: item.quantity,
+                  packagingQty: (item as any).packagingQty || 1,
                   costPrice: item.costPrice,
                   subtotal: item.subtotal,
                 })),
@@ -540,6 +566,168 @@ export const PurchaseService: IPurchaseService = {
           });
 
           return updated;
+        });
+      }
+    );
+  },
+
+  /**
+   * เครื่องมือสำหรับ Admin: ดึงรายการ PR ที่ข้อมูลไม่ครบ (เช่น ไม่มีผู้ขาย)
+   */
+  async getIncompleteRequests(params: GetIncompletePurchasesParams, ctx: RequestContext) {
+    Security.requirePermission(ctx, 'PURCHASE_VIEW');
+
+    const where: Prisma.PurchaseWhereInput = {
+      shopId: ctx.shopId,
+      status: 'DRAFT',
+      supplierId: null,
+    };
+
+    const count = await db.purchase.count({ where });
+    const purchases = await db.purchase.findMany({
+      where,
+      include: {
+        items: {
+          include: {
+            product: {
+              select: { name: true, sku: true }
+            }
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      skip: ((params.page || 1) - 1) * (params.pageSize || 10),
+      take: params.pageSize || 10,
+    });
+
+    return {
+      items: purchases.map(p => ({
+        ...p,
+        totalCost: Number(p.totalCost),
+        items: p.items.map(item => ({
+          ...item,
+          costPrice: Number(item.costPrice),
+          subtotal: Number(item.subtotal),
+        })),
+      })),
+      total: count,
+      page: params.page || 1,
+      pageSize: params.pageSize || 10,
+      totalPages: Math.ceil(count / (params.pageSize || 10)),
+    };
+  },
+
+  /**
+   * เครื่องมือสำหรับ Admin: มอบหมายผู้ขายให้กับ PR แบบด่วน
+   */
+  async quickAssignSupplier(ids: string[], supplierId: string, ctx: RequestContext) {
+    Security.requirePermission(ctx, 'PURCHASE_EDIT');
+
+    if (!ids.length) return { success: true, count: 0 };
+
+    const result = await db.purchase.updateMany({
+      where: {
+        id: { in: ids },
+        shopId: ctx.shopId,
+        status: 'DRAFT',
+        supplierId: null,
+      },
+      data: {
+        supplierId,
+      },
+    });
+
+    await AuditService.runWithAudit(
+      ctx,
+      {
+        action: 'UPDATE',
+        category: 'PURCHASE',
+        details: `Quick assign supplier ${supplierId} to ${result.count} documents`,
+        resourceId: ids[0], // Reference one of the IDs
+      },
+      async () => {
+        // Audit is logged by the system
+      }
+    );
+
+    return { success: true, count: result.count };
+  },
+
+  /**
+   * UC 22: Bulk Create Draft PRs from suggestions
+   */
+  async createBulkDraftPRs(entries: { productId: string, quantity: number, supplierId?: string }[], ctx: RequestContext) {
+    Security.requirePermission(ctx, 'PURCHASE_CREATE');
+    
+    if (!entries.length) return { success: true, createdCount: 0 };
+
+    // Group items by supplier
+    const groupedBySupplier = new Map<string | 'NONE', typeof entries>();
+    entries.forEach(item => {
+      const key = item.supplierId || 'NONE';
+      if (!groupedBySupplier.has(key)) groupedBySupplier.set(key, []);
+      groupedBySupplier.get(key)!.push(item);
+    });
+
+    return await AuditService.runWithAudit(
+      ctx,
+      {
+        action: 'CREATE',
+        category: 'PURCHASE',
+        details: `Bulk generate PR drafts for ${groupedBySupplier.size} suppliers from suggestions`,
+      },
+      async () => {
+        return runInTransaction(undefined, async (prisma) => {
+          let prCount = 0;
+
+          // Create one PR per supplier
+          for (const [supplierId, items] of groupedBySupplier.entries()) {
+            const actualSupplierId = supplierId === 'NONE' ? null : supplierId;
+            
+            // Get product info for cost and packaging
+            const productIds = items.map(i => i.productId);
+            const products = await prisma.product.findMany({
+              where: { id: { in: productIds } },
+              select: { id: true, costPrice: true, packagingQty: true }
+            });
+            const productMap = new Map(products.map(p => [p.id, p]));
+
+            const requestNumber = await SequenceService.generate(ctx, DocumentType.PURCHASE_REQUEST, prisma, {
+              purchaseType: 'LOCAL',
+            });
+
+            await prisma.purchase.create({
+              data: {
+                purchaseNumber: requestNumber,
+                purchaseType: 'LOCAL',
+                docType: 'REQUEST',
+                status: PurchaseStatus.DRAFT,
+                supplierId: actualSupplierId,
+                userId: ctx.userId,
+                shopId: ctx.shopId,
+                totalCost: items.reduce((sum, i) => {
+                  const p = productMap.get(i.productId);
+                  return money.add(sum, calcSubtotal(i.quantity, toNumber(p?.costPrice || 0)));
+                }, 0),
+                items: {
+                  create: items.map(item => {
+                    const p = productMap.get(item.productId);
+                    const cost = toNumber(p?.costPrice || 0);
+                    return {
+                      productId: item.productId,
+                      quantity: item.quantity,
+                      costPrice: cost,
+                      subtotal: calcSubtotal(item.quantity, cost),
+                      packagingQty: p?.packagingQty || 1,
+                    };
+                  }),
+                },
+              },
+            });
+            prCount++;
+          }
+
+          return { success: true, createdCount: prCount };
         });
       }
     );

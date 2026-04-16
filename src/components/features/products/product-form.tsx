@@ -52,6 +52,7 @@ export function ProductForm({ product, categories }: ProductFormProps) {
       stock: isEdit ? undefined : (parseInt(formData.get('stock') as string) || 0),
       minStock: parseInt(formData.get('minStock') as string) || 5,
       moq: formData.get('moq') ? parseInt(formData.get('moq') as string) : null,
+      packagingQty: parseInt(formData.get('packagingQty') as string) || 1,
       isActive,
       isSaleable,
       images: images,
@@ -200,10 +201,17 @@ export function ProductForm({ product, categories }: ProductFormProps) {
                   <span className="h-2 w-2 rounded-full bg-primary" />
                   ERP & Procurement Settings
                 </h3>
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-3">
                   <div className="space-y-2">
                     <Label htmlFor="moq">ยอดสั่งซื้อขั้นต่ำ (MOQ)</Label>
                     <Input id="moq" name="moq" type="number" min="0" defaultValue={product?.moq || ''} placeholder="ระบุ MOQ ถ้ามี" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="packagingQty" className="flex items-center gap-2">
+                      จำนวนต่อแพ็ก/กล่อง
+                      <span className="text-[10px] text-muted-foreground font-normal">(1 = ไม่มีการแพ็กพิเศษ)</span>
+                    </Label>
+                    <Input id="packagingQty" name="packagingQty" type="number" min="1" defaultValue={product?.packagingQty || 1} required />
                   </div>
                   <div className="flex flex-col gap-3 justify-center">
                     <div className="flex items-center space-x-2">

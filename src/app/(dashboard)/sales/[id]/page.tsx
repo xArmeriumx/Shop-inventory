@@ -12,6 +12,7 @@ import { Separator } from '@/components/ui/separator';
 import { getSale } from '@/actions/sales';
 import { getShop } from '@/actions/shop';
 import { formatCurrency } from '@/lib/formatters';
+import { calculateCtn } from '@/lib/erp-utils';
 import Loading from '@/app/(dashboard)/loading';
 import { PrintButton } from '@/components/features/sales/print-button';
 import { ReceiptImage } from '@/components/features/receipts/receipt-image';
@@ -159,7 +160,9 @@ async function SaleDetails({ id }: { id: string }) {
                   <th className="p-3 font-medium">ลำดับ</th>
                   <th className="p-3 font-medium">รายการ</th>
                   <th className="p-3 font-medium text-right">ราคาต่อหน่วย</th>
-                  <th className="p-3 font-medium text-right">จำนวน</th>
+                  <th className="p-3 font-medium text-right">จำนวน (Unit)</th>
+                  <th className="p-3 font-medium text-right">บรรจุภัณฑ์ (Pack)</th>
+                  <th className="p-3 font-medium text-right">จำนวนกล่อง (CTN)</th>
                   <th className="p-3 font-medium text-right">รวม</th>
                 </tr>
               </thead>
@@ -176,7 +179,11 @@ async function SaleDetails({ id }: { id: string }) {
                       )}
                     </td>
                     <td className="p-3 text-right">{formatCurrency(Number(item.salePrice))}</td>
-                    <td className="p-3 text-right">{item.quantity}</td>
+                    <td className="p-3 text-right font-medium">{item.quantity}</td>
+                    <td className="p-3 text-right text-muted-foreground">{item.packagingQty || 1}</td>
+                    <td className="p-3 text-right font-bold text-primary">
+                      {calculateCtn(item.quantity, item.packagingQty || 1)}
+                    </td>
                     <td className="p-3 text-right">{formatCurrency(Number(item.subtotal))}</td>
                   </tr>
                 ))}

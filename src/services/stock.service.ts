@@ -49,7 +49,11 @@ export const StockService: IStockService = {
 
           const available = product.stock - product.reservedStock;
           if (available < quantity) {
-            throw new Error(`สต็อกสินค้า "${product.name}" ไม่พอสำหรับจอง (คงเหลือที่สั่งซื้อได้: ${available})`);
+            throw new ServiceError(
+              `สต็อกสินค้า "${product.name}" ไม่พอสำหรับจอง (คงเหลือที่สั่งซื้อได้: ${available})`,
+              undefined,
+              { label: 'สั่งซื้อสินค้าเพิ่ม', href: '/purchases/new' }
+            );
           }
 
           const updatedProduct = await prisma.product.update({
@@ -128,18 +132,8 @@ export const StockService: IStockService = {
             },
           });
 
-          // Notification: Low stock alert
-          if (isLowStock && newStock > 0) {
-            NotificationService.create({
-              shopId: ctx.shopId,
-              type: 'LOW_STOCK',
-              severity: 'WARNING',
-              title: `สินค้าใกล้หมด: ${product.name}`,
-              message: `เหลือ ${newStock} ชิ้น (ขั้นต่ำ ${product.minStock})`,
-              link: `/products/${productId}`,
-              groupKey: `LOW_STOCK:${productId}`,
-            }).catch(() => {});
-          }
+          // Notification: Trigger Operational Health Check (Summary)
+          NotificationService.checkOperationalHealth(ctx.shopId).catch(() => {});
 
           return {
             ...updatedProduct,
@@ -261,8 +255,10 @@ export const StockService: IStockService = {
           const newStock = currentProduct.stock + quantity;
 
           if (requireStock && (available + quantity < 0)) {
-            throw new Error(
-              `สินค้า "${currentProduct.name}" สต็อกไม่พอ (เหลือที่สั่งได้ ${available})`
+            throw new ServiceError(
+              `สินค้า "${currentProduct.name}" สต็อกไม่พอ (เหลือที่สั่งได้ ${available})`,
+              undefined,
+              { label: 'สั่งซื้อสินค้าเพิ่ม', href: '/purchases/new' }
             );
           }
 
@@ -277,19 +273,8 @@ export const StockService: IStockService = {
             },
           });
 
-          if (isLowStock && newStock > 0) {
-            NotificationService.create({
-              shopId: finalShopId,
-              type: 'LOW_STOCK',
-              severity: 'WARNING',
-              title: `สินค้าใกล้หมด: ${currentProduct.name}`,
-              message: `เหลือ ${updatedProduct.stock} ชิ้น (ขั้นต่ำ ${currentProduct.minStock})`,
-              link: `/products/${productId}`,
-              groupKey: `LOW_STOCK:${productId}`,
-            }).catch(() => {});
-          } else if (!isLowStock) {
-            NotificationService.removeByGroupKey(finalShopId, `LOW_STOCK:${productId}`).catch(() => {});
-          }
+          // Notification: Trigger Operational Health Check (Summary)
+          NotificationService.checkOperationalHealth(finalShopId).catch(() => {});
           
           await prisma.stockLog.create({
             data: {
@@ -345,7 +330,11 @@ export const StockService: IStockService = {
           const newStock = product.stock + m.quantity;
 
           if (m.requireStock && (available + m.quantity < 0)) {
-            throw new Error(`สินค้า "${product.name}" สต็อกไม่พอ (สั่งได้ ${available})`);
+            throw new ServiceError(
+              `สินค้า "${product.name}" สต็อกไม่พอ (สั่งได้ ${available})`,
+              undefined,
+              { label: 'สั่งซื้อสินค้าเพิ่ม', href: '/purchases/new' }
+            );
           }
 
           const isLowStock = newStock <= product.minStock;

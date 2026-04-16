@@ -13,6 +13,8 @@ import { ShipmentTimeline } from './shipment-timeline';
 import { updateShipment, updateShipmentStatus, cancelShipment, calculateShipmentLoad } from '@/actions/shipments';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { toast } from 'sonner';
+import { GuidedErrorAlert } from '@/components/ui/guided-error-alert';
+import { ErrorAction } from '@/types/domain';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -59,6 +61,7 @@ export function ShipmentDetail({ shipment }: ShipmentDetailProps) {
   const [cancelReason, setCancelReason] = useState('');
   const [loadData, setLoadData] = useState<any>(null);
   const [isCalculating, setIsCalculating] = useState(false);
+  const [errorInfo, setErrorInfo] = useState<{ message: string; action?: ErrorAction } | null>(null);
 
   const handleCalculateLoad = async () => {
     setIsCalculating(true);
@@ -66,8 +69,11 @@ export function ShipmentDetail({ shipment }: ShipmentDetailProps) {
       const result = await calculateShipmentLoad(shipment.id);
       if (result.success) {
         setLoadData(result.data);
+        setErrorInfo(null);
       } else {
-        toast.error(result.message);
+        const fallbackMsg = result.message || 'ไม่สามารถคำนวณ Load ได้';
+        setErrorInfo({ message: fallbackMsg, action: result.action });
+        toast.error(fallbackMsg);
       }
     } catch {
       toast.error('เกิดข้อผิดพลาดในการคำนวณ');
@@ -85,9 +91,12 @@ export function ShipmentDetail({ shipment }: ShipmentDetailProps) {
 
       if (result.success) {
         toast.success(result.message);
+        setErrorInfo(null);
         router.refresh();
       } else {
-        toast.error(result.message || 'เกิดข้อผิดพลาด');
+        const fallbackMsg = result.message || 'ไม่สามารถเปลี่ยนสถานะได้';
+        setErrorInfo({ message: fallbackMsg, action: result.action });
+        toast.error(fallbackMsg);
       }
     });
   };
@@ -135,6 +144,15 @@ export function ShipmentDetail({ shipment }: ShipmentDetailProps) {
 
   return (
     <div className="space-y-6">
+      {/* Guided Error Alert */}
+      {errorInfo && (
+        <GuidedErrorAlert 
+          message={errorInfo.message} 
+          action={errorInfo.action} 
+          className="mb-6"
+        />
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">

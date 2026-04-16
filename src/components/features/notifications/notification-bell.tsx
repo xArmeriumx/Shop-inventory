@@ -1,297 +1,185 @@
 'use client';
 
-import { useState, useEffect, useCallback, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
-import { Bell, Package, ShoppingCart, RotateCcw, CreditCard, Check, CheckCheck } from 'lucide-react';
+import React, { useEffect, useState, useTransition } from 'react';
+import { Bell, Check, ExternalLink, Info, AlertTriangle, ShieldAlert, Package, ShoppingCart, RotateCcw, CreditCard } from 'lucide-react';
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuLabel, 
+  DropdownMenuSeparator, 
+  DropdownMenuTrigger 
+} from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Badge } from '@/components/ui/badge';
+import { 
+  getNotifications, 
+  getUnreadNotificationCount, 
+  markNotificationAsRead, 
+  markAllNotificationsAsRead 
+} from '@/actions/notifications';
 import { cn } from '@/lib/utils';
-import { getNotifications, getUnreadCount, markNotificationRead, markAllNotificationsRead } from '@/actions/notifications';
-import { getSupabaseBrowser } from '@/lib/supabase-browser';
-import { usePermissions } from '@/hooks/use-permissions';
-
-// =============================================================================
-// TYPES
-// =============================================================================
-
-interface Notification {
-  id: string;
-  type: string;
-  severity: string;
-  title: string;
-  message: string;
-  link: string | null;
-  isRead: boolean;
-  createdAt: Date;
-}
-
-// =============================================================================
-// HELPERS
-// =============================================================================
-
-function getNotificationIcon(type: string) {
-  switch (type) {
-    case 'LOW_STOCK':      return <Package className="h-4 w-4 text-orange-500" />;
-    case 'NEW_SALE':       return <ShoppingCart className="h-4 w-4 text-green-500" />;
-    case 'RETURN_CREATED': return <RotateCcw className="h-4 w-4 text-red-500" />;
-    case 'PAYMENT_PENDING':return <CreditCard className="h-4 w-4 text-yellow-500" />;
-    default:               return <Bell className="h-4 w-4 text-muted-foreground" />;
-  }
-}
-
-function getSeverityDot(severity: string) {
-  switch (severity) {
-    case 'CRITICAL': return 'bg-red-500';
-    case 'WARNING':  return 'bg-orange-400';
-    default:         return 'bg-blue-400';
-  }
-}
-
-function timeAgo(date: Date): string {
-  const now = new Date();
-  const d = new Date(date);
-  const diffMs = now.getTime() - d.getTime();
-  const diffMin = Math.floor(diffMs / 60000);
-  
-  if (diffMin < 1) return 'เมื่อสักครู่';
-  if (diffMin < 60) return `${diffMin} นาทีที่แล้ว`;
-  
-  const diffHours = Math.floor(diffMin / 60);
-  if (diffHours < 24) return `${diffHours} ชม.ที่แล้ว`;
-  
-  const diffDays = Math.floor(diffHours / 24);
-  if (diffDays < 7) return `${diffDays} วันที่แล้ว`;
-  
-  return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
-}
-
-// =============================================================================
-// COMPONENT
-// =============================================================================
+import Link from 'next/link';
+import { formatDistanceToNow } from 'date-fns';
+import { th } from 'date-fns/locale';
+import { toast } from 'sonner';
 
 export function NotificationBell() {
-  const router = useRouter();
-  const { status: authStatus } = usePermissions();
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [isPending, startTransition] = useTransition();
 
-  // State
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [isOpen, setIsOpen] = useState(false);
-  const [isMounted, setIsMounted] = useState(false);
-
-  // Set mounted state on client
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  // Load notifications
-  const loadNotifications = useCallback(async () => {
-    // SSR/Build safety: Don't fetch if not mounted yet
-    if (!isMounted) return;
-    
+  const fetchNotifications = async () => {
     try {
-      const [data, count] = await Promise.all([
+      const [list, count] = await Promise.all([
         getNotifications(15),
-        getUnreadCount(),
+        getUnreadNotificationCount()
       ]);
-      
-      // Level 2: State Normalization
-      setNotifications(Array.isArray(data) ? data : []);
+      setNotifications(Array.isArray(list) ? list : []);
       setUnreadCount(typeof count === 'number' ? count : 0);
-
-      if (!Array.isArray(data)) {
-        console.warn('[NotificationBell] Received malformed notification data:', data);
-      }
     } catch (error) {
-      // Level 1 already returns []/0, but we catch here for safety
-      console.error('[NotificationBell] Failed to load notifications:', error);
-      setNotifications([]);
-      setUnreadCount(0);
-    }
-  }, [isMounted]);
-
-  // Initial load
-  useEffect(() => {
-    loadNotifications();
-  }, [loadNotifications]);
-
-  // Supabase Realtime subscription
-  useEffect(() => {
-    // STRICT GUARD: No realtime init during SSR or before client mount
-    if (!isMounted) return;
-
-    let channel: ReturnType<ReturnType<typeof getSupabaseBrowser>['channel']> | null = null;
-
-    try {
-      const supabase = getSupabaseBrowser();
-      channel = supabase
-        .channel('notifications-realtime')
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'Notification',
-          },
-          () => {
-            // Refetch when new notification is inserted
-            loadNotifications();
-          }
-        )
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'Notification',
-          },
-          () => {
-            loadNotifications();
-          }
-        )
-        .subscribe();
-    } catch {
-      // Fallback: poll every 30 seconds if Realtime fails
-      const interval = setInterval(loadNotifications, 30000);
-      return () => clearInterval(interval);
-    }
-
-    return () => {
-      if (channel) {
-        const supabase = getSupabaseBrowser();
-        supabase.removeChannel(channel);
-      }
-    };
-  }, [loadNotifications, isMounted]);
-
-  // Mark single as read and navigate
-  const handleClick = (notification: Notification) => {
-    if (!notification.isRead) {
-      startTransition(async () => {
-        await markNotificationRead(notification.id);
-        await loadNotifications();
-      });
-    }
-    if (notification.link) {
-      setIsOpen(false);
-      router.push(notification.link);
+      console.error('Failed to fetch notifications', error);
     }
   };
 
-  // Mark all as read
-  const handleMarkAllRead = () => {
+  useEffect(() => {
+    fetchNotifications();
+    
+    // Polling every 60 seconds as a simple heartbeat
+    const interval = setInterval(fetchNotifications, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleMarkRead = async (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await markNotificationAsRead(id);
+      await fetchNotifications();
+    } catch (error) {
+      toast.error('ไม่สามารถอัปเดตสถานะได้');
+    }
+  };
+
+  const handleMarkAllRead = async () => {
     startTransition(async () => {
-      await markAllNotificationsRead();
-      await loadNotifications();
+      try {
+        await markAllNotificationsAsRead();
+        await fetchNotifications();
+        toast.success('อ่านรายการทั้งหมดแล้ว');
+      } catch (error) {
+        toast.error('เกิดข้อผิดพลาด');
+      }
     });
   };
 
+  const getIcon = (type: string, severity: string) => {
+    switch (type) {
+      case 'LOW_STOCK':      return <Package className="h-4 w-4 text-orange-500" />;
+      case 'NEW_SALE':       return <ShoppingCart className="h-4 w-4 text-green-500" />;
+      case 'RETURN_CREATED': return <RotateCcw className="h-4 w-4 text-red-500" />;
+      case 'PAYMENT_PENDING':return <CreditCard className="h-4 w-4 text-yellow-500" />;
+      case 'GOVERNANCE_INCIDENT': return <ShieldAlert className="h-4 w-4 text-red-600" />;
+      case 'STALE_DOCS':     return <AlertTriangle className="h-4 w-4 text-amber-500" />;
+      case 'SHIPMENT_GAP':   return <Info className="h-4 w-4 text-blue-500" />;
+      default:               return <Bell className="h-4 w-4 text-muted-foreground" />;
+    }
+  };
+
   return (
-    <Popover open={isOpen} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-5 w-5" />
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" className="relative h-10 w-10">
+          <Bell className={cn("h-5 w-5", unreadCount > 0 && "animate-pulse")} />
           {unreadCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
-              {unreadCount > 99 ? '99+' : unreadCount}
-            </span>
-          )}
-          <span className="sr-only">การแจ้งเตือน</span>
-        </Button>
-      </PopoverTrigger>
-
-      <PopoverContent 
-        className="w-80 p-0" 
-        align="end"
-        sideOffset={8}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b px-4 py-3">
-          <h3 className="font-semibold text-sm">การแจ้งเตือน</h3>
-          {unreadCount > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs text-muted-foreground hover:text-foreground"
-              onClick={handleMarkAllRead}
-              disabled={isPending}
+            <Badge 
+              className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-red-600 text-[10px] text-white border-0"
             >
-              <CheckCheck className="h-3 w-3 mr-1" />
-              อ่านทั้งหมด
-            </Button>
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </Badge>
           )}
-        </div>
-
-        {/* Notification List */}
-        <div className="max-h-80 overflow-y-auto">
-          {(() => {
-            // Level 3: Render Guards
-            const safeNotifications = Array.isArray(notifications) ? notifications : [];
-            const isUnauthenticated = authStatus === 'unauthenticated';
-            
-            if (isUnauthenticated) {
-              return (
-                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-                  <Bell className="h-8 w-8 mb-2 opacity-30" />
-                  <p className="text-sm">กรุณาเข้าสู่ระบบ</p>
-                </div>
-              );
-            }
-
-            if (safeNotifications.length === 0) {
-              return (
-                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-                  <Bell className="h-8 w-8 mb-2 opacity-30" />
-                  <p className="text-sm">ไม่มีการแจ้งเตือน</p>
-                </div>
-              );
-            }
-
-            return safeNotifications.map((notification) => (
-              <button
-                key={notification.id}
-                onClick={() => handleClick(notification)}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-[380px] p-0 shadow-2xl border-muted-foreground/20">
+        <DropdownMenuLabel className="p-4 flex items-center justify-between bg-muted/30">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-lg">รายการแจ้งเตือน</span>
+            {unreadCount > 0 && <Badge variant="secondary" className="bg-primary/10 text-primary hover:bg-primary/20 border-0">{unreadCount} ใหม่</Badge>}
+          </div>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="text-xs h-8 text-primary hover:text-primary/80 hover:bg-primary/5" 
+            onClick={handleMarkAllRead}
+            disabled={unreadCount === 0 || isPending}
+          >
+            อ่านทั้งหมดแล้ว
+          </Button>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator className="m-0" />
+        <div className="max-h-[450px] overflow-y-auto">
+          {notifications.length === 0 ? (
+            <div className="p-10 text-center flex flex-col items-center gap-3 text-muted-foreground">
+              <Bell className="h-10 w-10 opacity-20" />
+              <p>ยังไม่มีรายการแจ้งเตือน</p>
+            </div>
+          ) : (
+            notifications.map((notif) => (
+              <div
+                key={notif.id}
                 className={cn(
-                  'flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/50 border-b last:border-0',
-                  !notification.isRead && 'bg-primary/5'
+                  "p-4 border-b last:border-0 transition-colors hover:bg-muted/50 relative group",
+                  !notif.isRead && "bg-primary/5"
                 )}
               >
-                {/* Icon */}
-                <div className="mt-0.5 shrink-0">
-                  {getNotificationIcon(notification.type)}
-                </div>
-
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    {!notification.isRead && (
-                      <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', getSeverityDot(notification.severity))} />
-                    )}
-                    <p className={cn(
-                      'text-sm truncate',
-                      !notification.isRead ? 'font-medium' : 'text-muted-foreground'
-                    )}>
-                      {notification.title}
-                    </p>
+                <div className="flex gap-3">
+                  <div className="mt-1 shrink-0">
+                    {getIcon(notif.type, notif.severity)}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                    {notification.message}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground/60 mt-1">
-                    {timeAgo(notification.createdAt)}
-                  </p>
+                  <div className="flex-1 space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className={cn("text-sm font-semibold leading-none", !notif.isRead ? "text-primary" : "text-muted-foreground")}>
+                        {notif.title}
+                      </p>
+                      <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                        {formatDistanceToNow(new Date(notif.createdAt), { addSuffix: true, locale: th })}
+                      </span>
+                    </div>
+                    <p className="text-sm text-muted-foreground leading-relaxed pr-6 mt-1">
+                      {notif.message}
+                    </p>
+                    {notif.link && (
+                      <Link 
+                        href={notif.link}
+                        className="inline-flex items-center gap-1 text-xs text-primary font-medium hover:underline mt-2"
+                      >
+                        จัดการปัญหา <ExternalLink className="h-3 w-3" />
+                      </Link>
+                    )}
+                  </div>
                 </div>
-
-                {/* Read indicator */}
-                {notification.isRead && (
-                  <Check className="h-3 w-3 text-muted-foreground/40 shrink-0 mt-1" />
+                
+                {!notif.isRead && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-2 top-4 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={(e) => handleMarkRead(notif.id, e)}
+                  >
+                    <Check className="h-4 w-4 text-green-600" />
+                  </Button>
                 )}
-              </button>
-            ));
-          })()}
+              </div>
+            ))
+          )}
         </div>
-      </PopoverContent>
-    </Popover>
+        <DropdownMenuSeparator className="m-0" />
+        <div className="p-2 bg-muted/10 text-center">
+          <Button variant="ghost" size="sm" className="w-full text-xs text-muted-foreground" asChild>
+            <Link href="/system/notifications">ดูรายการแจ้งเตือนทั้งหมด</Link>
+          </Button>
+        </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

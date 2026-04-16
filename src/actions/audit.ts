@@ -3,6 +3,7 @@
 import { requireAuth } from '@/lib/auth-guard';
 import { AuditService, type AuditQueryOptions, type AuditStatus } from '@/services/audit.service';
 import { Security } from '@/services/security';
+import { ExportService } from '@/services/export.service';
 import { ServiceError } from '@/types/domain';
 
 export type GetAuditLogsResult = {
@@ -80,5 +81,33 @@ export async function getSecurityMetrics() {
       return { success: false, message: error.message };
     }
     return { success: false, message: 'เกิดข้อผิดพลาดในการดึงข้อมูล Security Metrics' };
+  }
+}
+
+/**
+ * Export audit logs for the current shop.
+ * Requires SETTINGS_SHOP permission.
+ */
+export async function exportAuditLogsAction(startDate: string, endDate: string, format: 'CSV' | 'JSON' = 'CSV') {
+  try {
+    const sessionCtx = await requireAuth();
+    if (!sessionCtx.shopId) {
+       throw new ServiceError('กรุณาเลือกร้านค้าเพื่อทำการ Export');
+    }
+    const ctx = sessionCtx as any;
+    
+    Security.requirePermission(ctx, 'SETTINGS_SHOP');
+
+    const data = await ExportService.exportAuditLogsData(startDate, endDate, ctx, format);
+    
+    return {
+      success: true,
+      data,
+    };
+  } catch (error: any) {
+    if (error instanceof ServiceError) {
+      return { success: false, message: error.message };
+    }
+    return { success: false, message: 'เกิดข้อผิดพลาดในการ Export ข้อมูล' };
   }
 }

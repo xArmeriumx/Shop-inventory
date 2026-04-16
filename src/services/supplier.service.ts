@@ -5,6 +5,8 @@ import { paginatedQuery, buildSearchFilter } from '@/lib/pagination';
 import type { Supplier } from '@prisma/client';
 import { toNumber } from '@/lib/money';
 import { ISupplierService } from '@/types/service-contracts';
+import { AuditService } from './audit.service';
+import { SUPPLIER_AUDIT_POLICIES } from './supplier.policy';
 import { PaginatedResult, SerializedSupplier } from '@/types/domain';
 
 export interface GetSuppliersParams {
@@ -84,21 +86,27 @@ export const SupplierService: ISupplierService = {
   },
 
   async create(ctx: RequestContext, data: SupplierInput): Promise<SerializedSupplier> {
-    const supplier = await db.supplier.create({
-      data: {
-        ...data,
-        userId: ctx.userId,
-        shopId: ctx.shopId,
-      },
-    });
+    return AuditService.runWithAudit(
+      ctx,
+      SUPPLIER_AUDIT_POLICIES.CREATE(data.name),
+      async () => {
+        const supplier = await db.supplier.create({
+          data: {
+            ...data,
+            userId: ctx.userId,
+            shopId: ctx.shopId,
+          },
+        });
 
-    return {
-      ...supplier,
-      moq: supplier.moq ? Number(supplier.moq) : null,
-    };
+        return {
+          ...supplier,
+          moq: supplier.moq ? Number(supplier.moq) : null,
+        };
+      }
+    );
   },
 
-  async update(id: string, ctx: RequestContext, data: SupplierInput): Promise<SerializedSupplier> {
+  async update(id: string, ctx: RequestContext, data: SupplierInput): Promise<void> {
     const existing = await db.supplier.findFirst({
       where: { id, shopId: ctx.shopId, deletedAt: null },
     });
@@ -107,18 +115,23 @@ export const SupplierService: ISupplierService = {
       throw new ServiceError('ไม่พบข้อมูลผู้จำหน่าย');
     }
 
-    const supplier = await db.supplier.update({
-      where: { id },
-      data,
-    });
-
-    return {
-      ...supplier,
-      moq: supplier.moq ? Number(supplier.moq) : null,
-    };
+    await AuditService.runWithAudit(
+      ctx,
+      {
+        ...SUPPLIER_AUDIT_POLICIES.UPDATE(id, existing.name),
+        beforeSnapshot: () => existing,
+        afterSnapshot: () => db.supplier.findFirst({ where: { id } }),
+      },
+      async () => {
+        await db.supplier.update({
+          where: { id },
+          data,
+        });
+      }
+    );
   },
 
-  async delete(id: string, ctx: RequestContext) {
+  async delete(id: string, ctx: RequestContext): Promise<void> {
     const existing = await db.supplier.findFirst({
       where: { id, shopId: ctx.shopId, deletedAt: null },
     });
@@ -135,10 +148,19 @@ export const SupplierService: ISupplierService = {
       throw new ServiceError(`ไม่สามารถลบผู้จำหน่ายที่มีประวัติการซื้อ ${purchaseCount} รายการ`);
     }
     
-    await db.supplier.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-    });
+    await AuditService.runWithAudit(
+      ctx,
+      {
+        ...SUPPLIER_AUDIT_POLICIES.DELETE(id, existing.name),
+        beforeSnapshot: () => existing,
+      },
+      async () => {
+        await db.supplier.update({
+          where: { id },
+          data: { deletedAt: new Date() },
+        });
+      }
+    );
   },
 
   async getProfile(id: string, ctx: RequestContext) {
@@ -264,34 +286,68 @@ export const SupplierService: ISupplierService = {
   /**
    * ERP ENHANCED: Update or Link a product to a supplier with specific terms (MOQ, Price)
    */
-  async upsertProduct(supplierId: string, productId: string, data: any, ctx: RequestContext) {
-    return db.supplierProduct.upsert({
-      where: {
-        supplierId_productId: { supplierId, productId }
-      },
-      create: {
-        ...data,
-        supplierId,
-        productId,
-        shopId: ctx.shopId
-      },
-      update: {
-        ...data,
-        deletedAt: null // Restore if it was deleted
-      }
+  async upsertProduct(supplierId: string, productId: string, data: any, ctx: RequestContext): Promise<any> {
+    const supplier = await db.supplier.findFirst({
+      where: { id: supplierId, shopId: ctx.shopId },
+      select: { name: true }
     });
+    const product = await db.product.findFirst({
+      where: { id: productId, shopId: ctx.shopId },
+      select: { sku: true }
+    });
+
+    if (!supplier || !product) throw new ServiceError('ไม่พบข้อมูลผู้จำหน่ายหรือสินค้า');
+
+    return AuditService.runWithAudit(
+      ctx,
+      SUPPLIER_AUDIT_POLICIES.PRODUCT_UPSERT(supplier.name, product.sku || productId),
+      async () => {
+        return db.supplierProduct.upsert({
+          where: {
+            supplierId_productId: { supplierId, productId }
+          },
+          create: {
+            ...data,
+            supplierId,
+            productId,
+            shopId: ctx.shopId
+          },
+          update: {
+            ...data,
+            deletedAt: null // Restore if it was deleted
+          }
+        });
+      }
+    );
   },
 
   /**
    * ERP ENHANCED: Remove the link between a product and a supplier
    */
-  async removeProduct(supplierId: string, productId: string, ctx: RequestContext) {
-    // We use soft delete for supplier-product mapping to keep history
-    return db.supplierProduct.update({
-      where: {
-        supplierId_productId: { supplierId, productId }
-      },
-      data: { deletedAt: new Date() }
+  async removeProduct(supplierId: string, productId: string, ctx: RequestContext): Promise<void> {
+    const supplier = await db.supplier.findFirst({
+      where: { id: supplierId, shopId: ctx.shopId },
+      select: { name: true }
     });
+    const product = await db.product.findFirst({
+      where: { id: productId, shopId: ctx.shopId },
+      select: { sku: true }
+    });
+
+    if (!supplier || !product) throw new ServiceError('ไม่พบข้อมูลผู้จำหน่ายหรือสินค้า');
+
+    await AuditService.runWithAudit(
+      ctx,
+      SUPPLIER_AUDIT_POLICIES.PRODUCT_REMOVE(supplier.name, product.sku || productId),
+      async () => {
+        // We use soft delete for supplier-product mapping to keep history
+        await db.supplierProduct.update({
+          where: {
+            supplierId_productId: { supplierId, productId }
+          },
+          data: { deletedAt: new Date() }
+        });
+      }
+    );
   }
 };

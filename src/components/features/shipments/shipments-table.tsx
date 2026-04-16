@@ -18,6 +18,8 @@ import type { ShipmentStatus } from '@prisma/client';
 import { processShipmentRoute } from '@/actions/shipments';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { GuidedErrorAlert } from '@/components/ui/guided-error-alert';
+import { ErrorAction } from '@/types/domain';
 
 interface ShipmentRow {
   id: string;
@@ -53,6 +55,7 @@ export function ShipmentsTable({ shipments, pagination }: ShipmentsTableProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [errorInfo, setErrorInfo] = useState<{ message: string; action?: ErrorAction } | null>(null);
 
   const handleProcessRoute = async (type: 'OUTBOUND' | 'INBOUND') => {
     const pendingIds = shipments
@@ -69,9 +72,12 @@ export function ShipmentsTable({ shipments, pagination }: ShipmentsTableProps) {
       const result = await processShipmentRoute(pendingIds, type);
       if (result.success) {
         toast.success(result.message);
+        setErrorInfo(null);
         router.refresh();
       } else {
-        toast.error(result.message);
+        const fallbackMsg = result.message || 'ไม่สามารถคำนวณเส้นทางได้';
+        setErrorInfo({ message: fallbackMsg, action: result.action });
+        toast.error(fallbackMsg);
       }
     } catch {
       toast.error('เกิดข้อผิดพลาดในการคำนวณเส้นทาง');
@@ -100,6 +106,13 @@ export function ShipmentsTable({ shipments, pagination }: ShipmentsTableProps) {
 
   return (
     <div className="space-y-4">
+      {errorInfo && (
+        <GuidedErrorAlert 
+          message={errorInfo.message} 
+          action={errorInfo.action} 
+          className="mb-4"
+        />
+      )}
       {/* Route Actions */}
       <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-muted/40 rounded-lg border border-dashed">
         <div className="flex items-center gap-2">

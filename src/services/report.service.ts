@@ -2,6 +2,7 @@ import { db } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { money, toNumber, calcProfit } from '@/lib/money';
 import { RequestContext } from '@/types/domain';
+import { calculateCtn } from '@/lib/erp-utils';
 
 // Interface สำหรับ Return Data ไปหน้าบ้าน
 export interface ReportData {
@@ -251,6 +252,8 @@ export async function getPurchaseReport(purchaseId: string, exchangeRate: number
     
     return {
       ...item,
+      packagingQty: item.packagingQty || 1,
+      ctn: calculateCtn(item.quantity, item.packagingQty || 1),
       costCNY,
       costUSD: Number(costUSD.toFixed(4)),
       subtotalCNY: toNumber(item.subtotal),
@@ -1188,4 +1191,366 @@ export async function getCustomerRankingReport(
       percentage: grandTotal > 0 ? money.round((c.totalSpent / grandTotal) * 100, 1) : 0,
     })),
   };
+}
+
+// =============================================================================
+// DEEP ANALYTICS: VELOCITY & AGING (Phase 7)
+// =============================================================================
+
+export interface InventoryIntelligence {
+  stars: any[];
+  sluggish: any[];
+  critical: any[];
+  metadata: {
+    totalValue: number;
+    windowDays: number;
+  };
+}
+
+export const ANALYTICS_THRESHOLDS = {
+  SLUGGISH_DAYS: 30, // Default window
+  HIGH_STOCK_VALUE: 10,
+  STAR_PERCENTILE: 0.1, // Top 10%
+};
+
+/**
+ * UC 19: Product Velocity List (Star/Sluggish/Critical)
+ */
+export async function getInventoryIntelligence(
+  windowDays: number = 30,
+  ctx: RequestContext
+): Promise<InventoryIntelligence> {
+  const windowStart = new Date();
+  windowStart.setDate(windowStart.getDate() - windowDays);
+
+  const [products, saleStats] = await Promise.all([
+    db.product.findMany({
+      where: { shopId: ctx.shopId, deletedAt: null, isActive: true },
+      select: {
+        id: true,
+        name: true,
+        sku: true,
+        stock: true,
+        minStock: true,
+        costPrice: true,
+        salePrice: true,
+        category: true,
+      },
+    }),
+    db.saleItem.groupBy({
+      by: ['productId'],
+      where: {
+        sale: {
+          shopId: ctx.shopId,
+          date: { gte: windowStart },
+          status: { not: 'CANCELLED' },
+        },
+      },
+      _sum: { quantity: true, subtotal: true },
+    }),
+  ]);
+
+  const statsMap = new Map(saleStats.map((s) => [s.productId, s]));
+  const totalValue = products.reduce((sum, p) => sum + (p.stock * toNumber(p.costPrice)), 0);
+
+  // Categorization
+  const enriched = products.map((p) => {
+    const stats = statsMap.get(p.id);
+    const qtySold = stats?._sum.quantity || 0;
+    const revenue = toNumber(stats?._sum.subtotal || 0);
+    const avgDailySales = qtySold / windowDays;
+    
+    return {
+      ...p,
+      qtySold,
+      revenue,
+      avgDailySales,
+      stockValue: p.stock * toNumber(p.costPrice),
+    };
+  });
+
+  // Star: Top 10% by revenue
+  const revenueSorted = [...enriched].sort((a, b) => b.revenue - a.revenue);
+  const starCount = Math.max(1, Math.ceil(enriched.length * ANALYTICS_THRESHOLDS.STAR_PERCENTILE));
+  const stars = revenueSorted.slice(0, starCount).filter(p => p.revenue > 0);
+
+  // Sluggish: No sales in window AND has stock
+  const sluggish = enriched.filter((p) => p.qtySold === 0 && p.stock > 0)
+    .sort((a, b) => b.stockValue - a.stockValue);
+
+  // Critical: Low stock AND recent demand
+  const critical = enriched.filter((p) => p.stock <= p.minStock && p.avgDailySales > 0)
+    .sort((a, b) => b.avgDailySales - a.avgDailySales);
+
+  return {
+    stars,
+    sluggish,
+    critical,
+    metadata: {
+      totalValue,
+      windowDays,
+    },
+  };
+}
+
+/**
+ * UC 20: Procurement Aging (PR -> PO -> Receive Lead Time)
+ */
+export async function getProcurementAging(limit: number = 20, ctx: RequestContext) {
+  const purchases = await db.purchase.findMany({
+    where: {
+      shopId: ctx.shopId,
+      docType: 'ORDER', // POs only
+      status: 'RECEIVED',
+      receivedAt: { not: null },
+    },
+    include: {
+      supplier: { select: { name: true } },
+    },
+    orderBy: { receivedAt: 'desc' },
+    take: limit,
+  });
+
+  // Calculate aging per purchase
+  const items = await Promise.all(purchases.map(async (po) => {
+    let prDate = po.createdAt; // Default to PO creation
+    
+    // Attempt to find linked PR
+    if (po.linkedPRId) {
+      const pr = await db.purchase.findUnique({
+        where: { id: po.linkedPRId },
+        select: { createdAt: true },
+      });
+      if (pr) prDate = pr.createdAt;
+    }
+
+    const leadTimeMs = po.receivedAt!.getTime() - prDate.getTime();
+    const leadTimeDays = Math.ceil(leadTimeMs / (1000 * 60 * 60 * 24));
+
+    return {
+      id: po.id,
+      purchaseNumber: po.purchaseNumber,
+      supplierName: po.supplier?.name || 'Unknown',
+      requestDate: prDate,
+      orderDate: po.createdAt,
+      receivedDate: po.receivedAt!,
+      leadTimeDays,
+      totalCost: toNumber(po.totalCost),
+    };
+  }));
+
+  // Summary by supplier
+  const supplierAgg = new Map<string, { totalDays: number; count: number }>();
+  items.forEach((item) => {
+    const current = supplierAgg.get(item.supplierName) || { totalDays: 0, count: 0 };
+    current.totalDays += item.leadTimeDays;
+    current.count++;
+    supplierAgg.set(item.supplierName, current);
+  });
+
+  const supplierPerformance = Array.from(supplierAgg.entries()).map(([name, stats]) => ({
+    supplierName: name,
+    avgLeadTime: Math.round(stats.totalDays / stats.count),
+    orderCount: stats.count,
+  })).sort((a, b) => a.avgLeadTime - b.avgLeadTime);
+
+  return {
+    items,
+    supplierPerformance,
+  };
+}
+
+/**
+ * UC 21: Sales Heatmap (Category vs Time Buckets)
+ */
+export async function getSalesHeatmap(windowDays: number = 30, ctx: RequestContext) {
+  const windowStart = new Date();
+  windowStart.setDate(windowStart.getDate() - windowDays);
+
+  const saleItems = await db.saleItem.findMany({
+    where: {
+      sale: {
+        shopId: ctx.shopId,
+        date: { gte: windowStart },
+        status: { not: 'CANCELLED' },
+      },
+    },
+    select: {
+      saleId: true,
+      quantity: true,
+      subtotal: true,
+      product: { select: { category: true } },
+      sale: { select: { date: true } },
+    },
+  });
+
+  const buckets = [
+    { id: '08-11', label: '08-11', start: 8, end: 11 },
+    { id: '11-14', label: '11-14', start: 11, end: 14 },
+    { id: '14-17', label: '14-17', start: 14, end: 17 },
+    { id: '17-20', label: '17-20', start: 17, end: 20 },
+    { id: 'OTHER', label: 'Other', start: 0, end: 24 }, // ทุกช่วงเวลาที่เหลือ
+  ];
+
+  const matrix = new Map<string, Map<string, { revenue: number; bills: Set<string>; items: number }>>();
+  const categories = new Set<string>();
+
+  saleItems.forEach((item) => {
+    // ใช้ชั่วโมงในเครื่อง (Client/Local context within context of the current request)
+    const hour = item.sale.date.getHours();
+    const category = item.product?.category || 'Uncategorized';
+    categories.add(category);
+
+    let bucketId = 'OTHER';
+    for (const b of buckets) {
+      if (b.id !== 'OTHER' && hour >= b.start && hour < b.end) {
+        bucketId = b.id;
+        break;
+      }
+    }
+
+    if (!matrix.has(category)) matrix.set(category, new Map());
+    const catMap = matrix.get(category)!;
+    if (!catMap.has(bucketId)) {
+      catMap.set(bucketId, { revenue: 0, bills: new Set(), items: 0 });
+    }
+
+    const cell = catMap.get(bucketId)!;
+    cell.revenue = money.add(cell.revenue, toNumber(item.subtotal));
+    cell.items += item.quantity;
+    cell.bills.add(item.saleId);
+  });
+
+  // แปลงเป็นโครงสร้างที่เรียบง่ายสำหรับ UI (Flat array for mapping)
+  const data = Array.from(categories).map((cat) => {
+    const row: any = { category: cat };
+    buckets.forEach((b) => {
+      const stats = matrix.get(cat)?.get(b.id);
+      row[b.id] = {
+        revenue: stats?.revenue || 0,
+        bills: stats?.bills.size || 0,
+        items: stats?.items || 0,
+      };
+    });
+    return row;
+  });
+
+  return {
+    buckets: buckets.map(b => ({ id: b.id, label: b.label })),
+    data: data.sort((a, b) => {
+      const aTotal = buckets.reduce((sum, buck) => sum + a[buck.id].revenue, 0);
+      const bTotal = buckets.reduce((sum, buck) => sum + b[buck.id].revenue, 0);
+      return bTotal - aTotal;
+    }),
+  };
+}
+/**
+ * UC 22: Reorder Suggestions & Smart Procurement
+ * Predicts stock exhaustion dates and suggests restock quantities
+ */
+export async function getReorderSuggestions(ctx: RequestContext) {
+  const windowDays = 30;
+  const targetCoverageDays = 30;
+  const safetyBufferDays = 3;
+  const windowStart = new Date();
+  windowStart.setDate(windowStart.getDate() - windowDays);
+
+  // 1. Fetch products and 30-day velocity stats
+  const [products, saleStats, aging] = await Promise.all([
+    db.product.findMany({
+      where: { shopId: ctx.shopId, deletedAt: null, isActive: true },
+      select: {
+        id: true,
+        name: true,
+        sku: true,
+        stock: true,
+        minStock: true,
+        costPrice: true,
+        packagingQty: true,
+        moq: true,
+        avgLeadTime: true,
+        supplierId: true,
+        category: true,
+        supplier: { select: { id: true, name: true } },
+      },
+    }),
+    db.saleItem.groupBy({
+      by: ['productId'],
+      where: {
+        sale: {
+          shopId: ctx.shopId,
+          date: { gte: windowStart },
+          status: { not: 'CANCELLED' },
+        },
+      },
+      _sum: { quantity: true },
+    }),
+    getProcurementAging(10, ctx),
+  ]);
+
+  const statsMap = new Map((saleStats || []).map((s) => [s.productId, s]));
+  const supplierLeadTimeMap = new Map(((aging as any)?.supplierPerformance || []).map((s: any) => [s.supplierName, s.avgLeadTime]));
+
+  // 2. Generate Suggestions
+  const suggestions = products.map((p) => {
+    const stats = statsMap.get(p.id);
+    const qtySold = (stats as any)?._sum?.quantity || 0;
+    const avgDailySales = qtySold / windowDays;
+    
+    // Effective lead time: Product Master > Supplier History > System Default (7)
+    const histLeadTime = p.supplier ? supplierLeadTimeMap.get(p.supplier.name) : undefined;
+    const effectiveLeadTime = p.avgLeadTime || histLeadTime || 7;
+    const reorderThresholdDays = effectiveLeadTime + safetyBufferDays;
+
+    const daysRemaining = avgDailySales > 0 ? (p.stock / avgDailySales) : Infinity;
+    
+    // Suggest if stock is low vs minStock OR stock will run out within lead time
+    const isUrgent = p.stock <= p.minStock || (daysRemaining !== Infinity && daysRemaining <= reorderThresholdDays);
+    
+    // Only suggest if there is demand OR stock is below minStock
+    if (!isUrgent && p.stock > p.minStock) return null;
+
+    // Calculate Suggested Qty (Target: 30 days cover)
+    const needed = (avgDailySales * targetCoverageDays) - p.stock;
+    const minNeeded = Math.max(needed, p.moq || 0, 1);
+    
+    // Round to nearest packaging count (Rule 14.4)
+    const packSize = p.packagingQty || 1;
+    const suggestedUnits = Math.ceil(minNeeded / packSize) * packSize;
+    const suggestedCtn = suggestedUnits / packSize;
+
+    let reason = "";
+    if (p.stock <= 0) reason = "สต็อกหมดแล้ว";
+    else if (p.stock <= p.minStock) reason = "ต่ำกว่าจุดสั่งซื้อ (Min Stock)";
+    else if (daysRemaining !== Infinity && daysRemaining <= reorderThresholdDays) reason = "ใกล้รันเอาท์ (เหลือพอขาย " + Math.round(daysRemaining) + " วัน)";
+    else reason = "แนะนำให้สั่งซื้อเพื่อรักษาระดับสต็อก";
+
+    return {
+      productId: p.id,
+      name: p.name,
+      sku: p.sku || '',
+      category: p.category,
+      currentStock: p.stock,
+      avgDailySales,
+      daysRemaining: daysRemaining === Infinity ? null : Math.round(daysRemaining),
+      reorderThresholdDays,
+      suggestedUnits,
+      suggestedCtn,
+      packSize,
+      costPrice: Number(p.costPrice || 0),
+      supplierId: p.supplierId,
+      vendorName: p.supplier?.name || 'ไม่มีผู้จำหน่ายหลัก',
+      reason,
+      urgency: p.stock <= 0 ? 'CRITICAL' : (daysRemaining !== Infinity && daysRemaining <= effectiveLeadTime ? 'HIGH' : 'MEDIUM'),
+    };
+  }).filter(Boolean);
+
+  return (suggestions as any[]).sort((a: any, b: any) => {
+    // Sort by Urgency (CRITICAL > HIGH > MEDIUM) then by Days Remaining
+    const urgencyScore: Record<string, number> = { CRITICAL: 0, HIGH: 1, MEDIUM: 2 };
+    if (urgencyScore[a.urgency] !== urgencyScore[b.urgency]) {
+      return urgencyScore[a.urgency] - urgencyScore[b.urgency];
+    }
+    return (a.daysRemaining || 999) - (b.daysRemaining || 999);
+  });
 }

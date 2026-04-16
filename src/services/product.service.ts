@@ -77,7 +77,11 @@ export const ProductService: IProductService = {
 
     return AuditService.runWithAudit(
       ctx,
-      PRODUCT_AUDIT_POLICIES.UPDATE(id, p.name),
+      {
+        ...PRODUCT_AUDIT_POLICIES.UPDATE(id, p.name),
+        beforeSnapshot: () => p,
+        afterSnapshot: () => db.product.findFirst({ where: { id } }),
+      },
       async () => {
         return runInTransaction(tx, async (prisma) => {
           const existing = await prisma.product.findFirst({ where: { id, shopId: ctx.shopId } });
@@ -193,7 +197,10 @@ export const ProductService: IProductService = {
 
     return AuditService.runWithAudit(
       ctx,
-      PRODUCT_AUDIT_POLICIES.DELETE(id, existing.name),
+      {
+        ...PRODUCT_AUDIT_POLICIES.DELETE(id, existing.name),
+        beforeSnapshot: () => existing,
+      },
       async () => {
         await db.product.update({
           where: { id },

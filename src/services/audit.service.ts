@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { RequestContext } from '@/types/domain';
 import { logger } from '@/lib/logger';
+import { NotificationService } from './notification.service';
 
 // ============================================================================
 // AUDIT STATUS CONSTANTS
@@ -164,6 +165,17 @@ function sanitizeSnapshot(
 }
 
 // ============================================================================
+// INTERNAL METRICS (In-memory, Best-effort for Serverless)
+// ============================================================================
+
+const internalMetrics = {
+  auditWriteFailures: 0,
+  permissionDeniedCount: 0,
+  rateLimitExceededCount: 0,
+  lastIncidentAt: null as Date | null,
+};
+
+// ============================================================================
 // AUDIT SERVICE
 // ============================================================================
 
@@ -209,8 +221,32 @@ export const AuditService = {
           note: note ?? null,
         },
       });
+
+      // Update metrics for success types that are security relevant
+      if (status === AUDIT_STATUS.DENIED) {
+        internalMetrics.permissionDeniedCount++;
+        internalMetrics.lastIncidentAt = new Date();
+        
+        // Trigger Proactive Alert (Phase 5)
+        if (ctx.shopId) {
+          NotificationService.create({
+            shopId: ctx.shopId,
+            type: 'GOVERNANCE_INCIDENT',
+            severity: 'CRITICAL',
+            title: 'ความพยายามเข้าถึงถูกปฏิเสธ',
+            message: `ผู้ใช้ ${ctx.userName || 'Unknown'} พยายามทำรายการ ${action} แต่ไม่มีสิทธิ์`,
+            link: `/system/audit-logs?status=DENIED`,
+            groupKey: `gov-incident:${ctx.shopId}:${action}`, // Dedup per action type
+          }).catch(err => logger.error('[AuditService] Failed to trigger notification', err));
+        }
+      }
+      if (action === 'RATE_LIMIT_EXCEEDED') {
+        internalMetrics.rateLimitExceededCount++;
+      }
     } catch (error) {
       // Best-effort: log failure to system logger but never propagate
+      internalMetrics.auditWriteFailures++;
+      internalMetrics.lastIncidentAt = new Date();
       logger.error('[AuditService] Failed to write audit log', { error, action, targetId });
     }
   },
@@ -451,11 +487,26 @@ export const AuditService = {
       metrics: {
         deniedToday,
         rateLimitToday,
+        auditWriteFailures: internalMetrics.auditWriteFailures,
       },
       topSensitiveActors,
       recentManualStocks,
       recentSettingsChanges,
-      recentAnomalies
+      recentAnomalies,
+      governanceHealth: AuditService.getGovernanceHealth(),
+    };
+  },
+
+  /**
+   * Get overall governance health status (In-memory metrics)
+   */
+  getGovernanceHealth() {
+    return {
+      auditWriteFailures: internalMetrics.auditWriteFailures,
+      permissionDeniedCount: internalMetrics.permissionDeniedCount,
+      rateLimitExceededCount: internalMetrics.rateLimitExceededCount,
+      lastIncidentAt: internalMetrics.lastIncidentAt,
+      status: internalMetrics.auditWriteFailures > 10 ? 'CRITICAL' : (internalMetrics.auditWriteFailures > 0 ? 'WARNING' : 'HEALTHY'),
     };
   },
 };

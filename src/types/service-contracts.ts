@@ -67,23 +67,21 @@ export interface IProductService {
 // ============================================================================
 
 export interface ICustomerService {
+  // Existing CRUD
   create(ctx: RequestContext, payload: any): Promise<SerializedCustomer>;
   update(id: string, ctx: RequestContext, payload: any): Promise<SerializedCustomer>;
   getById(id: string, ctx: RequestContext): Promise<SerializedCustomer>;
   getList(params: GetCustomersParams, ctx: RequestContext): Promise<PaginatedResult<SerializedCustomer>>;
   delete(id: string, ctx: RequestContext): Promise<void>;
   
-  // UI Support
+  // UI Support & CRM Intelligence
   getForSelect(ctx: RequestContext): Promise<any[]>;
   getProfile(id: string, ctx: RequestContext): Promise<any>;
-
-  // ERP Intelligence
   getSalespersonsByRegion(region: string, ctx: RequestContext): Promise<any[]>;
   batchCreate(inputs: any[], ctx: RequestContext): Promise<any>;
 
   /**
    * ตรวจสอบสถานะเครดิตของลูกค้า
-   * คำนวณยอดค้างชำระทั้งหมดเทียบกับวงเงิน
    */
   checkCreditLimit(
     customerId: string,
@@ -423,6 +421,31 @@ export interface IPurchaseService {
     supplierId: string, 
     ctx: RequestContext
   ): Promise<{ purchaseNote: string | null; moq: number | null }>;
+
+  /**
+   * ดึงรายการ PR ที่ข้อมูลไม่ครบ (Logistics Gaps)
+   */
+  getIncompleteRequests(
+    params: GetIncompletePurchasesParams, 
+    ctx: RequestContext
+  ): Promise<any>;
+
+  /**
+   * มอบหมายผู้ขายแบบกลุ่ม (Admin Tool)
+   */
+  quickAssignSupplier(
+    ids: string[], 
+    supplierId: string, 
+    ctx: RequestContext
+  ): Promise<{ success: boolean; count: number }>;
+
+  /**
+   * สร้างใบขอซื้อแบบกลุ่ม (Bulk PR Generation)
+   */
+  createBulkDraftPRs(
+    entries: Array<{ productId: string, quantity: number, supplierId?: string }>, 
+    ctx: RequestContext
+  ): Promise<{ success: boolean; createdCount: number }>;
 }
 
 /** Input สำหรับสร้างใบขอซื้อ */
@@ -435,6 +458,12 @@ export interface PurchaseRequestInput {
     quantity: number;
     costPrice: number;
   }>;
+}
+
+/** Params for getIncompletePurchases */
+export interface GetIncompletePurchasesParams {
+  page?: number;
+  pageSize?: number;
 }
 
 // ============================================================================
@@ -496,6 +525,11 @@ export interface IShippingService {
     id: string,
     ctx: RequestContext
   ): Promise<any>;
+
+  /**
+   * ดึงรายชื่อลูกค้าที่พิกัดไม่ครบ (Logistics Gaps)
+   */
+  getLogisticsGaps(ctx: RequestContext): Promise<any[]>;
 }
 
 // ============================================================================
@@ -506,45 +540,23 @@ export interface IShippingService {
  * IFinanceService — การเงินพร้อม WHT และ Billing Prevention
  */
 export interface IFinanceService {
-  /**
-   * คำนวณภาษีหัก ณ ที่จ่าย
-   */
-  calculateWHT(
-    amount: number,
-    taxType: TaxType,
-  ): { taxAmount: number; netAmount: number };
+  // --- QUERIES ---
+  getIncomes(params: any, ctx: RequestContext): Promise<PaginatedResult<any>>;
+  getIncomeById(id: string, ctx: RequestContext): Promise<any>;
+  getMonthlyIncomes(ctx: RequestContext): Promise<{ total: number; count: number }>;
+  getExpenses(params: any, ctx: RequestContext): Promise<PaginatedResult<any>>;
+  getExpenseById(id: string, ctx: RequestContext): Promise<any>;
+  getMonthlyExpenses(ctx: RequestContext): Promise<{ total: number; count: number }>;
+  generateTaxReport(params: { startDate: string; endDate: string }, ctx: RequestContext): Promise<any>;
 
-  /**
-   * คำนวณ VAT
-   */
-  calculateVAT(
-    amount: number,
-    isVatInclusive: boolean,
-  ): { vatAmount: number; baseAmount: number; totalAmount: number };
-
-  /**
-   * เช็คว่า Invoice ถูกดึงเข้าสู่ Billing Statement แล้วหรือยัง
-   * ใช้ป้องกันการดึงบิลซ้ำ
-   */
-  checkBillingStatus(
-    invoiceIds: string[],
-    ctx: RequestContext,
-  ): Promise<Array<{
-    invoiceId: string;
-    invoiceNumber: string;
-    billingStatus: BillingStatus;
-    billingStatementNumber?: string;
-  }>>;
-
-  /**
-   * สร้าง Billing Statement (วางบิล)
-   * Business: ดึง Invoice หลายใบรวมกัน + ป้องกันซ้ำ
-   */
-  createBillingStatement(
-    invoiceIds: string[],
-    dueDate: Date,
-    ctx: RequestContext,
-  ): Promise<{ id: string; billingNumber: string; totalAmount: number }>;
+  // --- COMMANDS ---
+  createIncome(data: any, ctx: RequestContext): Promise<any>;
+  updateIncome(id: string, data: any, ctx: RequestContext): Promise<any>;
+  deleteIncome(id: string, ctx: RequestContext): Promise<void>;
+  createExpense(data: any, ctx: RequestContext): Promise<any>;
+  updateExpense(id: string, data: any, ctx: RequestContext): Promise<any>;
+  deleteExpense(id: string, ctx: RequestContext): Promise<void>;
+  markAsBilled(saleId: string, ctx: RequestContext): Promise<void>;
 }
 
 // ============================================================================
@@ -555,43 +567,34 @@ export interface IFinanceService {
  * ICRMService — ระบบ Contact Intelligence
  */
 export interface ICRMService {
-  /**
-   * ดึงเซลที่ดูแลภูมิภาคนั้นๆ (Many-to-Many)
-   * ใช้เมื่อ User เลือก Region ในหน้า Contact
-   */
-  getSalespersonsByRegion(
-    region: Region,
-    ctx: RequestContext,
-  ): Promise<Array<{
-    userId: string;
-    name: string;
-    email: string | null;
-  }>>;
+  // --- QUERIES ---
+  getSalespersonsByRegion(region: Region, ctx: RequestContext): Promise<Array<{ userId: string; name: string; email: string | null }>>;
+  suggestSalesperson(customerId: string, ctx: RequestContext): Promise<{ suggested: Array<{ userId: string; name: string }>; region: Region | null }>;
+  checkCreditLimit(customerId: string, requestedAmount: number, ctx: RequestContext): Promise<{ creditLimit: number; currentOutstanding: number; availableCredit: number; isWithinLimit: boolean }>;
+}
 
-  /**
-   * แนะนำเซลสำหรับลูกค้า (Smart Default)
-   * Logic: Customer.region → ดึงเซลที่ดูแลภาคนั้น
-   */
-  suggestSalesperson(
-    customerId: string,
-    ctx: RequestContext,
-  ): Promise<{
-    suggested: Array<{ userId: string; name: string }>;
-    region: Region | null;
-  }>;
+// ============================================================================
+// IAM SERVICE (Identity & Access Management)
+// ============================================================================
 
-  /**
-   * ตรวจสอบวงเงินเครดิต
-   * Return: เหลือวงเงินเท่าไหร่ + ยอดค้างชำระทั้งหมด
-   */
-  checkCreditLimit(
-    customerId: string,
-    requestedAmount: number,
-    ctx: RequestContext,
-  ): Promise<{
-    creditLimit: number;
-    currentOutstanding: number;
-    availableCredit: number;
-    isWithinLimit: boolean;
-  }>;
+export interface IIamService {
+  // --- QUERIES ---
+  getRoles(ctx: RequestContext): Promise<any[]>;
+  getRole(id: string, ctx: RequestContext): Promise<any>;
+  getTeamMembers(ctx: RequestContext): Promise<any[]>;
+  getShopTeamInfo(ctx: RequestContext): Promise<any>;
+  getPermissionVersion(userId: string): Promise<{ version: number } | null>;
+  getMyPermissions(userId: string): Promise<any>;
+  getProfile(userId: string): Promise<any>;
+
+  // --- COMMANDS ---
+  createRole(input: any, ctx: RequestContext): Promise<{ id: string }>;
+  updateRole(id: string, input: any, ctx: RequestContext): Promise<void>;
+  deleteRole(id: string, ctx: RequestContext): Promise<void>;
+  updateMemberRole(memberId: string, roleId: string, ctx: RequestContext): Promise<void>;
+  removeMember(memberId: string, ctx: RequestContext): Promise<void>;
+  inviteMember(input: any, ctx: RequestContext): Promise<void>;
+  updateUserActivity(userId: string): Promise<void>;
+  registerUser(data: any): Promise<any>;
+  revokeSessions(targetUserId: string, ctx: RequestContext): Promise<void>;
 }

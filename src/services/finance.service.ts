@@ -16,7 +16,10 @@ export interface GetFinanceParams {
   endDate?: string;
 }
 
-export const FinanceService = {
+import { IFinanceService } from '@/types/service-contracts';
+import { PaginatedResult } from '@/types/domain';
+
+export const FinanceService: IFinanceService = {
   // ============================================================================
   // INCOMES
   // ============================================================================
@@ -59,7 +62,7 @@ export const FinanceService = {
     return { ...income, amount: toNumber(income.amount) };
   },
 
-  async createIncome(data: IncomeInput, ctx: RequestContext) {
+  async createIncome(data: IncomeInput, ctx: RequestContext): Promise<any> {
     return AuditService.runWithAudit(
       ctx,
       FINANCE_AUDIT_POLICIES.INCOME_CREATE(data.description || ''),
@@ -75,7 +78,7 @@ export const FinanceService = {
     );
   },
 
-  async updateIncome(id: string, data: IncomeInput, ctx: RequestContext) {
+  async updateIncome(id: string, data: IncomeInput, ctx: RequestContext): Promise<any> {
     const existing = await (db as any).income.findFirst({
       where: { id, shopId: ctx.shopId, deletedAt: null },
     });
@@ -86,7 +89,8 @@ export const FinanceService = {
       ctx,
       {
         ...FINANCE_AUDIT_POLICIES.INCOME_UPDATE(id, existing.description || ''),
-        getBefore: async () => existing,
+        beforeSnapshot: () => existing,
+        afterSnapshot: () => (db as any).income.findFirst({ where: { id } }),
       },
       async () => {
         return (db as any).income.update({
@@ -97,18 +101,21 @@ export const FinanceService = {
     );
   },
 
-  async deleteIncome(id: string, ctx: RequestContext) {
+  async deleteIncome(id: string, ctx: RequestContext): Promise<void> {
     const existing = await (db as any).income.findFirst({
       where: { id, shopId: ctx.shopId, deletedAt: null },
     });
 
     if (!existing) throw new ServiceError('ไม่พบข้อมูลรายรับ');
 
-    return AuditService.runWithAudit(
+    await AuditService.runWithAudit(
       ctx,
-      FINANCE_AUDIT_POLICIES.INCOME_DELETE(id, existing.description || ''),
+      {
+        ...FINANCE_AUDIT_POLICIES.INCOME_DELETE(id, existing.description || ''),
+        beforeSnapshot: () => existing,
+      },
       async () => {
-        return (db as any).income.update({
+        await (db as any).income.update({
           where: { id },
           data: { deletedAt: new Date() },
         });
@@ -116,7 +123,7 @@ export const FinanceService = {
     );
   },
 
-  async getMonthlyIncomes(ctx: RequestContext) {
+  async getMonthlyIncomes(ctx: RequestContext): Promise<{ total: number; count: number }> {
     const now = new Date();
     const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const firstDayOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
@@ -179,7 +186,7 @@ export const FinanceService = {
     return { ...expense, amount: toNumber(expense.amount) };
   },
 
-  async createExpense(data: ExpenseInput, ctx: RequestContext) {
+  async createExpense(data: ExpenseInput, ctx: RequestContext): Promise<any> {
     return AuditService.runWithAudit(
       ctx,
       FINANCE_AUDIT_POLICIES.EXPENSE_CREATE(data.description || ''),
@@ -195,7 +202,7 @@ export const FinanceService = {
     );
   },
 
-  async updateExpense(id: string, data: ExpenseInput, ctx: RequestContext) {
+  async updateExpense(id: string, data: ExpenseInput, ctx: RequestContext): Promise<any> {
     const existing = await db.expense.findFirst({
       where: { id, shopId: ctx.shopId, deletedAt: null },
     });
@@ -206,7 +213,8 @@ export const FinanceService = {
       ctx,
       {
         ...FINANCE_AUDIT_POLICIES.EXPENSE_UPDATE(id, existing.description || ''),
-        getBefore: async () => existing,
+        beforeSnapshot: () => existing,
+        afterSnapshot: () => db.expense.findFirst({ where: { id } }),
       },
       async () => {
         return db.expense.update({
@@ -217,18 +225,21 @@ export const FinanceService = {
     );
   },
 
-  async deleteExpense(id: string, ctx: RequestContext) {
+  async deleteExpense(id: string, ctx: RequestContext): Promise<void> {
     const existing = await db.expense.findFirst({
       where: { id, shopId: ctx.shopId, deletedAt: null },
     });
 
     if (!existing) throw new ServiceError('ไม่พบข้อมูลค่าใช้จ่าย');
 
-    return AuditService.runWithAudit(
+    await AuditService.runWithAudit(
       ctx,
-      FINANCE_AUDIT_POLICIES.EXPENSE_DELETE(id, existing.description || ''),
+      {
+        ...FINANCE_AUDIT_POLICIES.EXPENSE_DELETE(id, existing.description || ''),
+        beforeSnapshot: () => existing,
+      },
       async () => {
-        return db.expense.update({
+        await db.expense.update({
           where: { id },
           data: { deletedAt: new Date() },
         });
@@ -236,7 +247,7 @@ export const FinanceService = {
     );
   },
 
-  async getMonthlyExpenses(ctx: RequestContext) {
+  async getMonthlyExpenses(ctx: RequestContext): Promise<{ total: number; count: number }> {
     const now = new Date();
     const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const firstDayOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
@@ -261,7 +272,7 @@ export const FinanceService = {
   // BILLING & TAX (ERP Module 6)
   // ============================================================================
 
-  async markAsBilled(saleId: string, ctx: RequestContext) {
+  async markAsBilled(saleId: string, ctx: RequestContext): Promise<void> {
     const sale = await db.sale.findFirst({
       where: { id: saleId, shopId: ctx.shopId },
     });
@@ -273,11 +284,11 @@ export const FinanceService = {
       throw new ServiceError(`รายการนี้ถูกวางบิลไปแล้ว (สถานะ: ${sale.billingStatus})`);
     }
 
-    return AuditService.runWithAudit(
+    await AuditService.runWithAudit(
       ctx,
       FINANCE_AUDIT_POLICIES.SALE_BILLING_MARK(sale.invoiceNumber),
       async () => {
-        return db.sale.update({
+        await db.sale.update({
           where: { id: saleId },
           data: { billingStatus: 'BILLED' },
         });

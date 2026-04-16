@@ -1,6 +1,6 @@
 // Tool: Create Expense - บันทึกค่าใช้จ่าย
 
-import { db } from '@/lib/db';
+import { FinanceService } from '@/services';
 import { AITool, ToolResult, ToolContext } from './types';
 
 export const createExpenseTool: AITool = {
@@ -52,17 +52,13 @@ export const createExpenseTool: AITool = {
     }
 
     try {
-      // Create expense
-      await db.expense.create({
-        data: {
-          description,
-          amount,
-          category: category || 'อื่นๆ',
-          date: new Date(),
-          userId: context.userId,
-          shopId: context.shopId,
-        },
-      });
+      // Create expense via FinanceService (Service Layer)
+      await FinanceService.createExpense({
+        description,
+        amount,
+        category: category || 'อื่นๆ',
+        date: new Date(),
+      }, context as any);
 
       return {
         success: true,

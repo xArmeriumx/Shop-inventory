@@ -3,6 +3,7 @@ import { RequestContext, ServiceError } from '@/types/domain';
 import type { Permission, User } from '@prisma/client';
 import { Security } from './security';
 import { AuditService } from './audit.service';
+import { IIamService } from '@/types/service-contracts';
 import { IAM_AUDIT_POLICIES } from './iam.policy';
 
 export interface PermissionData {
@@ -27,9 +28,9 @@ export interface InviteMemberInput {
 }
 
 
-export const IamService = {
+export const IamService: IIamService = {
   // ============================================================================
-  // ROLES
+  // --- QUERIES ---
   // ============================================================================
   async getRoles(ctx: RequestContext) {
     Security.requirePermission(ctx, 'TEAM_VIEW');
@@ -47,7 +48,7 @@ export const IamService = {
     });
   },
 
-  async getRole(id: string, ctx: RequestContext) {
+  async getRole(id: string, ctx: RequestContext): Promise<any> {
     Security.requirePermission(ctx, 'TEAM_VIEW');
     const role = await db.role.findFirst({
       where: { id, shopId: ctx.shopId },
@@ -65,7 +66,11 @@ export const IamService = {
     return role;
   },
 
-  async createRole(input: RoleInput, ctx: RequestContext) {
+  // ============================================================================
+  // --- COMMANDS ---
+  // ============================================================================
+
+  async createRole(input: RoleInput, ctx: RequestContext): Promise<{ id: string }> {
     Security.requirePermission(ctx, 'TEAM_EDIT');
     if (!ctx.shopId) throw new ServiceError('ไม่พบข้อมูลร้านค้า');
 
@@ -74,14 +79,14 @@ export const IamService = {
       IAM_AUDIT_POLICIES.CREATE_ROLE(input.name),
       async () => {
         const existing = await db.role.findFirst({
-          where: { shopId: ctx.shopId, name: input.name },
+          where: { shopId: ctx.shopId!, name: input.name },
         });
 
         if (existing) throw new ServiceError('ชื่อ Role นี้ถูกใช้แล้ว');
 
         if (input.isDefault) {
           await db.role.updateMany({
-            where: { shopId: ctx.shopId, isDefault: true },
+            where: { shopId: ctx.shopId!, isDefault: true },
             data: { isDefault: false },
           });
         }
@@ -99,34 +104,38 @@ export const IamService = {
     );
   },
 
-  async updateRole(id: string, input: RoleInput, ctx: RequestContext) {
+  async updateRole(id: string, input: RoleInput, ctx: RequestContext): Promise<void> {
     Security.requirePermission(ctx, 'TEAM_EDIT');
     
-    return AuditService.runWithAudit(
+    const existing = await db.role.findFirst({
+      where: { id, shopId: ctx.shopId },
+    });
+
+    if (!existing) throw new ServiceError('ไม่พบข้อมูล Role');
+    if (existing.isSystem) throw new ServiceError('ไม่สามารถแก้ไข Role ระบบได้');
+
+    await AuditService.runWithAudit(
       ctx,
-      IAM_AUDIT_POLICIES.UPDATE_ROLE(id, input.name, ctx.shopId),
+      {
+        ...IAM_AUDIT_POLICIES.UPDATE_ROLE(id, input.name, ctx.shopId),
+        beforeSnapshot: () => existing,
+        afterSnapshot: () => db.role.findFirst({ where: { id } }),
+      },
       async () => {
-        const existing = await db.role.findFirst({
-          where: { id, shopId: ctx.shopId },
-        });
-
-        if (!existing) throw new ServiceError('ไม่พบข้อมูล Role');
-        if (existing.isSystem) throw new ServiceError('ไม่สามารถแก้ไข Role ระบบได้');
-
         const duplicate = await db.role.findFirst({
-          where: { shopId: ctx.shopId, name: input.name, NOT: { id } },
+          where: { shopId: ctx.shopId!, name: input.name, NOT: { id } },
         });
 
         if (duplicate) throw new ServiceError('ชื่อ Role นี้ถูกใช้แล้ว');
 
         if (input.isDefault) {
           await db.role.updateMany({
-            where: { shopId: ctx.shopId, isDefault: true, NOT: { id } },
+            where: { shopId: ctx.shopId!, isDefault: true, NOT: { id } },
             data: { isDefault: false },
           });
         }
 
-        return db.role.update({
+        await db.role.update({
           where: { id },
           data: {
             name: input.name,
@@ -139,24 +148,27 @@ export const IamService = {
     );
   },
 
-  async deleteRole(id: string, ctx: RequestContext) {
+  async deleteRole(id: string, ctx: RequestContext): Promise<void> {
     Security.requirePermission(ctx, 'TEAM_EDIT');
 
-    return AuditService.runWithAudit(
+    const role = await db.role.findFirst({
+      where: { id, shopId: ctx.shopId },
+      include: { _count: { select: { members: true } } },
+    });
+
+    if (!role) throw new ServiceError('ไม่พบข้อมูล Role');
+    if (role.isSystem) throw new ServiceError('ไม่สามารถลบ Role ระบบได้');
+    if (role._count.members > 0) {
+      throw new ServiceError(`ไม่สามารถลบได้ เนื่องจากมีสมาชิก ${role._count.members} คนใช้ Role นี้อยู่`);
+    }
+
+    await AuditService.runWithAudit(
       ctx,
-      IAM_AUDIT_POLICIES.DELETE_ROLE(id, ctx.shopId),
+      {
+        ...IAM_AUDIT_POLICIES.DELETE_ROLE(id, ctx.shopId),
+        beforeSnapshot: () => role,
+      },
       async () => {
-        const role = await db.role.findFirst({
-          where: { id, shopId: ctx.shopId },
-          include: { _count: { select: { members: true } } },
-        });
-
-        if (!role) throw new ServiceError('ไม่พบข้อมูล Role');
-        if (role.isSystem) throw new ServiceError('ไม่สามารถลบ Role ระบบได้');
-        if (role._count.members > 0) {
-          throw new ServiceError(`ไม่สามารถลบได้ เนื่องจากมีสมาชิก ${role._count.members} คนใช้ Role นี้อยู่`);
-        }
-
         await db.role.delete({ where: { id } });
       }
     );
@@ -195,29 +207,33 @@ export const IamService = {
     });
   },
 
-  async updateMemberRole(memberId: string, roleId: string, ctx: RequestContext) {
+  async updateMemberRole(memberId: string, roleId: string, ctx: RequestContext): Promise<void> {
     Security.requirePermission(ctx, 'TEAM_EDIT');
     if (!ctx.shopId) throw new ServiceError('ไม่พบข้อมูลร้านค้า');
 
-    return AuditService.runWithAudit(
+    const member = await db.shopMember.findFirst({
+      where: { id: memberId, shopId: ctx.shopId },
+    });
+
+    if (!member) throw new ServiceError('ไม่พบข้อมูลสมาชิก');
+    if (member.isOwner) throw new ServiceError('ไม่สามารถเปลี่ยน Role ของเจ้าของร้านได้');
+    if (member.userId === ctx.userId) throw new ServiceError('ไม่สามารถแก้ไข Role ของตัวเองได้');
+
+    const newRole = await db.role.findFirst({
+      where: { id: roleId, shopId: ctx.shopId },
+    });
+
+    if (!newRole) throw new ServiceError('ไม่พบข้อมูล Role');
+
+    await AuditService.runWithAudit(
       ctx,
-      IAM_AUDIT_POLICIES.UPDATE_MEMBER_ROLE(memberId, ctx.shopId),
+      {
+        ...IAM_AUDIT_POLICIES.UPDATE_MEMBER_ROLE(memberId, ctx.shopId),
+        beforeSnapshot: () => member,
+        afterSnapshot: () => db.shopMember.findFirst({ where: { id: memberId } }),
+      },
       async () => {
-        const member = await db.shopMember.findFirst({
-          where: { id: memberId, shopId: ctx.shopId },
-        });
-
-        if (!member) throw new ServiceError('ไม่พบข้อมูลสมาชิก');
-        if (member.isOwner) throw new ServiceError('ไม่สามารถเปลี่ยน Role ของเจ้าของร้านได้');
-        if (member.userId === ctx.userId) throw new ServiceError('ไม่สามารถแก้ไข Role ของตัวเองได้');
-
-        const newRole = await db.role.findFirst({
-          where: { id: roleId, shopId: ctx.shopId },
-        });
-
-        if (!newRole) throw new ServiceError('ไม่พบข้อมูล Role');
-
-        return db.shopMember.update({
+        await db.shopMember.update({
           where: { id: memberId },
           data: { roleId, permissionVersion: { increment: 1 } },
         });
@@ -225,34 +241,36 @@ export const IamService = {
     );
   },
 
-  async removeMember(memberId: string, ctx: RequestContext) {
+  async removeMember(memberId: string, ctx: RequestContext): Promise<void> {
     Security.requirePermission(ctx, 'TEAM_REMOVE');
     if (!ctx.shopId) throw new ServiceError('ไม่พบข้อมูลร้านค้า');
 
-    return AuditService.runWithAudit(
+    const member = await db.shopMember.findFirst({
+      where: { id: memberId, shopId: ctx.shopId },
+      include: { user: { select: { name: true, email: true } } },
+    });
+
+    if (!member) throw new ServiceError('ไม่พบข้อมูลสมาชิก');
+    if (member.isOwner) throw new ServiceError('ไม่สามารถลบเจ้าของร้านได้');
+    if (member.userId === ctx.userId) throw new ServiceError('ไม่สามารถลบตัวเองได้');
+
+    await AuditService.runWithAudit(
       ctx,
-      IAM_AUDIT_POLICIES.REMOVE_MEMBER(memberId, ctx.shopId),
+      {
+        ...IAM_AUDIT_POLICIES.REMOVE_MEMBER(memberId, ctx.shopId),
+        beforeSnapshot: () => member,
+      },
       async () => {
-        const member = await db.shopMember.findFirst({
-          where: { id: memberId, shopId: ctx.shopId },
-          include: { user: { select: { name: true, email: true } } },
-        });
-
-        if (!member) throw new ServiceError('ไม่พบข้อมูลสมาชิก');
-        if (member.isOwner) throw new ServiceError('ไม่สามารถลบเจ้าของร้านได้');
-        if (member.userId === ctx.userId) throw new ServiceError('ไม่สามารถลบตัวเองได้');
-
         await db.shopMember.delete({ where: { id: memberId } });
-        return member;
       }
     );
   },
 
-  async inviteMember(input: InviteMemberInput, ctx: RequestContext) {
+  async inviteMember(input: InviteMemberInput, ctx: RequestContext): Promise<void> {
     Security.requirePermission(ctx, 'TEAM_INVITE');
     if (!ctx.shopId) throw new ServiceError('ไม่พบข้อมูลร้านค้า');
 
-    return AuditService.runWithAudit(
+    await AuditService.runWithAudit(
       ctx,
       IAM_AUDIT_POLICIES.INVITE_MEMBER(ctx.shopId),
       async () => {
@@ -282,13 +300,11 @@ export const IamService = {
             isOwner: false,
           },
         });
-
-        return user;
       }
     );
   },
 
-  async updateUserActivity(userId: string) {
+  async updateUserActivity(userId: string): Promise<void> {
     try {
       await db.user.update({
         where: { id: userId },
@@ -297,6 +313,46 @@ export const IamService = {
     } catch (error) {
       console.error('[IamService] Failed to update user activity:', error);
     }
+  },
+
+  async revokeSessions(targetUserId: string, ctx: RequestContext): Promise<void> {
+    const isSelf = targetUserId === ctx.userId;
+    
+    // Authorization check
+    if (!isSelf) {
+      Security.requirePermission(ctx, 'TEAM_EDIT');
+      const targetMember = await db.shopMember.findFirst({
+        where: { userId: targetUserId, shopId: ctx.shopId },
+      });
+      if (!targetMember) throw new ServiceError('ไม่พบสมาชิกในทีม');
+      if (targetMember.isOwner && !ctx.isOwner) {
+        throw new ServiceError('ไม่สามารถเพิกถอน session ของเจ้าของร้านได้');
+      }
+    }
+
+    const policy = isSelf 
+      ? IAM_AUDIT_POLICIES.SESSION_REVOKE_ALL(ctx.userId)
+      : IAM_AUDIT_POLICIES.SESSION_REVOKE_BY_ADMIN(targetUserId, ctx.userId);
+
+    await AuditService.runWithAudit(
+      ctx,
+      policy,
+      async () => {
+        // 1. Increment sessionVersion in DB → invalidates all current JWTs
+        await db.user.update({
+          where: { id: targetUserId },
+          data: { sessionVersion: { increment: 1 } },
+        });
+
+        // 2. Bump permissionVersion for the shop member to ensure RBAC refresh
+        if (ctx.shopId) {
+          await db.shopMember.updateMany({
+            where: { userId: targetUserId, shopId: ctx.shopId },
+            data: { permissionVersion: { increment: 1 } },
+          });
+        }
+      }
+    );
   },
 
   async getPermissionVersion(userId: string) {

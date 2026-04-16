@@ -6,6 +6,7 @@ import { th } from 'date-fns/locale';
 import { getSale } from '@/actions/sales';
 import { getShop } from '@/actions/shop';
 import { formatCurrency } from '@/lib/formatters';
+import { calculateCtn } from '@/lib/erp-utils';
 import Loading from '@/app/(dashboard)/loading';
 
 // A4 Print Styles
@@ -79,22 +80,31 @@ async function TaxInvoice({ id }: { id: string }) {
       {/* Items Table */}
       <table className="w-full text-sm mb-8 border-collapse">
         <thead>
-          <tr className="border-b border-t border-black">
-            <th className="py-2 text-left w-12">ลำดับ</th>
+          <tr className="border-b border-t border-black text-xs">
+            <th className="py-2 text-left w-10">ลำดับ</th>
             <th className="py-2 text-left">รายการ</th>
-            <th className="py-2 text-right w-24">ราคา/หน่วย</th>
-            <th className="py-2 text-right w-20">จำนวน</th>
-            <th className="py-2 text-right w-24">จำนวนเงิน</th>
+            <th className="py-2 text-right w-24">หน่วยละ</th>
+            <th className="py-2 text-right w-16">จำนวน</th>
+            <th className="py-2 text-right w-12">Pack</th>
+            <th className="py-2 text-right w-14">CTN</th>
+            <th className="py-2 text-right w-24">รวมเงิน</th>
           </tr>
         </thead>
         <tbody>
           {sale.items.map((item: any, index: number) => (
-            <tr key={item.id} className="border-b border-gray-200">
-              <td className="py-2 valign-top text-center">{index + 1}</td>
-              <td className="py-2 valign-top">{item.product.name}</td>
-              <td className="py-2 text-right valign-top">{formatCurrency(Number(item.salePrice))}</td>
-              <td className="py-2 text-right valign-top">{item.quantity}</td>
-              <td className="py-2 text-right valign-top">{formatCurrency(Number(item.subtotal))}</td>
+            <tr key={item.id} className="border-b border-gray-100 text-xs">
+              <td className="py-2 text-center">{index + 1}</td>
+              <td className="py-2">
+                <div>{item.product.name}</div>
+                {item.product.sku && <div className="text-[10px] text-gray-500">SKU: {item.product.sku}</div>}
+              </td>
+              <td className="py-2 text-right">{formatCurrency(Number(item.salePrice))}</td>
+              <td className="py-2 text-right">{item.quantity}</td>
+              <td className="py-2 text-right text-gray-500">{item.packagingQty || 1}</td>
+              <td className="py-2 text-right font-medium">
+                {calculateCtn(item.quantity, item.packagingQty || 1)}
+              </td>
+              <td className="py-2 text-right">{formatCurrency(Number(item.subtotal))}</td>
             </tr>
           ))}
         </tbody>

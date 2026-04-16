@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { RequestContext } from '@/types/domain';
 import { toNumber } from '@/lib/money';
+import { calculateCtn, getPurchaseStatusLabel, getSaleStatusLabel } from '@/lib/erp-utils';
 
 export const ExportService = {
   async exportProductsData(ctx: RequestContext) {
@@ -35,10 +36,11 @@ export const ExportService = {
       select: {
         purchaseNumber: true, date: true, totalCost: true, status: true, notes: true,
         supplier: { select: { name: true } },
+        docType: true,
         items: {
           select: {
             product: { select: { name: true } },
-            quantity: true, costPrice: true, subtotal: true,
+            quantity: true, costPrice: true, subtotal: true, packagingQty: true,
           },
         },
       },
@@ -58,8 +60,9 @@ export const ExportService = {
           rows.push({
             PurchaseNumber: p.purchaseNumber || '', Date: p.date.toISOString().split('T')[0],
             Supplier: p.supplier?.name || '', Product: item.product.name, Quantity: item.quantity,
+            PackagingQty: item.packagingQty || 1, CTN: calculateCtn(item.quantity, item.packagingQty || 1),
             CostPrice: toNumber(item.costPrice), Subtotal: toNumber(item.subtotal),
-            TotalCost: toNumber(p.totalCost), Status: p.status || 'ACTIVE', Notes: p.notes || '',
+            TotalCost: toNumber(p.totalCost), Status: getPurchaseStatusLabel(p.status, p.docType as any), Notes: p.notes || '',
           });
         }
       }
@@ -137,7 +140,7 @@ export const ExportService = {
     });
 
     return incomes.map((i: any) => ({
-      Date: i.date.toISOString().split('T')[0], Description: i.description,
+      Date: i.date.toISOString().split('T')[0], Description: i.description || '',
       Category: i.category || '', Amount: toNumber(i.amount),
     }));
   },
@@ -156,7 +159,7 @@ export const ExportService = {
         items: {
           select: {
             product: { select: { name: true, sku: true } }, quantity: true,
-            salePrice: true, subtotal: true, costPrice: true,
+            salePrice: true, subtotal: true, costPrice: true, packagingQty: true,
           },
         },
       },
@@ -179,10 +182,11 @@ export const ExportService = {
           rows.push({
             InvoiceNumber: s.invoiceNumber, Date: s.date.toISOString().split('T')[0], Customer: customerName,
             Product: item.product.name, SKU: item.product.sku || '', Quantity: item.quantity,
+            PackagingQty: item.packagingQty || 1, CTN: calculateCtn(item.quantity, item.packagingQty || 1),
             UnitPrice: toNumber(item.salePrice), Subtotal: toNumber(item.subtotal), CostPrice: toNumber(item.costPrice),
             TotalAmount: toNumber(s.totalAmount), TotalCost: toNumber(s.totalCost), Profit: toNumber(s.profit),
             Discount: toNumber(s.discountAmount), PaymentMethod: s.paymentMethod || '', Channel: s.channel || '',
-            Status: s.status, Notes: s.notes || '',
+            Status: getSaleStatusLabel(s.status), Notes: s.notes || '',
           });
         }
       }
@@ -204,6 +208,61 @@ export const ExportService = {
     return expenses.map((e: any) => ({
       Date: e.date.toISOString().split('T')[0], Description: e.description || '',
       Category: e.category || '', Amount: toNumber(e.amount), HasReceipt: e.receiptUrl ? 'Yes' : 'No',
+    }));
+  },
+  
+  async exportAuditLogsData(startDate: string, endDate: string, ctx: RequestContext, format: 'CSV' | 'JSON' = 'CSV') {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    start.setHours(0, 0, 0, 0); end.setHours(23, 59, 59, 999);
+
+    const logs = await db.auditLog.findMany({
+      where: { 
+        shopId: ctx.shopId, 
+        createdAt: { gte: start, lte: end } 
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 1000,
+    });
+
+    if (format === 'JSON') {
+      return logs.map(log => ({
+        id: log.id,
+        timestamp: log.createdAt.toISOString(),
+        action: log.action,
+        status: log.status,
+        actor: {
+          id: log.actorUserId,
+          name: log.actorName,
+          email: log.actorEmail
+        },
+        target: {
+          type: log.targetType,
+          id: log.targetId
+        },
+        snapshots: {
+          before: log.beforeSnapshot,
+          after: log.afterSnapshot
+        },
+        changes: log.changedFields,
+        context: {
+          reason: log.reason,
+          note: log.note
+        }
+      }));
+    }
+
+    // Flattened for CSV
+    return logs.map(log => ({
+      Timestamp: log.createdAt.toISOString(),
+      Action: log.action,
+      Status: log.status,
+      Domain: log.targetType || '',
+      TargetID: log.targetId || '',
+      Actor: log.actorName || log.actorUserId || 'System',
+      Notes: log.note || '',
+      Reason: log.reason || '',
+      Changes: (log.changedFields || []).join(', ')
     }));
   }
 };

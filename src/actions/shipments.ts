@@ -58,7 +58,7 @@ export async function createShipment(input: ShipmentInput): Promise<ActionRespon
       data: result,
     };
   } catch (error: unknown) {
-    if (error instanceof ServiceError) return { success: false, message: error.message };
+    if (error instanceof ServiceError) return { success: false, message: error.message, action: error.action };
     const typedError = error as Error;
     await logger.error('Failed to create shipment', typedError, {
       path: 'createShipment',
@@ -205,7 +205,11 @@ export async function processShipmentRoute(ids: string[], type: 'OUTBOUND' | 'IN
     revalidatePath('/shipments');
     return { success: true, message: 'จัดลำดับเส้นทางสำเร็จ', data: result };
   } catch (error: any) {
-    return { success: false, message: error.message || 'เกิดข้อผิดพลาด' };
+    return { 
+      success: false, 
+      message: error.message || 'เกิดข้อผิดพลาด',
+      action: error instanceof ServiceError ? error.action : undefined
+    };
   }
 }
 

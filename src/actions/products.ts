@@ -74,7 +74,8 @@ export async function createProduct(input: ProductInput): Promise<ActionResponse
       return {
         success: false,
         message: error.message,
-        errors: error.errors
+        errors: error.errors,
+        action: error.action
       };
     }
 
@@ -122,7 +123,8 @@ export async function updateProduct(id: string, input: ProductUpdateInput): Prom
       return {
         success: false,
         message: error.message,
-        errors: error.errors
+        errors: error.errors,
+        action: error.action
       };
     }
 
@@ -150,7 +152,7 @@ export async function deleteProduct(id: string): Promise<ActionResponse> {
     };
   } catch (error: unknown) {
     if (error instanceof ServiceError) {
-      return { success: false, message: error.message };
+      return { success: false, message: error.message, action: error.action };
     }
     const typedError = error as Error;
     await logger.error('Delete product error', typedError, { path: 'deleteProduct', userId: ctx.userId, productId: id });
@@ -193,7 +195,7 @@ export async function adjustStock(productId: string, input: AdjustStockInput): P
     revalidatePath(`/products/${productId}`);
     return { success: true, message: 'ปรับปรุงสต็อกสำเร็จ' };
   } catch (error: unknown) {
-    if (error instanceof ServiceError) return { success: false, message: error.message };
+    if (error instanceof ServiceError) return { success: false, message: error.message, action: error.action };
     const typedError = error as Error;
     await logger.error('Adjust stock error', typedError, { path: 'adjustStock', userId: ctx.userId, productId });
     return { success: false, message: typedError.message || 'เกิดข้อผิดพลาดในการปรับปรุงสต็อก' };

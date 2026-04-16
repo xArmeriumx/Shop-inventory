@@ -1,8 +1,7 @@
 // Tool: Create Product - เพิ่มสินค้าใหม่
 
-import { db } from '@/lib/db';
+import { ProductService } from '@/services';
 import { AITool, ToolResult, ToolContext } from './types';
-import { StockService } from '@/services';
 
 export const createProductTool: AITool = {
   definition: {
@@ -67,37 +66,15 @@ export const createProductTool: AITool = {
       const timestamp = Date.now().toString(36).toUpperCase();
       const sku = `PRD-${timestamp}`;
 
-      const product = await db.$transaction(async (tx) => {
-        // 1. Create product with stock = 0 (StockService will set the real value)
-        const newProduct = await tx.product.create({
-          data: {
-            name,
-            sku,
-            salePrice: price,
-            costPrice: cost,
-            stock: 0,
-            category,
-            minStock: 5,
-            isActive: true,
-            userId: context.userId,
-            shopId: context.shopId,
-          },
-        });
-
-        // 2. If initial stock > 0, record via StockService (creates StockLog)
-        if (stock > 0) {
-          await StockService.recordMovement(context as any, {
-            productId: newProduct.id,
-            type: 'ADJUSTMENT',
-            quantity: stock,
-            userId: context.userId,
-            shopId: context.shopId,
-            note: 'สต็อกเริ่มต้น (AI สร้างสินค้า)',
-            tx,
-          });
-        }
-
-        return newProduct;
+      const product = await ProductService.create(context as any, {
+        name,
+        sku,
+        salePrice: price,
+        costPrice: cost,
+        stock: stock,
+        category,
+        minStock: 5,
+        isActive: true,
       });
 
       return {

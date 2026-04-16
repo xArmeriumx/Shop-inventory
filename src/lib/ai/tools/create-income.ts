@@ -1,6 +1,6 @@
 // Tool: Create Income - บันทึกรายรับอื่นๆ
 
-import { db } from '@/lib/db';
+import { FinanceService } from '@/services';
 import { AITool, ToolResult, ToolContext } from './types';
 
 export const createIncomeTool: AITool = {
@@ -51,17 +51,13 @@ export const createIncomeTool: AITool = {
     }
 
     try {
-      // Use Prisma's income model
-      const income = await (db as any).income.create({
-        data: {
-          description,
-          amount,
-          category: category || 'อื่นๆ',
-          date: new Date(),
-          userId: context.userId,
-          shopId: context.shopId,
-        },
-      });
+      // Use Service Layer instead of direct DB access
+      const income = await FinanceService.createIncome({
+        description,
+        amount,
+        category: category || 'อื่นๆ',
+        date: new Date(),
+      }, context as any);
 
       return {
         success: true,

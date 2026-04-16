@@ -586,7 +586,11 @@ export const ShipmentService: IShippingService = {
         });
 
         if (!shop || shop.latitude === null || shop.longitude === null) {
-          throw new ServiceError('ยังไม่สามารถคำนวณเส้นทางได้เนื่องจากข้อมูลพิกัดร้านค้าไม่ครบถ้วน');
+          throw new ServiceError(
+            'ยังไม่สามารถคำนวณเส้นทางได้เนื่องจากพิกัดร้านค้าไม่ครบถ้วน',
+            undefined,
+            { label: 'ไปที่ตั้งค่าร้านค้า', href: '/settings' }
+          );
         }
 
         const origin: SpatialPoint = {
@@ -615,5 +619,39 @@ export const ShipmentService: IShippingService = {
         return shipments.sort((a, b) => (idToIndex.get(a.id) ?? 0) - (idToIndex.get(b.id) ?? 0));
       }
     );
+  },
+
+  /**
+   * เครื่องมือสำหรับ Admin: ดึงรายชื่อลูกค้าที่พิกัดไม่ครบ เพื่อให้จัดการได้ง่าย
+   */
+  async getLogisticsGaps(ctx: RequestContext) {
+    Security.requirePermission(ctx, 'SHIPMENT_VIEW');
+
+    // หา Customer ที่มี shipment แต่ไม่มีพิกัด
+    const customers = await db.customer.findMany({
+      where: {
+        shopId: ctx.shopId,
+        OR: [
+          { latitude: null },
+          { longitude: null }
+        ],
+        shipments: { some: {} } // มี shipment อย่างน้อย 1 รายการ
+      },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        address: true,
+        latitude: true,
+        longitude: true,
+        _count: {
+          select: { shipments: true }
+        }
+      },
+      orderBy: { shipments: { _count: 'desc' } },
+      take: 50
+    });
+
+    return customers;
   }
 };

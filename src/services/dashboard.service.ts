@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { RequestContext, ServiceError } from '@/types/domain';
 import { money, toNumber } from '@/lib/money';
+import { AuditService } from './audit.service';
 
 export const DashboardService = {
   async getDashboardStats(ctx: RequestContext) {
@@ -123,6 +124,104 @@ export const DashboardService = {
         total: totalStockValue,
         itemCount: stockProducts.length,
       },
+      governanceHealth: AuditService.getGovernanceHealth(),
+    };
+  },
+
+  /**
+   * getOperationalMetrics - Aggregate actionable tasks for the Two-Tier Dashboard (Rule: SME-First)
+   */
+  async getOperationalMetrics(ctx: RequestContext) {
+    const limitDate = new Date();
+    limitDate.setDate(limitDate.getDate() - 3); // For Stuck Documents detection
+
+    const [
+      pendingSalesCount,
+      pendingProcurementCount,
+      pendingShipmentsCount,
+      recentStockMoves,
+      prToOrderCount,
+      incompleteShipmentsCount,
+      stuckSalesCount,
+      stuckPurchasesCount,
+      governanceIncidentsToday
+    ] = await Promise.all([
+      // SME 1: งานขายค้าง (DRAFT or CONFIRMED)
+      db.sale.count({
+        where: { shopId: ctx.shopId, status: { in: ['DRAFT', 'CONFIRMED'] } }
+      }),
+      // SME 2: งานซื้อค้าง (Active PR/PO that is not RECEIVED)
+      db.purchase.count({
+        where: { shopId: ctx.shopId, status: { in: ['DRAFT', 'PENDING', 'APPROVED', 'ORDERED'] } }
+      }),
+      // SME 3: งานส่งของค้าง (PENDING or PROCESSING)
+      db.shipment.count({
+        where: { shopId: ctx.shopId, status: { in: ['PENDING', 'PROCESSING'] } }
+      }),
+      // SME 4: ปรับสต็อกมือล่าสุด (Audit)
+      db.auditLog.findMany({
+        where: { shopId: ctx.shopId, action: 'STOCK_MOVE' },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        select: { id: true, createdAt: true, actorName: true, note: true, targetId: true }
+      }),
+      // ADV 1: PR รอออก PO
+      db.purchase.count({
+        where: { shopId: ctx.shopId, docType: 'REQUEST', status: 'APPROVED' }
+      }),
+      // ADV 2: Shipment พิกัดไม่ครบ
+      db.shipment.count({
+        where: { 
+          shopId: ctx.shopId, 
+          status: { notIn: ['CANCELLED', 'DELIVERED'] },
+          OR: [{ lat: null }, { lng: null }]
+        }
+      }),
+      // ADV 3: Stuck Sales (> 3 days)
+      db.sale.count({
+        where: { 
+          shopId: ctx.shopId, 
+          status: { in: ['DRAFT', 'CONFIRMED'] },
+          createdAt: { lt: limitDate }
+        }
+      }),
+      // ADV 4: Stuck Purchases (> 3 days)
+      db.purchase.count({
+        where: { 
+          shopId: ctx.shopId, 
+          status: { in: ['DRAFT', 'PENDING', 'APPROVED', 'ORDERED'] },
+          createdAt: { lt: limitDate }
+        }
+      }),
+      // ADV 5: Governance Incidents Today
+      db.auditLog.count({
+        where: { 
+          shopId: ctx.shopId, 
+          status: 'DENIED', 
+          createdAt: { gte: new Date(new Date().setHours(0,0,0,0)) } 
+        }
+      }),
+    ]);
+
+    return {
+      sme: {
+        pendingSales: pendingSalesCount,
+        pendingProcurement: pendingProcurementCount,
+        pendingShipments: pendingShipmentsCount,
+        recentStockMoves: recentStockMoves.map(log => ({
+          id: log.id,
+          date: log.createdAt,
+          actor: log.actorName || 'ระบบ',
+          note: log.note || 'ปรับปรุงสต็อก',
+          productId: log.targetId
+        })),
+      },
+      advanced: {
+        prToOrder: prToOrderCount,
+        incompleteShipments: incompleteShipmentsCount,
+        stuckDocs: stuckSalesCount + stuckPurchasesCount,
+        governanceIncidents: governanceIncidentsToday,
+      }
     };
   },
 
@@ -224,5 +323,59 @@ export const DashboardService = {
       salesRevenue: data.sales,
       incomeRevenue: data.income,
     }));
+  },
+
+  /**
+   * ดึงรายการเอกสารที่ค้าง (Stale Documents) ทั้งหมดที่เกิน 3 วัน
+   */
+  async getStaleDocuments(ctx: RequestContext) {
+    const limitDate = new Date();
+    limitDate.setDate(limitDate.getDate() - 3);
+
+    const [staleSales, stalePurchases] = await Promise.all([
+      db.sale.findMany({
+        where: {
+          shopId: ctx.shopId,
+          status: { in: ['DRAFT', 'CONFIRMED'] },
+          createdAt: { lt: limitDate }
+        },
+        include: { customer: { select: { name: true } } },
+        orderBy: { createdAt: 'asc' },
+        take: 50
+      }),
+      db.purchase.findMany({
+        where: {
+          shopId: ctx.shopId,
+          status: { in: ['DRAFT', 'PENDING', 'APPROVED', 'ORDERED'] },
+          createdAt: { lt: limitDate }
+        },
+        include: { supplier: { select: { name: true } } },
+        orderBy: { createdAt: 'asc' },
+        take: 50
+      })
+    ]);
+
+    return {
+      sales: staleSales.map(s => ({
+        id: s.id,
+        number: s.invoiceNumber,
+        date: s.date,
+        createdAt: s.createdAt,
+        status: s.status,
+        partner: s.customer?.name || s.customerName || 'ลูกค้าทั่วไป',
+        amount: Number(s.netAmount),
+        type: 'SALE'
+      })),
+      purchases: stalePurchases.map(p => ({
+        id: p.id,
+        number: p.purchaseNumber,
+        date: p.date,
+        createdAt: p.createdAt,
+        status: p.status,
+        partner: p.supplier?.name || 'ไม่ระบุผู้ขาย',
+        amount: Number(p.totalCost),
+        type: p.docType === 'REQUEST' ? 'PR' : 'PO'
+      }))
+    };
   }
 };
