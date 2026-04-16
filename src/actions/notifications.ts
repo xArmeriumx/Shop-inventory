@@ -3,6 +3,7 @@
 import { requireShop } from '@/lib/auth-guard';
 import { NotificationService } from '@/services';
 import { logger } from '@/lib/logger';
+import { isDynamicServerError } from '@/lib/next-utils';
 
 /**
  * Get notifications for current user/shop
@@ -21,7 +22,7 @@ export async function getNotifications(limit = 20) {
     return data;
   } catch (error) {
     // Fail silently for UI convenience, but log internally if it's a real error (not just unauthenticated redirect)
-    if (!(error instanceof Error && error.message.includes('NEXT_REDIRECT'))) {
+    if (!isDynamicServerError(error) && !(error instanceof Error && error.message.includes('NEXT_REDIRECT'))) {
       console.error('[Action: getNotifications] Failed:', error);
     }
     return [];
@@ -44,7 +45,7 @@ export async function getUnreadCount() {
     
     return count;
   } catch (error) {
-    if (!(error instanceof Error && error.message.includes('NEXT_REDIRECT'))) {
+    if (!isDynamicServerError(error) && !(error instanceof Error && error.message.includes('NEXT_REDIRECT'))) {
       console.error('[Action: getUnreadCount] Failed:', error);
     }
     return 0;

@@ -78,9 +78,18 @@ export function NotificationBell() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Set mounted state on client
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Load notifications
   const loadNotifications = useCallback(async () => {
+    // SSR/Build safety: Don't fetch if not mounted yet
+    if (!isMounted) return;
+    
     try {
       const [data, count] = await Promise.all([
         getNotifications(15),
@@ -100,7 +109,7 @@ export function NotificationBell() {
       setNotifications([]);
       setUnreadCount(0);
     }
-  }, []);
+  }, [isMounted]);
 
   // Initial load
   useEffect(() => {
@@ -109,6 +118,9 @@ export function NotificationBell() {
 
   // Supabase Realtime subscription
   useEffect(() => {
+    // STRICT GUARD: No realtime init during SSR or before client mount
+    if (!isMounted) return;
+
     let channel: ReturnType<ReturnType<typeof getSupabaseBrowser>['channel']> | null = null;
 
     try {
@@ -151,7 +163,7 @@ export function NotificationBell() {
         supabase.removeChannel(channel);
       }
     };
-  }, [loadNotifications]);
+  }, [loadNotifications, isMounted]);
 
   // Mark single as read and navigate
   const handleClick = (notification: Notification) => {

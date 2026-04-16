@@ -4,6 +4,7 @@ import { getSessionContext } from '@/lib/auth-guard';
 import { logger } from '@/lib/logger';
 export type { PermissionData } from '@/services';
 import { IamService, type PermissionData } from '@/services';
+import { isDynamicServerError } from '@/lib/next-utils';
 
 export type PermissionVersionData = {
   version: number;
@@ -61,7 +62,9 @@ export async function getMyPermissions(): Promise<AuthPermissionsResponse> {
       version: data.version
     };
   } catch (error) {
-    console.error('[Action: getMyPermissions] Failed:', error);
+    if (!isDynamicServerError(error)) {
+      console.error('[Action: getMyPermissions] Failed:', error);
+    }
     return {
       isAuthenticated: false,
       permissions: [],

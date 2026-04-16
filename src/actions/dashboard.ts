@@ -3,6 +3,7 @@
 import { requirePermission } from "@/lib/auth-guard";
 import { DashboardService } from "@/services";
 import { logger } from "@/lib/logger";
+import { isDynamicServerError } from "@/lib/next-utils";
 
 /**
  * Get core dashboard statistics
@@ -13,7 +14,7 @@ export async function getDashboardStats() {
     const ctx = await requirePermission("SALE_VIEW");
     return await DashboardService.getDashboardStats(ctx);
   } catch (error) {
-    if (!(error instanceof Error && error.message.includes('NEXT_REDIRECT'))) {
+    if (!isDynamicServerError(error) && !(error instanceof Error && error.message.includes('NEXT_REDIRECT'))) {
       console.error('[Action: getDashboardStats] Failed:', error);
     }
     
@@ -40,7 +41,7 @@ export async function getMonthlyStats() {
     const ctx = await requirePermission("SALE_VIEW");
     return await DashboardService.getMonthlyStats(ctx);
   } catch (error) {
-    if (!(error instanceof Error && error.message.includes('NEXT_REDIRECT'))) {
+    if (!isDynamicServerError(error) && !(error instanceof Error && error.message.includes('NEXT_REDIRECT'))) {
       console.error('[Action: getMonthlyStats] Failed:', error);
     }
     
@@ -63,7 +64,7 @@ export async function getSalesChartData(days = 7) {
     const ctx = await requirePermission("SALE_VIEW");
     return await DashboardService.getSalesChartData(days, ctx);
   } catch (error) {
-    if (!(error instanceof Error && error.message.includes('NEXT_REDIRECT'))) {
+    if (!isDynamicServerError(error) && !(error instanceof Error && error.message.includes('NEXT_REDIRECT'))) {
       console.error('[Action: getSalesChartData] Failed:', error);
     }
     return [];

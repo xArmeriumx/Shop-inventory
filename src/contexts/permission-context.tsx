@@ -13,6 +13,7 @@ import {
 import { useSession } from 'next-auth/react';
 import type { Permission } from '@prisma/client';
 import { getMyPermissions, getPermissionVersion, type PermissionData } from '@/actions/auth';
+import { logger, SystemEventType } from '@/lib/logger';
 
 // ============================================================================
 // CONFIGURATION
@@ -29,6 +30,12 @@ const POLLING_INTERVAL = 30_000;
  * This prevents immediate duplicate fetches after page load
  */
 const INITIAL_POLL_DELAY = 5_000;
+
+/**
+ * Public routes that do NOT trigger the logout guardian redirect.
+ * This prevents redirect loops and allows users to re-login.
+ */
+const PUBLIC_ROUTES = ['/login', '/register', '/forgot-password', '/onboarding'];
 
 // ============================================================================
 // TYPES
@@ -105,6 +112,10 @@ export function PermissionProvider({ children }: PermissionProviderProps) {
   const isMountedRef = useRef(true);
   const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isPollingActiveRef = useRef(false);
+  
+  // Transition memory for Logout Guardian (Phase 1)
+  const prevStatusRef = useRef<PermissionStatus>('loading');
+  const isRedirectingRef = useRef(false);
 
   const [permissionStatus, setPermissionStatus] = useState<PermissionStatus>('loading');
   const [permissionData, setPermissionData] = useState<{
@@ -276,6 +287,43 @@ export function PermissionProvider({ children }: PermissionProviderProps) {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [startPolling, stopPolling, checkVersionAndRefresh]);
+
+  // -------------------------------------------------------------------------
+  // PHASE 1: LOGOUT GUARDIAN
+  // Detects transition from authenticated -> unauthenticated 
+  // and forces a redirect to /login to clear the dead UI.
+  // -------------------------------------------------------------------------
+  useEffect(() => {
+    const currentStatus = permissionStatus;
+    const prevStatus = prevStatusRef.current;
+    
+    // Only act if transition is from authenticated -> unauthenticated
+    const isSessionRevoked = prevStatus === 'authenticated' && currentStatus === 'unauthenticated';
+    
+    if (isSessionRevoked && !isRedirectingRef.current && status !== 'loading') {
+      const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+      const isPublicRoute = PUBLIC_ROUTES.some(route => pathname.startsWith(route));
+      
+      if (!isPublicRoute) {
+        isRedirectingRef.current = true;
+        console.warn('[PermissionContext] Session revocation detected. Redirecting to /login...');
+
+        // Telemetry-first sequence (ensure log reaches DB before redirect)
+        logger.trackEvent(SystemEventType.AUTH_TRANSITION_RECOVERY, {
+          source: 'PermissionProvider',
+          message: 'Session revoked or expired; forcing UI redirect.',
+          pathname,
+          metadata: { from: prevStatus, to: currentStatus }
+        }).finally(() => {
+          // Hard redirect to clear all client-side state
+          window.location.replace('/login');
+        });
+      }
+    }
+
+    // Update transition memory
+    prevStatusRef.current = currentStatus;
+  }, [permissionStatus, status]);
 
   // -------------------------------------------------------------------------
   // Main Effect: Initialize and Start Polling
