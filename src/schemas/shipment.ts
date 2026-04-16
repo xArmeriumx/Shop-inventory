@@ -34,7 +34,7 @@ export type UpdateShipmentInput = z.infer<typeof updateShipmentSchema>;
 
 export const updateShipmentStatusSchema = z.object({
   id: z.string().min(1),
-  status: z.enum(['PENDING', 'SHIPPED', 'DELIVERED', 'RETURNED', 'CANCELLED']),
+  status: z.enum(['PENDING', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'RETURNED', 'CANCELLED']),
 });
 
 export type UpdateShipmentStatusInput = z.infer<typeof updateShipmentStatusSchema>;
