@@ -16,11 +16,60 @@ export async function getPermissionVersion(): Promise<PermissionVersionData> {
   return IamService.getPermissionVersion(ctx.userId);
 }
 
-export async function getMyPermissions(): Promise<PermissionData | null> {
-  const ctx = await getSessionContext();
-  if (!ctx) return null;
+export interface AuthPermissionsResponse {
+  isAuthenticated: boolean;
+  permissions: string[];
+  roles: string[];
+  shopId?: string;
+  isOwner: boolean;
+  version: number;
+}
 
-  return IamService.getMyPermissions(ctx.userId);
+export async function getMyPermissions(): Promise<AuthPermissionsResponse> {
+  try {
+    const ctx = await getSessionContext();
+    
+    // Level 1: Source Contract hardening - Never return null for UI reads
+    if (!ctx) {
+      return {
+        isAuthenticated: false,
+        permissions: [],
+        roles: [],
+        isOwner: false,
+        version: 0
+      };
+    }
+
+    const data = await IamService.getMyPermissions(ctx.userId);
+    
+    if (!data) {
+      return {
+        isAuthenticated: true,
+        permissions: [],
+        roles: [],
+        isOwner: false,
+        version: 0
+      };
+    }
+
+    return {
+      isAuthenticated: true,
+      permissions: Array.isArray(data.permissions) ? (data.permissions as string[]) : [],
+      roles: data.roleId ? [data.roleId] : [], // Note: roleId is currently a singular ID in this system
+      shopId: data.shopId,
+      isOwner: data.isOwner,
+      version: data.version
+    };
+  } catch (error) {
+    console.error('[Action: getMyPermissions] Failed:', error);
+    return {
+      isAuthenticated: false,
+      permissions: [],
+      roles: [],
+      isOwner: false,
+      version: 0
+    };
+  }
 }
 
 export async function getMyProfile() {

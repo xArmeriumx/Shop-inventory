@@ -10,6 +10,11 @@ export async function getSystemMetrics(): Promise<SystemMetrics> {
   return SystemService.getMetrics();
 }
 
+export async function getHardeningHealth() {
+  await requirePermission('SETTINGS_SHOP');
+  return SystemService.getHardeningHealthMetrics();
+}
+
 export async function generateTestLog() {
   throw new Error('Test logging feature is globally disabled.');
 }

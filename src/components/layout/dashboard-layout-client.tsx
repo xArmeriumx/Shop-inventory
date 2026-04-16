@@ -6,6 +6,7 @@ import { Sidebar } from '@/components/layout/sidebar';
 import { Header } from '@/components/layout/header';
 import { BottomNav } from '@/components/layout/bottom-nav';
 import { PermissionProvider } from '@/contexts/permission-context';
+import { SafeBoundary } from '@/components/ui/safe-boundary';
 
 interface ClientLayoutProps {
   children: React.ReactNode;
@@ -30,7 +31,9 @@ export function DashboardLayoutClient({ children, user }: ClientLayoutProps) {
       <div className="flex h-screen overflow-hidden">
         {/* Desktop Sidebar */}
         <div className="hidden lg:block h-full">
-          <Sidebar />
+          <SafeBoundary variant="compact" componentName="Sidebar:Desktop">
+            <Sidebar />
+          </SafeBoundary>
         </div>
 
         {/* Mobile Sidebar Overlay */}
@@ -44,7 +47,9 @@ export function DashboardLayoutClient({ children, user }: ClientLayoutProps) {
             
             {/* Drawer */}
             <div className="relative flex h-full w-64 flex-col bg-background shadow-xl border-r transition-transform animate-in slide-in-from-left duration-300">
-              <Sidebar />
+              <SafeBoundary variant="compact" componentName="Sidebar:Mobile">
+                <Sidebar />
+              </SafeBoundary>
             </div>
           </div>
         )}
@@ -61,7 +66,9 @@ export function DashboardLayoutClient({ children, user }: ClientLayoutProps) {
         </div>
 
         {/* Mobile Bottom Navigation */}
-        <BottomNav onMenuClick={() => setIsMobileOpen(true)} />
+        <SafeBoundary variant="silent" componentName="BottomNav">
+          <BottomNav onMenuClick={() => setIsMobileOpen(true)} />
+        </SafeBoundary>
       </div>
     </PermissionProvider>
   );

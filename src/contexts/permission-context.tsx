@@ -34,12 +34,16 @@ const INITIAL_POLL_DELAY = 5_000;
 // TYPES
 // ============================================================================
 
+export type PermissionStatus = 'loading' | 'authenticated' | 'unauthenticated' | 'error';
+
 interface PermissionContextValue {
   // State
   permissions: Permission[];
+  roles: string[];
   isOwner: boolean;
   shopId: string | undefined;
   roleId: string | undefined;
+  status: PermissionStatus;
   isLoading: boolean;
   isAuthenticated: boolean;
 
@@ -82,6 +86,15 @@ const PermissionContext = createContext<PermissionContextValue | null>(null);
  * 
  * Mount this provider ONCE at the dashboard layout level.
  */
+const EMPTY_DATA = {
+    shopId: undefined,
+    roleId: undefined,
+    permissions: [],
+    roles: [],
+    isOwner: false,
+    version: 0,
+};
+
 export function PermissionProvider({ children }: PermissionProviderProps) {
   const { data: session, status } = useSession();
 
@@ -93,22 +106,29 @@ export function PermissionProvider({ children }: PermissionProviderProps) {
   const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isPollingActiveRef = useRef(false);
 
-  // -------------------------------------------------------------------------
-  // Permission State
-  // -------------------------------------------------------------------------
-  
-  /**
-   * Initialize state from session JWT if available
-   * This prevents an unnecessary initial fetch since JWT already contains permissions
-   */
-  const [permissionData, setPermissionData] = useState<PermissionData | null>(() => {
-    if (!session?.user) return null;
+  const [permissionStatus, setPermissionStatus] = useState<PermissionStatus>('loading');
+  const [permissionData, setPermissionData] = useState<{
+    shopId: string | undefined;
+    roleId: string | undefined;
+    permissions: Permission[];
+    roles: string[];
+    isOwner: boolean;
+    version: number;
+  }>(() => {
+    // Initial normalization from session
+    if (!session?.user) return EMPTY_DATA;
+
+    const permissions = Array.isArray(session?.user?.permissions) 
+      ? (session.user.permissions as Permission[]) 
+      : [];
+    
     return {
-      shopId: session.user.shopId as string,
-      roleId: session.user.roleId,
-      permissions: (session.user.permissions ?? []) as Permission[],
-      isOwner: session.user.isOwner ?? false,
-      version: 0, // Will be updated on first poll
+      shopId: session?.user?.shopId as string | undefined,
+      roleId: session?.user?.roleId,
+      permissions,
+      roles: session?.user?.roleId ? [session.user.roleId] : [],
+      isOwner: session?.user?.isOwner ?? false,
+      version: 0,
     };
   });
 
@@ -124,22 +144,37 @@ export function PermissionProvider({ children }: PermissionProviderProps) {
     if (!isMountedRef.current) return;
 
     try {
-      const freshData = await getMyPermissions();
+      const response = await getMyPermissions();
 
       if (!isMountedRef.current) return;
 
-      if (freshData) {
-        cachedVersionRef.current = freshData.version;
-        setPermissionData((prev) => {
-          // Only update if data actually changed (prevent unnecessary re-renders)
-          if (JSON.stringify(prev) === JSON.stringify(freshData)) {
-            return prev;
-          }
-          return freshData;
-        });
+      if (!response.isAuthenticated) {
+        setPermissionStatus('unauthenticated');
+        return;
       }
+
+      cachedVersionRef.current = response.version;
+      setPermissionStatus('authenticated');
+      
+      const normalizedData = {
+        shopId: response.shopId,
+        roleId: response.roles[0], // Using first role for backward compatibility
+        permissions: Array.isArray(response.permissions) ? (response.permissions as Permission[]) : [],
+        roles: Array.isArray(response.roles) ? response.roles : [],
+        isOwner: response.isOwner,
+        version: response.version,
+      };
+
+      setPermissionData((prev) => {
+        // Only update if data actually changed
+        if (JSON.stringify(prev) === JSON.stringify(normalizedData)) {
+          return prev;
+        }
+        return normalizedData;
+      });
     } catch (error) {
       console.error('[PermissionContext] Failed to fetch permissions:', error);
+      setPermissionStatus('error');
     }
   }, []);
 
@@ -250,7 +285,7 @@ export function PermissionProvider({ children }: PermissionProviderProps) {
     if (status !== 'authenticated') {
       // Not authenticated - clear data and stop polling
       if (status !== 'loading') {
-        setPermissionData(null);
+        setPermissionData(EMPTY_DATA);
       }
       stopPolling();
       return;
@@ -268,13 +303,14 @@ export function PermissionProvider({ children }: PermissionProviderProps) {
     // =========================================================================
 
     // Initialize from session if we don't have data yet
-    if (!permissionData && session?.user) {
+    if (permissionData === EMPTY_DATA && session?.user) {
       const sessionPermissions = (session.user.permissions ?? []) as Permission[];
       
       setPermissionData({
         shopId: session.user.shopId as string,
         roleId: session.user.roleId,
         permissions: sessionPermissions,
+        roles: session.user.roleId ? [session.user.roleId] : [],
         isOwner: session.user.isOwner ?? false,
         version: 0, // Unknown version, will be synced on first poll
       });
@@ -305,13 +341,18 @@ export function PermissionProvider({ children }: PermissionProviderProps) {
   // -------------------------------------------------------------------------
 
   const permissions = useMemo(
-    () => permissionData?.permissions ?? [],
-    [permissionData?.permissions]
+    () => Array.isArray(permissionData.permissions) ? permissionData.permissions : [],
+    [permissionData.permissions]
   );
 
-  const isOwner = permissionData?.isOwner ?? false;
-  const shopId = permissionData?.shopId;
-  const roleId = permissionData?.roleId;
+  const roles = useMemo(
+    () => Array.isArray(permissionData.roles) ? permissionData.roles : [],
+    [permissionData.roles]
+  );
+
+  const isOwner = permissionData.isOwner;
+  const shopId = permissionData.shopId;
+  const roleId = permissionData.roleId;
 
   const hasPermission = useCallback(
     (permission: Permission): boolean => {
@@ -348,11 +389,13 @@ export function PermissionProvider({ children }: PermissionProviderProps) {
   const contextValue = useMemo<PermissionContextValue>(
     () => ({
       permissions,
+      roles,
       isOwner,
       shopId,
       roleId,
-      isLoading: status === 'loading' && !permissionData,
-      isAuthenticated: status === 'authenticated',
+      status: permissionStatus === 'loading' && status === 'authenticated' ? 'loading' : permissionStatus,
+      isLoading: (status === 'loading' || permissionStatus === 'loading') && status !== 'unauthenticated',
+      isAuthenticated: status === 'authenticated' && permissionStatus === 'authenticated',
       hasPermission,
       hasAnyPermission,
       hasAllPermissions,
@@ -360,11 +403,12 @@ export function PermissionProvider({ children }: PermissionProviderProps) {
     }),
     [
       permissions,
+      roles,
       isOwner,
       shopId,
       roleId,
       status,
-      permissionData,
+      permissionStatus,
       hasPermission,
       hasAnyPermission,
       hasAllPermissions,

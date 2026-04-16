@@ -12,11 +12,13 @@ import { usePermissionContext, useIsPermissionProviderMounted } from '@/contexts
 export interface UsePermissionsReturn {
   // State
   permissions: Permission[];
+  roles: string[];
   isOwner: boolean;
   shopId: string | undefined;
   roleId: string | undefined;
   isLoading: boolean;
   isAuthenticated: boolean;
+  status: 'loading' | 'authenticated' | 'unauthenticated' | 'error';
 
   // Permission check helpers
   hasPermission: (permission: Permission) => boolean;
@@ -83,7 +85,7 @@ function useFallbackPermissions(): UsePermissionsReturn {
   const { data: session, status } = useSession();
 
   const permissions = useMemo(
-    () => (session?.user?.permissions ?? []) as Permission[],
+    () => Array.isArray(session?.user?.permissions) ? (session.user.permissions as Permission[]) : [],
     [session?.user?.permissions]
   );
 
@@ -122,11 +124,13 @@ function useFallbackPermissions(): UsePermissionsReturn {
 
   return {
     permissions,
+    roles: roleId ? [roleId] : [],
     isOwner,
     shopId,
     roleId,
     isLoading: status === 'loading',
     isAuthenticated: status === 'authenticated',
+    status: status === 'loading' ? 'loading' : status === 'authenticated' ? 'authenticated' : 'unauthenticated',
     hasPermission,
     hasAnyPermission,
     hasAllPermissions,

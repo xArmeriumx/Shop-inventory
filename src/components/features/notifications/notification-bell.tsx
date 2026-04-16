@@ -8,6 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils';
 import { getNotifications, getUnreadCount, markNotificationRead, markAllNotificationsRead } from '@/actions/notifications';
 import { getSupabaseBrowser } from '@/lib/supabase-browser';
+import { usePermissions } from '@/hooks/use-permissions';
 
 // =============================================================================
 // TYPES
@@ -70,10 +71,13 @@ function timeAgo(date: Date): string {
 
 export function NotificationBell() {
   const router = useRouter();
+  const { status: authStatus } = usePermissions();
+  const [isPending, startTransition] = useTransition();
+
+  // State
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
-  const [isPending, startTransition] = useTransition();
 
   // Load notifications
   const loadNotifications = useCallback(async () => {
@@ -82,10 +86,19 @@ export function NotificationBell() {
         getNotifications(15),
         getUnreadCount(),
       ]);
-      setNotifications(data);
-      setUnreadCount(count);
-    } catch {
-      // Silent fail — don't break the UI
+      
+      // Level 2: State Normalization
+      setNotifications(Array.isArray(data) ? data : []);
+      setUnreadCount(typeof count === 'number' ? count : 0);
+
+      if (!Array.isArray(data)) {
+        console.warn('[NotificationBell] Received malformed notification data:', data);
+      }
+    } catch (error) {
+      // Level 1 already returns []/0, but we catch here for safety
+      console.error('[NotificationBell] Failed to load notifications:', error);
+      setNotifications([]);
+      setUnreadCount(0);
     }
   }, []);
 
@@ -200,13 +213,30 @@ export function NotificationBell() {
 
         {/* Notification List */}
         <div className="max-h-80 overflow-y-auto">
-          {notifications.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
-              <Bell className="h-8 w-8 mb-2 opacity-30" />
-              <p className="text-sm">ไม่มีการแจ้งเตือน</p>
-            </div>
-          ) : (
-            notifications.map((notification) => (
+          {(() => {
+            // Level 3: Render Guards
+            const safeNotifications = Array.isArray(notifications) ? notifications : [];
+            const isUnauthenticated = authStatus === 'unauthenticated';
+            
+            if (isUnauthenticated) {
+              return (
+                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                  <Bell className="h-8 w-8 mb-2 opacity-30" />
+                  <p className="text-sm">กรุณาเข้าสู่ระบบ</p>
+                </div>
+              );
+            }
+
+            if (safeNotifications.length === 0) {
+              return (
+                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+                  <Bell className="h-8 w-8 mb-2 opacity-30" />
+                  <p className="text-sm">ไม่มีการแจ้งเตือน</p>
+                </div>
+              );
+            }
+
+            return safeNotifications.map((notification) => (
               <button
                 key={notification.id}
                 onClick={() => handleClick(notification)}
@@ -246,8 +276,8 @@ export function NotificationBell() {
                   <Check className="h-3 w-3 text-muted-foreground/40 shrink-0 mt-1" />
                 )}
               </button>
-            ))
-          )}
+            ));
+          })()}
         </div>
       </PopoverContent>
     </Popover>

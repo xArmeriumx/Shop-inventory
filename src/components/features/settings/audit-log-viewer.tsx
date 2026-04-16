@@ -12,6 +12,7 @@ import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { Filter, Download, ChevronDown, ChevronRight, CheckCircle2, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { AuditDiffViewer } from '@/components/ui/audit-diff-viewer';
 
 export function AuditLogViewer() {
   const [logs, setLogs] = useState<any[]>([]);
@@ -214,39 +215,34 @@ export function AuditLogViewer() {
                     {expandedRows.has(log.id) && (
                       <TableRow className="bg-muted/30">
                         <TableCell colSpan={6} className="p-0">
-                          <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                            <div className="space-y-4">
-                              {log.note && (
-                                <div>
-                                  <span className="font-semibold text-muted-foreground">หมายเหตุ:</span>
-                                  <p className="mt-1">{log.note}</p>
-                                </div>
-                              )}
-                              {log.reason && (
-                                <div>
-                                  <span className="font-semibold text-destructive">เหตุผลถูกปฏิเสธ/ยกเลิก (Reason):</span>
-                                  <p className="mt-1 text-destructive">{log.reason}</p>
-                                </div>
-                              )}
-                            </div>
-                            <div className="space-y-4">
-                              {log.beforeSnapshot && (
-                                <div>
-                                  <span className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">Before Snapshot</span>
-                                  <pre className="mt-1 bg-background border p-2 rounded text-xs overflow-auto max-h-40">
-                                    {JSON.stringify(log.beforeSnapshot, null, 2)}
-                                  </pre>
-                                </div>
-                              )}
-                              {log.afterSnapshot && (
-                                <div>
-                                  <span className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">After Snapshot</span>
-                                  <pre className="mt-1 bg-background border p-2 rounded text-xs overflow-auto max-h-40">
-                                    {JSON.stringify(log.afterSnapshot, null, 2)}
-                                  </pre>
-                                </div>
-                              )}
-                            </div>
+                          <div className="p-4 space-y-6">
+                            
+                            {/* Context & Metadata Block */}
+                            {(log.note || log.reason) && (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm bg-background/50 border p-3 rounded-md">
+                                {log.note && (
+                                  <div>
+                                    <span className="font-semibold text-muted-foreground tracking-wide text-xs uppercase block mb-1">หมายเหตุ (Note)</span>
+                                    <p>{log.note}</p>
+                                  </div>
+                                )}
+                                {log.reason && (
+                                  <div>
+                                    <span className="font-semibold text-destructive tracking-wide text-xs uppercase block mb-1">เหตุผล (Reason)</span>
+                                    <p className="text-destructive font-medium">{log.reason}</p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Visual Action Diff */}
+                            {(log.beforeSnapshot || log.afterSnapshot) ? (
+                              <AuditDiffViewer 
+                                beforeSnapshot={log.beforeSnapshot} 
+                                afterSnapshot={log.afterSnapshot} 
+                              />
+                            ) : null}
+
                           </div>
                         </TableCell>
                       </TableRow>

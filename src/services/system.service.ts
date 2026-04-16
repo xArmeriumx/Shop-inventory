@@ -106,5 +106,63 @@ export const SystemService = {
         nodeEnv: process.env.NODE_ENV || 'development',
       },
     };
+  },
+
+  async getHardeningHealthMetrics() {
+    const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    // Get counts for dashboard
+    const counts = await db.systemLog.groupBy({
+      by: ['level'],
+      where: {
+        createdAt: { gte: dayAgo },
+        body: { contains: '"is_hardening_event":true' }
+      },
+      _count: true,
+    });
+
+    // Get specific taxonomy counts (expensive in raw JSON, but okay for low-volume system logs)
+    const logs = await db.systemLog.findMany({
+      where: {
+        createdAt: { gte: dayAgo },
+        body: { contains: '"is_hardening_event":true' }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 200, // Look at last 200 hardening events to aggregate hotspots
+    });
+
+    const hotspots: Record<string, number> = {};
+    const eventsByType: Record<string, number> = {};
+
+    logs.forEach(log => {
+      try {
+        const body = JSON.parse(log.body as string);
+        const source = body.source || 'Unknown';
+        const type = body.type || 'Unknown';
+        
+        hotspots[source] = (hotspots[source] || 0) + 1;
+        eventsByType[type] = (eventsByType[type] || 0) + 1;
+      } catch (e) {}
+    });
+
+    // Sort hotspots
+    const sortedHotspots = Object.entries(hotspots)
+      .map(([source, count]) => ({ source, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+
+    return {
+      summary: {
+        total24h: logs.length,
+        byType: eventsByType,
+      },
+      hotspots: sortedHotspots,
+      recent: logs.slice(0, 20).map(l => ({
+        id: l.id,
+        createdAt: l.createdAt,
+        message: l.message,
+        body: JSON.parse(l.body as string)
+      }))
+    };
   }
 };

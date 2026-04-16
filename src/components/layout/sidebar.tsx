@@ -181,7 +181,7 @@ export function Sidebar({ isCollapsed = false, onToggle, className }: SidebarPro
             return null;
           }
           
-          const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+          const isActive = pathname ? (pathname === item.href || pathname.startsWith(`${item.href}/`)) : false;
           return (
             <Link
               key={item.href}

@@ -2,6 +2,7 @@
 import { Button } from '@/components/ui/button';
 import { Menu } from 'lucide-react';
 import { NotificationBell } from '@/components/features/notifications/notification-bell';
+import { SafeBoundary } from '@/components/ui/safe-boundary';
 
 interface HeaderProps {
   user?: {
@@ -30,7 +31,9 @@ export function Header({ user, onMenuClick }: HeaderProps) {
       <div className="flex-1" />
 
       {/* Notification Bell */}
-      <NotificationBell />
+      <SafeBoundary variant="compact" componentName="NotificationBell">
+        <NotificationBell />
+      </SafeBoundary>
 
       {/* User info */}
       {user && (

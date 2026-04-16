@@ -2,21 +2,53 @@
 
 import { requireShop } from '@/lib/auth-guard';
 import { NotificationService } from '@/services';
+import { logger } from '@/lib/logger';
 
 /**
  * Get notifications for current user/shop
+ * Contract: Returns an array even on failure
  */
 export async function getNotifications(limit = 20) {
-  const ctx = await requireShop();
-  return NotificationService.getNotifications(ctx.shopId, ctx.userId, limit);
+  try {
+    const ctx = await requireShop();
+    const data = await NotificationService.getNotifications(ctx.shopId, ctx.userId, limit);
+    
+    if (!Array.isArray(data)) {
+      await logger.warn('getNotifications returned non-array data', { actualType: typeof data, userId: ctx.userId });
+      return [];
+    }
+    
+    return data;
+  } catch (error) {
+    // Fail silently for UI convenience, but log internally if it's a real error (not just unauthenticated redirect)
+    if (!(error instanceof Error && error.message.includes('NEXT_REDIRECT'))) {
+      console.error('[Action: getNotifications] Failed:', error);
+    }
+    return [];
+  }
 }
 
 /**
- * Get unread notification count (lightweight — for polling fallback)
+ * Get unread notification count
+ * Contract: Returns a number even on failure
  */
 export async function getUnreadCount() {
-  const ctx = await requireShop();
-  return NotificationService.getUnreadCount(ctx.shopId, ctx.userId);
+  try {
+    const ctx = await requireShop();
+    const count = await NotificationService.getUnreadCount(ctx.shopId, ctx.userId);
+    
+    if (typeof count !== 'number') {
+      await logger.warn('getUnreadCount returned non-number data', { actualType: typeof count, userId: ctx.userId });
+      return 0;
+    }
+    
+    return count;
+  } catch (error) {
+    if (!(error instanceof Error && error.message.includes('NEXT_REDIRECT'))) {
+      console.error('[Action: getUnreadCount] Failed:', error);
+    }
+    return 0;
+  }
 }
 
 /**

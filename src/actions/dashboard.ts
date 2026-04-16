@@ -2,18 +2,71 @@
 
 import { requirePermission } from "@/lib/auth-guard";
 import { DashboardService } from "@/services";
+import { logger } from "@/lib/logger";
 
+/**
+ * Get core dashboard statistics
+ * Contract: Returns a full stats object even on failure (Selective UI hardening)
+ */
 export async function getDashboardStats() {
-  const ctx = await requirePermission("SALE_VIEW");
-  return DashboardService.getDashboardStats(ctx);
+  try {
+    const ctx = await requirePermission("SALE_VIEW");
+    return await DashboardService.getDashboardStats(ctx);
+  } catch (error) {
+    if (!(error instanceof Error && error.message.includes('NEXT_REDIRECT'))) {
+      console.error('[Action: getDashboardStats] Failed:', error);
+    }
+    
+    // Return safe default shape for UI
+    return {
+      todaySales: { revenue: 0, salesRevenue: 0, incomeRevenue: 0, profit: 0, count: 0, incomeCount: 0 },
+      totalProducts: 0,
+      lowStockCount: 0,
+      recentSales: [],
+      lowStockProducts: [],
+      pendingPayments: { count: 0, amount: 0 },
+      pendingShipments: 0,
+      todayExpenses: { total: 0, count: 0 },
+      stockValue: { total: 0, itemCount: 0 }
+    };
+  }
 }
 
+/**
+ * Get monthly summary stats
+ */
 export async function getMonthlyStats() {
-  const ctx = await requirePermission("SALE_VIEW");
-  return DashboardService.getMonthlyStats(ctx);
+  try {
+    const ctx = await requirePermission("SALE_VIEW");
+    return await DashboardService.getMonthlyStats(ctx);
+  } catch (error) {
+    if (!(error instanceof Error && error.message.includes('NEXT_REDIRECT'))) {
+      console.error('[Action: getMonthlyStats] Failed:', error);
+    }
+    
+    return { 
+      revenue: 0, 
+      salesRevenue: 0, 
+      incomeRevenue: 0, 
+      profit: 0, 
+      count: 0, 
+      incomeCount: 0 
+    };
+  }
 }
 
+/**
+ * Get sales chart data
+ */
 export async function getSalesChartData(days = 7) {
-  const ctx = await requirePermission("SALE_VIEW");
-  return DashboardService.getSalesChartData(days, ctx);
+  try {
+    const ctx = await requirePermission("SALE_VIEW");
+    return await DashboardService.getSalesChartData(days, ctx);
+  } catch (error) {
+    if (!(error instanceof Error && error.message.includes('NEXT_REDIRECT'))) {
+      console.error('[Action: getSalesChartData] Failed:', error);
+    }
+    return [];
+  }
 }
+
