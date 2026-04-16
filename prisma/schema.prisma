@@ -805,6 +805,7 @@ model ReturnItem {
 
 enum ShipmentStatus {
   PENDING
+  PROCESSING
   SHIPPED
   DELIVERED
   RETURNED
