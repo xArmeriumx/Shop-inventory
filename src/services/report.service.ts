@@ -1499,7 +1499,7 @@ export async function getReorderSuggestions(ctx: RequestContext) {
     
     // Effective lead time: Product Master > Supplier History > System Default (7)
     const histLeadTime = p.supplier ? supplierLeadTimeMap.get(p.supplier.name) : undefined;
-    const effectiveLeadTime = p.avgLeadTime || histLeadTime || 7;
+    const effectiveLeadTime = Number(p.avgLeadTime || histLeadTime || 7);
     const reorderThresholdDays = effectiveLeadTime + safetyBufferDays;
 
     const daysRemaining = avgDailySales > 0 ? (p.stock / avgDailySales) : Infinity;

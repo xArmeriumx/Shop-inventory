@@ -596,8 +596,8 @@ export const PurchaseService: IPurchaseService = {
         }
       },
       orderBy: { createdAt: 'desc' },
-      skip: ((params.page || 1) - 1) * (params.pageSize || 10),
-      take: params.pageSize || 10,
+      skip: ((params.page || 1) - 1) * (params.limit || 10),
+      take: params.limit || 10,
     });
 
     return {
@@ -612,8 +612,8 @@ export const PurchaseService: IPurchaseService = {
       })),
       total: count,
       page: params.page || 1,
-      pageSize: params.pageSize || 10,
-      totalPages: Math.ceil(count / (params.pageSize || 10)),
+      limit: params.limit || 10,
+      totalPages: Math.ceil(count / (params.limit || 10)),
     };
   },
 
@@ -681,7 +681,7 @@ export const PurchaseService: IPurchaseService = {
           let prCount = 0;
 
           // Create one PR per supplier
-          for (const [supplierId, items] of groupedBySupplier.entries()) {
+          for (const [supplierId, items] of Array.from(groupedBySupplier.entries())) {
             const actualSupplierId = supplierId === 'NONE' ? null : supplierId;
             
             // Get product info for cost and packaging

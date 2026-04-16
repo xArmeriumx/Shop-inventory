@@ -26,6 +26,7 @@ import type {
   GetSalesParams,
   GetPurchasesParams,
   GetCustomersParams,
+  GetIncompletePurchasesParams,
   PaginatedResult,
   SerializedProduct,
   SerializedSale,
@@ -460,11 +461,6 @@ export interface PurchaseRequestInput {
   }>;
 }
 
-/** Params for getIncompletePurchases */
-export interface GetIncompletePurchasesParams {
-  page?: number;
-  pageSize?: number;
-}
 
 // ============================================================================
 // SHIPPING SERVICE (Enhanced with Auto-Sync)

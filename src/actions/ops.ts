@@ -23,7 +23,7 @@ export async function getLogisticsGaps() {
  */
 export async function getIncompleteRequests(page = 1) {
   const ctx = await requirePermission('PURCHASE_VIEW');
-  return PurchaseService.getIncompleteRequests({ page, pageSize: 20 }, ctx);
+  return PurchaseService.getIncompleteRequests({ page, limit: 20 }, ctx);
 }
 
 /**

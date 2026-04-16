@@ -16,6 +16,7 @@ import { UpdateShipmentInput, UpdateShipmentStatusInput } from '@/schemas/shipme
 import { SpatialPoint, sortShipmentsByRoute } from '@/lib/spatial-utils';
 import { AuditService } from './audit.service';
 import { SHIPMENT_AUDIT_POLICIES } from './shipment.policy';
+import { Security } from './security';
 
 // =============================================================================
 // STATUS TRANSITION VALIDATION
@@ -635,7 +636,7 @@ export const ShipmentService: IShippingService = {
           { latitude: null },
           { longitude: null }
         ],
-        shipments: { some: {} } // มี shipment อย่างน้อย 1 รายการ
+        sales: { some: { shipments: { some: {} } } }
       },
       select: {
         id: true,
@@ -645,10 +646,10 @@ export const ShipmentService: IShippingService = {
         latitude: true,
         longitude: true,
         _count: {
-          select: { shipments: true }
+          select: { sales: true }
         }
       },
-      orderBy: { shipments: { _count: 'desc' } },
+      orderBy: { sales: { _count: 'desc' } },
       take: 50
     });
 

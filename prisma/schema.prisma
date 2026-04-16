@@ -181,6 +181,7 @@ enum Permission {
   // Purchases
   PURCHASE_VIEW
   PURCHASE_CREATE
+  PURCHASE_EDIT
   PURCHASE_APPROVE
   PURCHASE_CANCEL
 
@@ -370,6 +371,8 @@ model Supplier {
   groupCode   String? @db.VarChar(50)   // ★ NEW: รหัสกลุ่มผู้จำหน่าย (Clustering)
   
   notes       String?  @db.Text
+  latitude    Float?
+  longitude   Float?
 
   // Ownership
   userId    String
@@ -406,6 +409,9 @@ model Customer {
   creditLimit Decimal? @db.Decimal(10, 2) // ★ NEW: วงเงินเครดิต
   creditTerm  Int?     // ★ NEW: เครดิตเทอม (วัน)
   notes     String?
+  
+  latitude  Float?
+  longitude Float?
 
   // Ownership
   userId    String

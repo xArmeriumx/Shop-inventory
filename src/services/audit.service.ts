@@ -74,11 +74,19 @@ export interface AuditLogParams {
   reason?: string;
   /** Human-readable note */
   note?: string;
+
+  // --- LEGACY ALIASES (Rule 12.1 Transition) ---
+  /** Alias for targetType */
+  category?: string;
+  /** Alias for targetId */
+  resourceId?: string;
+  /** Alias for note */
+  details?: string;
 }
 
 export interface RunWithAuditConfig<T> {
   action: string;
-  targetType: string;
+  targetType?: string;
   targetId?: string;
   /** Optional list of fields to include in snapshots (Flat + Allowlist Policy) */
   allowlist?: string[];
@@ -90,6 +98,15 @@ export interface RunWithAuditConfig<T> {
   afterSnapshot?: (result: T) => Promise<any> | any;
   /** Optional reason/note */
   note?: string;
+
+  // --- LEGACY ALIASES (Rule 12.1 Transition) ---
+  /** Alias for targetType */
+  category?: string;
+  /** Alias for targetId */
+  resourceId?: string;
+  /** Alias for note */
+  details?: string;
+
   /** Legacy alias for compatibility during transition */
   getBefore?: () => Promise<any> | any;
   getAfter?: (result: T) => Promise<any> | any;
@@ -201,7 +218,14 @@ export const AuditService = {
       changedFields,
       reason,
       note,
+      category,
+      resourceId,
+      details,
     } = params;
+
+    const finalTargetType = targetType || category || null;
+    const finalTargetId = targetId || resourceId || null;
+    const finalNote = note || details || null;
 
     try {
       await db.auditLog.create({
@@ -212,13 +236,13 @@ export const AuditService = {
           actorEmail: ctx.userEmail ?? null,
           action,
           status,
-          targetType: targetType ?? null,
-          targetId: targetId ?? null,
+          targetType: finalTargetType,
+          targetId: finalTargetId,
           beforeSnapshot: sanitizeSnapshot(beforeSnapshot) as any,
           afterSnapshot: sanitizeSnapshot(afterSnapshot) as any,
           changedFields: changedFields ?? [],
           reason: reason ?? null,
-          note: note ?? null,
+          note: finalNote,
         },
       });
 
@@ -261,11 +285,13 @@ export const AuditService = {
     config: RunWithAuditConfig<T>,
     execute: () => Promise<T>
   ): Promise<T> {
-    const { action, targetType, allowlist, resolveTargetId, note } = config;
+    const { action, targetType, category, allowlist, resolveTargetId, note, details, resourceId } = config;
     const beforeFn = config.beforeSnapshot || config.getBefore;
     const afterFn = config.afterSnapshot || config.getAfter;
     
-    let targetId = config.targetId;
+    let targetTypeVal = targetType || category || 'Unknown';
+    let targetId = config.targetId || resourceId;
+    let noteVal = note || details;
     let beforeSnapshot: any = null;
 
     // 1. Capture Before State (Optional)
@@ -306,11 +332,11 @@ export const AuditService = {
       AuditService.log(ctx, {
         action,
         status: AUDIT_STATUS.SUCCESS,
-        targetType,
+        targetType: targetTypeVal,
         targetId,
         beforeSnapshot,
-        afterSnapshot,
-        note,
+        afterSnapshot: sanitizeSnapshot(afterSnapshot) as any,
+        note: noteVal,
       }).catch(err => logger.error('[AuditService] Async success log failed', err));
 
       return result;

@@ -164,7 +164,7 @@ export const NotificationService = {
         where: { 
           shopId, 
           status: { notIn: ['CANCELLED', 'DELIVERED'] },
-          OR: [{ lat: null }, { lng: null }]
+          OR: [{ latitude: null }, { longitude: null }]
         }
       }),
       // 4. PR รอออก PO

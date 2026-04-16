@@ -106,7 +106,7 @@ export const SupplierService: ISupplierService = {
     );
   },
 
-  async update(id: string, ctx: RequestContext, data: SupplierInput): Promise<void> {
+  async update(id: string, ctx: RequestContext, data: SupplierInput): Promise<SerializedSupplier> {
     const existing = await db.supplier.findFirst({
       where: { id, shopId: ctx.shopId, deletedAt: null },
     });
@@ -115,7 +115,7 @@ export const SupplierService: ISupplierService = {
       throw new ServiceError('ไม่พบข้อมูลผู้จำหน่าย');
     }
 
-    await AuditService.runWithAudit(
+    return AuditService.runWithAudit(
       ctx,
       {
         ...SUPPLIER_AUDIT_POLICIES.UPDATE(id, existing.name),
@@ -123,10 +123,15 @@ export const SupplierService: ISupplierService = {
         afterSnapshot: () => db.supplier.findFirst({ where: { id } }),
       },
       async () => {
-        await db.supplier.update({
+        const supplier = await db.supplier.update({
           where: { id },
           data,
         });
+
+        return {
+          ...supplier,
+          moq: supplier.moq ? Number(supplier.moq) : null,
+        };
       }
     );
   },
