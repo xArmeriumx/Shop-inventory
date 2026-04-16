@@ -1,4 +1,4 @@
-import { db } from '@/lib/db';
+import { db, runInTransaction } from '@/lib/db';
 import { Prisma, Purchase } from '@prisma/client';
 import { PurchaseInput } from '@/schemas/purchase';
 import { StockService } from './stock.service';
@@ -20,6 +20,7 @@ import {
 import { IPurchaseService, PurchaseRequestInput } from '@/types/service-contracts';
 import { SequenceService } from './sequence.service';
 import { AuditService } from './audit.service';
+import { PURCHASE_AUDIT_POLICIES } from './purchase.policy';
 import { Security } from './security';
 
 export const CANCEL_PURCHASE_REASONS = {
@@ -120,99 +121,73 @@ export const PurchaseService: IPurchaseService = {
       throw new ServiceError('ต้องมีสินค้าอย่างน้อย 1 รายการ');
     }
 
-    // 1. Business Logic: Check MOQ (Vendor Intelligence - Rule 5.5)
     const moqFailures = await this.checkMOQ(items, ctx, purchaseData.supplierId || undefined);
     if (moqFailures.length > 0) {
-      const messages = moqFailures.map(f => 
-        `"${f.productName}" สั่ง ${f.requestedQty} ชิ้น (ขั้นต่ำคือ ${f.moq})`
-      ).join(', ');
-      throw new ServiceError(`ไม่สามารถสั่งได้เนื่องจากไม่ถึงยอดสั่งขั้นต่ำ (MOQ): ${messages}`);
+      const messages = moqFailures.map(f => `"${f.productName}" สั่ง ${f.requestedQty} ชิ้น (ขั้นต่ำคือ ${f.moq})`).join(', ');
+      throw new ServiceError(`ไม่ถึงยอดสั่งขั้นต่ำ (MOQ): ${messages}`);
     }
 
-    const executeTransaction = async (prismaTx: Prisma.TransactionClient) => {
-      const totalCost = items.reduce(
-        (sum, item) => money.add(sum, calcSubtotal(item.quantity, item.costPrice)),
-        0
-      );
+    return AuditService.runWithAudit(
+      ctx,
+      PURCHASE_AUDIT_POLICIES.CREATE('New Purchase'),
+      async () => {
+        return runInTransaction(tx, async (prisma) => {
+          const totalCost = items.reduce((sum, item) => money.add(sum, calcSubtotal(item.quantity, item.costPrice)), 0);
+          const purchaseNumber = await SequenceService.generate(ctx, DocumentType.PURCHASE_ORDER, prisma, {
+            purchaseType: purchaseData.purchaseType as any,
+          });
 
-      const purchaseNumber = await SequenceService.generate(ctx, DocumentType.PURCHASE_ORDER, prismaTx, {
-        purchaseType: purchaseData.purchaseType as any,
-      });
+          const newPurchase = await prisma.purchase.create({
+            data: {
+              ...purchaseData,
+              purchaseNumber,
+              date: purchaseData.date ? new Date(purchaseData.date) : new Date(),
+              userId: ctx.userId,
+              shopId: ctx.shopId,
+              totalCost,
+              items: {
+                create: items.map((item) => ({
+                  productId: item.productId,
+                  quantity: item.quantity,
+                  costPrice: item.costPrice,
+                  subtotal: calcSubtotal(item.quantity, item.costPrice),
+                })),
+              },
+            },
+            include: { items: true },
+          });
 
-      const newPurchase = await prismaTx.purchase.create({
-        data: {
-          ...purchaseData,
-          purchaseNumber,
-          date: purchaseData.date ? new Date(purchaseData.date) : new Date(),
-          userId: ctx.userId,
-          shopId: ctx.shopId,
-          supplierId: purchaseData.supplierId || null,
-          notes: purchaseData.notes || null,
-          totalCost: totalCost,
-          receiptUrl: purchaseData.receiptUrl || null,
-          items: {
-            create: items.map((item) => ({
+          await StockService.recordMovements(
+            ctx,
+            items.map(item => ({
               productId: item.productId,
+              type: 'PURCHASE' as const,
               quantity: item.quantity,
-              costPrice: item.costPrice,
-              subtotal: calcSubtotal(item.quantity, item.costPrice),
+              userId: ctx.userId,
+              shopId: ctx.shopId,
+              purchaseId: newPurchase.id,
+              note: `ซื้อสินค้า: ${newPurchase.purchaseNumber}`,
+              date: newPurchase.date,
             })),
-          },
-        },
-        include: { items: true },
-      });
+            prisma
+          );
 
-      // Bulk stock movement (1 batch instead of N sequential calls)
-      await StockService.recordMovements(
-        items.map(item => ({
-          productId: item.productId,
-          type: 'PURCHASE' as const,
-          quantity: item.quantity,
-          userId: ctx.userId,
-          shopId: ctx.shopId,
-          purchaseId: newPurchase.id,
-          note: `ซื้อสินค้า: ${newPurchase.purchaseNumber}`,
-          date: newPurchase.date,
-        })),
-        prismaTx
-      );
+          await Promise.all(items.map(item =>
+            prisma.product.update({ where: { id: item.productId }, data: { costPrice: item.costPrice } })
+          ));
 
-      // Batch update cost prices in parallel
-      await Promise.all(
-        items.map(item =>
-          prismaTx.product.update({
-            where: { id: item.productId },
-            data: { costPrice: item.costPrice },
-          })
-        )
-      );
-
-      const purchaseToReturn = {
-        ...newPurchase,
-        totalCost: toNumber(newPurchase.totalCost),
-        items: newPurchase.items.map(item => ({
-          ...item,
-          costPrice: toNumber(item.costPrice),
-          subtotal: toNumber(item.subtotal),
-        })),
-      } as any;
-
-      await AuditService.log(ctx, {
-        action: 'PURCHASE_CREATE',
-        targetType: 'Purchase',
-        targetId: newPurchase.id,
-        afterSnapshot: purchaseToReturn as any,
-        note: `สร้างรายการซื้อ ${newPurchase.purchaseNumber}`,
-      });
-
-      return purchaseToReturn;
-    };
-
-    if (tx) {
-      return executeTransaction(tx);
-    } else {
-      return db.$transaction(executeTransaction);
-    }
+          return {
+            ...newPurchase,
+            totalCost: toNumber(newPurchase.totalCost),
+            items: newPurchase.items.map(item => ({
+              ...item,
+              costPrice: toNumber(item.costPrice),
+              subtotal: toNumber(item.subtotal),
+            })),
+          } as any;
+        });
+      }
+    );
   },
 
   /**
@@ -222,100 +197,58 @@ export const PurchaseService: IPurchaseService = {
     Security.requirePermission(ctx, 'PURCHASE_CANCEL');
     const { id, reasonCode, reasonDetail } = input;
 
-    const user = await db.user.findUnique({
-      where: { id: ctx.userId },
-      select: { name: true },
-    });
-    const userName = user?.name || 'Unknown';
-
     if (!reasonCode) throw new ServiceError('กรุณาเลือกเหตุผลในการยกเลิก');
     if (reasonCode === 'OTHER' && !reasonDetail?.trim()) throw new ServiceError('กรุณากรอกรายละเอียดเหตุผล');
 
-    const cancelReason = reasonCode === 'OTHER'
-      ? `${CANCEL_PURCHASE_REASONS.OTHER}: ${reasonDetail}`
-      : (CANCEL_PURCHASE_REASONS as Record<string, string>)[reasonCode] || reasonCode;
+    const cancelReason = reasonCode === 'OTHER' ? `${CANCEL_PURCHASE_REASONS.OTHER}: ${reasonDetail}` : (CANCEL_PURCHASE_REASONS as Record<string, string>)[reasonCode] || reasonCode;
 
-    await db.$transaction(async (tx) => {
-      const purchase = await tx.purchase.findFirst({
-        where: { id, shopId: ctx.shopId },
-        include: { items: { include: { product: true } } },
-      });
+    const purchase = await db.purchase.findFirst({ where: { id, shopId: ctx.shopId } });
+    if (!purchase) throw new ServiceError('ไม่พบข้อมูลการซื้อ');
 
-      if (!purchase) throw new ServiceError('ไม่พบข้อมูลการซื้อ');
-      if (purchase.status === 'CANCELLED') throw new ServiceError('รายการนี้ถูกยกเลิกไปแล้ว');
-
-      // Pre-validate: check all items won't cause negative stock
-      for (const item of purchase.items) {
-        const newStock = item.product.stock - item.quantity;
-        if (newStock < 0) {
-          throw new ServiceError(
-            `ไม่สามารถยกเลิกได้: สต็อก ${item.product.name} จะติดลบ (คงเหลือ ${item.product.stock}, ต้องหัก ${item.quantity})`
-          );
-        }
-      }
-
-      // Bulk stock restore (1 batch instead of N sequential calls)
-      await StockService.recordMovements(
-        purchase.items.map(item => ({
-          productId: item.productId,
-          type: 'PURCHASE_CANCEL' as const,
-          quantity: -item.quantity,
-          userId: ctx.userId,
-          shopId: ctx.shopId,
-          purchaseId: purchase.id,
-          note: `ยกเลิกการซื้อ - ${cancelReason}`,
-          date: new Date(),
-        })),
-        tx
-      );
-
-      // Batch rollback cost prices: find previous purchase prices in parallel
-      const costRollbackOps = await Promise.all(
-        purchase.items.map(async item => {
-          const prev = await tx.purchaseItem.findFirst({
-            where: {
-              productId: item.productId,
-              purchase: {
-                id: { not: purchase.id },
-                status: { not: 'CANCELLED' },
-                shopId: ctx.shopId,
-              },
-            },
-            orderBy: { purchase: { date: 'desc' } },
-            select: { costPrice: true },
+    await AuditService.runWithAudit(
+      ctx,
+      PURCHASE_AUDIT_POLICIES.CANCEL(purchase.purchaseNumber!, cancelReason),
+      async () => {
+        return runInTransaction(undefined, async (prisma) => {
+          const fullPurchase = await prisma.purchase.findFirst({
+            where: { id, shopId: ctx.shopId },
+            include: { items: { include: { product: true } } },
           });
-          return prev ? { productId: item.productId, costPrice: prev.costPrice } : null;
-        })
-      );
 
-      // Execute all cost price updates in parallel
-      const validRollbacks = costRollbackOps.filter(Boolean) as { productId: string; costPrice: any }[];
-      if (validRollbacks.length > 0) {
-        await Promise.all(
-          validRollbacks.map(r =>
-            tx.product.update({ where: { id: r.productId }, data: { costPrice: r.costPrice } })
-          )
-        );
+          if (!fullPurchase) throw new ServiceError('ไม่พบข้อมูลการซื้อ');
+          if (fullPurchase.status === 'CANCELLED') throw new ServiceError('รายการนี้ถูกยกเลิกไปแล้ว');
+
+          for (const item of fullPurchase.items) {
+            if (item.product.stock - item.quantity < 0) {
+              throw new ServiceError(`สต็อก ${item.product.name} จะติดลบ (คงเหลือ ${item.product.stock})`);
+            }
+          }
+
+          await StockService.recordMovements(
+            ctx,
+            fullPurchase.items.map(item => ({
+              productId: item.productId,
+              type: 'PURCHASE_CANCEL' as const,
+              quantity: -item.quantity,
+              userId: ctx.userId,
+              shopId: ctx.shopId,
+              purchaseId: fullPurchase.id,
+              note: `ยกเลิกการซื้อ - ${cancelReason}`,
+              date: new Date(),
+            })),
+            prisma
+          );
+
+          const user = await prisma.user.findUnique({ where: { id: ctx.userId }, select: { name: true } });
+          await prisma.purchase.update({
+            where: { id },
+            data: { status: 'CANCELLED', cancelledAt: new Date(), cancelledBy: user?.name || 'Unknown', cancelReason },
+          });
+
+          return fullPurchase;
+        });
       }
-
-      await tx.purchase.update({
-        where: { id },
-        data: {
-          status: 'CANCELLED',
-          cancelledAt: new Date(),
-          cancelledBy: userName,
-          cancelReason,
-        },
-      });
-
-      await AuditService.log(ctx, {
-        action: 'PURCHASE_CANCEL',
-        targetType: 'Purchase',
-        targetId: id,
-        afterSnapshot: purchase as any,
-        note: `ยกเลิกการซื้อ ${purchase.purchaseNumber}: ${cancelReason}`,
-      });
-    });
+    );
   },
 
   // ==========================================
@@ -324,10 +257,10 @@ export const PurchaseService: IPurchaseService = {
 
   async createRequest(payload, ctx) {
     Security.requirePermission(ctx, 'PURCHASE_CREATE');
-    return await db.$transaction(async (tx) => {
+    return await runInTransaction(undefined, async (prisma) => {
       const { items, purchaseType, notes, supplierId } = payload;
       
-      const requestNumber = await SequenceService.generate(ctx, DocumentType.PURCHASE_REQUEST, tx, {
+      const requestNumber = await SequenceService.generate(ctx, DocumentType.PURCHASE_REQUEST, prisma, {
         purchaseType: payload.purchaseType,
       });
       
@@ -336,7 +269,7 @@ export const PurchaseService: IPurchaseService = {
         0
       );
 
-      const pr = await tx.purchase.create({
+      const pr = await prisma.purchase.create({
         data: {
           purchaseNumber: requestNumber,
           purchaseType: purchaseType,
@@ -371,61 +304,60 @@ export const PurchaseService: IPurchaseService = {
 
   async convertToPO(prId, ctx) {
     Security.requirePermission(ctx, 'PURCHASE_CREATE');
-    return await db.$transaction(async (tx) => {
-      const pr = await tx.purchase.findFirst({
-        where: { id: prId, shopId: ctx.shopId },
-        include: { items: true },
-      });
+    const pr = await db.purchase.findFirst({ where: { id: prId, shopId: ctx.shopId } });
+    if (!pr) throw new ServiceError('ไม่พบใบขอซื้อ');
 
-      if (!pr) throw new ServiceError('ไม่พบใบขอซื้อ');
-      if (pr.status !== PurchaseStatus.APPROVED && pr.status !== PurchaseStatus.DRAFT) {
-        throw new ServiceError('ใบขอซื้อต้องได้รับการอนุมัติก่อนแปลงเป็นใบสั่งซื้อ');
+    return AuditService.runWithAudit(
+      ctx,
+      PURCHASE_AUDIT_POLICIES.CONVERT_PR_TO_PO(pr.purchaseNumber!, 'PO-PENDING'),
+      async () => {
+        return runInTransaction(undefined, async (prisma) => {
+          const fullPR = await prisma.purchase.findFirst({
+            where: { id: prId, shopId: ctx.shopId },
+            include: { items: true },
+          });
+          if (!fullPR) throw new ServiceError('ไม่พบใบขอซื้อ');
+          if (fullPR.status !== PurchaseStatus.APPROVED && fullPR.status !== PurchaseStatus.DRAFT) {
+            throw new ServiceError('ใบขอซื้อต้องได้รับการอนุมัติก่อน');
+          }
+
+          const poNumber = await SequenceService.generate(ctx, DocumentType.PURCHASE_ORDER, prisma, {
+            purchaseType: fullPR.purchaseType as any,
+          });
+
+          const po = await prisma.purchase.create({
+            data: {
+              purchaseNumber: poNumber,
+              purchaseType: fullPR.purchaseType,
+              docType: 'ORDER',
+              status: PurchaseStatus.ORDERED,
+              totalCost: fullPR.totalCost,
+              notes: fullPR.notes,
+              supplierId: fullPR.supplierId,
+              userId: ctx.userId,
+              shopId: ctx.shopId,
+              requestNumber: fullPR.purchaseNumber,
+              linkedPRId: fullPR.id,
+              items: {
+                create: fullPR.items.map(item => ({
+                  productId: item.productId,
+                  quantity: item.quantity,
+                  costPrice: item.costPrice,
+                  subtotal: item.subtotal,
+                })),
+              },
+            },
+          });
+
+          await prisma.purchase.update({
+            where: { id: fullPR.id },
+            data: { status: PurchaseStatus.ORDERED },
+          });
+
+          return { id: po.id, poNumber: po.purchaseNumber! };
+        });
       }
-
-      const poNumber = await SequenceService.generate(ctx, DocumentType.PURCHASE_ORDER, tx, {
-        purchaseType: pr.purchaseType as any,
-      });
-
-      const po = await tx.purchase.create({
-        data: {
-          purchaseNumber: poNumber,
-          purchaseType: pr.purchaseType,
-          docType: 'ORDER',
-          status: PurchaseStatus.ORDERED,
-          totalCost: pr.totalCost,
-          notes: pr.notes,
-          supplierId: pr.supplierId,
-          userId: ctx.userId,
-          shopId: ctx.shopId,
-          requestNumber: pr.purchaseNumber,
-          linkedPRId: pr.id,
-          items: {
-            create: pr.items.map(item => ({
-              productId: item.productId,
-              quantity: item.quantity,
-              costPrice: item.costPrice,
-              subtotal: item.subtotal,
-            })),
-          },
-        },
-      });
-
-      // Update PR status
-      await tx.purchase.update({
-        where: { id: pr.id },
-        data: { status: PurchaseStatus.ORDERED },
-      });
-
-      await AuditService.log(ctx, {
-        action: 'PURCHASE_CONVERT_PR_TO_PO',
-        targetType: 'Purchase',
-        targetId: po.id,
-        afterSnapshot: { prId: pr.id, poId: po.id, poNumber: po.purchaseNumber },
-        note: `แปลงใบขอซื้อ ${pr.purchaseNumber} เป็นใบสั่งซื้อ ${po.purchaseNumber}`,
-      });
-
-      return { id: po.id, poNumber: po.purchaseNumber! };
-    });
+    );
   },
 
   async checkMOQ(items, ctx, supplierId) {
@@ -525,111 +457,91 @@ export const PurchaseService: IPurchaseService = {
     if (totalProductValue <= 0) return;
 
     // 3. Distribute proportionally
-    for (const item of productItems) {
-      const itemRatio = money.divide(toNumber(item.subtotal), totalProductValue);
-      const allocatedAmount = money.multiply(totalCharges, itemRatio);
-      
-      const newSubtotal = money.add(toNumber(item.subtotal), allocatedAmount);
-      const newUnitPrice = money.divide(newSubtotal, item.quantity);
+    await AuditService.runWithAudit(
+      ctx,
+      {
+        ...PURCHASE_AUDIT_POLICIES.CHARGE_ALLOCATION(purchase?.purchaseNumber || 'Unknown', totalCharges),
+        targetId: purchaseId,
+      },
+      async () => {
+        for (const item of productItems) {
+          const itemRatio = money.divide(toNumber(item.subtotal), totalProductValue);
+          const allocatedAmount = money.multiply(totalCharges, itemRatio);
+          
+          const newSubtotal = money.add(toNumber(item.subtotal), allocatedAmount);
+          const newUnitPrice = money.divide(newSubtotal, item.quantity);
 
-      // Update the PurchaseItem with the 'Landed Cost'
-      await tx.purchaseItem.update({
-        where: { id: item.id },
-        data: { 
-          costPrice: newUnitPrice, // Update the effective cost for this shipment
-          subtotal: newSubtotal
+          // Update the PurchaseItem with the 'Landed Cost'
+          await tx.purchaseItem.update({
+            where: { id: item.id },
+            data: { 
+              costPrice: newUnitPrice, // Update the effective cost for this shipment
+              subtotal: newSubtotal
+            }
+          });
         }
-      });
-    }
-
-    await AuditService.log(ctx, {
-      action: 'PURCHASE_CHARGE_ALLOCATION',
-      targetType: 'Purchase',
-      targetId: purchaseId,
-      afterSnapshot: { totalCharges, distributedTo: productItems.length },
-      note: `กระจายค่าใช้จ่ายเพิ่มเติม (รวม ${totalCharges}) ลงในรายการสินค้า`,
-    });
+      }
+    );
   },
 
   async receivePurchase(purchaseId: string, ctx: RequestContext) {
     Security.requirePermission(ctx, 'PURCHASE_CREATE');
-    await db.$transaction(async (tx) => {
-      // 1. First, allocate any charges (Rule 10.3)
-      await this.allocateCharges(purchaseId, ctx, tx);
+    const purchaseRef = await db.purchase.findFirst({ where: { id: purchaseId, shopId: ctx.shopId } });
+    if (!purchaseRef) throw new ServiceError('ไม่พบข้อมูลการสั่งซื้อ');
 
-      // 2. Then proceed with normal reception (which now uses updated costPrice)
-      const purchase = await tx.purchase.findFirst({
-        where: { id: purchaseId, shopId: ctx.shopId },
-        include: { items: true },
-      });
-
-      if (!purchase) throw new ServiceError('ไม่พบข้อมูลการสั่งซื้อ');
-      if (purchase.status === PurchaseStatus.RECEIVED) {
-        throw new ServiceError('รายการนี้ได้รับสินค้าไปแล้ว');
-      }
-
-      // Intelligence: Calculate Moving Average Cost (Weighted Average)
-      const productIds = purchase.items.map(item => item.productId);
-      const currentProducts = await tx.product.findMany({
-        where: { id: { in: productIds } },
-        select: { id: true, stock: true, costPrice: true },
-      });
-
-      const productMap = new Map(currentProducts.map(p => [p.id, p]));
-
-      // Bulk stock add & Cost Update (Parallel)
-      await Promise.all([
-        StockService.recordMovements(
-          purchase.items.map(item => ({
-            productId: item.productId,
-            type: 'PURCHASE' as const,
-            quantity: item.quantity,
-            userId: ctx.userId,
-            shopId: ctx.shopId,
-            purchaseId: purchase.id,
-            note: `รับสินค้าจากการสั่งซื้อ: ${purchase.purchaseNumber}`,
-            date: new Date(),
-          })),
-          tx
-        ),
-        ...purchase.items.map(item => {
-          const product = productMap.get(item.productId);
-          if (!product) return Promise.resolve();
-
-          const oldStock = product.stock || 0;
-          const oldCost = toNumber(product.costPrice) || 0;
-          const newQty = item.quantity;
-          const newCost = toNumber(item.costPrice);
-
-          // Moving Average Formula: ((S1*C1) + (S2*C2)) / (S1+S2)
-          // Handle case where stock is currently 0 or negative
-          const totalQty = Math.max(1, oldStock + newQty);
-          const weightedCost = ((Math.max(0, oldStock) * oldCost) + (newQty * newCost)) / totalQty;
-          const finalCost = Number(weightedCost.toFixed(2));
-
-          return tx.product.update({
-            where: { id: item.productId },
-            data: { costPrice: finalCost },
+    await AuditService.runWithAudit(
+      ctx,
+      PURCHASE_AUDIT_POLICIES.RECEIVE(purchaseRef.purchaseNumber!),
+      async () => {
+        return runInTransaction(undefined, async (prisma) => {
+          await this.allocateCharges(purchaseId, ctx, prisma);
+          const fullPurchase = await prisma.purchase.findFirst({
+            where: { id: purchaseId, shopId: ctx.shopId },
+            include: { items: true },
           });
-        })
-      ]);
 
-      await tx.purchase.update({
-        where: { id: purchaseId },
-        data: { 
-          status: PurchaseStatus.RECEIVED,
-          receivedAt: new Date(),
-          receivedBy: ctx.userId,
-        },
-      });
+          if (!fullPurchase) throw new ServiceError('ไม่พบข้อมูลการสั่งซื้อ');
+          if (fullPurchase.status === PurchaseStatus.RECEIVED) throw new ServiceError('รายการนี้ได้รับสินค้าไปแล้ว');
 
-      await AuditService.log(ctx, {
-        action: 'PURCHASE_RECEIVE',
-        targetType: 'Purchase',
-        targetId: purchaseId,
-        afterSnapshot: purchase as any,
-        note: `รับสินค้าจากการสั่งซื้อ ${purchase.purchaseNumber}`,
-      });
-    });
+          const productIds = fullPurchase.items.map(item => item.productId);
+          const currentProducts = await prisma.product.findMany({
+            where: { id: { in: productIds } },
+            select: { id: true, stock: true, costPrice: true },
+          });
+          const productMap = new Map(currentProducts.map(p => [p.id, p]));
+
+          await StockService.recordMovements(
+            ctx,
+            fullPurchase.items.map(item => ({
+              productId: item.productId,
+              type: 'PURCHASE' as const,
+              quantity: item.quantity,
+              userId: ctx.userId,
+              shopId: ctx.shopId,
+              purchaseId: fullPurchase.id,
+              note: `รับสินค้าจากการสั่งซื้อ: ${fullPurchase.purchaseNumber}`,
+              date: new Date(),
+            })),
+            prisma
+          );
+
+          await Promise.all(fullPurchase.items.map(item => {
+            const product = productMap.get(item.productId);
+            if (!product) return Promise.resolve();
+            const totalQty = Math.max(1, (product.stock || 0) + item.quantity);
+            const weightedCost = (((product.stock || 0) * (toNumber(product.costPrice) || 0)) + (item.quantity * toNumber(item.costPrice))) / totalQty;
+            return prisma.product.update({ where: { id: item.productId }, data: { costPrice: Number(weightedCost.toFixed(2)) } });
+          }));
+
+          const updated = await prisma.purchase.update({
+            where: { id: purchaseId },
+            data: { status: PurchaseStatus.RECEIVED, receivedAt: new Date(), receivedBy: ctx.userId },
+            include: { items: true }
+          });
+
+          return updated;
+        });
+      }
+    );
   }
 };

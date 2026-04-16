@@ -1,4 +1,4 @@
-import { db } from '@/lib/db';
+import { db, runInTransaction } from '@/lib/db';
 import type { Permission } from '@prisma/client';
 
 const ALL_PERMISSIONS: Permission[] = [
@@ -27,9 +27,9 @@ export const OnboardingService = {
 
     const finalShopName = shopName.trim() || `${userName || 'User'}'s Shop`;
 
-    return db.$transaction(async (tx) => {
+    return runInTransaction(undefined, async (prisma) => {
       // 2. Create Shop
-      const shop = await tx.shop.create({
+      const shop = await prisma.shop.create({
         data: {
           name: finalShopName,
           userId: userId,
@@ -37,7 +37,7 @@ export const OnboardingService = {
       });
 
       // 3. Create Owner Role
-      const ownerRole = await tx.role.create({
+      const ownerRole = await prisma.role.create({
         data: {
           name: 'Owner',
           description: 'เจ้าของร้าน - มีสิทธิ์ทั้งหมด',
@@ -49,7 +49,7 @@ export const OnboardingService = {
       });
 
       // 4. Create ShopMember (Owner)
-      await tx.shopMember.create({
+      await prisma.shopMember.create({
         data: {
           userId: userId,
           shopId: shop.id,

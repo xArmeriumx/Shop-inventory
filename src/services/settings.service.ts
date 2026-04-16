@@ -1,7 +1,7 @@
 import { db } from '@/lib/db';
 import { RequestContext, ServiceError } from '@/types/domain';
 import { Security } from './security';
-import { AuditService } from './audit.service';
+import { AuditService, AUDIT_ACTIONS } from './audit.service';
 
 export const SettingsService = {
   // ============================================================================
@@ -22,42 +22,49 @@ export const SettingsService = {
   async updateShop(data: any, ctx: RequestContext) {
     Security.requirePermission(ctx, 'SETTINGS_SHOP');
 
-    // Capture before snapshot
-    const before = ctx.shopId
-      ? await db.shop.findUnique({ where: { id: ctx.shopId }, select: { name: true, address: true, phone: true, taxId: true, promptPayId: true } })
-      : null;
+    // allowlist for shop settings (Rule 12.1 - Flat + Allowlist Policy)
+    const allowlist = ['name', 'address', 'phone', 'taxId', 'promptPayId', 'latitude', 'longitude'];
 
-    const result = await db.shop.upsert({
-      where: { userId: ctx.userId },
-      update: {
-        name: data.name,
-        address: data.address,
-        phone: data.phone,
-        logo: data.logo,
-        taxId: data.taxId,
-        promptPayId: data.promptPayId,
+    return AuditService.runWithAudit(
+      ctx,
+      {
+        action: AUDIT_ACTIONS.SHOP_UPDATE,
+        targetType: 'Shop',
+        allowlist,
+        getBefore: async () => {
+          if (!ctx.shopId) return null;
+          return db.shop.findUnique({ where: { id: ctx.shopId } });
+        },
+        note: 'อัปเดตข้อมูลร้านค้าผ่านตัวช่วย Audit อัตโนมัติ',
       },
-      create: {
-        userId: ctx.userId,
-        name: data.name,
-        address: data.address,
-        phone: data.phone,
-        logo: data.logo,
-        taxId: data.taxId,
-        promptPayId: data.promptPayId,
-      },
-    });
-
-    await AuditService.log(ctx, {
-      action: 'SETTINGS_SHOP_UPDATE',
-      targetType: 'Shop',
-      targetId: result.id,
-      beforeSnapshot: before as any,
-      afterSnapshot: { name: result.name, address: result.address, phone: result.phone, taxId: result.taxId, promptPayId: result.promptPayId },
-      note: 'อัปเดตข้อมูลร้านค้า',
-    });
-
-    return result;
+      async () => {
+        // Main business logic (Flexible Policy - service controls transaction if needed)
+        return db.shop.upsert({
+          where: { userId: ctx.userId },
+          update: {
+            name: data.name,
+            address: data.address,
+            phone: data.phone,
+            logo: data.logo,
+            taxId: data.taxId,
+            promptPayId: data.promptPayId,
+            latitude: data.latitude,
+            longitude: data.longitude,
+          },
+          create: {
+            userId: ctx.userId,
+            name: data.name,
+            address: data.address,
+            phone: data.phone,
+            logo: data.logo,
+            taxId: data.taxId,
+            promptPayId: data.promptPayId,
+            latitude: data.latitude,
+            longitude: data.longitude,
+          },
+        });
+      }
+    );
   },
 
   // ============================================================================

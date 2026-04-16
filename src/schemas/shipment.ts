@@ -11,6 +11,8 @@ export const shipmentSchema = z.object({
   shippingProvider: z.string().max(100).optional().nullable(),
   shippingCost: z.coerce.number().min(0).optional().nullable(),
   notes: z.string().transform(sanitizeText).optional().nullable(),
+  latitude: z.number().min(-90).max(90).optional().nullable(),
+  longitude: z.number().min(-180).max(180).optional().nullable(),
 });
 
 export type ShipmentInput = z.infer<typeof shipmentSchema>;
@@ -24,6 +26,8 @@ export const updateShipmentSchema = z.object({
   recipientPhone: z.string().max(20).optional().nullable(),
   shippingAddress: z.string().min(1).transform(sanitizeText).optional(),
   notes: z.string().transform(sanitizeText).optional().nullable(),
+  latitude: z.number().min(-90).max(90).optional().nullable(),
+  longitude: z.number().min(-180).max(180).optional().nullable(),
 });
 
 export type UpdateShipmentInput = z.infer<typeof updateShipmentSchema>;

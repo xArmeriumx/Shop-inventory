@@ -120,6 +120,10 @@ model Shop {
   invoicePrefix String? @default("INV")  // G2: prefix ใบกำกับภาษี
   promptPayId   String?  // เบอร์มือถือ/เลขบัตรปชช. สำหรับ PromptPay QR
 
+  // Spatial Coordinates
+  latitude    Float?   // พิกัดละติจูด
+  longitude   Float?   // พิกัดลองจิจูด
+
   // Original owner (for billing, cannot be removed)
   userId      String   @unique
   user        User     @relation(fields: [userId], references: [id], onDelete: Restrict)
@@ -863,6 +867,10 @@ model CustomerAddress {
   province       String?  @db.VarChar(100)
   postalCode     String?  @db.VarChar(10)
   isDefault      Boolean  @default(false)
+
+  // Spatial Coordinates
+  latitude       Float?   // พิกัดละติจูด
+  longitude      Float?   // พิกัดลองจิจูด
 
   shopId         String
   shop           Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)

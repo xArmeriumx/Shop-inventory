@@ -9,9 +9,46 @@ import { logger } from '@/lib/logger';
 export const AUDIT_STATUS = {
   SUCCESS: 'SUCCESS',
   DENIED: 'DENIED',
+  FAILED: 'FAILED',
 } as const;
 
 export type AuditStatus = typeof AUDIT_STATUS[keyof typeof AUDIT_STATUS];
+
+/**
+ * Standardized Action Codes (ERP Rule 12.1 Taxonomy)
+ */
+export const AUDIT_ACTIONS = {
+  // Sales
+  SALE_CREATE: 'SALE_CREATE',
+  SALE_UPDATE: 'SALE_UPDATE',
+  SALE_CANCEL: 'SALE_CANCEL',
+  SALE_PAYMENT: 'SALE_PAYMENT',
+  
+  // Inventory
+  STOCK_ADJUST: 'STOCK_ADJUST',
+  STOCK_TRANSFER: 'STOCK_TRANSFER',
+  PRODUCT_UPDATE: 'PRODUCT_UPDATE',
+  
+  // Logistics
+  SHIPMENT_CREATE: 'SHIPMENT_CREATE',
+  SHIPMENT_UPDATE: 'SHIPMENT_UPDATE',
+  SHIPMENT_STATUS: 'SHIPMENT_STATUS',
+  ROUTE_PROCESS: 'ROUTE_PROCESS',
+  
+  // Shop & Settings
+  SHOP_UPDATE: 'SHOP_UPDATE',
+  SETTINGS_UPDATE: 'SETTINGS_UPDATE',
+  
+  // Security & IAM
+  PERMISSION_DENIED: 'PERMISSION_DENIED',
+  IAM_REVOKE_SESSIONS: 'IAM_REVOKE_SESSIONS',
+  TEAM_INVITE: 'TEAM_INVITE',
+  TEAM_REMOVE: 'TEAM_REMOVE',
+  TEAM_ROLE_UPDATE: 'TEAM_ROLE_UPDATE',
+  ROLE_CREATE: 'ROLE_CREATE',
+  ROLE_UPDATE: 'ROLE_UPDATE',
+  ROLE_DELETE: 'ROLE_DELETE',
+} as const;
 
 // ============================================================================
 // AUDIT LOG PARAMS — ERP Rule 12.1
@@ -20,7 +57,7 @@ export type AuditStatus = typeof AUDIT_STATUS[keyof typeof AUDIT_STATUS];
 export interface AuditLogParams {
   /** Action code e.g. "SALE_CREATE", "TEAM_INVITE", "PERMISSION_DENIED" */
   action: string;
-  /** SUCCESS (default) or DENIED */
+  /** SUCCESS (default) or DENIED or FAILED */
   status?: AuditStatus;
   /** Entity type e.g. "Sale", "Purchase", "User", "Role" */
   targetType?: string;
@@ -32,11 +69,35 @@ export interface AuditLogParams {
   afterSnapshot?: Record<string, unknown> | null;
   /** Optional list of changed field names */
   changedFields?: string[];
-  /** Reason for the action (especially for cancel / deny) */
+  /** Reason for the action (especially for cancel / deny / fail) */
   reason?: string;
   /** Human-readable note */
   note?: string;
 }
+
+export interface RunWithAuditConfig<T> {
+  action: string;
+  targetType: string;
+  targetId?: string;
+  /** Optional list of fields to include in snapshots (Flat + Allowlist Policy) */
+  allowlist?: string[];
+  /** Optional function to fetch entity state before mutation */
+  beforeSnapshot?: () => Promise<any> | any;
+  /** Optional function to resolve targetId from result (e.g. for Create) */
+  resolveTargetId?: (result: T) => string | undefined;
+  /** Optional function to prepare after snapshot from result */
+  afterSnapshot?: (result: T) => Promise<any> | any;
+  /** Optional reason/note */
+  note?: string;
+  /** Legacy alias for compatibility during transition */
+  getBefore?: () => Promise<any> | any;
+  getAfter?: (result: T) => Promise<any> | any;
+}
+
+/**
+ * Type alias for Audit Policy configuration (ERP Rule 12.1)
+ */
+export type AuditPolicy<T = any> = RunWithAuditConfig<T>;
 
 // ============================================================================
 // QUERY OPTIONS
@@ -63,6 +124,22 @@ const SENSITIVE_FIELDS = new Set([
   'secret', 'privateKey', 'cookie', 'sessionToken', 'credential',
   'rawCookie', 'jwtSecret'
 ]);
+
+/**
+ * Helper: pickAuditFields - Implement Flat + Allowlist Policy
+ */
+function pickAuditFields(obj: any, allowlist?: string[]): Record<string, unknown> | null {
+  if (!obj || typeof obj !== 'object') return null;
+  if (!allowlist || allowlist.length === 0) return null;
+
+  const result: Record<string, unknown> = {};
+  for (const field of allowlist) {
+    if (field in obj) {
+      result[field] = obj[field];
+    }
+  }
+  return result;
+}
 
 /**
  * Strip sensitive fields from a snapshot before storing.
@@ -135,6 +212,86 @@ export const AuditService = {
     } catch (error) {
       // Best-effort: log failure to system logger but never propagate
       logger.error('[AuditService] Failed to write audit log', { error, action, targetId });
+    }
+  },
+
+  /**
+   * orchestration wrapper - runWithAudit
+   * Wrap critical business logic with automatic success/fail auditing.
+   * Does NOT manage transactions (Flexible Policy).
+   */
+  async runWithAudit<T>(
+    ctx: RequestContext,
+    config: RunWithAuditConfig<T>,
+    execute: () => Promise<T>
+  ): Promise<T> {
+    const { action, targetType, allowlist, resolveTargetId, note } = config;
+    const beforeFn = config.beforeSnapshot || config.getBefore;
+    const afterFn = config.afterSnapshot || config.getAfter;
+    
+    let targetId = config.targetId;
+    let beforeSnapshot: any = null;
+
+    // 1. Capture Before State (Optional)
+    if (beforeFn) {
+      try {
+        const rawBefore = await beforeFn();
+        beforeSnapshot = pickAuditFields(rawBefore, allowlist);
+      } catch (err) {
+        logger.warn('[AuditService] Failed to capture before snapshot', { action, err });
+      }
+    }
+
+    try {
+      // 2. Execute Business Logic
+      const result = await execute();
+
+      // 3. Resolve Target ID if not provided (e.g. for Create)
+      if (!targetId && resolveTargetId) {
+        targetId = resolveTargetId(result);
+      }
+
+      // 4. Capture After State (Optional)
+      let afterSnapshot: any = null;
+      if (afterFn) {
+        try {
+          const rawAfter = await afterFn(result);
+          afterSnapshot = pickAuditFields(rawAfter, allowlist);
+        } catch (err) {
+          logger.warn('[AuditService] Failed to capture after snapshot', { action, err });
+        }
+      }
+ else if (allowlist) {
+        // Fallback: try to pick from the result directly if it's the entity
+        afterSnapshot = pickAuditFields(result, allowlist);
+      }
+
+      // 5. Best-effort Success Log
+      AuditService.log(ctx, {
+        action,
+        status: AUDIT_STATUS.SUCCESS,
+        targetType,
+        targetId,
+        beforeSnapshot,
+        afterSnapshot,
+        note,
+      }).catch(err => logger.error('[AuditService] Async success log failed', err));
+
+      return result;
+    } catch (error: any) {
+      // 6. Best-effort Failure Log
+      AuditService.log(ctx, {
+        action,
+        status: AUDIT_STATUS.FAILED,
+        targetType,
+        targetId,
+        beforeSnapshot,
+        reason: error.message || 'Unknown error',
+        note,
+      }).catch(err => logger.error('[AuditService] Async failure log failed', err));
+
+      // 7. Rethrow original error (Safety Rule)
+      throw error;
     }
   },
 

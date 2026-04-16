@@ -10,14 +10,26 @@ export type PermissionVersionData = {
   version: number;
 } | null;
 
-export async function getPermissionVersion(): Promise<PermissionVersionData> {
-  const ctx = await getSessionContext();
-  if (!ctx) return null;
+export async function getPermissionVersion(): Promise<PermissionVersionResponse> {
+  try {
+    const ctx = await getSessionContext();
+    if (!ctx) {
+      return { ok: false, kind: 'AUTH_FAILURE', message: 'Unauthenticated' };
+    }
 
-  return IamService.getPermissionVersion(ctx.userId);
+    const versionData = await IamService.getPermissionVersion(ctx.userId);
+    return { ok: true, version: versionData?.version ?? 0 };
+  } catch (error) {
+    if (isDynamicServerError(error)) throw error;
+    
+    console.error('[Action: getPermissionVersion] Failed:', error);
+    return { ok: false, kind: 'TRANSIENT_ERROR', message: error instanceof Error ? error.message : 'Unknown error' };
+  }
 }
 
-export interface AuthPermissionsResponse {
+export type AuthErrorType = 'AUTH_FAILURE' | 'TRANSIENT_ERROR';
+
+export interface AuthPermissionsData {
   isAuthenticated: boolean;
   permissions: string[];
   roles: string[];
@@ -26,6 +38,24 @@ export interface AuthPermissionsResponse {
   version: number;
 }
 
+export interface AuthPermissionsResponse {
+  ok: boolean;
+  data?: AuthPermissionsData;
+  error?: {
+    kind: AuthErrorType;
+    message: string;
+  };
+}
+
+export type PermissionVersionResponse = {
+  ok: true;
+  version: number;
+} | {
+  ok: false;
+  kind: AuthErrorType;
+  message: string;
+} | null;
+
 export async function getMyPermissions(): Promise<AuthPermissionsResponse> {
   try {
     const ctx = await getSessionContext();
@@ -33,44 +63,48 @@ export async function getMyPermissions(): Promise<AuthPermissionsResponse> {
     // Level 1: Source Contract hardening - Never return null for UI reads
     if (!ctx) {
       return {
-        isAuthenticated: false,
-        permissions: [],
-        roles: [],
-        isOwner: false,
-        version: 0
+        ok: false,
+        error: { kind: 'AUTH_FAILURE', message: 'Session not found' }
       };
     }
 
     const data = await IamService.getMyPermissions(ctx.userId);
     
     if (!data) {
+      // If user exists but no data record (rare case), return empty permissions but still authenticated
       return {
-        isAuthenticated: true,
-        permissions: [],
-        roles: [],
-        isOwner: false,
-        version: 0
+        ok: true,
+        data: {
+          isAuthenticated: true,
+          permissions: [],
+          roles: [],
+          isOwner: false,
+          version: 0
+        }
       };
     }
 
     return {
-      isAuthenticated: true,
-      permissions: Array.isArray(data.permissions) ? (data.permissions as string[]) : [],
-      roles: data.roleId ? [data.roleId] : [], // Note: roleId is currently a singular ID in this system
-      shopId: data.shopId,
-      isOwner: data.isOwner,
-      version: data.version
+      ok: true,
+      data: {
+        isAuthenticated: true,
+        permissions: Array.isArray(data.permissions) ? (data.permissions as string[]) : [],
+        roles: data.roleId ? [data.roleId] : [],
+        shopId: data.shopId,
+        isOwner: data.isOwner,
+        version: data.version
+      }
     };
   } catch (error) {
-    if (!isDynamicServerError(error)) {
-      console.error('[Action: getMyPermissions] Failed:', error);
-    }
+    if (isDynamicServerError(error)) throw error;
+
+    console.error('[Action: getMyPermissions] Failed:', error);
     return {
-      isAuthenticated: false,
-      permissions: [],
-      roles: [],
-      isOwner: false,
-      version: 0
+      ok: false,
+      error: { 
+        kind: 'TRANSIENT_ERROR', 
+        message: error instanceof Error ? error.message : 'Internal Server Error' 
+      }
     };
   }
 }

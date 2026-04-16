@@ -1,9 +1,11 @@
-import { db } from '@/lib/db';
+import { db, runInTransaction } from '@/lib/db';
 import { Prisma } from '@prisma/client';
 import { StockService } from './stock.service';
 import { NotificationService } from './notification.service';
 import { ServiceError, RequestContext } from '@/types/domain';
 import { money, toNumber, calcSubtotal } from '@/lib/money';
+import { AuditService } from './audit.service';
+import { RETURN_AUDIT_POLICIES } from './return.policy';
 
 const MAX_RETURN_RETRIES = 5;
 
@@ -109,120 +111,127 @@ export const ReturnService = {
    * สร้างรายการคืนสินค้า (Atomic: validate → create return → restore stock)
    */
   async create(input: CreateReturnInput, ctx: RequestContext, tx?: Prisma.TransactionClient) {
-    const executeTransaction = async (prismaTx: Prisma.TransactionClient) => {
-      const sale = await prismaTx.sale.findFirst({
-        where: { id: input.saleId, shopId: ctx.shopId, status: { not: 'CANCELLED' } },
-        include: {
-          items: {
+    const saleMatch = await db.sale.findFirst({
+      where: { id: input.saleId, shopId: ctx.shopId },
+      select: { invoiceNumber: true }
+    });
+    if (!saleMatch) throw new ServiceError('ไม่พบบิลขาย');
+
+    return AuditService.runWithAudit(
+      ctx,
+      RETURN_AUDIT_POLICIES.CREATE('PENDING_RET', saleMatch.invoiceNumber),
+      async () => {
+        return runInTransaction(tx, async (prisma) => {
+          const sale = await prisma.sale.findFirst({
+            where: { id: input.saleId, shopId: ctx.shopId, status: { not: 'CANCELLED' } },
             include: {
-              returnItems: { select: { quantity: true } },
+              items: {
+                include: {
+                  returnItems: { select: { quantity: true } },
+                },
+              },
             },
-          },
-        },
-      });
+          });
 
-      if (!sale) throw new ServiceError('ไม่พบบิลขาย หรือบิลถูกยกเลิกแล้ว');
+          if (!sale) throw new ServiceError('ไม่พบบิลขาย หรือบิลถูกยกเลิกแล้ว');
 
-      let totalRefund = 0;
-      const returnItemsData = [];
+          let totalRefund = 0;
+          const returnItemsData = [];
 
-      for (const item of input.items) {
-        const saleItem = sale.items.find(si => si.id === item.saleItemId);
-        if (!saleItem) throw new ServiceError(`ไม่พบรายการสินค้า: ${item.saleItemId}`);
+          for (const item of input.items) {
+            const saleItem = sale.items.find(si => si.id === item.saleItemId);
+            if (!saleItem) throw new ServiceError(`ไม่พบรายการสินค้า: ${item.saleItemId}`);
 
-        const alreadyReturned = (saleItem.returnItems as any[]).reduce(
-          (sum: number, ri: any) => sum + ri.quantity, 0
-        );
-        const maxReturnable = saleItem.quantity - alreadyReturned;
+            const alreadyReturned = (saleItem.returnItems as any[]).reduce(
+              (sum: number, ri: any) => sum + ri.quantity, 0
+            );
+            const maxReturnable = saleItem.quantity - alreadyReturned;
 
-        if (item.quantity > maxReturnable) {
-          throw new ServiceError(`สินค้ารายการ "${item.saleItemId}" คืนได้สูงสุด ${maxReturnable} ชิ้น`);
-        }
+            if (item.quantity > maxReturnable) {
+              throw new ServiceError(`สินค้ารายการ "${item.saleItemId}" คืนได้สูงสุด ${maxReturnable} ชิ้น`);
+            }
 
-        const refundAmount = calcSubtotal(item.quantity, item.refundPerUnit);
-        totalRefund = money.add(totalRefund, refundAmount);
+            const refundAmount = calcSubtotal(item.quantity, item.refundPerUnit);
+            totalRefund = money.add(totalRefund, refundAmount);
 
-        returnItemsData.push({
-          saleItemId: item.saleItemId,
-          productId: item.productId,
-          quantity: item.quantity,
-          refundPerUnit: item.refundPerUnit,
-          refundAmount,
+            returnItemsData.push({
+              saleItemId: item.saleItemId,
+              productId: item.productId,
+              quantity: item.quantity,
+              refundPerUnit: item.refundPerUnit,
+              refundAmount,
+            });
+          }
+
+          const returnNumber = await generateReturnNumber(prisma, ctx.shopId);
+
+          const returnRecord = await prisma.return.create({
+            data: {
+              returnNumber,
+              saleId: input.saleId,
+              reason: input.reason,
+              refundAmount: totalRefund,
+              refundMethod: input.refundMethod,
+              status: 'COMPLETED',
+              userId: ctx.userId,
+              shopId: ctx.shopId,
+              items: {
+                create: returnItemsData,
+              },
+            },
+            include: { items: true },
+          });
+
+          // Bulk stock restore
+          await StockService.recordMovements(
+            ctx,
+            returnItemsData.map(item => ({
+              productId: item.productId,
+              type: 'RETURN' as const,
+              quantity: item.quantity,
+              userId: ctx.userId,
+              shopId: ctx.shopId,
+              returnId: returnRecord.id,
+              saleId: input.saleId,
+              note: `คืนสินค้า ${returnRecord.returnNumber} (${input.reason})`,
+            })),
+            prisma
+          );
+
+          let totalReturnCost = 0;
+          for (const item of input.items) {
+            const saleItem = sale.items.find(si => si.id === item.saleItemId);
+            if (saleItem) {
+              const costPerUnit = toNumber(saleItem.costPrice);
+              totalReturnCost = money.add(totalReturnCost, calcSubtotal(item.quantity, costPerUnit));
+            }
+          }
+
+          const profitAdjustment = money.subtract(totalRefund, totalReturnCost);
+
+          await prisma.sale.update({
+            where: { id: input.saleId },
+            data: {
+              netAmount:    { decrement: totalRefund },
+              totalCost:    { decrement: totalReturnCost },
+              profit:       { decrement: profitAdjustment },
+            },
+          });
+
+          // Notification (Async)
+          NotificationService.create({
+            shopId: ctx.shopId,
+            type: 'RETURN_CREATED',
+            severity: 'WARNING',
+            title: `คืนสินค้า ${returnRecord.returnNumber}`,
+            message: `คืนเงิน ${toNumber(totalRefund)} บาท`,
+            link: `/returns/${returnRecord.id}`,
+          }).catch(() => {});
+
+          return returnRecord;
         });
       }
-
-      const returnNumber = await generateReturnNumber(prismaTx, ctx.shopId);
-
-      const returnRecord = await prismaTx.return.create({
-        data: {
-          returnNumber,
-          saleId: input.saleId,
-          reason: input.reason,
-          refundAmount: totalRefund,
-          refundMethod: input.refundMethod,
-          status: 'COMPLETED',
-          userId: ctx.userId,
-          shopId: ctx.shopId,
-          items: {
-            create: returnItemsData,
-          },
-        },
-        include: { items: true },
-      });
-
-      // Bulk stock restore (1 batch instead of N sequential calls)
-      await StockService.recordMovements(
-        returnItemsData.map(item => ({
-          productId: item.productId,
-          type: 'RETURN' as const,
-          quantity: item.quantity,
-          userId: ctx.userId,
-          shopId: ctx.shopId,
-          returnId: returnRecord.id,
-          saleId: input.saleId,
-          note: `คืนสินค้า ${returnNumber} (${input.reason})`,
-        })),
-        prismaTx
-      );
-
-      let totalReturnCost = 0;
-      for (const item of input.items) {
-        const saleItem = sale.items.find(si => si.id === item.saleItemId);
-        if (saleItem) {
-          const costPerUnit = toNumber(saleItem.costPrice);
-          totalReturnCost = money.add(totalReturnCost, calcSubtotal(item.quantity, costPerUnit));
-        }
-      }
-
-      const profitAdjustment = money.subtract(totalRefund, totalReturnCost);
-
-      await prismaTx.sale.update({
-        where: { id: input.saleId },
-        data: {
-          netAmount:    { decrement: totalRefund },
-          totalCost:    { decrement: totalReturnCost },
-          profit:       { decrement: profitAdjustment },
-        },
-      });
-
-      // 6. Create Notification (Async/Non-blocking)
-      NotificationService.create({
-        shopId: ctx.shopId,
-        type: 'RETURN_CREATED',
-        severity: 'WARNING',
-        title: `คืนสินค้า ${returnNumber}`,
-        message: `คืนเงิน ${toNumber(totalRefund)} บาท`,
-        link: `/returns/${returnRecord.id}`,
-      }).catch(() => {});
-
-      return returnRecord;
-    };
-
-    if (tx) {
-      return executeTransaction(tx);
-    } else {
-      return db.$transaction(executeTransaction);
-    }
+    );
   },
 
   /**

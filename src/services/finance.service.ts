@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { RequestContext, ServiceError } from '@/types/domain';
 import { AuditService } from './audit.service';
+import { FINANCE_AUDIT_POLICIES } from './finance.policy';
 import { IncomeInput } from '@/schemas/income';
 import { ExpenseInput } from '@/schemas/expense';
 import { paginatedQuery, buildSearchFilter, buildDateRangeFilter } from '@/lib/pagination';
@@ -59,13 +60,19 @@ export const FinanceService = {
   },
 
   async createIncome(data: IncomeInput, ctx: RequestContext) {
-    return (db as any).income.create({
-      data: {
-        ...data,
-        userId: ctx.userId,
-        shopId: ctx.shopId,
-      },
-    });
+    return AuditService.runWithAudit(
+      ctx,
+      FINANCE_AUDIT_POLICIES.INCOME_CREATE(data.description || ''),
+      async () => {
+        return (db as any).income.create({
+          data: {
+            ...data,
+            userId: ctx.userId,
+            shopId: ctx.shopId,
+          },
+        });
+      }
+    );
   },
 
   async updateIncome(id: string, data: IncomeInput, ctx: RequestContext) {
@@ -75,10 +82,19 @@ export const FinanceService = {
 
     if (!existing) throw new ServiceError('ไม่พบข้อมูลรายรับ');
 
-    return (db as any).income.update({
-      where: { id },
-      data,
-    });
+    return AuditService.runWithAudit(
+      ctx,
+      {
+        ...FINANCE_AUDIT_POLICIES.INCOME_UPDATE(id, existing.description || ''),
+        getBefore: async () => existing,
+      },
+      async () => {
+        return (db as any).income.update({
+          where: { id },
+          data,
+        });
+      }
+    );
   },
 
   async deleteIncome(id: string, ctx: RequestContext) {
@@ -88,10 +104,16 @@ export const FinanceService = {
 
     if (!existing) throw new ServiceError('ไม่พบข้อมูลรายรับ');
 
-    return (db as any).income.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-    });
+    return AuditService.runWithAudit(
+      ctx,
+      FINANCE_AUDIT_POLICIES.INCOME_DELETE(id, existing.description || ''),
+      async () => {
+        return (db as any).income.update({
+          where: { id },
+          data: { deletedAt: new Date() },
+        });
+      }
+    );
   },
 
   async getMonthlyIncomes(ctx: RequestContext) {
@@ -158,13 +180,19 @@ export const FinanceService = {
   },
 
   async createExpense(data: ExpenseInput, ctx: RequestContext) {
-    return db.expense.create({
-      data: {
-        ...data,
-        userId: ctx.userId,
-        shopId: ctx.shopId,
-      },
-    });
+    return AuditService.runWithAudit(
+      ctx,
+      FINANCE_AUDIT_POLICIES.EXPENSE_CREATE(data.description || ''),
+      async () => {
+        return db.expense.create({
+          data: {
+            ...data,
+            userId: ctx.userId,
+            shopId: ctx.shopId,
+          },
+        });
+      }
+    );
   },
 
   async updateExpense(id: string, data: ExpenseInput, ctx: RequestContext) {
@@ -174,10 +202,19 @@ export const FinanceService = {
 
     if (!existing) throw new ServiceError('ไม่พบข้อมูลค่าใช้จ่าย');
 
-    return db.expense.update({
-      where: { id },
-      data,
-    });
+    return AuditService.runWithAudit(
+      ctx,
+      {
+        ...FINANCE_AUDIT_POLICIES.EXPENSE_UPDATE(id, existing.description || ''),
+        getBefore: async () => existing,
+      },
+      async () => {
+        return db.expense.update({
+          where: { id },
+          data,
+        });
+      }
+    );
   },
 
   async deleteExpense(id: string, ctx: RequestContext) {
@@ -187,10 +224,16 @@ export const FinanceService = {
 
     if (!existing) throw new ServiceError('ไม่พบข้อมูลค่าใช้จ่าย');
 
-    return db.expense.update({
-      where: { id },
-      data: { deletedAt: new Date() },
-    });
+    return AuditService.runWithAudit(
+      ctx,
+      FINANCE_AUDIT_POLICIES.EXPENSE_DELETE(id, existing.description || ''),
+      async () => {
+        return db.expense.update({
+          where: { id },
+          data: { deletedAt: new Date() },
+        });
+      }
+    );
   },
 
   async getMonthlyExpenses(ctx: RequestContext) {
@@ -230,21 +273,16 @@ export const FinanceService = {
       throw new ServiceError(`รายการนี้ถูกวางบิลไปแล้ว (สถานะ: ${sale.billingStatus})`);
     }
 
-    const updated = await db.sale.update({
-      where: { id: saleId },
-      data: { billingStatus: 'BILLED' },
-    });
-
-    // ERP Rule 12.1: Audit Billing
-    await AuditService.log(ctx, {
-      action: 'SALE_BILLING_MARK',
-      targetType: 'Sale',
-      targetId: saleId,
-      afterSnapshot: sale as any,
-      note: `วางบิลรายการขาย ${sale.invoiceNumber}`,
-    });
-
-    return updated;
+    return AuditService.runWithAudit(
+      ctx,
+      FINANCE_AUDIT_POLICIES.SALE_BILLING_MARK(sale.invoiceNumber),
+      async () => {
+        return db.sale.update({
+          where: { id: saleId },
+          data: { billingStatus: 'BILLED' },
+        });
+      }
+    );
   },
 
   async generateTaxReport(params: { startDate: string, endDate: string }, ctx: RequestContext) {

@@ -86,7 +86,7 @@ export const createProductTool: AITool = {
 
         // 2. If initial stock > 0, record via StockService (creates StockLog)
         if (stock > 0) {
-          await StockService.recordMovement({
+          await StockService.recordMovement(context as any, {
             productId: newProduct.id,
             type: 'ADJUSTMENT',
             quantity: stock,

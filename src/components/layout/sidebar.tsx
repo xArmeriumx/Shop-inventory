@@ -19,6 +19,7 @@ import {
   HelpCircle,
   Sparkles,
   RotateCcw,
+  ShieldCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -118,6 +119,12 @@ const secondaryNavItems = [
     title: 'สถานะระบบ',
     href: '/system',
     icon: require('lucide-react').Activity,
+    permission: 'SETTINGS_SHOP' as Permission,
+  },
+  {
+    title: 'ประวัติการใช้งาน (Audit)',
+    href: '/system/audit-logs',
+    icon: ShieldCheck,
     permission: 'SETTINGS_SHOP' as Permission,
   },
 ];

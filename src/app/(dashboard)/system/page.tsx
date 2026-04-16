@@ -11,10 +11,13 @@ import {
   Cpu,
   Zap,
   FileWarning,
-  Bug
+  Bug,
+  ShieldCheck,
+  History
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { 
@@ -261,6 +264,16 @@ function SystemDashboard() {
             <Bug className="h-4 w-4" />
             Test Error (Disabled)
           </Button>
+          <Link href="/system/audit-logs">
+            <Button
+              variant="default"
+              size="sm"
+              className="gap-2 bg-primary/90 hover:bg-primary shadow-sm"
+            >
+              <History className="h-4 w-4" />
+              View Audit Logs
+            </Button>
+          </Link>
              <Button
             variant="outline"
             size="sm"
@@ -339,6 +352,23 @@ function SystemDashboard() {
           icon={Users} 
           status="success"
         />
+
+        {/* Governance Summary (NEW) */}
+        <Link href="/system/audit-logs" className="block transition-transform hover:scale-[1.02]">
+          <Card className="bg-primary/5 border-primary/20 h-full">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-primary">System Governance</CardTitle>
+              <ShieldCheck className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">Audit Active</div>
+              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                <History className="h-3 w-3" />
+                Deep snapshots enabled
+              </p>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
 
       {/* Real-time Charts Section */}

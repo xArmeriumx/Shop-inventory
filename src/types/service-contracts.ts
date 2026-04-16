@@ -237,6 +237,33 @@ export interface IStockService {
     productId: string,
     ctx: RequestContext,
   ): Promise<StockAvailability>;
+
+  /**
+   * บันทึกการเคลื่อนไหวสต็อก (Stock Movement) และปรับยอดคงเหลือจริง
+   * ใช้สำหรับการปรับปรุงยอด (Adjustment), การเคลื่อนย้าย (Transfer), หรือการรับสินค้า
+   */
+  recordMovement(
+    ctx: RequestContext,
+    params: any, // Using any for params since CreateStockMovementParams is defined in implementaton
+  ): Promise<any>;
+
+  /**
+   * บันทึกการเคลื่อนไหวสต็อกแบบกลุ่ม
+   */
+  recordMovements(
+    ctx: RequestContext,
+    movements: any[],
+    tx: Prisma.TransactionClient,
+  ): Promise<void>;
+
+  /**
+   * ดึงประวัติการเคลื่อนไหวสต็อกของสินค้า (Stock Logs) แบบแบ่งหน้า
+   */
+  getProductHistory(
+    productId: string,
+    page?: number,
+    limit?: number,
+  ): Promise<any>;
 }
 
 // ============================================================================

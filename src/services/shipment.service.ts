@@ -1,4 +1,4 @@
-import { db } from '@/lib/db';
+import { db, runInTransaction } from '@/lib/db';
 import { 
   RequestContext, 
   ServiceError, 
@@ -13,6 +13,9 @@ import { SequenceService } from './sequence.service';
 import { SaleService } from './sale.service';
 import { StockService } from './stock.service';
 import { UpdateShipmentInput, UpdateShipmentStatusInput } from '@/schemas/shipment';
+import { SpatialPoint, sortShipmentsByRoute } from '@/lib/spatial-utils';
+import { AuditService } from './audit.service';
+import { SHIPMENT_AUDIT_POLICIES } from './shipment.policy';
 
 // =============================================================================
 // STATUS TRANSITION VALIDATION
@@ -204,61 +207,59 @@ export const ShipmentService: IShippingService = {
 
   async create(data: any, ctx: RequestContext) {
     try {
-      return await db.$transaction(async (tx) => {
-        const sale = await tx.sale.findFirst({
-          where: { id: data.saleId, shopId: ctx.shopId, status: 'ACTIVE' },
-          include: { shipments: { select: { id: true, status: true } } },
-        });
+      return await AuditService.runWithAudit(
+        ctx,
+        SHIPMENT_AUDIT_POLICIES.CREATE('PENDING_SN'),
+        async () => {
+          return runInTransaction(undefined, async (prisma) => {
+            const sale = await prisma.sale.findFirst({
+              where: { id: data.saleId, shopId: ctx.shopId, status: 'ACTIVE' },
+              include: { shipments: { select: { id: true, status: true } } },
+            });
 
-        if (!sale) {
-          throw new ServiceError('ไม่พบรายการขาย หรือรายการถูกยกเลิกแล้ว');
-        }
+            if (!sale) throw new ServiceError('ไม่พบรายการขาย หรือรายการถูกยกเลิกแล้ว');
+            const hasActiveShipment = sale.shipments.some(s => s.status !== 'CANCELLED');
+            if (hasActiveShipment) throw new ServiceError('รายการขายนี้มี Shipment ที่ยังใช้งานอยู่แล้ว');
 
-        const hasActiveShipment = sale.shipments.some(s => s.status !== 'CANCELLED');
-        if (hasActiveShipment) {
-          throw new ServiceError('รายการขายนี้มี Shipment ที่ยังใช้งานอยู่แล้ว (ซ้ำซ้อน)');
-        }
+            const shipmentNumber = await SequenceService.generate(ctx, DocumentType.SHIPMENT, prisma);
+            const shipment = await prisma.shipment.create({
+              data: {
+                shipmentNumber,
+                saleId: data.saleId,
+                recipientName: data.recipientName,
+                recipientPhone: data.recipientPhone || null,
+                shippingAddress: data.shippingAddress,
+                customerAddressId: data.customerAddressId || null,
+                trackingNumber: data.trackingNumber || null,
+                shippingProvider: data.shippingProvider || null,
+                shippingCost: data.shippingCost || null,
+                status: data.trackingNumber ? 'SHIPPED' : 'PENDING',
+                shippedAt: data.trackingNumber ? new Date() : null,
+                notes: data.notes || null,
+                userId: ctx.userId,
+                shopId: ctx.shopId,
+              },
+            });
 
-        const shipmentNumber = await SequenceService.generate(ctx, DocumentType.SHIPMENT, tx);
+            if (data.shippingCost && data.shippingCost > 0) {
+              await prisma.expense.create({
+                data: {
+                  category: 'ค่าจัดส่ง',
+                  amount: data.shippingCost,
+                  description: `ค่าส่ง ${shipmentNumber} (${sale.invoiceNumber || ''}) - ${data.recipientName}`,
+                  date: new Date(),
+                  userId: ctx.userId,
+                  shopId: ctx.shopId,
+                },
+              });
+            }
 
-        const shipment = await tx.shipment.create({
-          data: {
-            shipmentNumber,
-            saleId: data.saleId,
-            recipientName: data.recipientName,
-            recipientPhone: data.recipientPhone || null,
-            shippingAddress: data.shippingAddress,
-            customerAddressId: data.customerAddressId || null,
-            trackingNumber: data.trackingNumber || null,
-            shippingProvider: data.shippingProvider || null,
-            shippingCost: data.shippingCost || null,
-            status: data.trackingNumber ? 'SHIPPED' : 'PENDING',
-            shippedAt: data.trackingNumber ? new Date() : null,
-            notes: data.notes || null,
-            userId: ctx.userId,
-            shopId: ctx.shopId,
-          },
-        });
-
-        if (data.shippingCost && data.shippingCost > 0) {
-          await tx.expense.create({
-            data: {
-              category: 'ค่าจัดส่ง',
-              amount: data.shippingCost,
-              description: `ค่าส่ง ${shipmentNumber} (${sale.invoiceNumber || ''}) - ${data.recipientName}`,
-              date: new Date(),
-              userId: ctx.userId,
-              shopId: ctx.shopId,
-            },
+            return shipment;
           });
         }
-
-        return shipment;
-      });
+      );
     } catch (error: any) {
-      if (error.code === 'P2002') {
-        throw new ServiceError('รายการขายนี้มี Shipment ที่ยังใช้งานอยู่แล้ว');
-      }
+      if (error.code === 'P2002') throw new ServiceError('รายการขายนี้มี Shipment ที่ยังใช้งานอยู่แล้ว');
       throw error;
     }
   },
@@ -327,23 +328,25 @@ export const ShipmentService: IShippingService = {
       where: { id, shopId: ctx.shopId },
     });
 
-    if (!shipment) {
-      throw new ServiceError('ไม่พบข้อมูลการจัดส่ง');
-    }
-
+    if (!shipment) throw new ServiceError('ไม่พบข้อมูลการจัดส่ง');
     if (!validateTransition(shipment.status, 'CANCELLED')) {
       throw new ServiceError(`ไม่สามารถยกเลิกได้ — สถานะ "${STATUS_LABELS[shipment.status]}" เป็นสถานะที่ไม่สามารถยกเลิกได้`);
     }
 
-    const cancelNote = reason ? `[ยกเลิก] ${reason}` : '[ยกเลิก]';
-
-    return db.shipment.update({
-      where: { id },
-      data: {
-        status: 'CANCELLED',
-        notes: shipment.notes ? `${shipment.notes}\n${cancelNote}` : cancelNote,
-      },
-    });
+    return AuditService.runWithAudit(
+      ctx,
+      SHIPMENT_AUDIT_POLICIES.CANCEL(shipment.shipmentNumber!, reason),
+      async () => {
+        const cancelNote = reason ? `[ยกเลิก] ${reason}` : '[ยกเลิก]';
+        return db.shipment.update({
+          where: { id },
+          data: {
+            status: 'CANCELLED',
+            notes: shipment.notes ? `${shipment.notes}\n${cancelNote}` : cancelNote,
+          },
+        });
+      }
+    );
   },
 
   async getStats(ctx: RequestContext) {
@@ -428,49 +431,58 @@ export const ShipmentService: IShippingService = {
   // ==========================================
 
   async updateStatusWithSync(shipmentId: string, newStatus: ShipmentStatus, ctx: RequestContext) {
-    await db.$transaction(async (tx) => {
-      const shipment = await tx.shipment.findFirst({
-        where: { id: shipmentId, shopId: ctx.shopId },
-        include: { sale: { include: { items: true } } },
-      });
-
-      if (!shipment) throw new ServiceError('ไม่พบข้อมูลการจัดส่ง');
-
-      // Update Shipment Status
-      await tx.shipment.update({
-        where: { id: shipmentId },
-        data: { 
-          status: newStatus as any,
-          shippedAt: newStatus === 'SHIPPED' ? new Date() : undefined,
-          deliveredAt: newStatus === 'DELIVERED' ? new Date() : undefined,
-        },
-      });
-
-      // SYNC logic (UC 10 & 20)
-      let parentDeliveryStatus = (shipment as any).sale.deliveryStatus;
-      
-      if (newStatus === 'SHIPPED') {
-        // SHIPPED -> DEDUCT STOCK & Update Sale Status
-        await SaleService.completeSale(shipment.saleId, ctx, tx);
-        parentDeliveryStatus = 'SHIPPED';
-      } else if (newStatus === 'DELIVERED') {
-        // DELIVERED -> Update Sale Status
-        parentDeliveryStatus = 'DELIVERED';
-      } else if (newStatus === 'PENDING') {
-        parentDeliveryStatus = 'PENDING';
-      }
-
-      await tx.sale.update({
-        where: { id: shipment.saleId },
-        data: { deliveryStatus: parentDeliveryStatus }
-      });
+    const shipmentRef = await db.shipment.findFirst({
+      where: { id: shipmentId, shopId: ctx.shopId }
     });
+    if (!shipmentRef) throw new ServiceError('ไม่พบข้อมูลการจัดส่ง');
+
+    await AuditService.runWithAudit(
+      ctx,
+      SHIPMENT_AUDIT_POLICIES.UPDATE_STATUS(shipmentRef.shipmentNumber!, newStatus),
+      async () => {
+        return await runInTransaction(undefined, async (prisma) => {
+          const shipment = await prisma.shipment.findFirst({
+            where: { id: shipmentId, shopId: ctx.shopId },
+            include: { sale: { include: { items: true } } },
+          });
+
+          if (!shipment) throw new ServiceError('ไม่พบข้อมูลการจัดส่ง');
+
+          await prisma.shipment.update({
+            where: { id: shipmentId },
+            data: { 
+              status: newStatus as any,
+              shippedAt: newStatus === 'SHIPPED' ? new Date() : undefined,
+              deliveredAt: newStatus === 'DELIVERED' ? new Date() : undefined,
+            },
+          });
+
+          let parentDeliveryStatus = (shipment as any).sale.deliveryStatus;
+          
+          if (newStatus === 'SHIPPED') {
+            await SaleService.completeSale(shipment.saleId, ctx, prisma);
+            parentDeliveryStatus = 'SHIPPED';
+          } else if (newStatus === 'DELIVERED') {
+            parentDeliveryStatus = 'DELIVERED';
+          } else if (newStatus === 'PENDING') {
+            parentDeliveryStatus = 'PENDING';
+          }
+
+          await prisma.sale.update({
+            where: { id: shipment.saleId },
+            data: { deliveryStatus: parentDeliveryStatus }
+          });
+
+          return { syncApplied: true };
+        });
+      }
+    );
   },
 
   async updateDispatchSequence(shipmentIds: string[], ctx: RequestContext) {
-    await db.$transaction(async (tx) => {
+    await runInTransaction(undefined, async (prisma) => {
       await Promise.all(shipmentIds.map((id, index) => 
-        tx.shipment.update({
+        prisma.shipment.update({
           where: { id, shopId: ctx.shopId },
           data: { dispatchSeq: index + 1 },
         })
@@ -560,31 +572,48 @@ export const ShipmentService: IShippingService = {
 
   /**
    * UC 11: Route Processing (Sort by Distance)
-   * จัดลำดับการส่งของตามระยะทาง เพื่อความประหยัดและรวดเร็ว
+   * จัดลำดับการส่งของตามระยะทางจริง ด้วย Haversine Formula
+   * กฎ: Outbound (ใกล้ -> ไกล), Inbound (ไกล -> ใกล้), พิกัดไม่ครบ (Unknown) อยู่ท้ายสุด
    */
   async processRoute(ids: string[], type: 'OUTBOUND' | 'INBOUND', ctx: RequestContext) {
-    const shipments = await db.shipment.findMany({
-      where: { id: { in: ids }, shopId: ctx.shopId },
-      include: { customerAddress: true }
-    });
+    return AuditService.runWithAudit(
+      ctx,
+      SHIPMENT_AUDIT_POLICIES.ROUTE_PROCESSED(type, ids.length),
+      async () => {
+        const shop = await db.shop.findUnique({
+          where: { id: ctx.shopId },
+          select: { latitude: true, longitude: true },
+        });
 
-    // Simulated distance logic (In production, would use Google Maps API/Mapbox)
-    // Here we use a mock distance based on ID length or random for demo purposes
-    const withDistance = shipments.map(s => ({
-      ...s,
-      distance: Math.random() * 100 // Mock KM
-    }));
+        if (!shop || shop.latitude === null || shop.longitude === null) {
+          throw new ServiceError('ยังไม่สามารถคำนวณเส้นทางได้เนื่องจากข้อมูลพิกัดร้านค้าไม่ครบถ้วน');
+        }
 
-    // Logic: Outbound (ใกล้ -> ไกล), Inbound (ไกล -> ใกล้)
-    const sorted = withDistance.sort((a, b) => {
-      return type === 'OUTBOUND' 
-        ? a.distance - b.distance 
-        : b.distance - a.distance;
-    });
+        const origin: SpatialPoint = {
+          latitude: shop.latitude,
+          longitude: shop.longitude,
+        };
 
-    // Update dispatch sequence
-    await this.updateDispatchSequence(sorted.map(s => s.id), ctx);
+        const shipments = await db.shipment.findMany({
+          where: { id: { in: ids }, shopId: ctx.shopId },
+          include: { customerAddress: true }
+        });
 
-    return sorted;
+        const shippableItems = shipments.map(s => ({
+          id: s.id,
+          createdAt: s.createdAt,
+          latitude: s.customerAddress?.latitude ?? null,
+          longitude: s.customerAddress?.longitude ?? null,
+        }));
+
+        const sortedItems = sortShipmentsByRoute(shippableItems, type, origin);
+        const sortedIds = sortedItems.map(item => item.id);
+
+        await this.updateDispatchSequence(sortedIds, ctx);
+
+        const idToIndex = new Map(sortedIds.map((id, index) => [id, index]));
+        return shipments.sort((a, b) => (idToIndex.get(a.id) ?? 0) - (idToIndex.get(b.id) ?? 0));
+      }
+    );
   }
 };

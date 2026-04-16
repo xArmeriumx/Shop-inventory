@@ -54,3 +54,31 @@ export async function getAuditLogs(options: {
     return { data: [], total: 0, page: 1, totalPages: 0, success: false, message: 'เกิดข้อผิดพลาดในการดึงข้อมูล Audit Log' };
   }
 }
+
+/**
+ * Fetch security dashboard metrics for the current shop.
+ * Requires SETTINGS_SHOP permission.
+ */
+export async function getSecurityMetrics() {
+  try {
+    const sessionCtx = await requireAuth();
+    if (!sessionCtx.shopId) {
+       throw new ServiceError('กรุณาเลือกร้านค้าเพื่อดูข้อมูล');
+    }
+    const ctx = sessionCtx as any;
+    
+    Security.requirePermission(ctx, 'SETTINGS_SHOP');
+
+    const metrics = await AuditService.getSecurityDashboardMetrics(ctx.shopId);
+    
+    return {
+      ...metrics,
+      success: true,
+    };
+  } catch (error: any) {
+    if (error instanceof ServiceError) {
+      return { success: false, message: error.message };
+    }
+    return { success: false, message: 'เกิดข้อผิดพลาดในการดึงข้อมูล Security Metrics' };
+  }
+}

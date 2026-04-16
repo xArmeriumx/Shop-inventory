@@ -116,8 +116,14 @@ export function PermissionProvider({ children }: PermissionProviderProps) {
   // Transition memory for Logout Guardian (Phase 1)
   const prevStatusRef = useRef<PermissionStatus>('loading');
   const isRedirectingRef = useRef(false);
+  const isRefreshingRef = useRef(false);
+  const hasBeenAuthenticatedRef = useRef(false);
 
-  const [permissionStatus, setPermissionStatus] = useState<PermissionStatus>('loading');
+  const [permissionStatus, setPermissionStatus] = useState<PermissionStatus>(() => {
+    // Phase 2 Baseline: If we have a session, trust it as authenticated immediately
+    return session?.user ? 'authenticated' : 'loading';
+  });
+
   const [permissionData, setPermissionData] = useState<{
     shopId: string | undefined;
     roleId: string | undefined;
@@ -152,63 +158,76 @@ export function PermissionProvider({ children }: PermissionProviderProps) {
    * This is the "expensive" operation - only called when version changes
    */
   const fetchFullPermissions = useCallback(async (): Promise<void> => {
-    if (!isMountedRef.current) return;
+    if (!isMountedRef.current || isRefreshingRef.current) return;
 
     try {
+      isRefreshingRef.current = true;
       const response = await getMyPermissions();
 
       if (!isMountedRef.current) return;
 
-      if (!response.isAuthenticated) {
-        setPermissionStatus('unauthenticated');
+      if (!response.ok) {
+        if (response.error?.kind === 'AUTH_FAILURE') {
+          setPermissionStatus('unauthenticated');
+        }
+        // TRANSIENT_ERROR: keep current status, will retry on next poll
         return;
       }
 
-      cachedVersionRef.current = response.version;
+      const { data } = response;
+      if (!data) return;
+
+      cachedVersionRef.current = data.version;
       setPermissionStatus('authenticated');
       
       const normalizedData = {
-        shopId: response.shopId,
-        roleId: response.roles[0], // Using first role for backward compatibility
-        permissions: Array.isArray(response.permissions) ? (response.permissions as Permission[]) : [],
-        roles: Array.isArray(response.roles) ? response.roles : [],
-        isOwner: response.isOwner,
-        version: response.version,
+        shopId: data.shopId,
+        roleId: data.roles[0],
+        permissions: Array.isArray(data.permissions) ? (data.permissions as Permission[]) : [],
+        roles: Array.isArray(data.roles) ? data.roles : [],
+        isOwner: data.isOwner,
+        version: data.version,
       };
 
       setPermissionData((prev) => {
-        // Only update if data actually changed
-        if (JSON.stringify(prev) === JSON.stringify(normalizedData)) {
-          return prev;
-        }
+        if (JSON.stringify(prev) === JSON.stringify(normalizedData)) return prev;
         return normalizedData;
       });
     } catch (error) {
       console.error('[PermissionContext] Failed to fetch permissions:', error);
-      setPermissionStatus('error');
+      // We don't set 'error' status here to avoid UI flickering 
+      // as long as it's not a confirmed auth failure
+    } finally {
+      isRefreshingRef.current = false;
     }
   }, []);
 
-  /**
-   * Lightweight version check
-   * Only fetches the version number, not full permissions
-   * If version changed, triggers full fetch
-   */
   const checkVersionAndRefresh = useCallback(async (): Promise<void> => {
-    if (!isMountedRef.current) return;
+    if (!isMountedRef.current || isRefreshingRef.current) return;
 
     try {
-      const versionData = await getPermissionVersion();
+      isRefreshingRef.current = true;
+      const response = await getPermissionVersion();
 
       if (!isMountedRef.current) return;
 
-      if (versionData && versionData.version !== cachedVersionRef.current) {
+      if (response && !response.ok) {
+        if (response.kind === 'AUTH_FAILURE') {
+          setPermissionStatus('unauthenticated');
+        }
+        return;
+      }
+
+      if (response && response.ok && response.version !== cachedVersionRef.current) {
         console.log('[PermissionContext] Version changed, refreshing permissions...');
+        // Release lock before calling fetch which has its own lock
+        isRefreshingRef.current = false; 
         await fetchFullPermissions();
       }
-      // else: Version same, skip expensive fetch ✓
     } catch (error) {
       console.error('[PermissionContext] Failed to check version:', error);
+    } finally {
+      isRefreshingRef.current = false;
     }
   }, [fetchFullPermissions]);
 
@@ -288,40 +307,49 @@ export function PermissionProvider({ children }: PermissionProviderProps) {
     };
   }, [startPolling, stopPolling, checkVersionAndRefresh]);
 
-  // -------------------------------------------------------------------------
-  // PHASE 1: LOGOUT GUARDIAN
-  // Detects transition from authenticated -> unauthenticated 
-  // and forces a redirect to /login to clear the dead UI.
-  // -------------------------------------------------------------------------
+  // Sync internal status with NextAuth session status (The Truth)
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      setPermissionStatus('unauthenticated');
+    } else if (status === 'authenticated' && permissionStatus === 'loading') {
+      // Recovery for cases where session becomes valid after mount
+      setPermissionStatus('authenticated');
+    }
+  }, [status, permissionStatus]);
+
+  // PHASE 3: LOGOUT GUARDIAN
   useEffect(() => {
     const currentStatus = permissionStatus;
     const prevStatus = prevStatusRef.current;
     
-    // Only act if transition is from authenticated -> unauthenticated
-    const isSessionRevoked = prevStatus === 'authenticated' && currentStatus === 'unauthenticated';
+    // Update "History of Auth" to prevent hydration false-positives
+    if (currentStatus === 'authenticated' && status === 'authenticated') {
+      hasBeenAuthenticatedRef.current = true;
+    }
+
+    // Trigger if (Previously Authenticated) AND (Now Unauthenticated)
+    // This looks at both truth sources: NextAuth status or permissionStatus (revocation)
+    const isRevoked = hasBeenAuthenticatedRef.current && (currentStatus === 'unauthenticated' || status === 'unauthenticated');
     
-    if (isSessionRevoked && !isRedirectingRef.current && status !== 'loading') {
+    if (isRevoked && !isRedirectingRef.current && status !== 'loading') {
       const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
-      const isPublicRoute = PUBLIC_ROUTES.some(route => pathname.startsWith(route));
+      const isPublicRoute = PUBLIC_ROUTES.some(route => pathname.startsWith(route) || pathname === route);
       
       if (!isPublicRoute) {
         isRedirectingRef.current = true;
-        console.warn('[PermissionContext] Session revocation detected. Redirecting to /login...');
-
-        // Telemetry-first sequence (ensure log reaches DB before redirect)
+        
+        // One-shot telemetry before redirect
         logger.trackEvent(SystemEventType.AUTH_TRANSITION_RECOVERY, {
           source: 'PermissionProvider',
-          message: 'Session revoked or expired; forcing UI redirect.',
+          message: 'Session revoked; Redirecting to /login.',
           pathname,
-          metadata: { from: prevStatus, to: currentStatus }
+          metadata: { permissionStatus: currentStatus, sessionStatus: status }
         }).finally(() => {
-          // Hard redirect to clear all client-side state
           window.location.replace('/login');
         });
       }
     }
 
-    // Update transition memory
     prevStatusRef.current = currentStatus;
   }, [permissionStatus, status]);
 
