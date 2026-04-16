@@ -48,6 +48,7 @@ const STATUS_ACTION_LABELS: Partial<Record<ShipmentStatus, { label: string; icon
   CANCELLED: { label: 'ยกเลิก', icon: <X className="h-4 w-4 mr-2" />, variant: 'destructive' },
   RETURNED: { label: 'ส่งคืน', icon: <AlertTriangle className="h-4 w-4 mr-2" />, variant: 'outline' },
   PENDING: { label: 'ส่งใหม่', icon: <Package className="h-4 w-4 mr-2" />, variant: 'outline' },
+  PROCESSING: { label: 'เริ่มแพ็คสินค้า', icon: <Loader2 className="h-4 w-4 mr-2" />, variant: 'default' },
 };
 
 interface ShipmentDetailProps {

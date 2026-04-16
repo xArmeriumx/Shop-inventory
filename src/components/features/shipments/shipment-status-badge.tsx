@@ -9,6 +9,11 @@ const STATUS_CONFIG: Record<ShipmentStatus, { label: string; variant: 'default' 
     variant: 'outline',
     className: 'border-yellow-500 text-yellow-600 bg-yellow-50',
   },
+  PROCESSING: {
+    label: 'กำลังแพ็ค',
+    variant: 'secondary',
+    className: 'bg-purple-100 text-purple-700',
+  },
   SHIPPED: {
     label: 'ส่งแล้ว',
     variant: 'default',
