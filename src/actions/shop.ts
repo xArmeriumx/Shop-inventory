@@ -33,19 +33,10 @@ export async function getShop() {
   return SettingsService.getShop(ctx as unknown as import('@/types/domain').RequestContext);
 }
 
-export async function updateShop(prevState: ShopState, formData: FormData): Promise<ShopState> {
+export async function updateShop(data: z.infer<typeof shopSchema>): Promise<ShopState> {
   const ctx = await requirePermission('SETTINGS_SHOP');
-  
-  const rawFormData = {
-    name: formData.get('name'),
-    address: formData.get('address') || undefined,
-    phone: formData.get('phone') || undefined,
-    logo: formData.get('logo') || undefined,
-    taxId: formData.get('taxId') || undefined,
-    promptPayId: formData.get('promptPayId') || undefined,
-  };
 
-  const validatedFields = shopSchema.safeParse(rawFormData);
+  const validatedFields = shopSchema.safeParse(data);
 
   if (!validatedFields.success) {
     return {

@@ -3,430 +3,172 @@
 import { useState, useTransition, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
+import { useForm, FormProvider, useFormContext, useFieldArray } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { toast } from 'sonner';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { FormField } from '@/components/ui/form-field';
 import { FileUpload } from '@/components/ui/file-upload';
-import { PAYMENT_METHODS } from '@/lib/constants';
-import { createPurchase } from '@/actions/purchases';
-import { getProductsForPurchase } from '@/actions/products';
-import { formatCurrency } from '@/lib/formatters';
-import { Plus, Trash2, Camera } from 'lucide-react';
 import { SupplierCombobox } from '@/components/features/suppliers/supplier-combobox';
 import { ScanPurchaseButton } from '@/components/features/purchases/scan-purchase-button';
 import { QuickAddSupplierDialog } from '@/components/features/suppliers/quick-add-supplier-dialog';
 import { QuickAddProductDialog } from '@/components/features/products/quick-add-product-dialog';
 import { ScanReviewModal } from '@/components/features/ocr/scan-review-modal';
+import { Plus, Trash2 } from 'lucide-react';
+
+import { createPurchase } from '@/actions/purchases';
+import { getProductsForPurchase } from '@/actions/products';
 import { getSuppliersForSelect } from '@/actions/suppliers';
-import { toast } from 'sonner';
-import { loadPendingScanResult, type ScanResult } from './use-purchase-scanner';
+import { formatCurrency } from '@/lib/formatters';
+import { PAYMENT_METHODS } from '@/lib/constants';
+import { loadPendingScanResult } from './use-purchase-scanner';
+import { purchaseFormSchema, getPurchaseFormDefaults, type PurchaseFormValues } from '@/schemas/purchase-form';
 
-interface Product {
-  id: string;
-  name: string;
-  sku: string | null;
-  costPrice: number;
-  stock: number;
-}
+// ============================================================================
+// Section: Purchase Info
+// ============================================================================
 
-interface PurchaseItem {
-  productId: string;
-  product?: Product;
-  quantity: number | string;
-  costPrice: number | string;
-}
+function PurchaseInfoSection({
+  supplierRefreshKey,
+  onSupplierCreated,
+  pendingScanData,
+  aiFilled
+}: {
+  supplierRefreshKey: number,
+  onSupplierCreated: (s: any) => void,
+  pendingScanData: any,
+  aiFilled: Set<string>
+}) {
+  const { register, watch, setValue, formState: { errors } } = useFormContext<PurchaseFormValues>();
+  const isBackdated = watch('isBackdated');
+  const supplierId = watch('supplierId');
+  const paymentMethod = watch('paymentMethod');
 
-export function PurchaseForm() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const [isPending, startTransition] = useTransition();
-  const [errors, setErrors] = useState<Record<string, string[]>>({});
-  const [products, setProducts] = useState<Product[]>([]);
-  const [receiptUrl, setReceiptUrl] = useState<string | null>(null);
-  const [isBackdated, setIsBackdated] = useState(false);
-  const [date, setDate] = useState<string>(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
-  const [supplierId, setSupplierId] = useState<string>(''); // Supplier selection
-  // Payment method (controlled for AI autofill)
-  const [paymentMethod, setPaymentMethod] = useState<string>('');
-  // AI autofill tracking
-  const [aiFilled, setAiFilled] = useState<Set<string>>(new Set());
-  const [items, setItems] = useState<PurchaseItem[]>([
-    { productId: '', quantity: 1, costPrice: 0 },
-  ]);
-  
-  // Quick Add state
-  const [supplierRefreshKey, setSupplierRefreshKey] = useState(0);
-  const [pendingScanData, setPendingScanData] = useState<any>(null);
-  
-  // Review Modal state
-  const [showReviewModal, setShowReviewModal] = useState(false);
-  const [suppliers, setSuppliers] = useState<Array<{ id: string; name: string; code: string | null }>>([]);
-
-  // Helper function to populate form from scan result
-  const populateFromScanResult = useCallback(async (result: ScanResult) => {
-    // Refresh products list first (may have new products from batch create)
-    const freshProducts = await getProductsForPurchase();
-    const mappedProducts = freshProducts.map((p: any) => ({
-      ...p,
-      costPrice: Number(p.costPrice),
-    }));
-    setProducts(mappedProducts);
-    
-    // Set supplier
-    if (result.supplierId) {
-      setSupplierId(result.supplierId);
-      setSupplierRefreshKey((k) => k + 1);
-    }
-    
-    // Set date
-    if (result.date) {
-      setIsBackdated(true);
-      setDate(result.date + 'T00:00');
-    }
-    
-    // Auto-set payment method when slip detected (from raw OCR data passed through)
-    const rawResult = result as any;
-    if (rawResult.paymentStatus === 'paid' || rawResult.sourceType === 'payment_slip') {
-      setPaymentMethod('TRANSFER');
-      setAiFilled((prev) => new Set(prev).add('paymentMethod'));
-    }
-    
-    // Set items from review result (using fresh products)
-    if (result.items && result.items.length > 0) {
-      const mappedItems: PurchaseItem[] = result.items.map((item) => {
-        const product = mappedProducts.find((p: Product) => p.id === item.productId);
-        return {
-          productId: item.productId,
-          product,
-          quantity: item.quantity || 1,
-          costPrice: item.costPrice || product?.costPrice || 0,
-        };
-      });
-      
-      setItems(mappedItems.length > 0 ? mappedItems : [{ productId: '', quantity: 1, costPrice: 0 }]);
-    }
-    
-    // Set notes with document info
-    if (result.documentNumber || result.supplierName) {
-      const noteElement = document.getElementById('notes') as HTMLTextAreaElement;
-      if (noteElement) {
-        noteElement.value = `${result.supplierName || ''} - ${result.documentNumber || ''}`.trim();
-      }
-    }
-    
-    toast.success('นำเข้าข้อมูลสำเร็จ!');
-  }, []);
-
-  useEffect(() => {
-    // Load products
-    getProductsForPurchase().then((data) => {
-      const mappedProducts = data.map((p: any) => ({
-        ...p,
-        costPrice: Number(p.costPrice),
-      }));
-      setProducts(mappedProducts);
-    });
-    
-    // Load suppliers for matching
-    getSuppliersForSelect().then((data) => {
-      setSuppliers(data.map((s: any) => ({
-        id: s.id,
-        name: s.name,
-        code: s.code,
-      })));
-    });
-    
-    // Check for pending scan result from list page
-    const fromScan = searchParams.get('fromScan');
-    if (fromScan === 'true') {
-      const pendingResult = loadPendingScanResult();
-      if (pendingResult) {
-        // Delay slightly to ensure products are loaded
-        setTimeout(() => {
-          populateFromScanResult(pendingResult);
-        }, 500);
-      }
-      // Clean URL
-      router.replace('/purchases/new', { scroll: false });
-    }
-  }, [searchParams, router, populateFromScanResult]);
-
-  const handleAddItem = () => {
-    setItems([...items, { productId: '', quantity: 1, costPrice: 0 }]);
-  };
-
-  const handleRemoveItem = (index: number) => {
-    if (items.length > 1) {
-      setItems(items.filter((_, i) => i !== index));
-    }
-  };
-
-  const handleItemChange = (
-    index: number,
-    field: keyof PurchaseItem,
-    value: string | number
-  ) => {
-    const newItems = [...items];
-    
-    if (field === 'productId') {
-      const product = products.find((p) => p.id === value);
-      newItems[index] = {
-        ...newItems[index],
-        productId: value as string,
-        product,
-        costPrice: product?.costPrice || 0,
-      };
-    } else {
-      newItems[index] = {
-        ...newItems[index],
-        [field]: value,
-      };
-    }
-    
-    setItems(newItems);
-  };
-
-  const calculateTotal = () => {
-    return items.reduce(
-      (sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.costPrice) || 0),
-      0
-    );
-  };
-
-  // Handle OCR scan result - open review modal
-  const handleScanComplete = (scanData: any) => {
-    if (!scanData) return;
-    
-    // Store scan data and open review modal
-    setPendingScanData(scanData);
-    setShowReviewModal(true);
-  };
-  
-  // Handle confirmed review result - fill form (reuses populateFromScanResult)
-  const handleReviewConfirm = async (result: any) => {
-    await populateFromScanResult(result);
-  };
-
-  // Refresh product list
-  const refreshProducts = async () => {
-    const data = await getProductsForPurchase();
-    const mappedProducts = data.map((p: any) => ({
-      ...p,
-      costPrice: Number(p.costPrice),
-    }));
-    setProducts(mappedProducts);
-  };
-
-  // Handle new supplier created via Quick Add
-  const handleSupplierCreated = (supplier: { id: string; name: string }) => {
-    setSupplierId(supplier.id);
-    setSupplierRefreshKey((k) => k + 1); // Trigger combobox refresh
-  };
-
-  // Handle new product created via Quick Add
-  const handleProductCreated = async (product: { id: string; name: string; costPrice: number }, itemIndex: number) => {
-    await refreshProducts();
-    // Auto-select the new product in the item row
-    handleItemChange(itemIndex, 'productId', product.id);
-    handleItemChange(itemIndex, 'costPrice', product.costPrice);
-  };
-
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setErrors({});
-
-    const formData = new FormData(e.currentTarget);
-    const data = {
-      supplierId: supplierId || null,
-      paymentMethod: paymentMethod || (formData.get('paymentMethod') as any),
-      notes: (formData.get('notes') as string) || null,
-      receiptUrl: receiptUrl,
-      date: isBackdated ? new Date(date).toISOString() : undefined,
-      items: items.map((item) => ({
-        productId: item.productId,
-        quantity: Number(item.quantity) || 0,
-        costPrice: Number(item.costPrice) || 0,
-      })),
-    };
-
-    startTransition(async () => {
-      const result = await createPurchase(data);
-
-      if (!result.success) {
-        if (typeof result.errors === 'object') {
-          setErrors(result.errors as Record<string, string[]>);
-        } else if (result.message) {
-           setErrors({ _form: [result.message] });
-        }
-      } else {
-        router.push('/purchases');
-        router.refresh();
-      }
-    });
-  }
-
-  const total = calculateTotal();
+  const aiFieldClass = (field: string, base: string) =>
+    aiFilled.has(field) ? `${base} ring-2 ring-emerald-400/60 bg-emerald-50/40 dark:bg-emerald-950/20` : base;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {errors._form && (
-        <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-          {errors._form.join(', ')}
+    <Card>
+      <CardHeader>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <CardTitle className="text-base">ข้อมูลการซื้อ</CardTitle>
         </div>
-      )}
-
-      {/* Supplier Info & Date */}
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <CardTitle className="text-base">ข้อมูลการซื้อ</CardTitle>
-            <ScanPurchaseButton onScanComplete={handleScanComplete} />
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-2">
+          <div className="flex items-center space-x-2">
+            <input type="checkbox" id="isBackdated" {...register('isBackdated')} className="h-4 w-4 rounded border-gray-300" />
+            <Label htmlFor="isBackdated" className="font-normal cursor-pointer">บันทึกย้อนหลัง (ระบุวันที่เอง)</Label>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <div className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                id="isBackdated"
-                checked={isBackdated}
-                onChange={(e) => setIsBackdated(e.target.checked)}
-                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-              />
-              <Label htmlFor="isBackdated" className="font-normal cursor-pointer">
-                บันทึกย้อนหลัง (ระบุวันที่เอง)
-              </Label>
+          {isBackdated && (
+            <div className="animate-in fade-in slide-in-from-top-2 pt-2">
+              <Input type="datetime-local" {...register('date')} max={format(new Date(), "yyyy-MM-dd'T'HH:mm")} />
             </div>
+          )}
+        </div>
 
-            {isBackdated && (
-              <div className="animate-in fade-in slide-in-from-top-2 pt-2">
-                <Input
-                  id="date"
-                  type="datetime-local"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  required={isBackdated}
-                  max={format(new Date(), "yyyy-MM-dd'T'HH:mm")}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="supplierId">ผู้จำหน่าย</Label>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <SupplierCombobox
+                  key={supplierRefreshKey}
+                  value={supplierId}
+                  onChange={(val) => setValue('supplierId', val, { shouldValidate: true })}
+                  error={!!errors.supplierId}
                 />
               </div>
-            )}
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="supplierId">ผู้จำหน่าย</Label>
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <SupplierCombobox
-                    key={supplierRefreshKey}
-                    value={supplierId}
-                    onChange={setSupplierId}
-                    error={!!errors.supplierId}
-                  />
-                </div>
-                <QuickAddSupplierDialog
-                  defaultName={pendingScanData?.vendor || ''}
-                  onCreated={handleSupplierCreated}
-                />
-              </div>
-              {errors.supplierId && (
-                <p className="text-sm text-destructive">{errors.supplierId[0]}</p>
-              )}
+              <QuickAddSupplierDialog defaultName={pendingScanData?.vendor || ''} onCreated={onSupplierCreated} />
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="paymentMethod">วิธีชำระเงิน *</Label>
-              <select
-                id="paymentMethod"
-                name="paymentMethod"
-                required
-                value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value)}
-                className={aiFilled.has('paymentMethod')
-                  ? 'w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm ring-2 ring-emerald-400/60 bg-emerald-50/40 dark:bg-emerald-950/20'
-                  : 'w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm'
-                }
-              >
-                <option value="">เลือกวิธีชำระเงิน</option>
-                {PAYMENT_METHODS.map((method) => (
-                  <option key={method.value} value={method.value}>
-                    {method.label}
-                  </option>
-                ))}
-              </select>
-              {errors.paymentMethod && (
-                <p className="text-sm text-destructive">{errors.paymentMethod[0]}</p>
-              )}
-            </div>
+            {errors.supplierId && <p className="text-sm text-destructive">{errors.supplierId.message}</p>}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="notes">หมายเหตุ</Label>
-            <textarea
-              id="notes"
-              name="notes"
-              placeholder="บันทึกเพิ่มเติม"
-              rows={2}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>หลักฐานการซื้อ</Label>
-            <FileUpload
-              value={receiptUrl || undefined}
-              onChange={(url) => setReceiptUrl(url)}
-              folder="purchases"
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Items */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">รายการสินค้า</CardTitle>
-            <Button type="button" size="sm" onClick={handleAddItem}>
-              <Plus className="mr-1 h-4 w-4" />
-              เพิ่มรายการ
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {items.map((item, index) => (
-            <div
-              key={index}
-              className="grid grid-cols-1 md:grid-cols-12 gap-4 rounded-lg border p-4 items-start"
+          <FormField name="paymentMethod" label="วิธีชำระเงิน" required>
+            <select
+              {...register('paymentMethod')}
+              className={aiFieldClass('paymentMethod', 'w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm')}
             >
+              <option value="">เลือกวิธีชำระเงิน</option>
+              {PAYMENT_METHODS.map((method) => (
+                <option key={method.value} value={method.value}>{method.label}</option>
+              ))}
+            </select>
+          </FormField>
+        </div>
+
+        <FormField name="notes" label="หมายเหตุ">
+          <textarea id="notes" {...register('notes')} placeholder="บันทึกเพิ่มเติม" rows={2} className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm" />
+        </FormField>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ============================================================================
+// Section: Purchase Items
+// ============================================================================
+
+function PurchaseItemsSection({
+  products,
+  onProductCreated,
+  pendingScanData
+}: {
+  products: any[],
+  onProductCreated: (p: any, idx: number) => void,
+  pendingScanData: any
+}) {
+  const { control, register, watch, setValue } = useFormContext<PurchaseFormValues>();
+  const { fields, append, remove } = useFieldArray({ control, name: 'items' });
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base">รายการสินค้า</CardTitle>
+          <Button type="button" size="sm" onClick={() => append({ productId: '', quantity: 1, costPrice: 0 })}>
+            <Plus className="mr-1 h-4 w-4" /> เพิ่มรายการ
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {fields.map((field, index) => {
+          const productId = watch(`items.${index}.productId`);
+          const quantity = watch(`items.${index}.quantity`);
+          const costPrice = watch(`items.${index}.costPrice`);
+          const lineTotal = (Number(quantity) || 0) * (Number(costPrice) || 0);
+
+          return (
+            <div key={field.id} className="grid grid-cols-1 md:grid-cols-12 gap-4 rounded-lg border p-4 items-start">
               <div className="md:col-span-5 space-y-2">
                 <Label>สินค้า *</Label>
                 <div className="flex gap-2">
                   <select
-                    value={item.productId}
-                    onChange={(e) =>
-                      handleItemChange(index, 'productId', e.target.value)
-                    }
-                    required
+                    {...register(`items.${index}.productId` as const)}
                     className="flex-1 h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                    onChange={(e) => {
+                      const p = products.find(x => x.id === e.target.value);
+                      setValue(`items.${index}.productId`, e.target.value);
+                      if (p) setValue(`items.${index}.costPrice`, p.costPrice);
+                    }}
                   >
                     <option value="">เลือกสินค้า</option>
-                    {products.map((product) => (
-                      <option key={product.id} value={product.id}>
-                        {product.name} {product.sku && `(${product.sku})`} - สต็อก:{' '}
-                        {product.stock}
-                      </option>
+                    {products.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name} {p.sku && `(${p.sku})`} - สต็อก: {p.stock}</option>
                     ))}
                   </select>
-                  {!item.productId && (
+                  {!productId && (
                     <QuickAddProductDialog
                       defaultData={{
-                        name: pendingScanData?.items?.[index]?.name || pendingScanData?.items?.[index]?.model || '',
-                        sku: pendingScanData?.items?.[index]?.code || pendingScanData?.items?.[index]?.model || '',
-                        costPrice: Number(item.costPrice) || pendingScanData?.items?.[index]?.unitPrice || 0,
+                        name: pendingScanData?.items?.[index]?.name || '',
+                        sku: pendingScanData?.items?.[index]?.code || '',
+                        costPrice: Number(costPrice) || pendingScanData?.items?.[index]?.unitPrice || 0,
                       }}
-                      onCreated={(product) => handleProductCreated(product, index)}
+                      onCreated={(p) => onProductCreated(p, index)}
                     />
                   )}
                 </div>
@@ -434,97 +176,172 @@ export function PurchaseForm() {
 
               <div className="md:col-span-2 space-y-2">
                 <Label>จำนวน *</Label>
-                <Input
-                  type="number"
-                  min="1"
-                  value={item.quantity}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === '') handleItemChange(index, 'quantity', '');
-                    else handleItemChange(index, 'quantity', parseInt(val) || 0);
-                  }}
-                  required
-                />
+                <Input type="number" {...register(`items.${index}.quantity` as const)} min="1" />
               </div>
 
               <div className="md:col-span-3 space-y-2">
                 <Label>ต้นทุน/หน่วย *</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={item.costPrice}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === '') handleItemChange(index, 'costPrice', '');
-                    else handleItemChange(index, 'costPrice', parseFloat(val) || 0);
-                  }}
-                  required
-                />
+                <Input type="number" step="0.01" {...register(`items.${index}.costPrice` as const)} min="0" />
               </div>
 
               <div className="md:col-span-1 space-y-2">
                 <Label>รวม</Label>
-                <div className="text-sm font-medium h-9 flex items-center">
-                  {formatCurrency(((Number(item.quantity) || 0) * (Number(item.costPrice) || 0)).toString())}
-                </div>
+                <div className="text-sm font-medium h-9 flex items-center">{formatCurrency(lineTotal.toString())}</div>
               </div>
 
               <div className="md:col-span-1 flex items-end justify-end pt-6 md:pt-0">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-9 w-9 text-muted-foreground hover:text-destructive"
-                  onClick={() => handleRemoveItem(index)}
-                  disabled={items.length === 1}
-                >
+                <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-destructive" onClick={() => remove(index)} disabled={fields.length === 1}>
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
             </div>
-          ))}
+          );
+        })}
+      </CardContent>
+    </Card>
+  );
+}
 
-          {errors.items && (
-            <p className="text-sm text-destructive">{errors.items[0]}</p>
-          )}
-        </CardContent>
-      </Card>
+// ============================================================================
+// Main: PurchaseForm
+// ============================================================================
 
-      {/* Summary */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex justify-between text-lg font-bold">
-            <span>ยอดรวมทั้งหมด</span>
-            <span>{formatCurrency(total.toString())}</span>
-          </div>
-        </CardContent>
-      </Card>
+export function PurchaseForm() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [isPending, startTransition] = useTransition();
+  const [products, setProducts] = useState<any[]>([]);
+  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [supplierRefreshKey, setSupplierRefreshKey] = useState(0);
+  const [pendingScanData, setPendingScanData] = useState<any>(null);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [aiFilled, setAiFilled] = useState<Set<string>>(new Set());
 
-      {/* Actions */}
-      <div className="flex gap-2">
-        <Button type="submit" disabled={isPending || items.some((item) => !item.productId)}>
-          {isPending ? 'กำลังบันทึก...' : 'บันทึกการซื้อ'}
-        </Button>
-        <Button type="button" variant="outline" onClick={() => router.back()}>
-          ยกเลิก
-        </Button>
-      </div>
-      
-      {/* Scan Review Modal */}
-      <ScanReviewModal
-        open={showReviewModal}
-        onOpenChange={setShowReviewModal}
-        scanData={pendingScanData}
-        products={products.map((p) => ({
-          id: p.id,
-          name: p.name,
-          sku: p.sku,
-          costPrice: p.costPrice,
-        }))}
-        suppliers={suppliers}
-        onConfirm={handleReviewConfirm}
-      />
-    </form>
+  const methods = useForm<PurchaseFormValues>({
+    resolver: zodResolver(purchaseFormSchema),
+    defaultValues: getPurchaseFormDefaults(),
+  });
+
+  const { handleSubmit, setValue, watch, control } = methods;
+
+  const refreshProducts = useCallback(async () => {
+    const data = await getProductsForPurchase();
+    setProducts(data.map((p: any) => ({ ...p, costPrice: Number(p.costPrice) })));
+  }, []);
+
+  const populateFromScanResult = useCallback(async (result: any) => {
+    await refreshProducts();
+    if (result.supplierId) {
+      setValue('supplierId', result.supplierId);
+      setSupplierRefreshKey(k => k + 1);
+    }
+    if (result.date) {
+      setValue('isBackdated', true);
+      setValue('date', result.date + 'T00:00');
+    }
+    if (result.paymentStatus === 'paid' || result.sourceType === 'payment_slip') {
+      setValue('paymentMethod', 'TRANSFER');
+      setAiFilled(prev => new Set(prev).add('paymentMethod'));
+    }
+    if (result.items && result.items.length > 0) {
+      const items = result.items.map((it: any) => {
+        const p = products.find(x => x.id === it.productId);
+        return {
+          productId: it.productId,
+          quantity: it.quantity || 1,
+          costPrice: it.costPrice || p?.costPrice || 0,
+        };
+      });
+      setValue('items', items);
+    }
+    toast.success('นำเข้าข้อมูลสำเร็จ!');
+  }, [refreshProducts, setValue, products]);
+
+  useEffect(() => {
+    refreshProducts();
+    getSuppliersForSelect().then(data => setSuppliers(data));
+
+    const fromScan = searchParams.get('fromScan');
+    if (fromScan === 'true') {
+      const pendingResult = loadPendingScanResult();
+      if (pendingResult) setTimeout(() => populateFromScanResult(pendingResult), 500);
+      router.replace('/purchases/new', { scroll: false });
+    }
+  }, [searchParams, router, populateFromScanResult, refreshProducts]);
+
+  const items = watch('items');
+  const total = items.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.costPrice) || 0), 0);
+
+  const onSubmit = (data: PurchaseFormValues) => {
+    const payload = {
+      ...data,
+      paymentMethod: data.paymentMethod as any, // Cast to match enum
+      date: data.isBackdated ? new Date(data.date!).toISOString() : undefined,
+    };
+    startTransition(async () => {
+      const result = await createPurchase(payload);
+      if (result.success) {
+        toast.success('บันทึกการซื้อสำเร็จ');
+        router.push('/purchases');
+        router.refresh();
+      } else if (result.errors) {
+        Object.entries(result.errors).forEach(([field, messages]) => {
+          methods.setError(field as any, { message: (messages as string[])[0] });
+        });
+      }
+    });
+  };
+
+  return (
+    <FormProvider {...methods}>
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        {methods.formState.errors.root && (
+          <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{methods.formState.errors.root.message}</div>
+        )}
+
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-muted/30 p-4 rounded-lg border">
+          <h2 className="font-semibold">สร้างรายการซื้อใหม่</h2>
+          <ScanPurchaseButton onScanComplete={(data) => { setPendingScanData(data); setShowReviewModal(true); }} />
+        </div>
+
+        <PurchaseInfoSection
+          supplierRefreshKey={supplierRefreshKey}
+          onSupplierCreated={(s) => { setValue('supplierId', s.id); setSupplierRefreshKey(k => k + 1); }}
+          pendingScanData={pendingScanData}
+          aiFilled={aiFilled}
+        />
+
+        <PurchaseItemsSection
+          products={products}
+          onProductCreated={async (p, idx) => {
+            await refreshProducts();
+            setValue(`items.${idx}.productId`, p.id);
+            setValue(`items.${idx}.costPrice`, p.costPrice);
+          }}
+          pendingScanData={pendingScanData}
+        />
+
+        <Card>
+          <CardHeader><CardTitle className="text-base">หลักฐานการซื้อ</CardTitle></CardHeader>
+          <CardContent><FileUpload value={watch('receiptUrl') || undefined} onChange={(url) => setValue('receiptUrl', url)} folder="purchases" /></CardContent>
+        </Card>
+
+        <Card><CardContent className="pt-6 flex justify-between text-lg font-bold"><span>ยอดรวมทั้งหมด</span><span>{formatCurrency(total.toString())}</span></CardContent></Card>
+
+        <div className="flex gap-2">
+          <Button type="submit" disabled={isPending || items.some(i => !i.productId)}>{isPending ? 'กำลังบันทึก...' : 'บันทึกการซื้อ'}</Button>
+          <Button type="button" variant="outline" onClick={() => router.back()}>ยกเลิก</Button>
+        </div>
+
+        <ScanReviewModal
+          open={showReviewModal}
+          onOpenChange={setShowReviewModal}
+          scanData={pendingScanData}
+          products={products}
+          suppliers={suppliers}
+          onConfirm={populateFromScanResult}
+        />
+      </form>
+    </FormProvider>
   );
 }

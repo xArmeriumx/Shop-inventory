@@ -42,7 +42,7 @@ async function DashboardContent() {
     {
       title: 'สินค้าทั้งหมด',
       value: stats.totalProducts.toString(),
-      subtitle: 'รายการที่เปืดขาย',
+      subtitle: 'รายการที่เปิดขาย',
       icon: Package,
       iconColor: 'text-purple-600',
     },
@@ -89,15 +89,15 @@ async function DashboardContent() {
 
       {/* SME Operational Priorities (Rule: Easy Language) */}
       <SafeBoundary variant="compact" componentName="Dashboard:ActionableSme">
-        <ActionableSmeDashboard 
-          metrics={(stats as any).operational.sme} 
+        <ActionableSmeDashboard
+          metrics={(stats as any).operational.sme}
           lowStockCount={stats.lowStockCount}
         />
       </SafeBoundary>
 
       {/* Advanced ERP Operations (Collapsible) */}
       <SafeBoundary variant="compact" componentName="Dashboard:AdvancedOps">
-        <AdvancedOpsDashboard 
+        <AdvancedOpsDashboard
           metrics={(stats as any).operational.advanced}
           isAdmin={isAdmin}
         />
@@ -145,7 +145,7 @@ async function DashboardContent() {
               <p className="text-xs text-muted-foreground">{stats.todayExpenses.count} รายการ</p>
             </CardContent>
           </Card>
-          
+
           <GovernanceHealthCard data={(stats as any).governanceHealth} />
         </div>
       </SafeBoundary>

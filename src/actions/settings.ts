@@ -18,15 +18,11 @@ export type ProfileState = {
   };
 };
 
-export async function updateProfile(prevState: ProfileState, formData: FormData): Promise<ProfileState> {
+export async function updateProfile(data: { name: string }): Promise<ProfileState> {
   const ctx = await requireAuth();
   const userId = ctx.userId;
-  
-  const rawFormData = {
-    name: formData.get('name'),
-  };
 
-  const validatedFields = profileSchema.safeParse(rawFormData);
+  const validatedFields = profileSchema.safeParse(data);
 
   if (!validatedFields.success) {
     return {
@@ -36,7 +32,7 @@ export async function updateProfile(prevState: ProfileState, formData: FormData)
   }
 
   try {
-    await SettingsService.updateUserProfile(userId, validatedFields.data as { name: string });
+    await SettingsService.updateUserProfile(userId, validatedFields.data);
     revalidatePath('/settings');
     revalidatePath('/dashboard');
     return { success: true };

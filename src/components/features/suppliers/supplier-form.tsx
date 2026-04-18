@@ -1,13 +1,23 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { useForm, FormProvider } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { toast } from 'sonner';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
-import { SafeInput } from '@/components/ui/safe-input';
+import { FormField } from '@/components/ui/form-field';
+
 import { createSupplier, updateSupplier } from '@/actions/suppliers';
+import { supplierFormSchema, getSupplierFormDefaults } from '@/schemas/supplier-form';
+import type { SupplierFormValues } from '@/schemas/supplier-form';
+
+// ============================================================================
+// Types
+// ============================================================================
 
 interface Supplier {
   id: string;
@@ -25,41 +35,53 @@ interface SupplierFormProps {
   supplier?: Supplier;
 }
 
+// ============================================================================
+// Main: SupplierForm
+// ============================================================================
+
 export function SupplierForm({ supplier }: SupplierFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [errors, setErrors] = useState<Record<string, string[]>>({});
-
   const isEdit = !!supplier;
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setErrors({});
+  const methods = useForm<SupplierFormValues>({
+    resolver: zodResolver(supplierFormSchema),
+    defaultValues: getSupplierFormDefaults(supplier),
+  });
 
-    const formData = new FormData(e.currentTarget);
-    const data = {
-      name: formData.get('name') as string,
-      code: (formData.get('code') as string) || null,
-      contactName: (formData.get('contactName') as string) || null,
-      phone: (formData.get('phone') as string) || null,
-      email: (formData.get('email') as string) || null,
-      address: (formData.get('address') as string) || null,
-      taxId: (formData.get('taxId') as string) || null,
-      notes: (formData.get('notes') as string) || null,
+  const { handleSubmit, setError, register } = methods;
+
+  function onSubmit(data: SupplierFormValues) {
+    const payload = {
+      ...data,
+      code: data.code || null,
+      contactName: data.contactName || null,
+      phone: data.phone || null,
+      email: data.email || null,
+      address: data.address || null,
+      taxId: data.taxId || null,
+      notes: data.notes || null,
     };
 
     startTransition(async () => {
       const result = isEdit
-        ? await updateSupplier(supplier.id, data)
-        : await createSupplier(data);
+        ? await updateSupplier(supplier.id, payload)
+        : await createSupplier(payload);
 
       if (!result.success) {
-        if (typeof result.errors === 'object') {
-          setErrors(result.errors as Record<string, string[]>);
+        if (result.errors && typeof result.errors === 'object') {
+          Object.entries(result.errors).forEach(([field, messages]) => {
+            if (field === '_form') {
+              setError('root', { message: (messages as string[]).join(', ') });
+            } else {
+              setError(field as any, { message: (messages as string[])[0] });
+            }
+          });
         } else if (result.message) {
-          setErrors({ _form: [result.message] });
+          setError('root', { message: result.message });
         }
       } else {
+        toast.success(isEdit ? 'บันทึกการแก้ไขสำเร็จ' : 'เพิ่มผู้จำหน่ายสำเร็จ');
         router.push('/suppliers');
         router.refresh();
       }
@@ -67,137 +89,76 @@ export function SupplierForm({ supplier }: SupplierFormProps) {
   }
 
   return (
-    <Card>
-      <CardContent className="pt-6">
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {errors._form && (
-            <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-              {errors._form.join(', ')}
-            </div>
-          )}
+    <FormProvider {...methods}>
+      <Card>
+        <CardContent className="pt-6">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+            {methods.formState.errors.root && (
+              <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                {methods.formState.errors.root.message}
+              </div>
+            )}
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="name">ชื่อผู้จำหน่าย *</Label>
-              <Input
-                id="name"
-                name="name"
-                defaultValue={supplier?.name}
-                placeholder="ชื่อบริษัท หรือชื่อผู้จำหน่าย"
-                required
-                maxLength={200}
-              />
-              {errors.name && (
-                <p className="text-sm text-destructive">{errors.name[0]}</p>
-              )}
-            </div>
+            {/* Identity Section */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField name="name" label="ชื่อผู้จำหน่าย" required className="sm:col-span-2">
+                <Input id="name" {...register('name')} placeholder="ชื่อบริษัท หรือชื่อผู้จำหน่าย" maxLength={200} />
+              </FormField>
 
-            <div className="space-y-2">
-              <Label htmlFor="code">รหัสผู้จำหน่าย</Label>
-              <Input
-                id="code"
-                name="code"
-                defaultValue={supplier?.code || ''}
-                placeholder="SUP001"
-                maxLength={50}
-              />
-              {errors.code && (
-                <p className="text-sm text-destructive">{errors.code[0]}</p>
-              )}
-            </div>
+              <FormField name="code" label="รหัสผู้จำหน่าย" hint="เช่น SUP001">
+                <Input id="code" {...register('code')} placeholder="SUP001" maxLength={50} />
+              </FormField>
 
-            <div className="space-y-2">
-              <Label htmlFor="contactName">ชื่อผู้ติดต่อ</Label>
-              <Input
-                id="contactName"
-                name="contactName"
-                defaultValue={supplier?.contactName || ''}
-                placeholder="ชื่อ-นามสกุล"
-                maxLength={100}
-              />
-            </div>
+              <FormField name="contactName" label="ชื่อผู้ติดต่อ">
+                <Input id="contactName" {...register('contactName')} placeholder="ชื่อ-นามสกุล" maxLength={100} />
+              </FormField>
 
-            <div className="space-y-2">
-              <Label htmlFor="phone">เบอร์โทร</Label>
-              <SafeInput
-                id="phone"
-                name="phone"
-                numericOnly
-                maxLength={10}
-                defaultValue={supplier?.phone || ''}
-                placeholder="เช่น 0812345678"
-              />
-              {errors.phone && (
-                <p className="text-sm text-destructive">{errors.phone[0]}</p>
-              )}
+              <FormField name="phone" label="เบอร์โทร" hint="เช่น 0812345678">
+                <Input id="phone" {...register('phone')} placeholder="เช่น 0812345678" maxLength={10} inputMode="numeric" />
+              </FormField>
+
+              <FormField name="email" label="อีเมล">
+                <Input id="email" type="email" {...register('email')} placeholder="email@example.com" maxLength={254} />
+              </FormField>
+
+              <FormField name="address" label="ที่อยู่" className="sm:col-span-2">
+                <textarea
+                  id="address"
+                  {...register('address')}
+                  placeholder="ที่อยู่บริษัท"
+                  rows={2}
+                  maxLength={500}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+              </FormField>
+
+              <FormField name="taxId" label="เลขประจำตัวผู้เสียภาษี" hint="เลข 13 หลัก">
+                <Input id="taxId" {...register('taxId')} placeholder="เลข 13 หลัก" maxLength={13} inputMode="numeric" />
+              </FormField>
+
+              <FormField name="notes" label="หมายเหตุ" className="sm:col-span-2">
+                <textarea
+                  id="notes"
+                  {...register('notes')}
+                  placeholder="บันทึกเพิ่มเติม"
+                  rows={2}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+              </FormField>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="email">อีเมล</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                defaultValue={supplier?.email || ''}
-                placeholder="email@example.com"
-                maxLength={254}
-              />
-              {errors.email && (
-                <p className="text-sm text-destructive">{errors.email[0]}</p>
-              )}
+            {/* Action Bar */}
+            <div className="flex gap-2 pt-4 border-t">
+              <Button type="submit" disabled={isPending} className="px-8">
+                {isPending ? 'กำลังบันทึก...' : isEdit ? 'บันทึกการแก้ไข' : 'เพิ่มผู้จำหน่าย'}
+              </Button>
+              <Button type="button" variant="outline" onClick={() => router.back()}>
+                ยกเลิก
+              </Button>
             </div>
-
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="address">ที่อยู่</Label>
-              <textarea
-                id="address"
-                name="address"
-                defaultValue={supplier?.address || ''}
-                placeholder="ที่อยู่บริษัท"
-                rows={2}
-                maxLength={500}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="taxId">เลขประจำตัวผู้เสียภาษี</Label>
-              <SafeInput
-                id="taxId"
-                name="taxId"
-                numericOnly
-                maxLength={13}
-                defaultValue={supplier?.taxId || ''}
-                placeholder="เลข 13 หลัก"
-              />
-              {errors.taxId && (
-                <p className="text-sm text-destructive">{errors.taxId[0]}</p>
-              )}
-            </div>
-
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="notes">หมายเหตุ</Label>
-              <textarea
-                id="notes"
-                name="notes"
-                defaultValue={supplier?.notes || ''}
-                placeholder="บันทึกเพิ่มเติม"
-                rows={2}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              />
-            </div>
-          </div>
-
-          <div className="flex gap-2 pt-4">
-            <Button type="submit" disabled={isPending}>
-              {isPending ? 'กำลังบันทึก...' : isEdit ? 'บันทึกการแก้ไข' : 'เพิ่มผู้จำหน่าย'}
-            </Button>
-            <Button type="button" variant="outline" onClick={() => router.back()}>
-              ยกเลิก
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+          </form>
+        </CardContent>
+      </Card>
+    </FormProvider>
   );
 }

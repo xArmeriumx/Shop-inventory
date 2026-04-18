@@ -1,16 +1,73 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { useForm, FormProvider, useFormContext } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { toast } from 'sonner';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { FormField } from '@/components/ui/form-field';
+
 import { updateRole } from '@/actions/roles';
 import { PERMISSION_GROUPS } from '@/lib/permissions';
-import { toast } from 'sonner';
+import { roleFormSchema, getRoleFormDefaults } from '@/schemas/role-form';
+import type { RoleFormValues } from '@/schemas/role-form';
+
+// ============================================================================
+// Constants: Permission Dependencies
+// ============================================================================
+
+const PERMISSION_DEPENDENCIES: Record<string, string[]> = {
+  // Sales dependencies
+  'SALE_CREATE': ['SALE_VIEW', 'PRODUCT_VIEW'],
+  'SALE_CANCEL': ['SALE_VIEW'],
+  'SALE_VIEW_PROFIT': ['SALE_VIEW'],
+
+  // POS needs access to products and sales creation
+  'POS_ACCESS': ['SALE_CREATE', 'SALE_VIEW', 'PRODUCT_VIEW', 'CUSTOMER_VIEW'],
+
+  // Product management
+  'PRODUCT_CREATE': ['PRODUCT_VIEW'],
+  'PRODUCT_EDIT': ['PRODUCT_VIEW'],
+  'PRODUCT_DELETE': ['PRODUCT_VIEW'],
+  'PRODUCT_VIEW_COST': ['PRODUCT_VIEW'],
+
+  // Stock dependencies
+  'STOCK_ADJUST': ['PRODUCT_VIEW'],
+  'STOCK_VIEW_HISTORY': ['PRODUCT_VIEW'],
+
+  // Purchase dependencies
+  'PURCHASE_CREATE': ['PURCHASE_VIEW', 'PRODUCT_VIEW'],
+  'PURCHASE_CANCEL': ['PURCHASE_VIEW'],
+
+  // Customer dependencies
+  'CUSTOMER_CREATE': ['CUSTOMER_VIEW'],
+  'CUSTOMER_EDIT': ['CUSTOMER_VIEW'],
+  'CUSTOMER_DELETE': ['CUSTOMER_VIEW'],
+
+  // Expense dependencies
+  'EXPENSE_CREATE': ['EXPENSE_VIEW'],
+  'EXPENSE_EDIT': ['EXPENSE_VIEW'],
+  'EXPENSE_DELETE': ['EXPENSE_VIEW'],
+
+  // Report dependencies
+  'REPORT_EXPORT': ['REPORT_VIEW_SALES'],
+
+  // Team dependencies
+  'TEAM_INVITE': ['TEAM_VIEW'],
+  'TEAM_EDIT': ['TEAM_VIEW'],
+  'TEAM_REMOVE': ['TEAM_VIEW'],
+};
+
+// ============================================================================
+// Types
+// ============================================================================
 
 interface Role {
   id: string;
@@ -25,68 +82,58 @@ interface RoleFormProps {
   role: Role;
 }
 
-export function RoleForm({ role }: RoleFormProps) {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-  
-  const [name, setName] = useState(role.name);
-  const [description, setDescription] = useState(role.description || '');
-  const [isDefault, setIsDefault] = useState(role.isDefault);
-  const [permissions, setPermissions] = useState<string[]>(role.permissions);
+// ============================================================================
+// Sub-component: PermissionGroup
+// ============================================================================
 
-  // Define dependencies: Key needs Value(s) to function properly
-  const PERMISSION_DEPENDENCIES: Record<string, string[]> = {
-    // Sales dependencies
-    'SALE_CREATE': ['SALE_VIEW', 'PRODUCT_VIEW'],
-    'SALE_CANCEL': ['SALE_VIEW'],
-    'SALE_VIEW_PROFIT': ['SALE_VIEW'],
-    
-    // POS needs access to products and sales creation
-    'POS_ACCESS': ['SALE_CREATE', 'SALE_VIEW', 'PRODUCT_VIEW', 'CUSTOMER_VIEW'],
+function PermissionGroup({ groupKey, group, isPending, isSystem }: {
+  groupKey: string,
+  group: any,
+  isPending: boolean,
+  isSystem: boolean
+}) {
+  const { watch, setValue } = useFormContext<RoleFormValues>();
+  const currentPermissions = watch('permissions');
 
-    // Product management
-    'PRODUCT_CREATE': ['PRODUCT_VIEW'],
-    'PRODUCT_EDIT': ['PRODUCT_VIEW'],
-    'PRODUCT_DELETE': ['PRODUCT_VIEW'],
-    'PRODUCT_VIEW_COST': ['PRODUCT_VIEW'],
-    
-    // Stock dependencies
-    'STOCK_ADJUST': ['PRODUCT_VIEW'],
-    'STOCK_VIEW_HISTORY': ['PRODUCT_VIEW'],
+  const groupPermKeys = group.permissions.map((p: any) => p.key);
+  const allChecked = groupPermKeys.every((k: string) => currentPermissions.includes(k));
 
-    // Purchase dependencies
-    'PURCHASE_CREATE': ['PURCHASE_VIEW', 'PRODUCT_VIEW'],
-    'PURCHASE_CANCEL': ['PURCHASE_VIEW'],
+  const handleToggle = (permission: string, checked: boolean) => {
+    let newPermissions = [...currentPermissions];
 
-    // Customer dependencies
-    'CUSTOMER_CREATE': ['CUSTOMER_VIEW'],
-    'CUSTOMER_EDIT': ['CUSTOMER_VIEW'],
-    'CUSTOMER_DELETE': ['CUSTOMER_VIEW'],
+    if (checked) {
+      if (!newPermissions.includes(permission)) {
+        newPermissions.push(permission);
+      }
 
-    // Expense dependencies
-    'EXPENSE_CREATE': ['EXPENSE_VIEW'],
-    'EXPENSE_EDIT': ['EXPENSE_VIEW'],
-    'EXPENSE_DELETE': ['EXPENSE_VIEW'],
+      const dependencies = PERMISSION_DEPENDENCIES[permission] || [];
+      dependencies.forEach(dep => {
+        if (!newPermissions.includes(dep)) {
+          newPermissions.push(dep);
+        }
+      });
+    } else {
+      newPermissions = newPermissions.filter(p => p !== permission);
 
-    // Report dependencies
-    'REPORT_EXPORT': ['REPORT_VIEW_SALES'], // Assumes export needs view
-    
-    // Team dependencies
-    'TEAM_INVITE': ['TEAM_VIEW'],
-    'TEAM_EDIT': ['TEAM_VIEW'],
-    'TEAM_REMOVE': ['TEAM_VIEW'],
+      Object.entries(PERMISSION_DEPENDENCIES).forEach(([key, deps]) => {
+        if (deps.includes(permission)) {
+          newPermissions = newPermissions.filter(p => p !== key);
+        }
+      });
+    }
+
+    setValue('permissions', newPermissions, { shouldDirty: true, shouldValidate: true });
   };
 
-  const handlePermissionChange = (permission: string, checked: boolean) => {
-    setPermissions(prev => {
-      let newPermissions = [...prev];
+  const handleGroupToggle = (checked: boolean) => {
+    let newPermissions = [...currentPermissions];
 
+    group.permissions.forEach((perm: any) => {
+      const permission = perm.key;
       if (checked) {
-        // If checking a permission, also check its dependencies
         if (!newPermissions.includes(permission)) {
           newPermissions.push(permission);
         }
-        
         const dependencies = PERMISSION_DEPENDENCIES[permission] || [];
         dependencies.forEach(dep => {
           if (!newPermissions.includes(dep)) {
@@ -94,57 +141,67 @@ export function RoleForm({ role }: RoleFormProps) {
           }
         });
       } else {
-        // If unchecking a permission
         newPermissions = newPermissions.filter(p => p !== permission);
-        
-        // Also uncheck any permissions that DEPEND ON this one
-        // (e.g. if unchecking PRODUCT_VIEW, must uncheck SALE_CREATE because SALE_CREATE needs PRODUCT_VIEW)
         Object.entries(PERMISSION_DEPENDENCIES).forEach(([key, deps]) => {
           if (deps.includes(permission)) {
             newPermissions = newPermissions.filter(p => p !== key);
           }
         });
       }
-      
-      return newPermissions;
     });
+
+    setValue('permissions', newPermissions, { shouldDirty: true, shouldValidate: true });
   };
 
-  const handleGroupToggle = (groupPerms: readonly { key: string }[], checked: boolean) => {
-    // When toggling a group, we just map through them and apply the logic sequentially
-    // This is safer than bulk set because it triggers the dependency logic for each one
-    let currentPermissions = [...permissions];
-    
-    groupPerms.forEach(perm => {
-        // We simulate the logic of handlePermissionChange for each item
-        const permission = perm.key;
-        
-        if (checked) {
-            if (!currentPermissions.includes(permission)) {
-                currentPermissions.push(permission);
-            }
-            const dependencies = PERMISSION_DEPENDENCIES[permission] || [];
-            dependencies.forEach(dep => {
-                if (!currentPermissions.includes(dep)) {
-                    currentPermissions.push(dep);
-                }
-            });
-        } else {
-            currentPermissions = currentPermissions.filter(p => p !== permission);
-            Object.entries(PERMISSION_DEPENDENCIES).forEach(([key, deps]) => {
-                if (deps.includes(permission)) {
-                    currentPermissions = currentPermissions.filter(p => p !== key);
-                }
-            });
-        }
-    });
-    
-    setPermissions(currentPermissions);
-  };
+  return (
+    <div className="border rounded-lg p-4 space-y-3 bg-muted/20">
+      <div className="flex items-center space-x-2 pb-2 border-b">
+        <Checkbox
+          id={`group-${groupKey}`}
+          checked={allChecked}
+          onCheckedChange={(checked) => handleGroupToggle(checked as boolean)}
+          disabled={isPending || isSystem}
+        />
+        <Label htmlFor={`group-${groupKey}`} className="font-semibold text-base">
+          {group.label}
+        </Label>
+      </div>
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
+      <div className="space-y-2">
+        {group.permissions.map((perm: any) => (
+          <div key={perm.key} className="flex items-center space-x-2">
+            <Checkbox
+              id={perm.key}
+              checked={currentPermissions.includes(perm.key)}
+              onCheckedChange={(checked) => handleToggle(perm.key, checked as boolean)}
+              disabled={isPending || isSystem}
+            />
+            <Label htmlFor={perm.key} className="cursor-pointer font-normal">
+              {perm.label}
+            </Label>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Main: RoleForm
+// ============================================================================
+
+export function RoleForm({ role }: RoleFormProps) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
+  const methods = useForm<RoleFormValues>({
+    resolver: zodResolver(roleFormSchema),
+    defaultValues: getRoleFormDefaults(role),
+  });
+
+  const { handleSubmit, setError, register } = methods;
+
+  function onSubmit(data: RoleFormValues) {
     if (role.isSystem) {
       toast.error('ไม่สามารถแก้ไข Role ระบบได้');
       return;
@@ -153,10 +210,9 @@ export function RoleForm({ role }: RoleFormProps) {
     startTransition(async () => {
       try {
         const result = await updateRole(role.id, {
-          name,
-          description: description || undefined,
-          isDefault,
-          permissions: permissions as any, // Cast to match Permission enum
+          ...data,
+          description: data.description || undefined,
+          permissions: data.permissions as any,
         });
 
         if (result.success) {
@@ -164,120 +220,99 @@ export function RoleForm({ role }: RoleFormProps) {
           router.refresh();
           router.push('/settings/roles');
         } else {
+          setError('root', { message: result.message });
           toast.error(result.message);
         }
       } catch (error) {
         toast.error('เกิดข้อผิดพลาดในการบันทึก');
       }
     });
-  };
+  }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8">
-      {/* Basic Info */}
-      <div className="space-y-4">
-        <div className="grid gap-2">
-          <Label htmlFor="name">ชื่อ Role</Label>
-          <Input
-            id="name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
+    <FormProvider {...methods}>
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-8">
+        {/* Basic Info */}
+        <div className="space-y-4">
+          {methods.formState.errors.root && (
+            <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+              {methods.formState.errors.root.message}
+            </div>
+          )}
+
+          <FormField name="name" label="ชื่อ Role" required>
+            <Input
+              id="name"
+              {...register('name')}
+              disabled={isPending || role.isSystem}
+              placeholder="เช่น ผู้จัดการ, พนักงานขาย"
+            />
+          </FormField>
+
+          <FormField name="description" label="คำอธิบาย">
+            <Textarea
+              id="description"
+              {...register('description')}
+              disabled={isPending || role.isSystem}
+              placeholder="อธิบายหน้าที่และความรับผิดชอบ"
+            />
+          </FormField>
+
+          <div className="flex items-center space-x-2 pt-2">
+            <Checkbox
+              id="isDefault"
+              checked={methods.watch('isDefault')}
+              onCheckedChange={(checked) => methods.setValue('isDefault', checked as boolean, { shouldDirty: true })}
+              disabled={isPending || role.isSystem}
+            />
+            <Label htmlFor="isDefault">ตั้งเป็น Role เริ่มต้นสำหรับสมาชิกใหม่</Label>
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* Permissions */}
+        <div className="space-y-6">
+          <div>
+            <h3 className="text-lg font-medium">สิทธิ์การใช้งาน</h3>
+            <p className="text-sm text-muted-foreground">
+              กำหนดสิ่งที่ Role นี้สามารถทำได้ในระบบ
+            </p>
+            {methods.formState.errors.permissions && (
+              <p className="text-sm text-destructive mt-1">{methods.formState.errors.permissions.message}</p>
+            )}
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {Object.entries(PERMISSION_GROUPS).map(([groupKey, group]) => (
+              <PermissionGroup
+                key={groupKey}
+                groupKey={groupKey}
+                group={group}
+                isPending={isPending}
+                isSystem={role.isSystem}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-4 border-t pt-6">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => router.back()}
+            disabled={isPending}
+          >
+            ยกเลิก
+          </Button>
+          <Button
+            type="submit"
             disabled={isPending || role.isSystem}
-            placeholder="เช่น ผู้จัดการ, พนักงานขาย"
-          />
+          >
+            {isPending ? 'กำลังบันทึก...' : 'บันทึกการเปลี่ยนแปลง'}
+          </Button>
         </div>
-        
-        <div className="grid gap-2">
-          <Label htmlFor="description">คำอธิบาย</Label>
-          <Textarea
-            id="description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            disabled={isPending || role.isSystem}
-            placeholder="อธิบายหน้าที่และความรับผิดชอบ"
-          />
-        </div>
-
-        <div className="flex items-center space-x-2">
-          <Checkbox
-            id="isDefault"
-            checked={isDefault}
-            onCheckedChange={(checked) => setIsDefault(checked as boolean)}
-            disabled={isPending || role.isSystem}
-          />
-          <Label htmlFor="isDefault">ตั้งเป็น Role เริ่มต้นสำหรับสมาชิกใหม่</Label>
-        </div>
-      </div>
-
-      <Separator />
-
-      {/* Permissions */}
-      <div className="space-y-6">
-        <div>
-          <h3 className="text-lg font-medium">สิทธิ์การใช้งาน</h3>
-          <p className="text-sm text-muted-foreground">
-            กำหนดสิ่งที่ Role นี้สามารถทำได้ในระบบ
-          </p>
-        </div>
-
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {Object.entries(PERMISSION_GROUPS).map(([groupKey, group]) => {
-            const groupPermKeys = group.permissions.map(p => p.key);
-            const allChecked = groupPermKeys.every(k => permissions.includes(k));
-            const someChecked = groupPermKeys.some(k => permissions.includes(k));
-            const isIndeterminate = someChecked && !allChecked;
-
-            return (
-              <div key={groupKey} className="border rounded-lg p-4 space-y-3 bg-muted/20">
-                <div className="flex items-center space-x-2 pb-2 border-b">
-                  <Checkbox
-                    id={`group-${groupKey}`}
-                    checked={allChecked}
-                    onCheckedChange={(checked) => handleGroupToggle(group.permissions, checked as boolean)}
-                    disabled={isPending || role.isSystem}
-                  />
-                  <Label htmlFor={`group-${groupKey}`} className="font-semibold text-base">
-                    {group.label}
-                  </Label>
-                </div>
-                
-                <div className="space-y-2">
-                  {group.permissions.map((perm) => (
-                    <div key={perm.key} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={perm.key}
-                        checked={permissions.includes(perm.key)}
-                        onCheckedChange={(checked) => handlePermissionChange(perm.key, checked as boolean)}
-                        disabled={isPending || role.isSystem}
-                      />
-                      <Label htmlFor={perm.key} className="cursor-pointer font-normal">
-                        {perm.label}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="flex justify-end gap-4">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => router.back()}
-          disabled={isPending}
-        >
-          ยกเลิก
-        </Button>
-        <Button 
-          type="submit" 
-          disabled={isPending || role.isSystem}
-        >
-          {isPending ? 'กำลังบันทึก...' : 'บันทึกการเปลี่ยนแปลง'}
-        </Button>
-      </div>
-    </form>
+      </form>
+    </FormProvider>
   );
 }

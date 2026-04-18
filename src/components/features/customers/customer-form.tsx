@@ -1,14 +1,23 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { useForm, FormProvider } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { toast } from 'sonner';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
-import { SafeInput } from '@/components/ui/safe-input';
+import { FormField } from '@/components/ui/form-field';
+
 import { createCustomer, updateCustomer } from '@/actions/customers';
-import { CustomerInput } from '@/schemas/customer';
+import { customerFormSchema, getCustomerFormDefaults } from '@/schemas/customer-form';
+import type { CustomerFormValues } from '@/schemas/customer-form';
+
+// ============================================================================
+// Types
+// ============================================================================
 
 interface Customer {
   id: string;
@@ -24,40 +33,52 @@ interface CustomerFormProps {
   customer?: Customer;
 }
 
+// ============================================================================
+// Main: CustomerForm
+// ============================================================================
+
 export function CustomerForm({ customer }: CustomerFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [errors, setErrors] = useState<Record<string, string[]>>({});
-
   const isEdit = !!customer;
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setErrors({});
+  const methods = useForm<CustomerFormValues>({
+    resolver: zodResolver(customerFormSchema),
+    defaultValues: getCustomerFormDefaults(customer),
+  });
 
-    const formData = new FormData(e.currentTarget);
-    const data = {
-      name: formData.get('name') as string,
-      phone: (formData.get('phone') as string) || null,
-      email: (formData.get('email') as string) || null,
-      address: (formData.get('address') as string) || null,
-      taxId: (formData.get('taxId') as string) || null,
-      notes: (formData.get('notes') as string) || null,
+  const { handleSubmit, setError, register } = methods;
+
+  function onSubmit(data: CustomerFormValues) {
+    // Coerce empty strings to null for optional fields
+    const payload = {
+      ...data,
+      phone: data.phone || null,
+      email: data.email || null,
+      address: data.address || null,
+      taxId: data.taxId || null,
+      notes: data.notes || null,
     };
 
     startTransition(async () => {
       const result = isEdit
-        ? await updateCustomer(customer.id, data)
-        : await createCustomer(data);
+        ? await updateCustomer(customer.id, payload)
+        : await createCustomer(payload);
 
       if (!result.success) {
-        // Handle validation errors or string error
-        if (typeof result.errors === 'object') {
-          setErrors(result.errors as Record<string, string[]>);
+        if (result.errors && typeof result.errors === 'object') {
+          Object.entries(result.errors).forEach(([field, messages]) => {
+            if (field === '_form') {
+              setError('root', { message: (messages as string[]).join(', ') });
+            } else {
+              setError(field as any, { message: (messages as string[])[0] });
+            }
+          });
         } else if (result.message) {
-          setErrors({ _form: [result.message] });
+          setError('root', { message: result.message });
         }
       } else {
+        toast.success(isEdit ? 'บันทึกการแก้ไขสำเร็จ' : 'เพิ่มลูกค้าสำเร็จ');
         router.push('/customers');
         router.refresh();
       }
@@ -65,114 +86,68 @@ export function CustomerForm({ customer }: CustomerFormProps) {
   }
 
   return (
-    <Card>
-      <CardContent className="pt-6">
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {errors._form && (
-            <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-              {errors._form.join(', ')}
-            </div>
-          )}
+    <FormProvider {...methods}>
+      <Card>
+        <CardContent className="pt-6">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+            {methods.formState.errors.root && (
+              <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+                {methods.formState.errors.root.message}
+              </div>
+            )}
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="name">ชื่อลูกค้า *</Label>
-              <Input
-                id="name"
-                name="name"
-                defaultValue={customer?.name}
-                placeholder="ชื่อ-นามสกุล หรือชื่อบริษัท"
-                required
-                maxLength={200}
-              />
-              {errors.name && (
-                <p className="text-sm text-destructive">{errors.name[0]}</p>
-              )}
-            </div>
+            {/* Identity Section */}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField name="name" label="ชื่อลูกค้า" required className="sm:col-span-2">
+                <Input id="name" {...register('name')} placeholder="ชื่อ-นามสกุล หรือชื่อบริษัท" maxLength={200} />
+              </FormField>
 
-            <div className="space-y-2">
-              <Label htmlFor="phone">เบอร์โทร</Label>
-              <SafeInput
-                id="phone"
-                name="phone"
-                numericOnly
-                maxLength={10}
-                defaultValue={customer?.phone || ''}
-                placeholder="เช่น 0812345678"
-              />
-              {errors.phone && (
-                <p className="text-sm text-destructive">{errors.phone[0]}</p>
-              )}
-            </div>
+              <FormField name="phone" label="เบอร์โทร" hint="เช่น 0812345678">
+                <Input id="phone" {...register('phone')} placeholder="เช่น 0812345678" maxLength={10} inputMode="numeric" />
+              </FormField>
 
-            <div className="space-y-2">
-              <Label htmlFor="email">อีเมล</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                defaultValue={customer?.email || ''}
-                placeholder="example@email.com"
-                maxLength={254}
-              />
-              {errors.email && (
-                <p className="text-sm text-destructive">{errors.email[0]}</p>
-              )}
+              <FormField name="email" label="อีเมล">
+                <Input id="email" type="email" {...register('email')} placeholder="example@email.com" maxLength={254} />
+              </FormField>
+
+              <FormField name="taxId" label="เลขประจำตัวผู้เสียภาษี" hint="เลข 13 หลัก">
+                <Input id="taxId" {...register('taxId')} placeholder="เลข 13 หลัก" maxLength={13} inputMode="numeric" />
+              </FormField>
+
+              <FormField name="address" label="ที่อยู่" hint="จำเป็นสำหรับออกใบกำกับภาษี" className="sm:col-span-2">
+                <textarea
+                  id="address"
+                  {...register('address')}
+                  placeholder="ที่อยู่สำหรับจัดส่ง"
+                  rows={2}
+                  maxLength={500}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+              </FormField>
+
+              <FormField name="notes" label="หมายเหตุ" className="sm:col-span-2">
+                <textarea
+                  id="notes"
+                  {...register('notes')}
+                  placeholder="บันทึกเพิ่มเติม"
+                  rows={2}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                />
+              </FormField>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="taxId">เลขประจำตัวผู้เสียภาษี</Label>
-              <SafeInput
-                id="taxId"
-                name="taxId"
-                numericOnly
-                maxLength={13}
-                defaultValue={customer?.taxId || ''}
-                placeholder="เลข 13 หลัก"
-              />
-              {errors.taxId && (
-                <p className="text-sm text-destructive">{errors.taxId[0]}</p>
-              )}
+            {/* Action Bar */}
+            <div className="flex gap-2 pt-4 border-t">
+              <Button type="submit" disabled={isPending} className="px-8">
+                {isPending ? 'กำลังบันทึก...' : isEdit ? 'บันทึกการแก้ไข' : 'เพิ่มลูกค้า'}
+              </Button>
+              <Button type="button" variant="outline" onClick={() => router.back()}>
+                ยกเลิก
+              </Button>
             </div>
-
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="address">ที่อยู่
-                <span className="text-muted-foreground text-xs font-normal ml-2">(จำเป็นสำหรับออกใบกำกับภาษี)</span>
-              </Label>
-              <textarea
-                id="address"
-                name="address"
-                defaultValue={customer?.address || ''}
-                placeholder="ที่อยู่สำหรับจัดส่ง"
-                rows={2}
-                maxLength={500}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              />
-            </div>
-
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="notes">หมายเหตุ</Label>
-              <textarea
-                id="notes"
-                name="notes"
-                defaultValue={customer?.notes || ''}
-                placeholder="บันทึกเพิ่มเติม"
-                rows={2}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              />
-            </div>
-          </div>
-
-          <div className="flex gap-2 pt-4">
-            <Button type="submit" disabled={isPending}>
-              {isPending ? 'กำลังบันทึก...' : isEdit ? 'บันทึกการแก้ไข' : 'เพิ่มลูกค้า'}
-            </Button>
-            <Button type="button" variant="outline" onClick={() => router.back()}>
-              ยกเลิก
-            </Button>
-          </div>
-        </form>
-      </CardContent>
-    </Card>
+          </form>
+        </CardContent>
+      </Card>
+    </FormProvider>
   );
 }
