@@ -1,19 +1,15 @@
 import { Suspense } from 'react';
-import Link from 'next/link';
 import { getRoles } from '@/actions/roles';
 import { RolesTable } from '@/components/roles/roles-table';
 import { CreateRoleDialog } from '@/components/roles/create-role-dialog';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft } from 'lucide-react';
+import { BackPageHeader } from '@/components/ui/back-page-header';
 import Loading from '@/app/(dashboard)/loading';
-
 import { requirePermission } from '@/lib/auth-guard';
 import { Guard } from '@/components/auth/guard';
 
 async function RolesContent() {
-  await requirePermission('TEAM_VIEW'); // View roles requires TEAM_VIEW
-
+  await requirePermission('TEAM_VIEW');
   const roles = await getRoles();
 
   return (
@@ -37,18 +33,11 @@ async function RolesContent() {
 export default function RolesPage() {
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href="/settings">
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-        </Button>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">จัดการ Roles</h1>
-          <p className="text-muted-foreground">สร้างและจัดการสิทธิ์สำหรับสมาชิก</p>
-        </div>
-      </div>
-
+      <BackPageHeader
+        backHref="/settings"
+        title="จัดการ Roles"
+        description="สร้างและจัดการสิทธิ์สำหรับสมาชิก"
+      />
       <Suspense fallback={<Loading />}>
         <RolesContent />
       </Suspense>

@@ -1,21 +1,15 @@
 import { Suspense } from 'react';
-
 import { getUserProfile } from '@/actions/settings';
 import { getShop } from '@/actions/shop';
 import { getLookupValuesForSettings, seedDefaultLookupValues } from '@/actions/lookups';
 import { LookupValue } from '@prisma/client';
 import { SettingsForm } from '@/components/settings/settings-form';
+import { SectionHeader } from '@/components/ui/section-header';
 import Loading from '@/app/(dashboard)/loading';
 
 async function SettingsContent() {
-  // Seed default categories if needed (ignore permission error)
-  try {
-    await seedDefaultLookupValues();
-  } catch (error) {
-    // Ignore permission error
-  }
+  try { await seedDefaultLookupValues(); } catch { /* Ignore permission error */ }
 
-  // Fetch all data in parallel
   const [user, shop, productCategories, expenseCategories, incomeCategories] = await Promise.all([
     getUserProfile(),
     getShop(),
@@ -25,9 +19,9 @@ async function SettingsContent() {
   ]);
 
   return (
-    <SettingsForm 
-      initialData={user} 
-      shopData={shop} 
+    <SettingsForm
+      initialData={user}
+      shopData={shop}
       productCategories={productCategories}
       expenseCategories={expenseCategories}
       incomeCategories={incomeCategories}
@@ -38,10 +32,7 @@ async function SettingsContent() {
 export default function SettingsPage() {
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <h1 className="text-2xl font-bold tracking-tight">ตั้งค่า</h1>
-      </div>
-      
+      <SectionHeader title="ตั้งค่า" description="ข้อมูลบัญชีและร้านค้าของคุณ" />
       <Suspense fallback={<Loading />}>
         <SettingsContent />
       </Suspense>
