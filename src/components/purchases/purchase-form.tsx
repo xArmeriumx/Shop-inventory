@@ -143,13 +143,15 @@ function PurchaseItemsSection({
           const lineTotal = (Number(quantity) || 0) * (Number(costPrice) || 0);
 
           return (
-            <div key={field.id} className="grid grid-cols-1 md:grid-cols-12 gap-4 rounded-lg border p-4 items-start">
-              <div className="md:col-span-5 space-y-2">
-                <Label>สินค้า *</Label>
-                <div className="flex gap-2">
+            <div key={field.id} className="rounded-lg border p-4 space-y-3">
+              {/* Row 1: Product selector (full-width on mobile, fills available space) */}
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-3 md:items-start">
+                {/* Product — col 1-5 */}
+                <div className="md:col-span-5 space-y-1.5">
+                  <Label>สินค้า *</Label>
                   <select
                     {...register(`items.${index}.productId` as const)}
-                    className="flex-1 h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
                     onChange={(e) => {
                       const p = products.find(x => x.id === e.target.value);
                       setValue(`items.${index}.productId`, e.target.value);
@@ -161,6 +163,7 @@ function PurchaseItemsSection({
                       <option key={p.id} value={p.id}>{p.name} {p.sku && `(${p.sku})`} - สต็อก: {p.stock}</option>
                     ))}
                   </select>
+                  {/* Quick-add sits below the dropdown — never overlaps adjacent columns */}
                   {!productId && (
                     <QuickAddProductDialog
                       defaultData={{
@@ -172,30 +175,44 @@ function PurchaseItemsSection({
                     />
                   )}
                 </div>
-              </div>
 
-              <div className="md:col-span-2 space-y-2">
-                <Label>จำนวน *</Label>
-                <Input type="number" {...register(`items.${index}.quantity` as const)} min="1" />
-              </div>
+                {/* Qty — col 6-7 */}
+                <div className="md:col-span-2 space-y-1.5">
+                  <Label>จำนวน *</Label>
+                  <Input type="number" {...register(`items.${index}.quantity` as const)} min="1" />
+                </div>
 
-              <div className="md:col-span-3 space-y-2">
-                <Label>ต้นทุน/หน่วย *</Label>
-                <Input type="number" step="0.01" {...register(`items.${index}.costPrice` as const)} min="0" />
-              </div>
+                {/* Cost — col 8-10 */}
+                <div className="md:col-span-3 space-y-1.5">
+                  <Label>ต้นทุน/หน่วย *</Label>
+                  <Input type="number" step="0.01" {...register(`items.${index}.costPrice` as const)} min="0" />
+                </div>
 
-              <div className="md:col-span-1 space-y-2">
-                <Label>รวม</Label>
-                <div className="text-sm font-medium h-9 flex items-center">{formatCurrency(lineTotal.toString())}</div>
-              </div>
+                {/* Total — col 11 */}
+                <div className="md:col-span-1 space-y-1.5">
+                  <Label>รวม</Label>
+                  <div className="text-sm font-medium h-9 flex items-center">
+                    {formatCurrency(lineTotal.toString())}
+                  </div>
+                </div>
 
-              <div className="md:col-span-1 flex items-end justify-end pt-6 md:pt-0">
-                <Button type="button" variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:text-destructive" onClick={() => remove(index)} disabled={fields.length === 1}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                {/* Delete — col 12 */}
+                <div className="md:col-span-1 flex md:items-end md:justify-end md:pt-7">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 text-muted-foreground hover:text-destructive"
+                    onClick={() => remove(index)}
+                    disabled={fields.length === 1}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </div>
           );
+
         })}
       </CardContent>
     </Card>
