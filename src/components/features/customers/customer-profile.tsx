@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
 import { CustomerForm } from './customer-form';
 import { formatCurrency, formatDate, formatPercent } from '@/lib/formatters';
 import {
@@ -20,6 +21,7 @@ import {
   Clock,
   RotateCcw,
   Star,
+  Edit,
 } from 'lucide-react';
 
 // ======================== Types ========================
@@ -147,6 +149,15 @@ export function CustomerProfile({ data }: CustomerProfileProps) {
               <span>ลูกค้าตั้งแต่ {formatDate(stats.firstOrderDate)}</span>
             )}
           </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="gap-1.5" asChild>
+            <Link href={`/customers/${customer.id}/edit`}>
+              <Edit className="h-4 w-4" />
+              แก้ไขข้อมูล
+            </Link>
+          </Button>
         </div>
       </div>
 

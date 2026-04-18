@@ -97,7 +97,9 @@ export function CustomersTable({ customers, pagination }: CustomersTableProps) {
               {customers.map((customer) => (
                 <TableRow key={customer.id}>
                   <TableCell>
-                    <p className="font-medium">{customer.name}</p>
+                    <Link href={`/customers/${customer.id}`} className="font-medium text-primary hover:underline">
+                      {customer.name}
+                    </Link>
                     {/* Mobile: show contact inline */}
                     <div className="sm:hidden text-xs text-muted-foreground mt-0.5 space-y-0.5">
                       {customer.phone && (
@@ -138,7 +140,7 @@ export function CustomersTable({ customers, pagination }: CustomersTableProps) {
                   <TableCell>
                     <div className="flex items-center justify-end gap-0.5">
                       <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
-                        <Link href={`/customers/${customer.id}`}>
+                        <Link href={`/customers/${customer.id}/edit`}>
                           <Edit className="h-4 w-4" />
                         </Link>
                       </Button>
