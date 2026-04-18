@@ -5,24 +5,35 @@ import { normalizeSku, normalizeWhitespace } from '@/lib/normalizers';
 export const productSchema = z.object({
   name: z
     .string()
-    .min(1, 'กรุณากรอกชื่อสินค้า')
-    .max(200, 'ชื่อสินค้าต้องไม่เกิน 200 ตัวอักษร')
-    .trim()
-    .transform(normalizeWhitespace)
-    .transform((val) => val || '')
-    .transform(sanitizeText),
+    .transform((v) => normalizeWhitespace(v) || '')
+    .pipe(
+      z.string()
+        .min(1, 'กรุณากรอกชื่อสินค้า')
+        .max(200, 'ชื่อสินค้าต้องไม่เกิน 200 ตัวอักษร')
+        .transform(sanitizeText)
+    ),
   description: z
     .string()
-    .max(1000, 'รายละเอียดต้องไม่เกิน 1000 ตัวอักษร')
     .optional()
     .nullable()
-    .transform((val) => val ? sanitizeText(normalizeWhitespace(val) || '') : val),
+    .transform(v => normalizeWhitespace(v))
+    .pipe(
+      z.string()
+        .max(1000, 'รายละเอียดต้องไม่เกิน 1000 ตัวอักษร')
+        .transform(sanitizeText)
+        .optional()
+        .nullable()
+    ),
   sku: z
     .string()
     .optional()
     .nullable()
     .transform(normalizeSku)
-    .refine((val) => !val || /^[A-Z0-9_-]+$/.test(val), 'SKU ใช้ได้เฉพาะ A-Z, 0-9, _ และ -'),
+    .pipe(
+      z.string()
+        .nullable()
+        .refine((val) => !val || /^[A-Z0-9_-]+$/.test(val), 'SKU ใช้ได้เฉพาะ A-Z, 0-9, _ และ -')
+    ),
   category: z.string().min(1, 'กรุณาเลือกหมวดหมู่'),
   costPrice: z
     .number({ invalid_type_error: 'กรุณากรอกราคาทุน' })

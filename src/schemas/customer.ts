@@ -5,30 +5,43 @@ import { normalizePhone, normalizeTaxId, normalizeEmail, normalizeWhitespace } f
 export const customerSchema = z.object({
   name: z
     .string()
-    .min(1, 'กรุณากรอกชื่อลูกค้า')
-    .max(200, 'ชื่อต้องไม่เกิน 200 ตัวอักษร')
-    .trim()
-    .transform(normalizeWhitespace)
-    .transform((val) => val || '')
-    .transform(sanitizeText),
+    .transform((v) => normalizeWhitespace(v) || '')
+    .pipe(
+      z.string()
+        .min(1, 'กรุณากรอกชื่อลูกค้า')
+        .max(200, 'ชื่อต้องไม่เกิน 200 ตัวอักษร')
+        .transform(sanitizeText)
+    ),
   phone: z
     .string()
     .optional()
     .nullable()
-    .transform((val) => normalizePhone(val))
-    .refine((val) => !val || (val.length >= 9 && val.length <= 10), 'เบอร์โทรต้องมี 9-10 หลัก'),
+    .transform(normalizePhone)
+    .pipe(
+      z.string()
+        .nullable()
+        .refine((val) => !val || (val.length >= 9 && val.length <= 10), 'เบอร์โทรต้องมี 9-10 หลัก')
+    ),
   taxId: z
     .string()
     .optional()
     .nullable()
-    .transform((val) => normalizeTaxId(val))
-    .refine((val) => !val || val.length === 13, 'เลขประจำตัวผู้เสียภาษีต้องมี 13 หลัก'),
+    .transform(normalizeTaxId)
+    .pipe(
+      z.string()
+        .nullable()
+        .refine((val) => !val || val.length === 13, 'เลขประจำตัวผู้เสียภาษีต้องมี 13 หลัก')
+    ),
   email: z
     .string()
     .optional()
     .nullable()
-    .transform((val) => normalizeEmail(val))
-    .refine((val) => !val || z.string().email().safeParse(val).success, 'รูปแบบอีเมลไม่ถูกต้อง'),
+    .transform(normalizeEmail)
+    .pipe(
+      z.string()
+        .nullable()
+        .refine((val) => !val || z.string().email().safeParse(val).success, 'รูปแบบอีเมลไม่ถูกต้อง')
+    ),
   address: z
     .string()
     .max(500, 'ที่อยู่ต้องไม่เกิน 500 ตัวอักษร')

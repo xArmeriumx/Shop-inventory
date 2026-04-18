@@ -6,17 +6,23 @@ export const shipmentSchema = z.object({
   saleId: z.string().min(1, 'กรุณาเลือกรายการขาย'),
   recipientName: z
     .string()
-    .min(1, 'กรุณากรอกชื่อผู้รับ')
-    .max(200, 'ชื่อต้องไม่เกิน 200 ตัวอักษร')
-    .transform(normalizeWhitespace)
-    .transform((val) => val || '')
-    .transform(sanitizeText),
+    .transform((v) => normalizeWhitespace(v) || '')
+    .pipe(
+      z.string()
+        .min(1, 'กรุณากรอกชื่อผู้รับ')
+        .max(200, 'ชื่อต้องไม่เกิน 200 ตัวอักษร')
+        .transform(sanitizeText)
+    ),
   recipientPhone: z
     .string()
     .optional()
     .nullable()
-    .transform((val) => normalizePhone(val))
-    .refine((val) => !val || (val.length >= 9 && val.length <= 10), 'เบอร์โทรต้องมี 9-10 หลัก'),
+    .transform(normalizePhone)
+    .pipe(
+      z.string()
+        .nullable()
+        .refine((val) => !val || (val.length >= 9 && val.length <= 10), 'เบอร์โทรต้องมี 9-10 หลัก')
+    ),
   shippingAddress: z
     .string()
     .min(1, 'กรุณากรอกที่อยู่จัดส่ง')
@@ -58,8 +64,12 @@ export const updateShipmentSchema = z.object({
     .string()
     .optional()
     .nullable()
-    .transform((val) => normalizePhone(val))
-    .refine((val) => !val || (val.length >= 9 && val.length <= 10), 'เบอร์โทรต้องมี 9-10 หลัก'),
+    .transform(normalizePhone)
+    .pipe(
+      z.string()
+        .nullable()
+        .refine((val) => !val || (val.length >= 9 && val.length <= 10), 'เบอร์โทรต้องมี 9-10 หลัก')
+    ),
   shippingAddress: z.string().min(1).transform(sanitizeText).optional(),
   notes: z.string().transform(sanitizeText).optional().nullable(),
   latitude: z.number().min(-90).max(90).optional().nullable(),
