@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Camera } from 'lucide-react';
-import { ScanReceiptDialog } from '@/components/features/ocr';
+import { ScanReceiptDialog } from '@/components/ocr';
 import type { ReceiptData } from '@/lib/ocr/types';
 import { toast } from 'sonner';
 

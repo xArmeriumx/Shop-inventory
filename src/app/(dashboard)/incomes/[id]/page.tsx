@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { PageHeader } from '@/components/layout/page-header';
-import { IncomeForm } from '@/components/features/incomes/income-form';
+import { IncomeForm } from '@/components/incomes/income-form';
 import { getIncome } from '@/actions/incomes';
 import { getLookupValues, seedDefaultLookupValues } from '@/actions/lookups';
 

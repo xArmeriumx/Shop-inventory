@@ -1,5 +1,5 @@
 import { PageHeader } from '@/components/layout/page-header';
-import { ProductForm } from '@/components/features/products/product-form';
+import { ProductForm } from '@/components/products/product-form';
 import { getLookupValues, seedDefaultLookupValues } from '@/actions/lookups';
 
 export default async function NewProductPage() {

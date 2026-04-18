@@ -4,7 +4,7 @@ import { getUserProfile } from '@/actions/settings';
 import { getShop } from '@/actions/shop';
 import { getLookupValuesForSettings, seedDefaultLookupValues } from '@/actions/lookups';
 import { LookupValue } from '@prisma/client';
-import { SettingsForm } from '@/components/features/settings/settings-form';
+import { SettingsForm } from '@/components/settings/settings-form';
 import Loading from '@/app/(dashboard)/loading';
 
 async function SettingsContent() {

@@ -1,9 +1,9 @@
 import { PageHeader } from '@/components/layout/page-header';
-import { ReportView } from '@/components/features/reports/report-view';
-import { ReportToolbar } from '@/components/features/reports/report-toolbar';
-import { ReportCharts } from '@/components/features/reports/report-charts';
+import { ReportView } from '@/components/reports/report-view';
+import { ReportToolbar } from '@/components/reports/report-toolbar';
+import { ReportCharts } from '@/components/reports/report-charts';
 import { getReportData } from '@/actions/reports';
-import { ReportTabs } from '@/components/features/reports/report-tabs';
+import { ReportTabs } from '@/components/reports/report-tabs';
 
 interface ReportsPageProps {
   searchParams: {

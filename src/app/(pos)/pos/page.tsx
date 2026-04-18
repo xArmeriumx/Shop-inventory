@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import { POSInterface } from '@/components/features/pos/pos-interface';
+import { POSInterface } from '@/components/pos/pos-interface';
 import { getProductsForPOS, getCategories } from '@/lib/pos/pos-service';
 import { getShop } from '@/actions/shop';
 

@@ -19,7 +19,7 @@ import { PAYMENT_METHODS } from '@/lib/constants';
 import { XCircle, ChevronLeft, ChevronRight, Eye } from 'lucide-react';
 import { cancelSale } from '@/actions/sales';
 import { useState, useTransition } from 'react';
-import { CancelDialog } from '@/components/features/shared/cancel-dialog';
+import { CancelDialog } from '@/components/shared/cancel-dialog';
 import { usePermissions } from '@/hooks/use-permissions';
 import { Guard } from '@/components/auth/guard';
 

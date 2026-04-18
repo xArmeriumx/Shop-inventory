@@ -1,7 +1,7 @@
 'use client';
 import { Button } from '@/components/ui/button';
 import { Menu } from 'lucide-react';
-import { NotificationBell } from '@/components/features/notifications/notification-bell';
+import { NotificationBell } from '@/components/notifications/notification-bell';
 import { SafeBoundary } from '@/components/ui/safe-boundary';
 
 interface HeaderProps {

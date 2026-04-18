@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FormField } from '@/components/ui/form-field';
 import { Mail, Store, MapPin, Phone, FileText, Package, Wallet, TrendingUp, Shield, QrCode, LogOut, AlertTriangle } from 'lucide-react';
 
-import { CategoryManager } from '@/components/features/lookups/category-manager';
+import { CategoryManager } from '@/components/lookups/category-manager';
 import { usePermissions } from '@/hooks/use-permissions';
 import { updateProfile } from '@/actions/settings';
 import { updateShop } from '@/actions/shop';

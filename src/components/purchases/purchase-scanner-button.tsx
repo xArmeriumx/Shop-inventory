@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Camera } from 'lucide-react';
 import { ScanPurchaseButton } from './scan-purchase-button';
-import { ScanReviewModal } from '@/components/features/ocr/scan-review-modal';
+import { ScanReviewModal } from '@/components/ocr/scan-review-modal';
 import { 
   usePurchaseScanner, 
   savePendingScanResult, 

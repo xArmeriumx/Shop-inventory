@@ -3,10 +3,10 @@ import { Plus } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
 import { getExpenses } from '@/actions/expenses';
-import { ExpensesTable } from '@/components/features/expenses/expenses-table';
-import { ExpensesToolbar } from '@/components/features/expenses/expenses-toolbar';
-import { ScanReceiptButton } from '@/components/features/expenses/scan-receipt-button';
-import { ExpensesExportButton } from '@/components/features/expenses/expenses-export-button';
+import { ExpensesTable } from '@/components/expenses/expenses-table';
+import { ExpensesToolbar } from '@/components/expenses/expenses-toolbar';
+import { ScanReceiptButton } from '@/components/expenses/scan-receipt-button';
+import { ExpensesExportButton } from '@/components/expenses/expenses-export-button';
 
 interface ExpensesPageProps {
   searchParams: {

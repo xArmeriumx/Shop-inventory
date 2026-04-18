@@ -3,7 +3,7 @@ import { getDashboardStats, getMonthlyStats } from '@/actions/dashboard';
 import { refreshOperationalAlerts } from '@/actions/notifications';
 import { requireAuth } from '@/lib/auth-guard';
 import { formatCurrency, formatDate } from '@/lib/formatters';
-import { DashboardTemplate, DashboardSkeleton } from '@/components/features/dashboard/dashboard-template';
+import { DashboardTemplate, DashboardSkeleton } from '@/components/dashboard/dashboard-template';
 
 // ─── Data Fetcher ─────────────────────────────────────────────────────────────
 

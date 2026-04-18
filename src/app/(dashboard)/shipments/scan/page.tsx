@@ -1,5 +1,5 @@
 import { getSalesWithoutShipment } from '@/actions/shipments';
-import { ShipmentScanner } from '@/components/features/shipments/shipment-scanner';
+import { ShipmentScanner } from '@/components/shipments/shipment-scanner';
 
 export const metadata = {
   title: 'สแกนใบเสร็จขนส่ง | Shop Inventory',

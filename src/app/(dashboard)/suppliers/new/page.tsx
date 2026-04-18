@@ -1,5 +1,5 @@
 import { PageHeader } from '@/components/layout/page-header';
-import { SupplierForm } from '@/components/features/suppliers/supplier-form';
+import { SupplierForm } from '@/components/suppliers/supplier-form';
 
 export default function NewSupplierPage() {
   return (

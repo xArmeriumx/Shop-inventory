@@ -1,10 +1,10 @@
 import { Suspense } from 'react';
 import { getShipments } from '@/actions/shipments';
-import { ShipmentsTable } from '@/components/features/shipments/shipments-table';
-import { ShipmentsToolbar } from '@/components/features/shipments/shipments-toolbar';
+import { ShipmentsTable } from '@/components/shipments/shipments-table';
+import { ShipmentsToolbar } from '@/components/shipments/shipments-toolbar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ShipmentStatsWidget } from '@/components/features/shipments/shipment-stats-widget';
+import { ShipmentStatsWidget } from '@/components/shipments/shipment-stats-widget';
 
 export const metadata = {
   title: 'จัดส่งสินค้า | Shop Inventory',

@@ -1,5 +1,5 @@
 import { PageHeader } from '@/components/layout/page-header';
-import { CustomerForm } from '@/components/features/customers/customer-form';
+import { CustomerForm } from '@/components/customers/customer-form';
 
 export default function NewCustomerPage() {
   return (

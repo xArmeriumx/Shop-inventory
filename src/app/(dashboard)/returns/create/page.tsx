@@ -1,4 +1,4 @@
-import { ReturnForm } from '@/components/features/returns/return-form';
+import { ReturnForm } from '@/components/returns/return-form';
 
 export const metadata = {
   title: 'คืนสินค้า | Shop Inventory',

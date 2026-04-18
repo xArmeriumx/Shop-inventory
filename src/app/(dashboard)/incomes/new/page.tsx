@@ -1,5 +1,5 @@
 import { PageHeader } from '@/components/layout/page-header';
-import { IncomeForm } from '@/components/features/incomes/income-form';
+import { IncomeForm } from '@/components/incomes/income-form';
 import { getLookupValues, seedDefaultLookupValues } from '@/actions/lookups';
 
 export default async function NewIncomePage() {

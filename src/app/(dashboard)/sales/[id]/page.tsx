@@ -14,10 +14,10 @@ import { getShop } from '@/actions/shop';
 import { formatCurrency } from '@/lib/formatters';
 import { calculateCtn } from '@/lib/erp-utils';
 import Loading from '@/app/(dashboard)/loading';
-import { PrintButton } from '@/components/features/sales/print-button';
-import { ReceiptImage } from '@/components/features/receipts/receipt-image';
-import { ShipmentStatusBadge } from '@/components/features/shipments/shipment-status-badge';
-import { PaymentSection } from '@/components/features/sales/payment-section';
+import { PrintButton } from '@/components/sales/print-button';
+import { ReceiptImage } from '@/components/receipts/receipt-image';
+import { ShipmentStatusBadge } from '@/components/shipments/shipment-status-badge';
+import { PaymentSection } from '@/components/sales/payment-section';
 import { Guard } from '@/components/auth/guard';
 
 export interface SaleDetailsPageProps {

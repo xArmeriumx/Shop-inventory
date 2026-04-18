@@ -3,9 +3,9 @@ import { Plus, AlertTriangle } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
 import { getProducts } from '@/actions/products';
-import { ProductsTable } from '@/components/features/products/products-table';
-import { ProductsToolbar } from '@/components/features/products/products-toolbar';
-import { ProductImportButton } from '@/components/features/products/product-import-button';
+import { ProductsTable } from '@/components/products/products-table';
+import { ProductsToolbar } from '@/components/products/products-toolbar';
+import { ProductImportButton } from '@/components/products/product-import-button';
 
 import { requirePermission } from '@/lib/auth-guard';
 import { Guard } from '@/components/auth/guard';

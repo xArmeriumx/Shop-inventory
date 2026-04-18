@@ -1,5 +1,5 @@
 import { PageHeader } from '@/components/layout/page-header';
-import { ExpenseForm } from '@/components/features/expenses/expense-form';
+import { ExpenseForm } from '@/components/expenses/expense-form';
 import { getLookupValues, seedDefaultLookupValues } from '@/actions/lookups';
 
 export default async function NewExpensePage() {

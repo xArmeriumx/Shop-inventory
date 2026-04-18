@@ -1,5 +1,5 @@
 import { getSalesWithoutShipment } from '@/actions/shipments';
-import { ShipmentForm } from '@/components/features/shipments/shipment-form';
+import { ShipmentForm } from '@/components/shipments/shipment-form';
 
 export const metadata = {
   title: 'สร้างรายการจัดส่ง | Shop Inventory',

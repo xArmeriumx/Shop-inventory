@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { FormField } from '@/components/ui/form-field';
-import { StockAdjustmentDialog } from '@/components/features/products/stock-adjustment-dialog';
+import { StockAdjustmentDialog } from '@/components/products/stock-adjustment-dialog';
 import { ProductImageUpload } from '@/components/ui/product-image-upload';
 import { SafeBoundary } from '@/components/ui/safe-boundary';
 import { usePermissions } from '@/hooks/use-permissions';

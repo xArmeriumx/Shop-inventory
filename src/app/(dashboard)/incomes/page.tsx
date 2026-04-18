@@ -3,9 +3,9 @@ import { Plus } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
 import { getIncomes } from '@/actions/incomes';
-import { IncomesTable } from '@/components/features/incomes/incomes-table';
-import { IncomesToolbar } from '@/components/features/incomes/incomes-toolbar';
-import { IncomesExportButton } from '@/components/features/incomes/incomes-export-button';
+import { IncomesTable } from '@/components/incomes/incomes-table';
+import { IncomesToolbar } from '@/components/incomes/incomes-toolbar';
+import { IncomesExportButton } from '@/components/incomes/incomes-export-button';
 
 interface IncomesPageProps {
   searchParams: {

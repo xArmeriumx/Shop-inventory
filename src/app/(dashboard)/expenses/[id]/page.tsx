@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { PageHeader } from '@/components/layout/page-header';
-import { ExpenseForm } from '@/components/features/expenses/expense-form';
+import { ExpenseForm } from '@/components/expenses/expense-form';
 import { getExpense } from '@/actions/expenses';
 import { getLookupValues, seedDefaultLookupValues } from '@/actions/lookups';
 

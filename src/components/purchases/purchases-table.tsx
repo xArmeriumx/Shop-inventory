@@ -17,7 +17,7 @@ import { getPurchaseStatusLabel } from '@/lib/erp-utils';
 import { XCircle, ChevronLeft, ChevronRight, Eye, Package, Edit, Trash2 } from 'lucide-react';
 import { cancelPurchase, convertToPurchaseOrder } from '@/actions/purchases';
 import { useState, useTransition } from 'react';
-import { CancelDialog, PURCHASE_CANCEL_REASONS } from '@/components/features/shared/cancel-dialog';
+import { CancelDialog, PURCHASE_CANCEL_REASONS } from '@/components/shared/cancel-dialog';
 import { usePermissions } from '@/hooks/use-permissions';
 import { toast } from 'sonner';
 import { GuidedErrorAlert } from '@/components/ui/guided-error-alert';

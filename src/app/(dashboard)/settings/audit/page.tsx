@@ -1,8 +1,8 @@
 import { Suspense } from 'react';
 import { requireAuth } from '@/lib/auth-guard';
 import { Security } from '@/services/security';
-import { AuditLogViewer } from '@/components/features/settings/audit-log-viewer';
-import { SecurityDashboardCards } from '@/components/features/settings/security-dashboard';
+import { AuditLogViewer } from '@/components/settings/audit-log-viewer';
+import { SecurityDashboardCards } from '@/components/settings/security-dashboard';
 import { Separator } from '@/components/ui/separator';
 import Loading from '@/app/(dashboard)/loading';
 

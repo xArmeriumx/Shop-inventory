@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import Link from 'next/link';
-import { POSReceiptModal } from '@/components/features/receipts/pos-receipt-modal';
+import { POSReceiptModal } from '@/components/receipts/pos-receipt-modal';
 
 interface POSSuccessDialogProps {
   isOpen: boolean;

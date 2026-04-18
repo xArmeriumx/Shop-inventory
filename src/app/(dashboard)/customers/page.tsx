@@ -3,9 +3,9 @@ import { Plus } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
 import { getCustomers } from '@/actions/customers';
-import { CustomersTable } from '@/components/features/customers/customers-table';
-import { CustomersToolbar } from '@/components/features/customers/customers-toolbar';
-import { CustomersExportButton } from '@/components/features/customers/customers-export-button';
+import { CustomersTable } from '@/components/customers/customers-table';
+import { CustomersToolbar } from '@/components/customers/customers-toolbar';
+import { CustomersExportButton } from '@/components/customers/customers-export-button';
 
 interface CustomersPageProps {
   searchParams: {

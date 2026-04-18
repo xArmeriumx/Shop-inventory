@@ -1,8 +1,8 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { getRoles } from '@/actions/roles';
-import { RolesTable } from '@/components/features/roles/roles-table';
-import { CreateRoleDialog } from '@/components/features/roles/create-role-dialog';
+import { RolesTable } from '@/components/roles/roles-table';
+import { CreateRoleDialog } from '@/components/roles/create-role-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowLeft } from 'lucide-react';

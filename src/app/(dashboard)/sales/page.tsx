@@ -3,10 +3,10 @@ import { Plus } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
 import { getSales } from '@/actions/sales';
-import { SalesTable } from '@/components/features/sales/sales-table';
-import { SalesToolbar } from '@/components/features/sales/sales-toolbar';
+import { SalesTable } from '@/components/sales/sales-table';
+import { SalesToolbar } from '@/components/sales/sales-toolbar';
 import { SaleStatus } from '@/types/domain';
-import { SalesExportButton } from '@/components/features/sales/sales-export-button';
+import { SalesExportButton } from '@/components/sales/sales-export-button';
 
 import { requirePermission } from '@/lib/auth-guard';
 import { Guard } from '@/components/auth/guard';

@@ -1,9 +1,9 @@
 import { PageHeader } from '@/components/layout/page-header';
 import { getPurchases } from '@/actions/purchases';
-import { PurchasesTable } from '@/components/features/purchases/purchases-table';
-import { PurchasesToolbar } from '@/components/features/purchases/purchases-toolbar';
+import { PurchasesTable } from '@/components/purchases/purchases-table';
+import { PurchasesToolbar } from '@/components/purchases/purchases-toolbar';
 import { PurchaseStatus } from '@/types/domain';
-import { PurchasesHeaderActions } from '@/components/features/purchases/purchases-header-actions';
+import { PurchasesHeaderActions } from '@/components/purchases/purchases-header-actions';
 
 interface PurchasesPageProps {
   searchParams: {

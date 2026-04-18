@@ -1,9 +1,9 @@
 'use client';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { LogisticsGapTool } from '@/components/features/system/ops/logistics-gap-tool';
-import { ProcurementGapTool } from '@/components/features/system/ops/procurement-gap-tool';
-import { StaleDocumentsTool } from '@/components/features/system/ops/stale-documents-tool';
+import { LogisticsGapTool } from '@/components/system/ops/logistics-gap-tool';
+import { ProcurementGapTool } from '@/components/system/ops/procurement-gap-tool';
+import { StaleDocumentsTool } from '@/components/system/ops/stale-documents-tool';
 import { ShieldAlert, Truck, ShoppingCart, Clock } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 

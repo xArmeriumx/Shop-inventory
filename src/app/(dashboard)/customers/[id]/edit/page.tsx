@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { getCustomer } from '@/actions/customers';
-import { CustomerForm } from '@/components/features/customers/customer-form';
+import { CustomerForm } from '@/components/customers/customer-form';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { ChevronLeft } from 'lucide-react';

@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FormField } from '@/components/ui/form-field';
 import { FileUpload } from '@/components/ui/file-upload';
-import { CustomerCombobox } from '@/components/features/customers/customer-combobox';
+import { CustomerCombobox } from '@/components/customers/customer-combobox';
 import { SaleScannerButton, type SaleScanResult } from './sale-scanner-button';
 import { Plus, Trash2, ScanBarcode, Tag, Percent } from 'lucide-react';
 

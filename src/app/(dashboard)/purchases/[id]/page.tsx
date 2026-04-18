@@ -14,8 +14,8 @@ import { getShop } from '@/actions/shop';
 import { formatCurrency } from '@/lib/formatters';
 import { getPurchaseStatusLabel, calculateCtn } from '@/lib/erp-utils';
 import Loading from '@/app/(dashboard)/loading';
-import { PrintButton } from '@/components/features/sales/print-button';
-import { ReceiptImage } from '@/components/features/receipts/receipt-image';
+import { PrintButton } from '@/components/sales/print-button';
+import { ReceiptImage } from '@/components/receipts/receipt-image';
 
 interface PurchaseDetailsPageProps {
   params: {

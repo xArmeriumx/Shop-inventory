@@ -13,11 +13,11 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FormField } from '@/components/ui/form-field';
 import { FileUpload } from '@/components/ui/file-upload';
-import { SupplierCombobox } from '@/components/features/suppliers/supplier-combobox';
-import { ScanPurchaseButton } from '@/components/features/purchases/scan-purchase-button';
-import { QuickAddSupplierDialog } from '@/components/features/suppliers/quick-add-supplier-dialog';
-import { QuickAddProductDialog } from '@/components/features/products/quick-add-product-dialog';
-import { ScanReviewModal } from '@/components/features/ocr/scan-review-modal';
+import { SupplierCombobox } from '@/components/suppliers/supplier-combobox';
+import { ScanPurchaseButton } from '@/components/purchases/scan-purchase-button';
+import { QuickAddSupplierDialog } from '@/components/suppliers/quick-add-supplier-dialog';
+import { QuickAddProductDialog } from '@/components/products/quick-add-product-dialog';
+import { ScanReviewModal } from '@/components/ocr/scan-review-modal';
 import { Plus, Trash2 } from 'lucide-react';
 
 import { createPurchase } from '@/actions/purchases';

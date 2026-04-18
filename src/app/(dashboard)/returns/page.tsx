@@ -1,12 +1,12 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { getReturns } from '@/actions/returns';
-import { ReturnsTable } from '@/components/features/returns/returns-table';
+import { ReturnsTable } from '@/components/returns/returns-table';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Plus } from 'lucide-react';
 import { Guard } from '@/components/auth/guard';
-import { ReturnsExportButton } from '@/components/features/returns/returns-export-button';
+import { ReturnsExportButton } from '@/components/returns/returns-export-button';
 
 export const metadata = {
   title: 'คืนสินค้า | Shop Inventory',

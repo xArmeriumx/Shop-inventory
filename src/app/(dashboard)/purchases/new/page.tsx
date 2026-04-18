@@ -1,5 +1,5 @@
 import { PageHeader } from '@/components/layout/page-header';
-import { PurchaseForm } from '@/components/features/purchases/purchase-form';
+import { PurchaseForm } from '@/components/purchases/purchase-form';
 
 export default function NewPurchasePage() {
   return (
