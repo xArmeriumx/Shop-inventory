@@ -58,6 +58,11 @@ export const productSchema = z.object({
     .min(0, 'MOQ ต้องไม่ติดลบ')
     .optional()
     .nullable(),
+  packagingQty: z
+    .number()
+    .int('จำนวนต้องเป็นจำนวนเต็ม')
+    .min(1, 'จำนวนต่อแพ็กต้องมีอย่างน้อย 1')
+    .default(1),
   metadata: z
     .record(z.any())
     .optional()
