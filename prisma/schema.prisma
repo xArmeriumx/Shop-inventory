@@ -751,6 +751,10 @@ model StockLog {
   @@index([saleId])
   @@index([purchaseId])
   @@index([returnId])  // G3
+  // R-RPT-01: compound index สำหรับ Stock History per product per shop
+  @@index([shopId, productId, date])
+  // R-RPT-01: compound index สำหรับ Stock audit by type
+  @@index([shopId, type, date])
 }
 
 // ==================== Returns (G3: คืนสินค้าบางส่วน) ====================
@@ -864,6 +868,8 @@ model Shipment {
   @@index([shopId, status])
   @@index([shopId, createdAt])
   @@index([trackingNumber])
+  // R-RPT-01: compound index สำหรับ Shipment list + date range + status filter
+  @@index([shopId, status, createdAt])
 }
 
 model CustomerAddress {
@@ -1002,6 +1008,10 @@ model AuditLog {
   @@index([shopId, status])
   @@index([targetType, targetId])
   @@index([actorUserId])
+  // R-RPT-01: compound index สำหรับ Security Dashboard (filter action + date range)
+  @@index([shopId, action, createdAt])
+  // R-RPT-01: compound index สำหรับ DENIED report query
+  @@index([shopId, status, createdAt])
 }
 
 // ==================== ERP: Supplier Intelligence (Rule 4.4) ====================

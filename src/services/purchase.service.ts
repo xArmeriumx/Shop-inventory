@@ -7,9 +7,9 @@ import { money, toNumber, calcSubtotal } from '@/lib/money';
 import { logger } from '@/lib/logger';
 import { paginatedQuery, buildSearchFilter, buildDateRangeFilter } from '@/lib/pagination';
 
-import { 
-  RequestContext, 
-  ServiceError, 
+import {
+  RequestContext,
+  ServiceError,
   GetPurchasesParams,
   DocumentType,
   PurchaseStatus,
@@ -117,7 +117,7 @@ export const PurchaseService: IPurchaseService = {
   async create(ctx: RequestContext, payload: PurchaseInput, tx?: Prisma.TransactionClient): Promise<SerializedPurchase> {
     Security.requirePermission(ctx, 'PURCHASE_CREATE');
     const { items, ...purchaseData } = payload;
-    
+
     if (items.length === 0) {
       throw new ServiceError('ต้องมีสินค้าอย่างน้อย 1 รายการ');
     }
@@ -181,9 +181,9 @@ export const PurchaseService: IPurchaseService = {
             prisma
           );
 
-          await Promise.all(items.map(item =>
-            prisma.product.update({ where: { id: item.productId }, data: { costPrice: item.costPrice } })
-          ));
+          // P1.3: ไม่ overwrite costPrice ที่นี่ (ก่อนรับของเข้าคลัง)
+          // การอัปเดตต้นทุนสินค้าจะเกิดขึ้นใน receivePurchase() ด้วย Weighted Average
+          // เพื่อให้สอดคล้องกับ "ต้นทุนที่แท้จริง ณ เวลารับสินค้า" เท่านั้น
 
           return {
             ...newPurchase,
@@ -268,7 +268,7 @@ export const PurchaseService: IPurchaseService = {
     Security.requirePermission(ctx, 'PURCHASE_CREATE');
     return await runInTransaction(undefined, async (prisma) => {
       const { items, purchaseType, notes, supplierId } = payload;
-      
+
       const productIds = items.map(i => i.productId);
       const products = await prisma.product.findMany({
         where: { id: { in: productIds } },
@@ -279,7 +279,7 @@ export const PurchaseService: IPurchaseService = {
       const requestNumber = await SequenceService.generate(ctx, DocumentType.PURCHASE_REQUEST, prisma, {
         purchaseType: payload.purchaseType,
       });
-      
+
       const totalCost = items.reduce(
         (sum, item) => money.add(sum, calcSubtotal(item.quantity, item.costPrice)),
         0
@@ -312,11 +312,31 @@ export const PurchaseService: IPurchaseService = {
     });
   },
 
-  async approveRequest(prId, ctx) {
-    await db.purchase.update({
+  async approveRequest(prId: string, ctx: RequestContext) {
+    // P1.2: Guard — require explicit permission for approval mutations
+    Security.requirePermission(ctx, 'PURCHASE_EDIT');
+
+    const pr = await db.purchase.findFirst({
       where: { id: prId, shopId: ctx.shopId },
-      data: { status: PurchaseStatus.APPROVED },
     });
+    if (!pr) throw new ServiceError('ไม่พบใบขอซื้อ');
+    if (pr.status === PurchaseStatus.APPROVED) throw new ServiceError('ใบขอซื้อนี้ได้รับการอนุมัติแล้ว');
+    if (pr.status === 'CANCELLED') throw new ServiceError('ไม่สามารถอนุมัติใบขอซื้อที่ถูกยกเลิกแล้ว');
+
+    return AuditService.runWithAudit(
+      ctx,
+      {
+        ...PURCHASE_AUDIT_POLICIES.APPROVE(pr.purchaseNumber ?? prId),
+        targetId: prId,
+        beforeSnapshot: () => ({ status: pr.status }),
+      },
+      async () => {
+        return db.purchase.update({
+          where: { id: prId, shopId: ctx.shopId },
+          data: { status: PurchaseStatus.APPROVED },
+        });
+      }
+    );
   },
 
   async convertToPO(prId, ctx) {
@@ -388,7 +408,7 @@ export const PurchaseService: IPurchaseService = {
 
   async checkMOQ(items, ctx, supplierId) {
     const productIds = items.map(i => i.productId);
-    
+
     // Get general product MOQ
     const products = await db.product.findMany({
       where: { id: { in: productIds }, shopId: ctx.shopId },
@@ -399,11 +419,11 @@ export const PurchaseService: IPurchaseService = {
     let supplierProducts: any[] = [];
     if (supplierId) {
       supplierProducts = await db.supplierProduct.findMany({
-        where: { 
-          supplierId, 
+        where: {
+          supplierId,
           productId: { in: productIds },
           shopId: ctx.shopId,
-          deletedAt: null 
+          deletedAt: null
         },
         select: { productId: true, moq: true }
       });
@@ -450,14 +470,14 @@ export const PurchaseService: IPurchaseService = {
   async allocateCharges(purchaseId: string, ctx: RequestContext, tx: Prisma.TransactionClient) {
     const purchase = await tx.purchase.findFirst({
       where: { id: purchaseId, shopId: ctx.shopId },
-      include: { 
-        items: { 
-          include: { 
-            product: { 
-              include: { categoryRef: true } 
-            } 
-          } 
-        } 
+      include: {
+        items: {
+          include: {
+            product: {
+              include: { categoryRef: true }
+            }
+          }
+        }
       },
     });
 
@@ -493,14 +513,14 @@ export const PurchaseService: IPurchaseService = {
         for (const item of productItems) {
           const itemRatio = money.divide(toNumber(item.subtotal), totalProductValue);
           const allocatedAmount = money.multiply(totalCharges, itemRatio);
-          
+
           const newSubtotal = money.add(toNumber(item.subtotal), allocatedAmount);
           const newUnitPrice = money.divide(newSubtotal, item.quantity);
 
           // Update the PurchaseItem with the 'Landed Cost'
           await tx.purchaseItem.update({
             where: { id: item.id },
-            data: { 
+            data: {
               costPrice: newUnitPrice, // Update the effective cost for this shipment
               subtotal: newSubtotal
             }
@@ -658,7 +678,7 @@ export const PurchaseService: IPurchaseService = {
    */
   async createBulkDraftPRs(entries: { productId: string, quantity: number, supplierId?: string }[], ctx: RequestContext) {
     Security.requirePermission(ctx, 'PURCHASE_CREATE');
-    
+
     if (!entries.length) return { success: true, createdCount: 0 };
 
     // Group items by supplier
@@ -683,7 +703,7 @@ export const PurchaseService: IPurchaseService = {
           // Create one PR per supplier
           for (const [supplierId, items] of Array.from(groupedBySupplier.entries())) {
             const actualSupplierId = supplierId === 'NONE' ? null : supplierId;
-            
+
             // Get product info for cost and packaging
             const productIds = items.map(i => i.productId);
             const products = await prisma.product.findMany({

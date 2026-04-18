@@ -5,40 +5,123 @@ import { authConfig } from './auth.config';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-// ==================== RATE LIMITER ====================
-// Protects the app from bots and spam attacks.
-// Allows normal users (1-2 clicks/sec) but blocks rapid automated requests.
+// ==================== MIDDLEWARE RATE LIMITER ====================
+//
+// Architecture Decision: TWO-LAYER rate limiting with DIFFERENT algorithms
+// -----------------------------------------------------------------------
+// Layer 1 (this file) -- Perimeter Guard:
+//   Algorithm : FIXED WINDOW (INCR + EXPIRE, set on first request only)
+//   Scope     : Per source IP, shared across all serverless instances
+//   Storage   : Upstash Redis (prod/preview), in-memory (local dev only)
+//   Purpose   : Block raw HTTP flood / DDoS before business logic runs
+//   Audit     : None -- Edge Runtime cannot import Prisma/AuditService
+//
+// Layer 2 (src/lib/rate-limit.ts) -- Business Guard:
+//   Algorithm : SLIDING WINDOW via @upstash/ratelimit
+//   Scope     : Per shop/user, per action type (ocr, ai, export, invite...)
+//   Storage   : Upstash Redis (fail-loud in prod if not configured)
+//   Purpose   : Fair rate limiting on business operations
+//   Audit     : Logs hits to AuditService (RATE_LIMIT_EXCEEDED)
+//
+// These two layers are INTENTIONALLY using different algorithms.
+// Fixed window is appropriate at the perimeter: simpler, cheaper, Edge-safe.
+// Sliding window is appropriate per-action: fairer, more precise.
+//
+// -- X-RateLimit-Reset note --------------------------------------------------
+// Reset value is Unix epoch in MILLISECONDS (not an HTTP-date string).
+// Clients must parse it as: new Date(Number(header)).
+// This is intentionally epoch-ms (not RFC-7231 date format).
+//
+// -- Upstash env vars --------------------------------------------------------
+// UPSTASH_REDIS_REST_URL   (or KV_REST_API_URL)
+// UPSTASH_REDIS_REST_TOKEN (or KV_REST_API_TOKEN)
+// Same env vars used by src/lib/rate-limit.ts -- no extra config needed.
+// -----------------------------------------------------------------------------
 
-interface RateLimitEntry {
-  count: number;
-  resetTime: number;
-}
-
-// In-memory storage for tracking IP requests
-const rateLimitMap = new Map<string, RateLimitEntry>();
-
-// SETTINGS (adjust as needed)
 const RATE_LIMIT = {
-  MAX_REQUESTS: 30,         // Max requests allowed per window
-  WINDOW_MS: 15 * 1000,     // Time window: 15 seconds
-  CLEANUP_INTERVAL: 60000,  // Clean old entries every 60 seconds
+  MAX_REQUESTS: 30,
+  WINDOW_SECONDS: 15,
 };
 
-// Cleanup expired entries to prevent memory leak
-let lastCleanup = Date.now();
-function cleanupExpiredEntries() {
-  const now = Date.now();
-  if (now - lastCleanup < RATE_LIMIT.CLEANUP_INTERVAL) return;
-  
-  lastCleanup = now;
-  rateLimitMap.forEach((entry, ip) => {
-    if (now > entry.resetTime) {
-      rateLimitMap.delete(ip);
+const upstashUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+const isUpstashConfigured = !!upstashUrl && !!upstashToken;
+
+/**
+ * Fixed-window rate limit check via Upstash Redis REST API.
+ * Edge Runtime compatible -- no SDK dependency, plain fetch only.
+ *
+ * Window integrity: EXPIRE is set ONLY when count === 1 (first request).
+ * This prevents the window from being extended by subsequent requests.
+ *
+ * Fail-open: if Upstash is unreachable, returns allowed=true to prevent
+ * a Redis outage from taking down the entire application.
+ */
+async function checkUpstashRateLimit(
+  ip: string
+): Promise<{ allowed: boolean; remaining: number; resetIn: number } | null> {
+  if (!isUpstashConfigured) return null;
+
+  const key = `erp:ratelimit:middleware:ip:${ip}`;
+  const windowMs = RATE_LIMIT.WINDOW_SECONDS * 1000;
+
+  try {
+    // Atomic increment
+    const incrRes = await fetch(`${upstashUrl}/INCR/${key}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${upstashToken}` },
+      cache: 'no-store',
+    });
+    const { result: count } = await incrRes.json() as { result: number };
+
+    // Set TTL only on first request -- prevents window extension
+    if (count === 1) {
+      await fetch(`${upstashUrl}/EXPIRE/${key}/${RATE_LIMIT.WINDOW_SECONDS}`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${upstashToken}` },
+        cache: 'no-store',
+      });
     }
-  });
+
+    return {
+      allowed: count <= RATE_LIMIT.MAX_REQUESTS,
+      remaining: Math.max(0, RATE_LIMIT.MAX_REQUESTS - count),
+      resetIn: windowMs, // approximate -- exact TTL would need a TTL command
+    };
+  } catch {
+    // Fail-open: Redis unreachable = allow traffic, not block everything
+    console.error('[Middleware RateLimit] Upstash unreachable, failing open');
+    return { allowed: true, remaining: RATE_LIMIT.MAX_REQUESTS, resetIn: windowMs };
+  }
 }
 
-// Extract client IP from request headers (supports Vercel, Cloudflare, etc.)
+// In-memory fallback -- local development ONLY (no Upstash env configured)
+interface RateLimitEntry { count: number; resetTime: number }
+const rateLimitMap = new Map<string, RateLimitEntry>();
+let lastCleanup = Date.now();
+
+function checkInMemoryRateLimit(ip: string): { allowed: boolean; remaining: number; resetIn: number } {
+  const now = Date.now();
+  const windowMs = RATE_LIMIT.WINDOW_SECONDS * 1000;
+
+  if (now - lastCleanup > 60_000) {
+    lastCleanup = now;
+    rateLimitMap.forEach((e, k) => { if (now > e.resetTime) rateLimitMap.delete(k); });
+  }
+
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now > entry.resetTime) {
+    rateLimitMap.set(ip, { count: 1, resetTime: now + windowMs });
+    return { allowed: true, remaining: RATE_LIMIT.MAX_REQUESTS - 1, resetIn: windowMs };
+  }
+
+  entry.count += 1;
+  if (entry.count > RATE_LIMIT.MAX_REQUESTS) {
+    return { allowed: false, remaining: 0, resetIn: Math.max(0, entry.resetTime - now) };
+  }
+  return { allowed: true, remaining: RATE_LIMIT.MAX_REQUESTS - entry.count, resetIn: entry.resetTime - now };
+}
+
 function getClientIP(request: NextRequest): string {
   return (
     request.headers.get('x-real-ip') ||
@@ -48,55 +131,27 @@ function getClientIP(request: NextRequest): string {
   );
 }
 
-// Check if request is within rate limit
-function checkRateLimit(ip: string): { allowed: boolean; remaining: number; resetIn: number } {
-  const now = Date.now();
-  const entry = rateLimitMap.get(ip);
-  
-  // Case 1: New IP or window expired - reset counter
-  if (!entry || now > entry.resetTime) {
-    rateLimitMap.set(ip, {
-      count: 1,
-      resetTime: now + RATE_LIMIT.WINDOW_MS,
-    });
-    return { allowed: true, remaining: RATE_LIMIT.MAX_REQUESTS - 1, resetIn: RATE_LIMIT.WINDOW_MS };
-  }
-  
-  // Case 2: Existing IP within window - increment counter
-  entry.count += 1;
-  
-  if (entry.count > RATE_LIMIT.MAX_REQUESTS) {
-    // BLOCKED: Over limit
-    const resetIn = Math.max(0, entry.resetTime - now);
-    return { allowed: false, remaining: 0, resetIn };
-  }
-  
-  // ALLOWED: Still within limit
-  return { 
-    allowed: true, 
-    remaining: RATE_LIMIT.MAX_REQUESTS - entry.count,
-    resetIn: entry.resetTime - now 
-  };
-}
-
 // ==================== MAIN MIDDLEWARE ====================
 
-export default NextAuth(authConfig).auth((req) => {
+export default NextAuth(authConfig).auth(async (req) => {
   const request = req as unknown as NextRequest;
-  
-  // Step 1: Cleanup old entries periodically
-  cleanupExpiredEntries();
-  
-  // Step 2: Get client IP
   const clientIP = getClientIP(request);
-  
-  // Step 3: Check rate limit
-  const { allowed, remaining, resetIn } = checkRateLimit(clientIP);
-  
+
+  const rl = (await checkUpstashRateLimit(clientIP)) ?? checkInMemoryRateLimit(clientIP);
+  const { allowed, remaining, resetIn } = rl;
+  const resetInSeconds = Math.ceil(resetIn / 1000);
+
+  // X-RateLimit-Policy: lets monitoring distinguish which storage backend is active
+  const policy = isUpstashConfigured ? 'upstash-fixed-window' : 'in-memory-dev-fixed-window';
+
+  const rateLimitHeaders = {
+    'X-RateLimit-Limit': String(RATE_LIMIT.MAX_REQUESTS),
+    'X-RateLimit-Remaining': String(remaining),
+    'X-RateLimit-Reset': String(Date.now() + resetIn), // epoch-ms (not HTTP-date)
+    'X-RateLimit-Policy': policy,
+  };
+
   if (!allowed) {
-    // BLOCKED: Return 429 Too Many Requests
-    const resetInSeconds = Math.ceil(resetIn / 1000);
-    
     return new NextResponse(
       JSON.stringify({
         error: 'Too Many Requests',
@@ -108,24 +163,19 @@ export default NextAuth(authConfig).auth((req) => {
         headers: {
           'Content-Type': 'application/json',
           'Retry-After': String(resetInSeconds),
-          'X-RateLimit-Limit': String(RATE_LIMIT.MAX_REQUESTS),
+          ...rateLimitHeaders,
           'X-RateLimit-Remaining': '0',
-          'X-RateLimit-Reset': String(Math.ceil(resetIn / 1000)),
         },
       }
     );
   }
-  
-  // ALLOWED: Continue with rate limit headers
+
   const response = NextResponse.next();
-  response.headers.set('X-RateLimit-Limit', String(RATE_LIMIT.MAX_REQUESTS));
-  response.headers.set('X-RateLimit-Remaining', String(remaining));
-  
+  Object.entries(rateLimitHeaders).forEach(([k, v]) => response.headers.set(k, v));
   return response;
 });
 
 // ==================== MATCHER CONFIG ====================
-// Apply rate limiting to all routes except static files
 
 export const config = {
   matcher: [

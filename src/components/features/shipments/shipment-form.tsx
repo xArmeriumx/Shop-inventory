@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { SafeInput } from '@/components/ui/safe-input';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -127,16 +128,19 @@ export function ShipmentForm({ sales, preSelectedSaleId }: ShipmentFormProps) {
               value={recipientName}
               onChange={(e) => setRecipientName(e.target.value)}
               placeholder="ชื่อ-นามสกุลผู้รับ"
+              maxLength={200}
             />
           </div>
           <div className="space-y-2">
             <Label htmlFor="recipientPhone">เบอร์โทร</Label>
-            <Input
+            <SafeInput
               id="recipientPhone"
               name="recipientPhone"
+              numericOnly
+              maxLength={10}
               value={recipientPhone}
               onChange={(e) => setRecipientPhone(e.target.value)}
-              placeholder="08x-xxx-xxxx"
+              placeholder="เช่น 0812345678"
             />
           </div>
           <div className="space-y-2 sm:col-span-2">
@@ -147,6 +151,7 @@ export function ShipmentForm({ sales, preSelectedSaleId }: ShipmentFormProps) {
               required
               rows={3}
               placeholder="เลขที่ ถนน ตำบล อำเภอ จังหวัด รหัสไปรษณีย์"
+              maxLength={500}
             />
           </div>
         </CardContent>

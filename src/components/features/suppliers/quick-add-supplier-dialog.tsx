@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { SafeInput } from '@/components/ui/safe-input';
 import { Label } from '@/components/ui/label';
 import {
   Dialog,
@@ -118,6 +119,7 @@ export function QuickAddSupplierDialog({
               onChange={(e) => setName(e.target.value)}
               placeholder="เช่น SAGASONIC, KT Dream Power"
               autoFocus
+              maxLength={200}
             />
           </div>
 
@@ -129,15 +131,18 @@ export function QuickAddSupplierDialog({
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
                 placeholder="เช่น SUP001"
+                maxLength={50}
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="supplier-phone">เบอร์โทร</Label>
-              <Input
+              <SafeInput
                 id="supplier-phone"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
-                placeholder="0xx-xxx-xxxx"
+                placeholder="เช่น 0812345678"
+                numericOnly
+                maxLength={10}
               />
             </div>
           </div>

@@ -39,6 +39,8 @@ import type {
   SerializedSupplier,
   SerializedIncome,
   SerializedExpense,
+  InventoryHealthMetrics,
+  ReorderSuggestion,
   ShipmentStatus,
   StockAvailability,
   PurchaseType,
@@ -383,7 +385,7 @@ export interface IPurchaseService {
   approveRequest(
     prId: string,
     ctx: RequestContext,
-  ): Promise<void>;
+  ): Promise<any>;
 
   /**
    * แปลง PR → PO (ดึงข้อมูลจาก PR มาสร้าง PO อัตโนมัติ)
@@ -605,4 +607,20 @@ export interface IIamService {
   updateUserActivity(userId: string): Promise<void>;
   registerUser(data: any): Promise<any>;
   revokeSessions(targetUserId: string, ctx: RequestContext): Promise<void>;
+}
+
+// ============================================================================
+// ANALYTICS & INTELLIGENCE
+// ============================================================================
+
+export interface IInventoryAnalyticsService {
+  /**
+   * ดึงข้อมูลสุขภาพสต็อกของสินค้า (Velocity, Lead Time, ROP)
+   */
+  getProductMetrics(productId: string, ctx: RequestContext): Promise<InventoryHealthMetrics>;
+
+  /**
+   * รวมรายการสินค้าที่ควรสั่งซื้อใหม่ (Suggestions)
+   */
+  getSuggestions(ctx: RequestContext): Promise<ReorderSuggestion[]>;
 }

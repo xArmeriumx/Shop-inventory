@@ -1,10 +1,13 @@
 import { z } from 'zod';
 import { sanitizeText } from '@/lib/sanitize';
+import { normalizePhone, normalizeTaxId, normalizeEmail, normalizeWhitespace } from '@/lib/normalizers';
 
 export const supplierSchema = z.object({
   name: z.string()
     .min(1, 'กรุณากรอกชื่อผู้จำหน่าย')
     .max(200, 'ชื่อต้องไม่เกิน 200 ตัวอักษร')
+    .transform(normalizeWhitespace)
+    .transform((val) => val || '')
     .transform(sanitizeText),
   code: z.string()
     .max(50, 'รหัสต้องไม่เกิน 50 ตัวอักษร')
@@ -14,30 +17,35 @@ export const supplierSchema = z.object({
     .max(100, 'ชื่อผู้ติดต่อต้องไม่เกิน 100 ตัวอักษร')
     .optional()
     .nullable()
-    .transform((val) => val ? sanitizeText(val) : val),
-  phone: z.string()
-    .max(20, 'หมายเลขโทรศัพท์ต้องไม่เกิน 20 ตัวอักษร')
-    .optional()
-    .nullable(),
-  email: z.string()
-    .email('อีเมลไม่ถูกต้อง')
+    .transform((val) => val ? sanitizeText(normalizeWhitespace(val) || '') : val),
+  phone: z
+    .string()
     .optional()
     .nullable()
-    .or(z.literal('')),
+    .transform((val) => normalizePhone(val))
+    .refine((val) => !val || (val.length >= 9 && val.length <= 10), 'เบอร์โทรต้องมี 9-10 หลัก'),
+  email: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((val) => normalizeEmail(val))
+    .refine((val) => !val || z.string().email().safeParse(val).success, 'รูปแบบอีเมลไม่ถูกต้อง'),
   address: z.string()
     .max(500, 'ที่อยู่ต้องไม่เกิน 500 ตัวอักษร')
     .optional()
     .nullable()
-    .transform((val) => val ? sanitizeText(val) : val),
-  taxId: z.string()
-    .max(20, 'เลขผู้เสียภาษีต้องไม่เกิน 20 ตัวอักษร')
+    .transform((val) => val ? sanitizeText(normalizeWhitespace(val) || '') : val),
+  taxId: z
+    .string()
     .optional()
-    .nullable(),
+    .nullable()
+    .transform((val) => normalizeTaxId(val))
+    .refine((val) => !val || val.length === 13, 'เลขประจำตัวผู้เสียภาษีต้องมี 13 หลัก'),
   notes: z.string()
     .max(1000, 'หมายเหตุต้องไม่เกิน 1000 ตัวอักษร')
     .optional()
     .nullable()
-    .transform((val) => val ? sanitizeText(val) : val),
+    .transform((val) => val ? sanitizeText(normalizeWhitespace(val) || '') : val),
 });
 
-export type SupplierInput = z.infer<typeof supplierSchema>;
+export type SupplierInput = z.input<typeof supplierSchema>;

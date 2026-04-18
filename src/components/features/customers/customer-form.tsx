@@ -6,7 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
+import { SafeInput } from '@/components/ui/safe-input';
 import { createCustomer, updateCustomer } from '@/actions/customers';
+import { CustomerInput } from '@/schemas/customer';
 
 interface Customer {
   id: string;
@@ -53,7 +55,7 @@ export function CustomerForm({ customer }: CustomerFormProps) {
         if (typeof result.errors === 'object') {
           setErrors(result.errors as Record<string, string[]>);
         } else if (result.message) {
-           setErrors({ _form: [result.message] });
+          setErrors({ _form: [result.message] });
         }
       } else {
         router.push('/customers');
@@ -81,6 +83,7 @@ export function CustomerForm({ customer }: CustomerFormProps) {
                 defaultValue={customer?.name}
                 placeholder="ชื่อ-นามสกุล หรือชื่อบริษัท"
                 required
+                maxLength={200}
               />
               {errors.name && (
                 <p className="text-sm text-destructive">{errors.name[0]}</p>
@@ -89,11 +92,13 @@ export function CustomerForm({ customer }: CustomerFormProps) {
 
             <div className="space-y-2">
               <Label htmlFor="phone">เบอร์โทร</Label>
-              <Input
+              <SafeInput
                 id="phone"
                 name="phone"
+                numericOnly
+                maxLength={10}
                 defaultValue={customer?.phone || ''}
-                placeholder="0xx-xxx-xxxx"
+                placeholder="เช่น 0812345678"
               />
               {errors.phone && (
                 <p className="text-sm text-destructive">{errors.phone[0]}</p>
@@ -108,6 +113,7 @@ export function CustomerForm({ customer }: CustomerFormProps) {
                 type="email"
                 defaultValue={customer?.email || ''}
                 placeholder="example@email.com"
+                maxLength={254}
               />
               {errors.email && (
                 <p className="text-sm text-destructive">{errors.email[0]}</p>
@@ -116,16 +122,21 @@ export function CustomerForm({ customer }: CustomerFormProps) {
 
             <div className="space-y-2">
               <Label htmlFor="taxId">เลขประจำตัวผู้เสียภาษี</Label>
-              <Input
+              <SafeInput
                 id="taxId"
                 name="taxId"
+                numericOnly
+                maxLength={13}
                 defaultValue={customer?.taxId || ''}
                 placeholder="เลข 13 หลัก"
               />
+              {errors.taxId && (
+                <p className="text-sm text-destructive">{errors.taxId[0]}</p>
+              )}
             </div>
 
             <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="address">ที่อยู่ 
+              <Label htmlFor="address">ที่อยู่
                 <span className="text-muted-foreground text-xs font-normal ml-2">(จำเป็นสำหรับออกใบกำกับภาษี)</span>
               </Label>
               <textarea
@@ -134,6 +145,7 @@ export function CustomerForm({ customer }: CustomerFormProps) {
                 defaultValue={customer?.address || ''}
                 placeholder="ที่อยู่สำหรับจัดส่ง"
                 rows={2}
+                maxLength={500}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               />
             </div>

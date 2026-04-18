@@ -34,6 +34,17 @@ export const PURCHASE_AUDIT_POLICIES = {
     note: `เปลี่ยน PR ${prNumber} เป็น PO ${poNumber}`,
   }),
 
+  APPROVE: (prNumber: string): AuditPolicy => ({
+    action: 'PURCHASE_APPROVE',
+    targetType: 'Purchase',
+    note: `อนุมัติใบขอซื้อ ${prNumber}`,
+    afterSnapshot: (data: any) => ({
+      id: data.id,
+      purchaseNumber: data.purchaseNumber,
+      status: PurchaseStatus.APPROVED,
+    }),
+  }),
+
   RECEIVE: (purchaseNumber: string): AuditPolicy => ({
     action: 'PURCHASE_RECEIVE',
     targetType: 'Purchase',

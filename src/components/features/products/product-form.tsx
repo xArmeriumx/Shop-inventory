@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { SerializedProduct } from '@/services';
 import { Input } from '@/components/ui/input';
+import { SafeInput } from '@/components/ui/safe-input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { createProduct, updateProduct } from '@/actions/products';
@@ -63,30 +64,30 @@ export function ProductForm({ product, categories }: ProductFormProps) {
         length: parseFloat(formData.get('length') as string) || 0,
       }
     };
-    
+
     // Remove undefined keys
     if (isEdit) {
-        delete (data as any).stock;
+      delete (data as any).stock;
     }
 
     startTransition(async () => {
       const result = isEdit
-        ? await updateProduct(product.id, { 
-            ...data, 
-            version: (product as any).version 
-          })
+        ? await updateProduct(product.id, {
+          ...data,
+          version: (product as any).version
+        })
         : await createProduct(data as any);
 
       if (!result.success) {
         // Check for version conflict (optimistic locking)
         const errors = result.errors;
-        const hasVersionConflict = 
-          errors && 
-          typeof errors === 'object' && 
-          '_form' in errors && 
-          Array.isArray(errors._form) && 
+        const hasVersionConflict =
+          errors &&
+          typeof errors === 'object' &&
+          '_form' in errors &&
+          Array.isArray(errors._form) &&
           errors._form.includes(VERSION_CONFLICT_ERROR);
-        
+
         if (hasVersionConflict) {
           toast.error('ข้อมูลถูกแก้ไขโดยผู้ใช้อื่น', {
             description: 'กรุณารีเฟรชเพื่อดูข้อมูลล่าสุด',
@@ -100,7 +101,7 @@ export function ProductForm({ product, categories }: ProductFormProps) {
           });
           return;
         }
-        
+
         if (result.errors) {
           setErrors(result.errors as Record<string, string[]>);
         } else if (result.message) {
@@ -131,13 +132,19 @@ export function ProductForm({ product, categories }: ProductFormProps) {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2 sm:col-span-2">
                     <Label htmlFor="name">ชื่อสินค้า *</Label>
-                    <Input id="name" name="name" defaultValue={product?.name} placeholder="ระบุชื่อสินค้า" required />
+                    <Input id="name" name="name" defaultValue={product?.name} placeholder="ระบุชื่อสินค้า" required maxLength={200} />
                     {errors.name && <p className="text-sm text-destructive">{errors.name[0]}</p>}
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="sku">รหัสสินค้า (SKU)</Label>
-                    <Input id="sku" name="sku" defaultValue={product?.sku || ''} placeholder="SKU-001" />
+                    <SafeInput
+                      id="sku"
+                      name="sku"
+                      defaultValue={product?.sku || ''}
+                      placeholder="เช่น ITEM-001"
+                      maxLength={50}
+                    />
                     {errors.sku && <p className="text-sm text-destructive">{errors.sku[0]}</p>}
                   </div>
 
@@ -167,6 +174,7 @@ export function ProductForm({ product, categories }: ProductFormProps) {
                     defaultValue={product?.description || ''}
                     placeholder="รายละเอียดสินค้า (ไม่บังคับ)"
                     rows={4}
+                    maxLength={1000}
                     className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:ring-2 focus:ring-primary"
                   />
                 </div>
@@ -177,21 +185,21 @@ export function ProductForm({ product, categories }: ProductFormProps) {
                 {hasPermission('PRODUCT_VIEW_COST') && (
                   <div className="space-y-2">
                     <Label htmlFor="costPrice">ราคาทุน (บาท) *</Label>
-                    <Input id="costPrice" name="costPrice" type="number" step="0.01" min="0" defaultValue={product?.costPrice} required />
+                    <Input id="costPrice" name="costPrice" type="number" step="0.01" min="0" max={999999999} defaultValue={product?.costPrice} required />
                   </div>
                 )}
                 <div className="space-y-2">
                   <Label htmlFor="salePrice">ราคาขาย (บาท) *</Label>
-                  <Input id="salePrice" name="salePrice" type="number" step="0.01" min="0" defaultValue={product?.salePrice} required />
+                  <Input id="salePrice" name="salePrice" type="number" step="0.01" min="0" max={999999999} defaultValue={product?.salePrice} required />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="stock">จำนวนในสต็อก *</Label>
-                  <Input id="stock" name="stock" defaultValue={product?.stock || 0} disabled={isEdit} required />
+                  <SafeInput id="stock" name="stock" numericOnly defaultValue={product?.stock || 0} disabled={isEdit} required maxLength={10} />
                   {isEdit && <StockAdjustmentDialog productId={product.id} currentStock={product.stock} />}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="minStock">จุดแจ้งเตือน (Min Stock)</Label>
-                  <Input id="minStock" name="minStock" type="number" min="0" defaultValue={product?.minStock || 5} />
+                  <SafeInput id="minStock" name="minStock" numericOnly defaultValue={product?.minStock || 5} maxLength={10} />
                 </div>
               </div>
 
@@ -204,32 +212,32 @@ export function ProductForm({ product, categories }: ProductFormProps) {
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div className="space-y-2">
                     <Label htmlFor="moq">ยอดสั่งซื้อขั้นต่ำ (MOQ)</Label>
-                    <Input id="moq" name="moq" type="number" min="0" defaultValue={product?.moq || ''} placeholder="ระบุ MOQ ถ้ามี" />
+                    <SafeInput id="moq" name="moq" numericOnly defaultValue={product?.moq || ''} placeholder="ระบุ MOQ ถ้ามี" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="packagingQty" className="flex items-center gap-2">
                       จำนวนต่อแพ็ก/กล่อง
                       <span className="text-[10px] text-muted-foreground font-normal">(1 = ไม่มีการแพ็กพิเศษ)</span>
                     </Label>
-                    <Input id="packagingQty" name="packagingQty" type="number" min="1" defaultValue={product?.packagingQty || 1} required />
+                    <SafeInput id="packagingQty" name="packagingQty" numericOnly defaultValue={product?.packagingQty || 1} required />
                   </div>
                   <div className="flex flex-col gap-3 justify-center">
                     <div className="flex items-center space-x-2">
-                      <input 
-                        type="checkbox" 
-                        id="isActive" 
-                        checked={isActive} 
-                        onChange={(e) => setIsActive(e.target.checked)} 
+                      <input
+                        type="checkbox"
+                        id="isActive"
+                        checked={isActive}
+                        onChange={(e) => setIsActive(e.target.checked)}
                         className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
                       />
                       <Label htmlFor="isActive" className="cursor-pointer">เปิดใช้งานสินค้า (Active)</Label>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <input 
-                        type="checkbox" 
-                        id="isSaleable" 
-                        checked={isSaleable} 
-                        onChange={(e) => setIsSaleable(e.target.checked)} 
+                      <input
+                        type="checkbox"
+                        id="isSaleable"
+                        checked={isSaleable}
+                        onChange={(e) => setIsSaleable(e.target.checked)}
                         className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
                       />
                       <Label htmlFor="isSaleable" className="cursor-pointer">พร้อมขาย (Saleable)</Label>
@@ -248,7 +256,7 @@ export function ProductForm({ product, categories }: ProductFormProps) {
 
               <div className="space-y-4 p-4 rounded-lg bg-orange-50/50 border border-orange-100">
                 <h3 className="font-semibold text-orange-700 flex items-center gap-2">
-                   Logistics & Dimensions
+                  Logistics & Dimensions
                 </h3>
                 <div className="grid gap-4">
                   <div className="space-y-2">

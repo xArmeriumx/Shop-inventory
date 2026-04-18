@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { sanitizeText } from '@/lib/sanitize';
+import { normalizeSku, normalizeWhitespace } from '@/lib/normalizers';
 
 export const productSchema = z.object({
   name: z
@@ -7,19 +8,21 @@ export const productSchema = z.object({
     .min(1, 'กรุณากรอกชื่อสินค้า')
     .max(200, 'ชื่อสินค้าต้องไม่เกิน 200 ตัวอักษร')
     .trim()
+    .transform(normalizeWhitespace)
+    .transform((val) => val || '')
     .transform(sanitizeText),
   description: z
     .string()
     .max(1000, 'รายละเอียดต้องไม่เกิน 1000 ตัวอักษร')
     .optional()
     .nullable()
-    .transform((val) => val ? sanitizeText(val) : val),
+    .transform((val) => val ? sanitizeText(normalizeWhitespace(val) || '') : val),
   sku: z
     .string()
-    .max(50, 'SKU ต้องไม่เกิน 50 ตัวอักษร')
-    .regex(/^[A-Za-z0-9-_]*$/, 'SKU ต้องเป็นตัวอักษร ตัวเลข หรือ - _ เท่านั้น')
     .optional()
-    .nullable(),
+    .nullable()
+    .transform(normalizeSku)
+    .refine((val) => !val || /^[A-Z0-9_-]+$/.test(val), 'SKU ใช้ได้เฉพาะ A-Z, 0-9, _ และ -'),
   category: z.string().min(1, 'กรุณาเลือกหมวดหมู่'),
   costPrice: z
     .number({ invalid_type_error: 'กรุณากรอกราคาทุน' })
@@ -32,23 +35,23 @@ export const productSchema = z.object({
   stock: z
     .number({ invalid_type_error: 'กรุณากรอกจำนวนสต็อก' })
     .int('จำนวนต้องเป็นจำนวนเต็ม')
-    .min(0, 'จำนวนต้องไม่ติดลบ'),
+    .min(0, 'จำนวนสต็อกต้องไม่ติดลบ'),
   minStock: z
     .number()
-    .int()
-    .min(0)
+    .int('จำนวนต้องเป็นจำนวนเต็ม')
+    .min(0, 'จำนวนขั้นต่ำต้องไม่ติดลบ')
     .default(5),
   moq: z
     .number()
-    .int()
-    .min(0)
+    .int('จำนวนต้องเป็นจำนวนเต็ม')
+    .min(0, 'MOQ ต้องไม่ติดลบ')
     .optional()
     .nullable(),
   metadata: z
     .record(z.any())
     .optional()
     .nullable(),
-  images: z.array(z.string().url()).optional().default([]),
+  images: z.array(z.string().url('รูปแบบ URL รูปภาพไม่ถูกต้อง')).optional().default([]),
   isActive: z.boolean().optional().default(true),
   isSaleable: z.boolean().optional().default(true),
 });

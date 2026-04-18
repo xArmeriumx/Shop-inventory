@@ -3,6 +3,7 @@
 import { useState, useTransition, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { SafeInput } from '@/components/ui/safe-input';
 import { Label } from '@/components/ui/label';
 import {
   Dialog,
@@ -183,6 +184,7 @@ export function QuickAddProductDialog({
               onChange={(e) => setName(e.target.value)}
               placeholder="เช่น แบตเตอรี่ 12V20AH"
               autoFocus
+              maxLength={200}
             />
           </div>
 
@@ -190,11 +192,12 @@ export function QuickAddProductDialog({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="product-sku">รหัสสินค้า (SKU)</Label>
-              <Input
+              <SafeInput
                 id="product-sku"
                 value={sku}
                 onChange={(e) => setSku(e.target.value)}
                 placeholder="เช่น SA10525"
+                maxLength={50}
               />
             </div>
             <div className="space-y-2">
@@ -223,6 +226,7 @@ export function QuickAddProductDialog({
                 type="number"
                 step="0.01"
                 min="0"
+                max={999999999}
                 value={costPrice}
                 onChange={(e) => setCostPrice(e.target.value)}
                 placeholder="0.00"
@@ -235,6 +239,7 @@ export function QuickAddProductDialog({
                 type="number"
                 step="0.01"
                 min="0"
+                max={999999999}
                 value={salePrice}
                 onChange={(e) => setSalePrice(e.target.value)}
                 placeholder="0.00"

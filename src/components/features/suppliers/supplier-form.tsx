@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
+import { SafeInput } from '@/components/ui/safe-input';
 import { createSupplier, updateSupplier } from '@/actions/suppliers';
 
 interface Supplier {
@@ -56,7 +57,7 @@ export function SupplierForm({ supplier }: SupplierFormProps) {
         if (typeof result.errors === 'object') {
           setErrors(result.errors as Record<string, string[]>);
         } else if (result.message) {
-           setErrors({ _form: [result.message] });
+          setErrors({ _form: [result.message] });
         }
       } else {
         router.push('/suppliers');
@@ -84,6 +85,7 @@ export function SupplierForm({ supplier }: SupplierFormProps) {
                 defaultValue={supplier?.name}
                 placeholder="ชื่อบริษัท หรือชื่อผู้จำหน่าย"
                 required
+                maxLength={200}
               />
               {errors.name && (
                 <p className="text-sm text-destructive">{errors.name[0]}</p>
@@ -97,6 +99,7 @@ export function SupplierForm({ supplier }: SupplierFormProps) {
                 name="code"
                 defaultValue={supplier?.code || ''}
                 placeholder="SUP001"
+                maxLength={50}
               />
               {errors.code && (
                 <p className="text-sm text-destructive">{errors.code[0]}</p>
@@ -110,16 +113,19 @@ export function SupplierForm({ supplier }: SupplierFormProps) {
                 name="contactName"
                 defaultValue={supplier?.contactName || ''}
                 placeholder="ชื่อ-นามสกุล"
+                maxLength={100}
               />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="phone">เบอร์โทร</Label>
-              <Input
+              <SafeInput
                 id="phone"
                 name="phone"
+                numericOnly
+                maxLength={10}
                 defaultValue={supplier?.phone || ''}
-                placeholder="0xx-xxx-xxxx"
+                placeholder="เช่น 0812345678"
               />
               {errors.phone && (
                 <p className="text-sm text-destructive">{errors.phone[0]}</p>
@@ -134,6 +140,7 @@ export function SupplierForm({ supplier }: SupplierFormProps) {
                 type="email"
                 defaultValue={supplier?.email || ''}
                 placeholder="email@example.com"
+                maxLength={254}
               />
               {errors.email && (
                 <p className="text-sm text-destructive">{errors.email[0]}</p>
@@ -148,18 +155,24 @@ export function SupplierForm({ supplier }: SupplierFormProps) {
                 defaultValue={supplier?.address || ''}
                 placeholder="ที่อยู่บริษัท"
                 rows={2}
+                maxLength={500}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="taxId">เลขประจำตัวผู้เสียภาษี</Label>
-              <Input
+              <SafeInput
                 id="taxId"
                 name="taxId"
+                numericOnly
+                maxLength={13}
                 defaultValue={supplier?.taxId || ''}
                 placeholder="เลข 13 หลัก"
               />
+              {errors.taxId && (
+                <p className="text-sm text-destructive">{errors.taxId[0]}</p>
+              )}
             </div>
 
             <div className="space-y-2 sm:col-span-2">

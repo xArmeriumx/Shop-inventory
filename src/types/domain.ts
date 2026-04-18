@@ -327,4 +327,27 @@ export const StockMovement = {
 } as const;
 
 export type StockMovement = (typeof StockMovement)[keyof typeof StockMovement];
+
+// ============================================================================
+// ANALYTICS & REORDER DOMAIN
+// ============================================================================
+
+export interface InventoryHealthMetrics {
+  productId: string;
+  productName: string;
+  sku: string | null;
+  avgDailySales: number;     // อัตราการขายออกเฉลี่ยต่อวัน
+  avgLeadTimeDays: number;   // ระยะเวลาสั่งซื้อเฉลี่ย (วัน)
+  reorderPoint: number;      // จุดสั่งซื้อใหม่ (ADS * LT + Safety)
+  availableQty: number;      // จำนวนที่นับได้จริง (onHand - reserved)
+  incomingQty: number;       // จำนวนที่กำลังมา (Confirmed PO)
+  healthStatus: 'HEALTHY' | 'REORDER' | 'CRITICAL';
+}
+
+export interface ReorderSuggestion {
+  productId: string;
+  suggestedQty: number;
+  suggestedSupplierId?: string | null;
+  reason: string;            // เช่น "สต็อกจะหมดภายใน 3 วัน", "อิงตาม Lead Time 5 วัน"
+}
 export * from './serialized';

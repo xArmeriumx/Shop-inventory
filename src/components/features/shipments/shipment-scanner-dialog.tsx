@@ -56,11 +56,11 @@ const SCAN_PHASES = [
 
 // ── Source type icons/labels ──
 const SOURCE_TYPE_INFO: Record<string, { icon: React.ElementType; label: string; color: string }> = {
-  courier_receipt: { icon: FileText,     label: 'ใบเสร็จขนส่ง',       color: 'text-blue-600' },
-  chat_screenshot: { icon: MessageSquare, label: 'Screenshot แชท',    color: 'text-green-600' },
-  platform_ui:    { icon: Monitor,       label: 'Platform (Shopee/Lazada)', color: 'text-orange-600' },
-  shipping_label: { icon: Package,       label: 'ใบปะหน้าพัสดุ',     color: 'text-purple-600' },
-  tracking_app:   { icon: Truck,         label: 'App ติดตามพัสดุ',  color: 'text-teal-600' },
+  courier_receipt: { icon: FileText, label: 'ใบเสร็จขนส่ง', color: 'text-blue-600' },
+  chat_screenshot: { icon: MessageSquare, label: 'Screenshot แชท', color: 'text-green-600' },
+  platform_ui: { icon: Monitor, label: 'Platform (Shopee/Lazada)', color: 'text-orange-600' },
+  shipping_label: { icon: Package, label: 'ใบปะหน้าพัสดุ', color: 'text-purple-600' },
+  tracking_app: { icon: Truck, label: 'App ติดตามพัสดุ', color: 'text-teal-600' },
 };
 
 // ── Normalize AI provider output to exact form Select values ──
@@ -185,7 +185,7 @@ export function ShipmentScannerDialog({
 
     try {
       const compressed = await compressImageForOCR(file, { maxDimension: 1600, quality: 0.85 });
-      
+
       const response = await fetch('/api/ocr/scan', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -276,10 +276,10 @@ export function ShipmentScannerDialog({
           const result = await createShipment({
             saleId,
             trackingNumber: match.parcel.trackingNumber,
-            shippingProvider: match.parcel.shippingProvider || undefined,
-            shippingCost: match.parcel.shippingCost || undefined,
+            shippingProvider: match.parcel.shippingProvider || null,
+            shippingCost: match.parcel.shippingCost || null,
             recipientName: (match.parcel.recipientName || match.sale?.customerName || 'ผู้รับ') as string,
-            recipientPhone: match.parcel.recipientPhone || undefined,
+            recipientPhone: match.parcel.recipientPhone || null,
             shippingAddress:
               selectedAddresses[i] ||
               match.parcel.province ||
@@ -387,14 +387,14 @@ export function ShipmentScannerDialog({
             <div className="space-y-4">
               {previewUrl && (
                 <div className="relative rounded-lg overflow-hidden max-h-52">
-                    <Image 
-                      src={previewUrl} 
-                      alt="Preview" 
-                      className="w-full object-cover" 
-                      width={400} 
-                      height={200}
-                      unoptimized
-                    />
+                  <Image
+                    src={previewUrl}
+                    alt="Preview"
+                    className="w-full object-cover"
+                    width={400}
+                    height={200}
+                    unoptimized
+                  />
                   <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                     <div className="text-center text-white">
                       <div className="relative mb-3">
@@ -434,11 +434,11 @@ export function ShipmentScannerDialog({
 
               {/* Preview */}
               {previewUrl && (
-                <Image 
-                  src={previewUrl} 
-                  alt="Scanned" 
-                  className="w-full rounded-lg max-h-36 object-cover" 
-                  width={400} 
+                <Image
+                  src={previewUrl}
+                  alt="Scanned"
+                  className="w-full rounded-lg max-h-36 object-cover"
+                  width={400}
                   height={144}
                   unoptimized
                 />
