@@ -1,27 +1,27 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { TablePagination, type PaginationInfo } from '@/components/ui/table-pagination';
+import { EmptyState } from '@/components/ui/empty-state';
+import { GuidedErrorAlert } from '@/components/ui/guided-error-alert';
+import { CancelDialog, PURCHASE_CANCEL_REASONS } from '@/components/shared/cancel-dialog';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { getPurchaseStatusLabel } from '@/lib/erp-utils';
-import { XCircle, ChevronLeft, ChevronRight, Eye, Package, Edit, Trash2 } from 'lucide-react';
 import { cancelPurchase, convertToPurchaseOrder } from '@/actions/purchases';
-import { useState, useTransition } from 'react';
-import { CancelDialog, PURCHASE_CANCEL_REASONS } from '@/components/shared/cancel-dialog';
 import { usePermissions } from '@/hooks/use-permissions';
+import { useUrlFilters } from '@/hooks/use-url-filters';
+import { Package, Edit, Trash2, ShoppingCart } from 'lucide-react';
 import { toast } from 'sonner';
-import { GuidedErrorAlert } from '@/components/ui/guided-error-alert';
-import { ErrorAction } from '@/types/domain';
+import type { ErrorAction } from '@/types/domain';
+
+// ─── Types ──────────────────────────────────────────────────────────────────
 
 interface Purchase {
   id: string;
@@ -37,56 +37,33 @@ interface Purchase {
 
 interface PurchasesTableProps {
   purchases: Purchase[];
-  pagination: {
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-    hasNextPage: boolean;
-    hasPrevPage: boolean;
-  };
+  pagination: PaginationInfo;
 }
+
+// ─── Status helpers (SSOT) ───────────────────────────────────────────────────
+
+const PURCHASE_STATUS_VARIANT: Record<string, string> = {
+  DRAFT: 'outline',
+  PENDING: 'secondary',
+  APPROVED: 'default',
+  ORDERED: 'default',
+  RECEIVED: 'success',
+  CANCELLED: 'destructive',
+};
+
+// ─── PurchasesTable ──────────────────────────────────────────────────────────
 
 export function PurchasesTable({ purchases, pagination }: PurchasesTableProps) {
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const [isPending, startTransition] = useTransition();
-  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const { goToPage, isPending } = useUrlFilters();
+  const { hasPermission } = usePermissions();
+
   const [cancelDialogPurchase, setCancelDialogPurchase] = useState<Purchase | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorInfo, setErrorInfo] = useState<{ message: string; action?: ErrorAction } | null>(null);
-  
-  // RBAC: Check permissions for actions
-  const { hasPermission } = usePermissions();
-
-  const getStatusLabel = (status: string, docType: string) => {
-    return getPurchaseStatusLabel(status, docType as any);
-  };
-
-  const getStatusVariant = (status?: string): any => {
-    switch (status) {
-      case 'DRAFT': return 'outline';
-      case 'PENDING': return 'secondary';
-      case 'APPROVED': return 'default';
-      case 'ORDERED': return 'default';
-      case 'RECEIVED': return 'success';
-      case 'CANCELLED': return 'destructive';
-      default: return 'outline';
-    }
-  };
-
-  const handlePageChange = (newPage: number) => {
-    const params = new URLSearchParams(searchParams);
-    params.set('page', String(newPage));
-    startTransition(() => {
-      router.push(`${pathname}?${params.toString()}`);
-    });
-  };
 
   const handleConvertToPO = async (id: string, number: string) => {
     if (!confirm(`ต้องการแปลงใบขอซื้อ ${number} เป็นใบสั่งซื้อ (PO) ใช่หรือไม่?`)) return;
-    
     setIsProcessing(true);
     try {
       const result = await convertToPurchaseOrder(id);
@@ -95,9 +72,8 @@ export function PurchasesTable({ purchases, pagination }: PurchasesTableProps) {
         setErrorInfo(null);
         router.refresh();
       } else {
-        const fallbackMsg = result.message || 'ไม่สามารถแปลงเอกสารได้';
-        setErrorInfo({ message: fallbackMsg, action: result.action });
-        toast.error(fallbackMsg);
+        setErrorInfo({ message: result.message || 'ไม่สามารถแปลงเอกสารได้', action: result.action });
+        toast.error(result.message || 'ไม่สามารถแปลงเอกสารได้');
       }
     } catch {
       toast.error('เกิดข้อผิดพลาดในการแปลงเอกสาร');
@@ -108,50 +84,33 @@ export function PurchasesTable({ purchases, pagination }: PurchasesTableProps) {
 
   const handleCancelConfirm = async (reasonCode: string, reasonDetail?: string) => {
     if (!cancelDialogPurchase) return;
-    
     setIsProcessing(true);
-    setCancellingId(cancelDialogPurchase.id);
     try {
-      const result = await cancelPurchase({
-        id: cancelDialogPurchase.id,
-        reasonCode,
-        reasonDetail,
-      });
-      if (!result.success) {
-        toast.error(result.message || 'ไม่สามารถยกเลิกรายการได้');
-      } else {
-        toast.success(result.message || 'ยกเลิกรายการสำเร็จ');
-        setCancelDialogPurchase(null);
-      }
+      const result = await cancelPurchase({ id: cancelDialogPurchase.id, reasonCode, reasonDetail });
+      if (!result.success) toast.error(result.message || 'ไม่สามารถยกเลิกรายการได้');
+      else { toast.success(result.message || 'ยกเลิกรายการสำเร็จ'); setCancelDialogPurchase(null); }
       router.refresh();
     } catch {
       toast.error('เกิดข้อผิดพลาด');
     } finally {
       setIsProcessing(false);
-      setCancellingId(null);
     }
   };
 
   if (purchases.length === 0) {
     return (
-      <div className="rounded-lg border bg-card p-8 text-center">
-        <p className="text-muted-foreground">ไม่พบรายการซื้อ</p>
-        <Button asChild className="mt-4">
-          <Link href="/purchases/new">บันทึกการซื้อใหม่</Link>
-        </Button>
-      </div>
+      <EmptyState
+        icon={<ShoppingCart className="h-12 w-12" />}
+        title="ไม่พบรายการซื้อ"
+        action={<Button asChild><Link href="/purchases/new">บันทึกการซื้อใหม่</Link></Button>}
+      />
     );
   }
 
   return (
     <div className="space-y-4">
-      {errorInfo && (
-        <GuidedErrorAlert 
-          message={errorInfo.message} 
-          action={errorInfo.action} 
-          className="mb-4"
-        />
-      )}
+      {errorInfo && <GuidedErrorAlert message={errorInfo.message} action={errorInfo.action} />}
+
       <div className="rounded-lg border bg-card overflow-hidden">
         <div className="overflow-x-auto">
           <Table>
@@ -160,11 +119,11 @@ export function PurchasesTable({ purchases, pagination }: PurchasesTableProps) {
                 <TableHead>วันที่</TableHead>
                 <TableHead>เลขที่เอกสาร</TableHead>
                 <TableHead>ประเภท</TableHead>
-                <TableHead>ผู้ผลิต/จำหน่าย</TableHead>
+                <TableHead>ผู้จำหน่าย</TableHead>
                 <TableHead>หมายเหตุ</TableHead>
                 <TableHead className="text-right">ยอดรวม</TableHead>
                 <TableHead className="text-right">สถานะ</TableHead>
-                <TableHead className="w-[100px]"></TableHead>
+                <TableHead className="w-[100px]" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -174,9 +133,9 @@ export function PurchasesTable({ purchases, pagination }: PurchasesTableProps) {
                     {new Date(purchase.date).toLocaleDateString('th-TH')}
                   </TableCell>
                   <TableCell>
-                    <div className="font-mono text-sm font-semibold">
+                    <span className="font-mono text-sm font-semibold">
                       {purchase.purchaseNumber || 'N/A'}
-                    </div>
+                    </span>
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col gap-1">
@@ -196,35 +155,24 @@ export function PurchasesTable({ purchases, pagination }: PurchasesTableProps) {
                     {formatCurrency(purchase.totalCost.toString())}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Badge variant={getStatusVariant(purchase.status)}>
-                      {getStatusLabel(purchase.status, purchase.docType)}
+                    <Badge variant={PURCHASE_STATUS_VARIANT[purchase.status] as any}>
+                      {getPurchaseStatusLabel(purchase.status, purchase.docType)}
                     </Badge>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center justify-end gap-1">
                       {purchase.docType === 'REQUEST' && purchase.status === 'APPROVED' && (
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10" 
-                          title="Convert to PO"
-                          onClick={() => handleConvertToPO(purchase.id, purchase.purchaseNumber)}
-                        >
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" title="Convert to PO"
+                          onClick={() => handleConvertToPO(purchase.id, purchase.purchaseNumber)}>
                           <Package className="h-4 w-4" />
                         </Button>
                       )}
                       <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
-                        <Link href={`/purchases/${purchase.id}`}>
-                          <Edit className="h-4 w-4" />
-                        </Link>
+                        <Link href={`/purchases/${purchase.id}`}><Edit className="h-4 w-4" /></Link>
                       </Button>
                       {purchase.status !== 'CANCELLED' && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => setCancelDialogPurchase(purchase)}
-                        >
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                          onClick={() => setCancelDialogPurchase(purchase)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       )}
@@ -237,36 +185,8 @@ export function PurchasesTable({ purchases, pagination }: PurchasesTableProps) {
         </div>
       </div>
 
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          แสดง {((pagination.page - 1) * pagination.limit) + 1} -{' '}
-          {Math.min(pagination.page * pagination.limit, pagination.total)} จาก{' '}
-          {pagination.total} รายการ
-        </p>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handlePageChange(pagination.page - 1)}
-            disabled={!pagination.hasPrevPage || isPending}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <span className="text-sm">
-            หน้า {pagination.page} / {pagination.totalPages}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handlePageChange(pagination.page + 1)}
-            disabled={!pagination.hasNextPage || isPending}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+      <TablePagination pagination={pagination} onPageChange={goToPage} isPending={isPending} />
 
-      {/* Cancel Dialog */}
       <CancelDialog
         isOpen={!!cancelDialogPurchase}
         onClose={() => setCancelDialogPurchase(null)}

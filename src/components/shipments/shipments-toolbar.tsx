@@ -1,21 +1,16 @@
 'use client';
 
-import { useRef, useState, useEffect } from 'react';
-import { useRouter, usePathname, useSearchParams } from 'next/navigation';
+import { useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Search, X, Plus, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { Guard } from '@/components/auth/guard';
 import { ShipmentScannerDialog } from './shipment-scanner-dialog';
 import { getSalesWithoutShipment } from '@/actions/shipments';
+import { useUrlFilters } from '@/hooks/use-url-filters';
 
 interface ShipmentsToolbarProps {
   defaultSearch?: string;
@@ -24,8 +19,7 @@ interface ShipmentsToolbarProps {
 
 export function ShipmentsToolbar({ defaultSearch, defaultStatus }: ShipmentsToolbarProps) {
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+  const { updateFilters, clearFilters } = useUrlFilters();
   const searchTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const [scanOpen, setScanOpen] = useState(false);
@@ -33,37 +27,17 @@ export function ShipmentsToolbar({ defaultSearch, defaultStatus }: ShipmentsTool
     { id: string; invoiceNumber: string; customerName: string | null; totalAmount: number }[]
   >([]);
 
-  // Pre-load available sales when dialog is opened
   const handleOpenScan = async () => {
     try {
       const sales = await getSalesWithoutShipment();
-      setAvailableSales(
-        sales.map((s) => ({
-          id: s.id,
-          invoiceNumber: s.invoiceNumber,
-          customerName: s.customer?.name || s.customerName || null,
-          totalAmount: s.totalAmount,
-        })),
-      );
-    } catch {
-      setAvailableSales([]);
-    }
+      setAvailableSales(sales.map((s) => ({
+        id: s.id,
+        invoiceNumber: s.invoiceNumber,
+        customerName: s.customer?.name || s.customerName || null,
+        totalAmount: s.totalAmount,
+      })));
+    } catch { setAvailableSales([]); }
     setScanOpen(true);
-  };
-
-  const updateFilter = (key: string, value: string | null) => {
-    const params = new URLSearchParams(searchParams.toString());
-    if (value) {
-      params.set(key, value);
-    } else {
-      params.delete(key);
-    }
-    params.delete('page');
-    router.push(`${pathname}?${params.toString()}`);
-  };
-
-  const clearFilters = () => {
-    router.push(pathname);
   };
 
   const hasFilters = defaultSearch || defaultStatus;
@@ -82,7 +56,7 @@ export function ShipmentsToolbar({ defaultSearch, defaultStatus }: ShipmentsTool
               onChange={(e) => {
                 const value = e.target.value;
                 if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
-                searchTimerRef.current = setTimeout(() => updateFilter('search', value || null), 500);
+                searchTimerRef.current = setTimeout(() => updateFilters({ search: value }), 500);
               }}
             />
           </div>
@@ -90,7 +64,7 @@ export function ShipmentsToolbar({ defaultSearch, defaultStatus }: ShipmentsTool
           {/* Status filter */}
           <Select
             defaultValue={defaultStatus || 'all'}
-            onValueChange={(value) => updateFilter('status', value === 'all' ? null : value)}
+            onValueChange={(value) => updateFilters({ status: value === 'all' ? '' : value })}
           >
             <SelectTrigger className="w-[160px]">
               <SelectValue placeholder="สถานะ" />
@@ -105,11 +79,9 @@ export function ShipmentsToolbar({ defaultSearch, defaultStatus }: ShipmentsTool
             </SelectContent>
           </Select>
 
-          {/* Clear */}
           {hasFilters && (
             <Button variant="ghost" size="sm" onClick={clearFilters}>
-              <X className="h-4 w-4 mr-1" />
-              ล้าง
+              <X className="h-4 w-4 mr-1" />ล้าง
             </Button>
           )}
         </div>

@@ -1,34 +1,14 @@
 'use client';
 
-import { Badge } from '@/components/ui/badge';
+import { StatusBadge, type StatusConfig } from '@/components/ui/status-badge';
 
-const STATUS_CONFIG: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; className?: string }> = {
-  PENDING: {
-    label: 'รอตรวจสอบ',
-    variant: 'outline',
-    className: 'border-yellow-500 text-yellow-600 bg-yellow-50',
-  },
-  VERIFIED: {
-    label: 'ยืนยันแล้ว',
-    variant: 'default',
-    className: 'bg-green-500 hover:bg-green-600',
-  },
-  REJECTED: {
-    label: 'ปฏิเสธ',
-    variant: 'destructive',
-  },
+// Status config is the single source of truth for payment status display
+const PAYMENT_STATUS_CONFIG: Record<string, StatusConfig> = {
+  PENDING: { label: 'รอตรวจสอบ', variant: 'outline', className: 'border-yellow-500 text-yellow-600 bg-yellow-50' },
+  VERIFIED: { label: 'ยืนยันแล้ว', variant: 'default', className: 'bg-green-500 hover:bg-green-600' },
+  REJECTED: { label: 'ปฏิเสธ', variant: 'destructive' },
 };
 
-interface PaymentStatusBadgeProps {
-  status: string;
-}
-
-export function PaymentStatusBadge({ status }: PaymentStatusBadgeProps) {
-  const config = STATUS_CONFIG[status] || STATUS_CONFIG.PENDING;
-
-  return (
-    <Badge variant={config.variant} className={config.className}>
-      {config.label}
-    </Badge>
-  );
+export function PaymentStatusBadge({ status }: { status: string }) {
+  return <StatusBadge status={status} config={PAYMENT_STATUS_CONFIG} />;
 }
