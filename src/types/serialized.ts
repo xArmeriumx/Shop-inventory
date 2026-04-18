@@ -1,4 +1,4 @@
-import type { Product, Sale, SaleItem, Purchase, PurchaseItem, Expense, Customer, Supplier } from '@prisma/client';
+import type { Product, Sale, SaleItem, Purchase, PurchaseItem, Expense, Income, Customer, Supplier } from '@prisma/client';
 
 // ============================================================================
 // Serialized Types
@@ -64,6 +64,13 @@ export type SerializedExpense = Omit<Expense, 'amount'> & {
 };
 
 /**
+ * Income with Decimal field converted to number
+ */
+export type SerializedIncome = Omit<Income, 'amount'> & {
+  amount: number;
+};
+
+/**
  * Customer with Decimal fields converted to number
  */
 export type SerializedCustomer = Omit<Customer, 'creditLimit'> & {
@@ -86,6 +93,15 @@ export type SerializedSupplier = Omit<Supplier, 'moq'> & {
 // ============================================================================
 // Extended Types (with relations)
 // ============================================================================
+
+/**
+ * SerializedSale with basic customer info for list views
+ */
+export type SerializedSaleListItem = SerializedSale & {
+  customer: {
+    name: string;
+  } | null;
+};
 
 /**
  * SerializedSale with items included

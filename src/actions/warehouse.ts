@@ -12,14 +12,14 @@ import { ServiceError } from '@/types/domain';
  */
 export async function quickSearchProduct(query: string) {
   const ctx = await requireShop();
-  
+
   // ค้นหาแบบเป๊ะๆ ด้วย SKU ก่อน (โหมดเครื่องยิง Barcode)
   const exactMatch = await db.product.findFirst({
-    where: { 
-      shopId: ctx.shopId, 
+    where: {
+      shopId: ctx.shopId,
       sku: query,
       isActive: true,
-      deletedAt: null 
+      deletedAt: null
     },
     include: { categoryRef: true }
   });
@@ -42,7 +42,7 @@ export async function quickSearchProduct(query: string) {
  */
 export async function quickAdjustStock(productId: string, type: 'ADD' | 'REMOVE' | 'SET', quantity: number, note: string) {
   const ctx = await requirePermission('STOCK_ADJUST');
-  const result = await ProductService.adjustStockManual(productId, { type, quantity, note }, ctx);
+  const result = await ProductService.adjustStockManual(productId, { type, quantity, description: note }, ctx);
   revalidatePath('/warehouse');
   revalidatePath('/dashboard');
   return result;
@@ -54,12 +54,12 @@ export async function quickAdjustStock(productId: string, type: 'ADD' | 'REMOVE'
 export async function getPendingDeliveries() {
   const ctx = await requireShop();
   const purchases = await db.purchase.findMany({
-    where: { 
-      shopId: ctx.shopId, 
+    where: {
+      shopId: ctx.shopId,
       status: 'ORDERED',
       docType: 'ORDER'
     },
-    include: { 
+    include: {
       supplier: { select: { name: true } },
       items: {
         include: { product: { select: { name: true, sku: true } } }

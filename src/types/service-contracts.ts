@@ -27,14 +27,18 @@ import type {
   GetPurchasesParams,
   GetCustomersParams,
   GetIncompletePurchasesParams,
+  GetFinanceParams,
   PaginatedResult,
   SerializedProduct,
   SerializedSale,
+  SerializedSaleWithItems,
+  SerializedSaleListItem,
   SerializedPurchase,
   SerializedPurchaseWithItems,
-  SerializedSaleWithItems,
   SerializedCustomer,
   SerializedSupplier,
+  SerializedIncome,
+  SerializedExpense,
   ShipmentStatus,
   StockAvailability,
   PurchaseType,
@@ -43,6 +47,10 @@ import type {
   Region,
   SequenceConfig,
 } from './domain';
+
+import type { IncomeInput } from '@/schemas/income';
+import type { ExpenseInput } from '@/schemas/expense';
+import type { SaleInput } from '@/schemas/sale';
 
 // ============================================================================
 // PRODUCT SERVICE
@@ -54,11 +62,11 @@ export interface IProductService {
   getById(id: string, ctx: RequestContext): Promise<SerializedProduct>;
   getList(params: GetProductsParams, ctx: RequestContext): Promise<PaginatedResult<SerializedProduct>>;
   delete(id: string, ctx: RequestContext): Promise<void>;
-  getForSelect(ctx: RequestContext): Promise<any[]>;
-  getForPurchase(ctx: RequestContext): Promise<any[]>;
-  getLowStock(limit: number, ctx: RequestContext): Promise<any[]>;
+  getForSelect(ctx: RequestContext): Promise<Array<{ id: string; name: string; sku: string | null }>>;
+  getForPurchase(ctx: RequestContext): Promise<Array<{ id: string; name: string; sku: string | null; costPrice: number }>>;
+  getLowStock(limit: number, ctx: RequestContext): Promise<SerializedProduct[]>;
   getLowStockPaginated(params: GetProductsParams, ctx: RequestContext): Promise<PaginatedResult<SerializedProduct>>;
-  adjustStockManual(productId: string, input: any, ctx: RequestContext): Promise<void>;
+  adjustStockManual(productId: string, input: { quantity: number; description: string; type: string }, ctx: RequestContext): Promise<void>;
   batchCreate(inputs: BatchProductInput[], ctx: RequestContext): Promise<BatchCreateResult>;
   getAvailability(productId: string, ctx: RequestContext): Promise<StockAvailability>;
 }
@@ -74,7 +82,7 @@ export interface ICustomerService {
   getById(id: string, ctx: RequestContext): Promise<SerializedCustomer>;
   getList(params: GetCustomersParams, ctx: RequestContext): Promise<PaginatedResult<SerializedCustomer>>;
   delete(id: string, ctx: RequestContext): Promise<void>;
-  
+
   // UI Support & CRM Intelligence
   getForSelect(ctx: RequestContext): Promise<any[]>;
   getProfile(id: string, ctx: RequestContext): Promise<any>;
@@ -113,7 +121,7 @@ export interface ISupplierService {
   getById(id: string, ctx: RequestContext): Promise<SerializedSupplier>;
   getList(params: any, ctx: RequestContext): Promise<PaginatedResult<SerializedSupplier>>;
   delete(id: string, ctx: RequestContext): Promise<void>;
-  
+
   // UI Support
   getForSelect(ctx: RequestContext): Promise<any[]>;
   getProfile(id: string, ctx: RequestContext): Promise<any>;
@@ -279,17 +287,21 @@ export interface IStockService {
  */
 export interface ISaleService {
   // Existing CRUD & Utils
-  getList(params: GetSalesParams, ctx: RequestContext, options?: { canViewProfit?: boolean }): Promise<PaginatedResult<any>>;
+  getList(params: GetSalesParams, ctx: RequestContext, options?: { canViewProfit?: boolean }): Promise<PaginatedResult<SerializedSaleListItem>>;
   getById(id: string, ctx: RequestContext, options?: { canViewProfit?: boolean }): Promise<SerializedSaleWithItems>;
-  create(ctx: RequestContext, payload: any): Promise<SerializedSale>;
+  create(ctx: RequestContext, payload: SaleInput): Promise<SerializedSale>;
   update(id: string, ctx: RequestContext, payload: any): Promise<SerializedSale>;
   delete(id: string, ctx: RequestContext): Promise<void>;
   cancel(input: any, ctx: RequestContext): Promise<void>;
-  
+
   // Aggregates & Dashboard
-  getTodayAggregate(ctx: RequestContext, options?: { canViewProfit?: boolean }): Promise<any>;
-  getRecentList(limit: number, ctx: RequestContext, options?: { canViewProfit?: boolean }): Promise<any[]>;
-  
+  getTodayAggregate(ctx: RequestContext, options?: { canViewProfit?: boolean }): Promise<{
+    totalSales: number;
+    saleCount: number;
+    profit?: number;
+  }>;
+  getRecentList(limit: number, ctx: RequestContext, options?: { canViewProfit?: boolean }): Promise<SerializedSale[]>;
+
   // Payment Workflow
   verifyPayment(id: string, status: 'VERIFIED' | 'REJECTED', note: string | undefined, ctx: RequestContext): Promise<void>;
   uploadPaymentProof(id: string, proofUrl: string, ctx: RequestContext): Promise<void>;
@@ -419,7 +431,7 @@ export interface IPurchaseService {
    * ดึงข้อมูลเงื่อนไขการสั่งซื้อจากผู้จำหน่าย (MOQ, Note)
    */
   getSupplierPurchaseInfo(
-    supplierId: string, 
+    supplierId: string,
     ctx: RequestContext
   ): Promise<{ purchaseNote: string | null; moq: number | null }>;
 
@@ -427,7 +439,7 @@ export interface IPurchaseService {
    * ดึงรายการ PR ที่ข้อมูลไม่ครบ (Logistics Gaps)
    */
   getIncompleteRequests(
-    params: GetIncompletePurchasesParams, 
+    params: GetIncompletePurchasesParams,
     ctx: RequestContext
   ): Promise<any>;
 
@@ -435,8 +447,8 @@ export interface IPurchaseService {
    * มอบหมายผู้ขายแบบกลุ่ม (Admin Tool)
    */
   quickAssignSupplier(
-    ids: string[], 
-    supplierId: string, 
+    ids: string[],
+    supplierId: string,
     ctx: RequestContext
   ): Promise<{ success: boolean; count: number }>;
 
@@ -444,7 +456,7 @@ export interface IPurchaseService {
    * สร้างใบขอซื้อแบบกลุ่ม (Bulk PR Generation)
    */
   createBulkDraftPRs(
-    entries: Array<{ productId: string, quantity: number, supplierId?: string }>, 
+    entries: Array<{ productId: string, quantity: number, supplierId?: string }>,
     ctx: RequestContext
   ): Promise<{ success: boolean; createdCount: number }>;
 }
@@ -478,7 +490,7 @@ export interface IShippingService {
   updateStatus(payload: any, ctx: RequestContext): Promise<any>;
   delete(id: string, ctx: RequestContext): Promise<void>;
   cancel(id: string, reason: string | undefined, ctx: RequestContext): Promise<any>;
-  
+
   // Logistics Logic
   getStats(ctx: RequestContext): Promise<any>;
   matchParcelsToSales(parcels: any[], ctx: RequestContext): Promise<any[]>;
@@ -537,20 +549,20 @@ export interface IShippingService {
  */
 export interface IFinanceService {
   // --- QUERIES ---
-  getIncomes(params: any, ctx: RequestContext): Promise<PaginatedResult<any>>;
-  getIncomeById(id: string, ctx: RequestContext): Promise<any>;
+  getIncomes(params: GetFinanceParams, ctx: RequestContext): Promise<PaginatedResult<SerializedIncome>>;
+  getIncomeById(id: string, ctx: RequestContext): Promise<SerializedIncome>;
   getMonthlyIncomes(ctx: RequestContext): Promise<{ total: number; count: number }>;
-  getExpenses(params: any, ctx: RequestContext): Promise<PaginatedResult<any>>;
-  getExpenseById(id: string, ctx: RequestContext): Promise<any>;
+  getExpenses(params: GetFinanceParams, ctx: RequestContext): Promise<PaginatedResult<SerializedExpense>>;
+  getExpenseById(id: string, ctx: RequestContext): Promise<SerializedExpense>;
   getMonthlyExpenses(ctx: RequestContext): Promise<{ total: number; count: number }>;
   generateTaxReport(params: { startDate: string; endDate: string }, ctx: RequestContext): Promise<any>;
 
   // --- COMMANDS ---
-  createIncome(data: any, ctx: RequestContext): Promise<any>;
-  updateIncome(id: string, data: any, ctx: RequestContext): Promise<any>;
+  createIncome(data: IncomeInput, ctx: RequestContext): Promise<SerializedIncome>;
+  updateIncome(id: string, data: IncomeInput, ctx: RequestContext): Promise<SerializedIncome>;
   deleteIncome(id: string, ctx: RequestContext): Promise<void>;
-  createExpense(data: any, ctx: RequestContext): Promise<any>;
-  updateExpense(id: string, data: any, ctx: RequestContext): Promise<any>;
+  createExpense(data: ExpenseInput, ctx: RequestContext): Promise<SerializedExpense>;
+  updateExpense(id: string, data: ExpenseInput, ctx: RequestContext): Promise<SerializedExpense>;
   deleteExpense(id: string, ctx: RequestContext): Promise<void>;
   markAsBilled(saleId: string, ctx: RequestContext): Promise<void>;
 }

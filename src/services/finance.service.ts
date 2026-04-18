@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { RequestContext, ServiceError } from '@/types/domain';
+import { RequestContext, ServiceError, PaginatedResult, GetFinanceParams, SerializedIncome, SerializedExpense } from '@/types/domain';
 import { AuditService } from './audit.service';
 import { FINANCE_AUDIT_POLICIES } from './finance.policy';
 import { IncomeInput } from '@/schemas/income';
@@ -7,23 +7,13 @@ import { ExpenseInput } from '@/schemas/expense';
 import { paginatedQuery, buildSearchFilter, buildDateRangeFilter } from '@/lib/pagination';
 import { toNumber } from '@/lib/money';
 
-export interface GetFinanceParams {
-  page?: number;
-  limit?: number;
-  search?: string;
-  category?: string;
-  startDate?: string;
-  endDate?: string;
-}
-
 import { IFinanceService } from '@/types/service-contracts';
-import { PaginatedResult } from '@/types/domain';
 
 export const FinanceService: IFinanceService = {
   // ============================================================================
   // INCOMES
   // ============================================================================
-  async getIncomes(params: GetFinanceParams = {}, ctx: RequestContext) {
+  async getIncomes(params: GetFinanceParams, ctx: RequestContext): Promise<PaginatedResult<SerializedIncome>> {
     const { page = 1, limit = 20, search, category, startDate, endDate } = params;
     const searchFilter = buildSearchFilter(search, ['description']);
     const dateFilter = buildDateRangeFilter(startDate, endDate);
@@ -36,7 +26,7 @@ export const FinanceService: IFinanceService = {
       ...(dateFilter && { date: dateFilter }),
     };
 
-    const result = await paginatedQuery(db.income as any, {
+    const result = await paginatedQuery(db.income, {
       where,
       page,
       limit,
@@ -45,29 +35,32 @@ export const FinanceService: IFinanceService = {
 
     return {
       ...result,
-      data: result.data.map((income: any) => ({
-        ...income,
+      data: result.data.map((income) => ({
+        ...(income as any),
         amount: toNumber(income.amount),
       })),
     };
   },
 
-  async getIncomeById(id: string, ctx: RequestContext) {
-    const income = await (db as any).income.findFirst({
+  async getIncomeById(id: string, ctx: RequestContext): Promise<SerializedIncome> {
+    const income = await db.income.findFirst({
       where: { id, shopId: ctx.shopId, deletedAt: null },
     });
 
     if (!income) throw new ServiceError('ไม่พบข้อมูลรายรับ');
 
-    return { ...income, amount: toNumber(income.amount) };
+    return {
+      ...(income as any),
+      amount: toNumber(income.amount)
+    } as SerializedIncome;
   },
 
-  async createIncome(data: IncomeInput, ctx: RequestContext): Promise<any> {
-    return AuditService.runWithAudit(
+  async createIncome(data: IncomeInput, ctx: RequestContext): Promise<SerializedIncome> {
+    const income = await AuditService.runWithAudit(
       ctx,
       FINANCE_AUDIT_POLICIES.INCOME_CREATE(data.description || ''),
       async () => {
-        return (db as any).income.create({
+        return db.income.create({
           data: {
             ...data,
             userId: ctx.userId,
@@ -76,33 +69,43 @@ export const FinanceService: IFinanceService = {
         });
       }
     );
+
+    return {
+      ...(income as any),
+      amount: toNumber(income.amount)
+    } as SerializedIncome;
   },
 
-  async updateIncome(id: string, data: IncomeInput, ctx: RequestContext): Promise<any> {
-    const existing = await (db as any).income.findFirst({
+  async updateIncome(id: string, data: IncomeInput, ctx: RequestContext): Promise<SerializedIncome> {
+    const existing = await db.income.findFirst({
       where: { id, shopId: ctx.shopId, deletedAt: null },
     });
 
     if (!existing) throw new ServiceError('ไม่พบข้อมูลรายรับ');
 
-    return AuditService.runWithAudit(
+    const updated = await AuditService.runWithAudit(
       ctx,
       {
         ...FINANCE_AUDIT_POLICIES.INCOME_UPDATE(id, existing.description || ''),
         beforeSnapshot: () => existing,
-        afterSnapshot: () => (db as any).income.findFirst({ where: { id } }),
+        afterSnapshot: () => db.income.findFirst({ where: { id } }),
       },
       async () => {
-        return (db as any).income.update({
+        return db.income.update({
           where: { id },
           data,
         });
       }
     );
+
+    return {
+      ...(updated as any),
+      amount: toNumber(updated.amount)
+    } as SerializedIncome;
   },
 
   async deleteIncome(id: string, ctx: RequestContext): Promise<void> {
-    const existing = await (db as any).income.findFirst({
+    const existing = await db.income.findFirst({
       where: { id, shopId: ctx.shopId, deletedAt: null },
     });
 
@@ -115,7 +118,7 @@ export const FinanceService: IFinanceService = {
         beforeSnapshot: () => existing,
       },
       async () => {
-        await (db as any).income.update({
+        await db.income.update({
           where: { id },
           data: { deletedAt: new Date() },
         });
@@ -128,7 +131,7 @@ export const FinanceService: IFinanceService = {
     const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const firstDayOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
-    const result = await (db as any).income.aggregate({
+    const result = await db.income.aggregate({
       where: {
         shopId: ctx.shopId,
         deletedAt: null,
@@ -147,7 +150,7 @@ export const FinanceService: IFinanceService = {
   // ============================================================================
   // EXPENSES
   // ============================================================================
-  async getExpenses(params: GetFinanceParams = {}, ctx: RequestContext) {
+  async getExpenses(params: GetFinanceParams, ctx: RequestContext): Promise<PaginatedResult<SerializedExpense>> {
     const { page = 1, limit = 20, search, category, startDate, endDate } = params;
     const searchFilter = buildSearchFilter(search, ['description']);
     const dateFilter = buildDateRangeFilter(startDate, endDate);
@@ -169,25 +172,28 @@ export const FinanceService: IFinanceService = {
 
     return {
       ...result,
-      data: result.data.map((expense: any) => ({
-        ...expense,
+      data: result.data.map((expense) => ({
+        ...(expense as any),
         amount: toNumber(expense.amount),
       })),
     };
   },
 
-  async getExpenseById(id: string, ctx: RequestContext) {
+  async getExpenseById(id: string, ctx: RequestContext): Promise<SerializedExpense> {
     const expense = await db.expense.findFirst({
       where: { id, shopId: ctx.shopId, deletedAt: null },
     });
 
     if (!expense) throw new ServiceError('ไม่พบข้อมูลค่าใช้จ่าย');
 
-    return { ...expense, amount: toNumber(expense.amount) };
+    return {
+      ...(expense as any),
+      amount: toNumber(expense.amount)
+    } as SerializedExpense;
   },
 
-  async createExpense(data: ExpenseInput, ctx: RequestContext): Promise<any> {
-    return AuditService.runWithAudit(
+  async createExpense(data: ExpenseInput, ctx: RequestContext): Promise<SerializedExpense> {
+    const expense = await AuditService.runWithAudit(
       ctx,
       FINANCE_AUDIT_POLICIES.EXPENSE_CREATE(data.description || ''),
       async () => {
@@ -200,16 +206,21 @@ export const FinanceService: IFinanceService = {
         });
       }
     );
+
+    return {
+      ...(expense as any),
+      amount: toNumber(expense.amount)
+    } as SerializedExpense;
   },
 
-  async updateExpense(id: string, data: ExpenseInput, ctx: RequestContext): Promise<any> {
+  async updateExpense(id: string, data: ExpenseInput, ctx: RequestContext): Promise<SerializedExpense> {
     const existing = await db.expense.findFirst({
       where: { id, shopId: ctx.shopId, deletedAt: null },
     });
 
     if (!existing) throw new ServiceError('ไม่พบข้อมูลค่าใช้จ่าย');
 
-    return AuditService.runWithAudit(
+    const updated = await AuditService.runWithAudit(
       ctx,
       {
         ...FINANCE_AUDIT_POLICIES.EXPENSE_UPDATE(id, existing.description || ''),
@@ -223,6 +234,11 @@ export const FinanceService: IFinanceService = {
         });
       }
     );
+
+    return {
+      ...(updated as any),
+      amount: toNumber(updated.amount)
+    } as SerializedExpense;
   },
 
   async deleteExpense(id: string, ctx: RequestContext): Promise<void> {
@@ -278,7 +294,7 @@ export const FinanceService: IFinanceService = {
     });
 
     if (!sale) throw new ServiceError('ไม่พบรายการขาย');
-    
+
     // ERP Rule: Prevent duplicate billing
     if (sale.billingStatus === 'BILLED' || sale.billingStatus === 'PAID') {
       throw new ServiceError(`รายการนี้ถูกวางบิลไปแล้ว (สถานะ: ${sale.billingStatus})`);
@@ -300,15 +316,15 @@ export const FinanceService: IFinanceService = {
     const dateFilter = buildDateRangeFilter(params.startDate, params.endDate);
 
     const sales = await db.sale.findMany({
-      where: { 
-        shopId: ctx.shopId, 
+      where: {
+        shopId: ctx.shopId,
         date: dateFilter,
         status: { not: 'CANCELLED' }
       },
-      select: { 
-        invoiceNumber: true, 
-        netAmount: true, 
-        discountAmount: true, 
+      select: {
+        invoiceNumber: true,
+        netAmount: true,
+        discountAmount: true,
         totalAmount: true,
         date: true
       }

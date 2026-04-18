@@ -138,20 +138,26 @@ export interface GetSalesParams extends BaseQueryParams {
 }
 
 export const BookingStatus = {
-  NONE:     'NONE',
+  NONE: 'NONE',
   RESERVED: 'RESERVED',
   DEDUCTED: 'DEDUCTED',
 } as const;
 
 export type BookingStatus = (typeof BookingStatus)[keyof typeof BookingStatus];
 
+export interface AdjustStockInput {
+  type: 'ADD' | 'REMOVE' | 'SET';
+  quantity: number;
+  description: string;
+}
+
 export const SaleStatus = {
-  DRAFT:      'DRAFT',
-  CONFIRMED:  'CONFIRMED',
-  INVOICED:   'INVOICED',
-  COMPLETED:  'COMPLETED',
-  CANCELLED:  'CANCELLED',
-  ACTIVE:     'ACTIVE', // Legacy compat
+  DRAFT: 'DRAFT',
+  CONFIRMED: 'CONFIRMED',
+  INVOICED: 'INVOICED',
+  COMPLETED: 'COMPLETED',
+  CANCELLED: 'CANCELLED',
+  ACTIVE: 'ACTIVE', // Legacy compat
 } as const;
 
 export type SaleStatus = (typeof SaleStatus)[keyof typeof SaleStatus];
@@ -171,20 +177,20 @@ export interface GetIncompletePurchasesParams extends BaseQueryParams {
 }
 
 export const PurchaseType = {
-  LOCAL:   'LOCAL',
+  LOCAL: 'LOCAL',
   FOREIGN: 'FOREIGN',
 } as const;
 
 export type PurchaseType = (typeof PurchaseType)[keyof typeof PurchaseType];
 
 export const PurchaseStatus = {
-  DRAFT:     'DRAFT',
-  PENDING:   'PENDING',
-  APPROVED:  'APPROVED',
-  ORDERED:   'ORDERED',
-  RECEIVED:  'RECEIVED',
+  DRAFT: 'DRAFT',
+  PENDING: 'PENDING',
+  APPROVED: 'APPROVED',
+  ORDERED: 'ORDERED',
+  RECEIVED: 'RECEIVED',
   CANCELLED: 'CANCELLED',
-  ACTIVE:    'ACTIVE', // Legacy compat
+  ACTIVE: 'ACTIVE', // Legacy compat
 } as const;
 
 export type PurchaseStatus = (typeof PurchaseStatus)[keyof typeof PurchaseStatus];
@@ -198,13 +204,13 @@ export interface GetCustomersParams extends BaseQueryParams {
 }
 
 export const Region = {
-  CENTRAL:   'CENTRAL',
-  NORTH:     'NORTH',
+  CENTRAL: 'CENTRAL',
+  NORTH: 'NORTH',
   NORTHEAST: 'NORTHEAST',
-  EAST:      'EAST',
-  WEST:      'WEST',
-  SOUTH:     'SOUTH',
-  BANGKOK:   'BANGKOK',
+  EAST: 'EAST',
+  WEST: 'WEST',
+  SOUTH: 'SOUTH',
+  BANGKOK: 'BANGKOK',
 } as const;
 
 export type Region = (typeof Region)[keyof typeof Region];
@@ -214,22 +220,22 @@ export type Region = (typeof Region)[keyof typeof Region];
 // ============================================================================
 
 export const DocumentType = {
-  SALE_INVOICE:      'INV',
-  PURCHASE_ORDER:    'PO',
-  PURCHASE_REQUEST:  'PR',
-  SHIPMENT:          'SHP',
-  RETURN:            'RET',
-  CREDIT_NOTE:       'CN',
-  QUOTATION:         'QT',
-  BILLING:           'BIL',
+  SALE_INVOICE: 'INV',
+  PURCHASE_ORDER: 'PO',
+  PURCHASE_REQUEST: 'PR',
+  SHIPMENT: 'SHP',
+  RETURN: 'RET',
+  CREDIT_NOTE: 'CN',
+  QUOTATION: 'QT',
+  BILLING: 'BIL',
 } as const;
 
 export type DocumentType = (typeof DocumentType)[keyof typeof DocumentType];
 
 export const SequenceFormat = {
-  STANDARD:   'STANDARD',
-  WITH_DEPT:  'WITH_DEPT',
-  THAI_YEAR:  'THAI_YEAR',
+  STANDARD: 'STANDARD',
+  WITH_DEPT: 'WITH_DEPT',
+  THAI_YEAR: 'THAI_YEAR',
 } as const;
 
 export type SequenceFormat = (typeof SequenceFormat)[keyof typeof SequenceFormat];
@@ -250,16 +256,16 @@ export interface SequenceConfig {
 // ============================================================================
 
 export interface GetShipmentsParams extends BaseQueryParams {
-    status?: string;
+  status?: string;
 }
 
 export const ShipmentStatus = {
-  PENDING:    'PENDING',
+  PENDING: 'PENDING',
   PROCESSING: 'PROCESSING',
-  SHIPPED:    'SHIPPED',
-  DELIVERED:  'DELIVERED',
-  RETURNED:   'RETURNED',
-  CANCELLED:  'CANCELLED',
+  SHIPPED: 'SHIPPED',
+  DELIVERED: 'DELIVERED',
+  RETURNED: 'RETURNED',
+  CANCELLED: 'CANCELLED',
 } as const;
 
 export type ShipmentStatus = (typeof ShipmentStatus)[keyof typeof ShipmentStatus];
@@ -268,33 +274,37 @@ export type ShipmentStatus = (typeof ShipmentStatus)[keyof typeof ShipmentStatus
  * มาตรฐานการเปลี่ยนสถานะการจัดส่ง (Logistics Workflow)
  */
 export const SHIPMENT_STATUS_TRANSITIONS: Record<ShipmentStatus, ShipmentStatus[]> = {
-  PENDING:    ['PROCESSING', 'CANCELLED'],
+  PENDING: ['PROCESSING', 'CANCELLED'],
   PROCESSING: ['SHIPPED', 'CANCELLED'],
-  SHIPPED:    ['DELIVERED', 'RETURNED'],
-  DELIVERED:  [],
-  RETURNED:   ['PROCESSING', 'CANCELLED'],
-  CANCELLED:  ['PENDING'], // Allow retry from cancelled
+  SHIPPED: ['DELIVERED', 'RETURNED'],
+  DELIVERED: [],
+  RETURNED: ['PROCESSING', 'CANCELLED'],
+  CANCELLED: ['PENDING'], // Allow retry from cancelled
 };
 
 // ============================================================================
 // FINANCE DOMAIN
 // ============================================================================
 
+export interface GetFinanceParams extends BaseQueryParams {
+  category?: string;
+}
+
 export const TaxType = {
-  NONE:   'NONE',
-  VAT7:   'VAT7',
-  WHT1:   'WHT1',
-  WHT3:   'WHT3',
-  WHT5:   'WHT5',
+  NONE: 'NONE',
+  VAT7: 'VAT7',
+  WHT1: 'WHT1',
+  WHT3: 'WHT3',
+  WHT5: 'WHT5',
 } as const;
 
 export type TaxType = (typeof TaxType)[keyof typeof TaxType];
 
 export const BillingStatus = {
-  UNBILLED:  'UNBILLED',
-  BILLED:    'BILLED',
-  PAID:      'PAID',
-  OVERDUE:   'OVERDUE',
+  UNBILLED: 'UNBILLED',
+  BILLED: 'BILLED',
+  PAID: 'PAID',
+  OVERDUE: 'OVERDUE',
 } as const;
 
 export type BillingStatus = (typeof BillingStatus)[keyof typeof BillingStatus];
@@ -304,16 +314,16 @@ export type BillingStatus = (typeof BillingStatus)[keyof typeof BillingStatus];
 // ============================================================================
 
 export const StockMovement = {
-  SALE:            'SALE',
-  PURCHASE:        'PURCHASE',
-  ADJUSTMENT:      'ADJUSTMENT',
-  RETURN:          'RETURN',
-  WASTE:           'WASTE',
-  CANCEL:          'CANCEL',
-  SALE_CANCEL:     'SALE_CANCEL',
+  SALE: 'SALE',
+  PURCHASE: 'PURCHASE',
+  ADJUSTMENT: 'ADJUSTMENT',
+  RETURN: 'RETURN',
+  WASTE: 'WASTE',
+  CANCEL: 'CANCEL',
+  SALE_CANCEL: 'SALE_CANCEL',
   PURCHASE_CANCEL: 'PURCHASE_CANCEL',
-  RESERVATION:     'RESERVATION',
-  RELEASE:         'RELEASE',
+  RESERVATION: 'RESERVATION',
+  RELEASE: 'RELEASE',
 } as const;
 
 export type StockMovement = (typeof StockMovement)[keyof typeof StockMovement];

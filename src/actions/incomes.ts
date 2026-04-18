@@ -4,8 +4,8 @@ import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/auth-guard';
 import { logger } from '@/lib/logger';
 import { incomeSchema, type IncomeInput } from '@/schemas/income';
-export type { GetFinanceParams } from '@/services';
-import { FinanceService, type GetFinanceParams, ServiceError } from '@/services';
+import { FinanceService, ServiceError } from '@/services';
+import { GetFinanceParams } from '@/types/domain';
 
 export async function getIncomes(params: GetFinanceParams = {}) {
   const ctx = await requirePermission('INCOME_VIEW');
@@ -34,12 +34,12 @@ export async function createIncome(input: IncomeInput) {
     const income = await FinanceService.createIncome(validated.data, ctx) as Record<string, any>;
     revalidatePath('/incomes');
     revalidatePath('/dashboard');
-    return { 
+    return {
       success: true,
       data: {
         ...income,
         amount: Number(income.amount)
-      } 
+      }
     };
   } catch (error: unknown) {
     const typedError = error as Error;
@@ -60,12 +60,12 @@ export async function updateIncome(id: string, input: IncomeInput) {
     const income = await FinanceService.updateIncome(id, validated.data, ctx) as Record<string, any>;
     revalidatePath('/incomes');
     revalidatePath(`/incomes/${id}`);
-    return { 
+    return {
       success: true,
       data: {
         ...income,
         amount: Number(income.amount)
-      } 
+      }
     };
   } catch (error: unknown) {
     if (error instanceof ServiceError) return { success: false, error: { _form: [error.message] } };

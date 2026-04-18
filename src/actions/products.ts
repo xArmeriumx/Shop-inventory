@@ -13,13 +13,13 @@ import { Prisma } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { VERSION_CONFLICT_ERROR } from '@/lib/optimistic-lock';
 export type { BatchProductInput, BatchCreateResult } from '@/services';
-import { 
-  ProductService, 
-  ServiceError, 
-  GetProductsParams, 
-  type BatchProductInput, 
+import {
+  ProductService,
+  ServiceError,
+  GetProductsParams,
+  type BatchProductInput,
   type BatchCreateResult,
-  type SerializedProduct 
+  type SerializedProduct
 } from '@/services';
 
 //get product (paginated)
@@ -112,7 +112,7 @@ export async function updateProduct(id: string, input: ProductUpdateInput): Prom
 
     revalidatePath('/products');
     revalidatePath(`/products/${id}`);
-    
+
     return {
       success: true,
       message: 'อัปเดตสินค้าสำเร็จ',
@@ -180,18 +180,23 @@ export async function getLowStockProducts(limit: number = 5) {
   const ctx = await requirePermission('PRODUCT_VIEW');
   return ProductService.getLowStock(limit, ctx);
 }
-  
+
 // Adjust Stock (เพิ่ม/ลดสต็อก)
 interface AdjustStockInput {
   type: 'ADD' | 'REMOVE' | 'SET';
   quantity: number;
   note: string;
+  reason?: string;
 }
 
 export async function adjustStock(productId: string, input: AdjustStockInput): Promise<ActionResponse> {
-  const ctx = await requirePermission('PRODUCT_EDIT'); 
+  const ctx = await requirePermission('PRODUCT_EDIT');
   try {
-    await ProductService.adjustStockManual(productId, input, ctx);
+    await ProductService.adjustStockManual(productId, {
+      quantity: input.quantity,
+      description: input.reason || input.note,
+      type: input.type
+    }, ctx);
     revalidatePath(`/products/${productId}`);
     return { success: true, message: 'ปรับปรุงสต็อกสำเร็จ' };
   } catch (error: unknown) {

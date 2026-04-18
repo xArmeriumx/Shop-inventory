@@ -4,8 +4,8 @@ import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/auth-guard';
 import { logger } from '@/lib/logger';
 import { expenseSchema, type ExpenseInput } from '@/schemas/expense';
-export type { GetFinanceParams } from '@/services';
-import { FinanceService, type GetFinanceParams, ServiceError } from '@/services';
+import { FinanceService, ServiceError } from '@/services';
+import { GetFinanceParams } from '@/types/domain';
 
 export async function getExpenses(params: GetFinanceParams = {}) {
   const ctx = await requirePermission('EXPENSE_VIEW');
@@ -34,12 +34,12 @@ export async function createExpense(input: ExpenseInput) {
     const expense = await FinanceService.createExpense(validated.data, ctx) as Record<string, any>;
     revalidatePath('/expenses');
     revalidatePath('/dashboard');
-    return { 
+    return {
       success: true,
       data: {
         ...expense,
         amount: Number(expense.amount)
-      } 
+      }
     };
   } catch (error: unknown) {
     const typedError = error as Error;
@@ -60,12 +60,12 @@ export async function updateExpense(id: string, input: ExpenseInput) {
     const expense = await FinanceService.updateExpense(id, validated.data, ctx) as Record<string, any>;
     revalidatePath('/expenses');
     revalidatePath(`/expenses/${id}`);
-    return { 
+    return {
       success: true,
       data: {
         ...expense,
         amount: Number(expense.amount)
-      } 
+      }
     };
   } catch (error: unknown) {
     if (error instanceof ServiceError) return { success: false, error: { _form: [error.message] } };
