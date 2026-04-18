@@ -39,8 +39,8 @@ import type { NextRequest } from 'next/server';
 // -----------------------------------------------------------------------------
 
 const RATE_LIMIT = {
-  MAX_REQUESTS: 30,
-  WINDOW_SECONDS: 15,
+  MAX_REQUESTS: 150, // Relaxed for prefetches and active UI
+  WINDOW_SECONDS: 10,
 };
 
 const upstashUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
@@ -49,24 +49,19 @@ const isUpstashConfigured = !!upstashUrl && !!upstashToken;
 
 /**
  * Fixed-window rate limit check via Upstash Redis REST API.
- * Edge Runtime compatible -- no SDK dependency, plain fetch only.
- *
- * Window integrity: EXPIRE is set ONLY when count === 1 (first request).
- * This prevents the window from being extended by subsequent requests.
- *
- * Fail-open: if Upstash is unreachable, returns allowed=true to prevent
- * a Redis outage from taking down the entire application.
  */
 async function checkUpstashRateLimit(
   ip: string
 ): Promise<{ allowed: boolean; remaining: number; resetIn: number } | null> {
   if (!isUpstashConfigured) return null;
+  if (ip === 'localhost' || ip === '127.0.0.1' || ip === '::1') {
+    return { allowed: true, remaining: RATE_LIMIT.MAX_REQUESTS, resetIn: 0 };
+  }
 
   const key = `erp:ratelimit:middleware:ip:${ip}`;
   const windowMs = RATE_LIMIT.WINDOW_SECONDS * 1000;
 
   try {
-    // Atomic increment
     const incrRes = await fetch(`${upstashUrl}/INCR/${key}`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${upstashToken}` },
@@ -74,7 +69,6 @@ async function checkUpstashRateLimit(
     });
     const { result: count } = await incrRes.json() as { result: number };
 
-    // Set TTL only on first request -- prevents window extension
     if (count === 1) {
       await fetch(`${upstashUrl}/EXPIRE/${key}/${RATE_LIMIT.WINDOW_SECONDS}`, {
         method: 'POST',
@@ -86,28 +80,25 @@ async function checkUpstashRateLimit(
     return {
       allowed: count <= RATE_LIMIT.MAX_REQUESTS,
       remaining: Math.max(0, RATE_LIMIT.MAX_REQUESTS - count),
-      resetIn: windowMs, // approximate -- exact TTL would need a TTL command
+      resetIn: windowMs,
     };
-  } catch {
-    // Fail-open: Redis unreachable = allow traffic, not block everything
-    console.error('[Middleware RateLimit] Upstash unreachable, failing open');
+  } catch (error) {
+    console.error('[Middleware RateLimit] Upstash error, failing open');
     return { allowed: true, remaining: RATE_LIMIT.MAX_REQUESTS, resetIn: windowMs };
   }
 }
 
-// In-memory fallback -- local development ONLY (no Upstash env configured)
+// In-memory fallback
 interface RateLimitEntry { count: number; resetTime: number }
 const rateLimitMap = new Map<string, RateLimitEntry>();
-let lastCleanup = Date.now();
 
 function checkInMemoryRateLimit(ip: string): { allowed: boolean; remaining: number; resetIn: number } {
+  if (ip === 'localhost' || ip === '127.0.0.1' || ip === '::1') {
+    return { allowed: true, remaining: RATE_LIMIT.MAX_REQUESTS, resetIn: 0 };
+  }
+
   const now = Date.now();
   const windowMs = RATE_LIMIT.WINDOW_SECONDS * 1000;
-
-  if (now - lastCleanup > 60_000) {
-    lastCleanup = now;
-    rateLimitMap.forEach((e, k) => { if (now > e.resetTime) rateLimitMap.delete(k); });
-  }
 
   const entry = rateLimitMap.get(ip);
   if (!entry || now > entry.resetTime) {
@@ -116,19 +107,22 @@ function checkInMemoryRateLimit(ip: string): { allowed: boolean; remaining: numb
   }
 
   entry.count += 1;
-  if (entry.count > RATE_LIMIT.MAX_REQUESTS) {
-    return { allowed: false, remaining: 0, resetIn: Math.max(0, entry.resetTime - now) };
-  }
-  return { allowed: true, remaining: RATE_LIMIT.MAX_REQUESTS - entry.count, resetIn: entry.resetTime - now };
+  return {
+    allowed: entry.count <= RATE_LIMIT.MAX_REQUESTS,
+    remaining: Math.max(0, RATE_LIMIT.MAX_REQUESTS - entry.count),
+    resetIn: Math.max(0, entry.resetTime - now)
+  };
 }
 
 function getClientIP(request: NextRequest): string {
-  return (
+  const ip = (
     request.headers.get('x-real-ip') ||
     request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-    request.headers.get('cf-connecting-ip') ||
-    'unknown'
+    request.headers.get('cf-connecting-ip')
   );
+
+  if (!ip || ip === '::1' || ip === '127.0.0.1') return 'localhost';
+  return ip;
 }
 
 // ==================== MAIN MIDDLEWARE ====================
