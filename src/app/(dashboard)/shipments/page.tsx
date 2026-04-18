@@ -2,9 +2,9 @@ import { Suspense } from 'react';
 import { getShipments } from '@/actions/shipments';
 import { ShipmentsTable } from '@/components/shipments/shipments-table';
 import { ShipmentsToolbar } from '@/components/shipments/shipments-toolbar';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ShipmentStatsWidget } from '@/components/shipments/shipment-stats-widget';
+import { SectionHeader } from '@/components/ui/section-header';
 
 export const metadata = {
   title: 'จัดส่งสินค้า | Shop Inventory',
@@ -59,12 +59,10 @@ function ShipmentsSkeleton() {
 export default function ShipmentsPage(props: ShipmentsPageProps) {
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">จัดส่งสินค้า</h1>
-        <p className="text-muted-foreground">
-          จัดการรายการจัดส่งและติดตามพัสดุ
-        </p>
-      </div>
+      <SectionHeader
+        title="จัดส่งสินค้า"
+        description="จัดการรายการจัดส่งและติดตามพัสดุ"
+      />
 
       <ShipmentStatsWidget />
 
