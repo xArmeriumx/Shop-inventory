@@ -1,11 +1,11 @@
 'use client';
 
-import { useRouter, useSearchParams, usePathname } from 'next/navigation';
+import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, X } from 'lucide-react';
+import { useUrlFilters } from '@/hooks/use-url-filters';
 import { PRODUCT_CATEGORIES } from '@/lib/constants';
-import { useCallback, useState, useTransition } from 'react';
+import { Search, X } from 'lucide-react';
 
 interface ProductsToolbarProps {
   search: string;
@@ -13,49 +13,11 @@ interface ProductsToolbarProps {
 }
 
 export function ProductsToolbar({ search, category }: ProductsToolbarProps) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const [isPending, startTransition] = useTransition();
+  const { updateFilters, clearFilters, isPending } = useUrlFilters();
   const [searchValue, setSearchValue] = useState(search);
 
-  const updateParams = useCallback(
-    (updates: Record<string, string | null>) => {
-      const params = new URLSearchParams(searchParams);
-      
-      Object.entries(updates).forEach(([key, value]) => {
-        if (value === null || value === '') {
-          params.delete(key);
-        } else {
-          params.set(key, value);
-        }
-      });
-      
-      // Reset to page 1 on filter change
-      params.set('page', '1');
-      
-      startTransition(() => {
-        router.push(`${pathname}?${params.toString()}`);
-      });
-    },
-    [pathname, router, searchParams]
-  );
-
-  const handleSearch = useCallback(() => {
-    updateParams({ search: searchValue });
-  }, [searchValue, updateParams]);
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleSearch();
-    }
-  };
-
-  const clearFilters = () => {
-    setSearchValue('');
-    router.push(pathname);
-  };
-
+  const handleSearch = () => updateFilters({ search: searchValue });
+  const handleKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Enter') handleSearch(); };
   const hasFilters = search || category;
 
   return (
@@ -71,29 +33,25 @@ export function ProductsToolbar({ search, category }: ProductsToolbarProps) {
             className="pl-9"
           />
         </div>
-        <Button onClick={handleSearch} disabled={isPending}>
-          ค้นหา
-        </Button>
+        <Button onClick={handleSearch} disabled={isPending}>ค้นหา</Button>
       </div>
 
       <div className="flex gap-2">
         <select
           value={category}
-          onChange={(e) => updateParams({ category: e.target.value })}
+          onChange={(e) => updateFilters({ category: e.target.value })}
           className="h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
+          disabled={isPending}
         >
           <option value="">ทุกหมวดหมู่</option>
           {PRODUCT_CATEGORIES.map((cat) => (
-            <option key={cat.value} value={cat.value}>
-              {cat.label}
-            </option>
+            <option key={cat.value} value={cat.value}>{cat.label}</option>
           ))}
         </select>
 
         {hasFilters && (
           <Button variant="ghost" size="sm" onClick={clearFilters}>
-            <X className="mr-1 h-4 w-4" />
-            ล้างตัวกรอง
+            <X className="mr-1 h-4 w-4" />ล้างตัวกรอง
           </Button>
         )}
       </div>

@@ -7,17 +7,21 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Plus } from 'lucide-react';
 import { Guard } from '@/components/auth/guard';
 import { ReturnsExportButton } from '@/components/returns/returns-export-button';
+import { SectionHeader } from '@/components/ui/section-header';
+
+// ─── Metadata ────────────────────────────────────────────────────────────────
 
 export const metadata = {
   title: 'คืนสินค้า | Shop Inventory',
 };
 
+// ─── Types ──────────────────────────────────────────────────────────────────
+
 interface ReturnsPageProps {
-  searchParams: Promise<{
-    page?: string;
-    search?: string;
-  }>;
+  searchParams: Promise<{ page?: string; search?: string }>;
 }
+
+// ─── Data Fetcher ─────────────────────────────────────────────────────────────
 
 async function ReturnsContent({ searchParams }: ReturnsPageProps) {
   const params = await searchParams;
@@ -25,13 +29,7 @@ async function ReturnsContent({ searchParams }: ReturnsPageProps) {
     page: params.page ? Number(params.page) : 1,
     search: params.search,
   });
-
-  return (
-    <ReturnsTable
-      returns={result.data as any}
-      pagination={result.pagination}
-    />
-  );
+  return <ReturnsTable returns={result.data as any} pagination={result.pagination} />;
 }
 
 function ReturnsSkeleton() {
@@ -43,28 +41,27 @@ function ReturnsSkeleton() {
   );
 }
 
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export default function ReturnsPage(props: ReturnsPageProps) {
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">คืนสินค้า</h1>
-          <p className="text-muted-foreground">
-            จัดการรายการคืนสินค้าและคืนเงิน
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <ReturnsExportButton />
-          <Guard permission="RETURN_CREATE">
-            <Button asChild>
-              <Link href="/returns/create">
-                <Plus className="h-4 w-4 mr-2" />
-                คืนสินค้า
-              </Link>
-            </Button>
-          </Guard>
-        </div>
-      </div>
+      <SectionHeader
+        title="คืนสินค้า"
+        description="จัดการรายการคืนสินค้าและคืนเงิน"
+        action={
+          <div className="flex gap-2">
+            <ReturnsExportButton />
+            <Guard permission="RETURN_CREATE">
+              <Button asChild>
+                <Link href="/returns/create">
+                  <Plus className="h-4 w-4 mr-2" />คืนสินค้า
+                </Link>
+              </Button>
+            </Guard>
+          </div>
+        }
+      />
 
       <Suspense fallback={<ReturnsSkeleton />}>
         <ReturnsContent searchParams={props.searchParams} />
@@ -72,4 +69,3 @@ export default function ReturnsPage(props: ReturnsPageProps) {
     </div>
   );
 }
-
