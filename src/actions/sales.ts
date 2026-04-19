@@ -3,54 +3,53 @@
 import { revalidatePath } from 'next/cache';
 import { logger } from '@/lib/logger';
 import { requirePermission, hasPermission } from '@/lib/auth-guard';
-import { paginatedQuery, buildSearchFilter, buildDateRangeFilter } from '@/lib/pagination';
 import { saleSchema, type SaleInput } from '@/schemas/sale';
 import { z } from 'zod';
-import type { Sale, SaleItem, Prisma } from '@prisma/client';
-
-import type { ActionResponse } from '@/types/domain';
-import { money, toNumber, calcSubtotal, calcProfit } from '@/lib/money';
-
-// =============================================================================
-// UTILITIES
-// =============================================================================
-
-import { 
-  StockService, 
-  SaleService, 
-  ServiceError, 
-  type GetSalesParams, 
-  type CancelSaleInput,
-  type SerializedSale 
+import { ActionResponse } from '@/types/domain';
+import { handleActionError } from '@/lib/error-handler';
+import {
+  SaleService,
+  ServiceError,
+  type GetSalesParams,
+  type CancelSaleInput
 } from '@/services';
+import { SerializedSale } from '@/types/serialized';
 
-// ดึงข้อมูลการขายทั้งหมด (Pagination)
+// =============================================================================
+// SALE LIST & DETAIL
+// =============================================================================
+
 export async function getSales(params: GetSalesParams = {}) {
   const ctx = await requirePermission('SALE_VIEW');
   const canViewProfit = hasPermission(ctx, 'SALE_VIEW_PROFIT');
-  
   return SaleService.getList(params, ctx, { canViewProfit });
 }
 
-// ดึงข้อมูลการขายตาม ID
 export async function getSale(id: string) {
   const ctx = await requirePermission('SALE_VIEW');
   const canViewProfit = hasPermission(ctx, 'SALE_VIEW_PROFIT');
-
-  try {
-    return await SaleService.getById(id, ctx, { canViewProfit });
-  } catch (error: unknown) {
-    if (error instanceof ServiceError) throw new Error(error.message);
-    throw error;
-  }
+  return SaleService.getById(id, ctx, { canViewProfit });
 }
 
-// สร้างการขายใหม่
+export async function getTodaySales() {
+  const ctx = await requirePermission('SALE_VIEW');
+  const canViewProfit = hasPermission(ctx, 'SALE_VIEW_PROFIT');
+  return SaleService.getTodayAggregate(ctx, { canViewProfit });
+}
+
+export async function getRecentSales(limit: number = 5) {
+  const ctx = await requirePermission('SALE_VIEW');
+  const canViewProfit = hasPermission(ctx, 'SALE_VIEW_PROFIT');
+  return SaleService.getRecentList(limit, ctx, { canViewProfit });
+}
+
+// =============================================================================
+// SALE OPERATIONS
+// =============================================================================
+
 export async function createSale(input: SaleInput): Promise<ActionResponse<SerializedSale>> {
-  // RBAC: Require SALE_CREATE permission
   const ctx = await requirePermission('SALE_CREATE');
 
-  // Validate input
   const validated = saleSchema.safeParse(input);
   if (!validated.success) {
     return {
@@ -61,43 +60,20 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<Seria
   }
 
   try {
-    const sale = await SaleService.create(
-      ctx, 
-      validated.data
-    );
-
+    const sale = await SaleService.create(ctx, validated.data);
     revalidatePath('/sales');
     revalidatePath('/dashboard');
-
-    return {
-      success: true,
-      message: 'บันทึกการขายสำเร็จ',
-      data: sale,
-    };
+    return { success: true, message: 'บันทึกการขายสำเร็จ', data: sale };
   } catch (error: unknown) {
-    if (error instanceof ServiceError) {
-      return { success: false, message: error.message };
-    }
-    const typedError = error as Error;
-    await logger.error('Failed to create sale', typedError, { 
-      path: 'createSale', 
-      userId: ctx.userId,
-      input 
-    });
-    return {
-      success: false,
-      message: typedError.message || 'เกิดข้อผิดพลาดในการบันทึกการขาย',
-    };
+    return handleActionError(error, 'เกิดข้อผิดพลาดในการบันทึกการขาย', { path: 'createSale', userId: ctx.userId });
   }
 }
 
-// ยกเลิกการขาย (Soft Cancel + คืนสต็อก)
 export async function cancelSale(input: CancelSaleInput) {
   const ctx = await requirePermission('SALE_CANCEL');
-  
+
   try {
     await SaleService.cancel(input, ctx);
-
     revalidatePath('/sales');
     revalidatePath('/products');
     revalidatePath('/expenses');
@@ -105,89 +81,49 @@ export async function cancelSale(input: CancelSaleInput) {
     revalidatePath('/dashboard');
     return { success: true, message: 'ยกเลิกรายการขายเรียบร้อย' };
   } catch (error: unknown) {
-    if (error instanceof ServiceError) return { success: false, message: error.message };
-    const typedError = error as Error;
-    await logger.error('Failed to cancel sale', typedError, { 
-      path: 'cancelSale', 
-      userId: ctx.userId, 
-      saleId: input.id,
-    });
-    return { success: false, message: typedError.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง' };
+    return handleActionError(error, 'เกิดข้อผิดพลาดในการยกเลิกรายการขาย', { path: 'cancelSale', userId: ctx.userId, saleId: input.id });
   }
 }
 
-// สรุปยอดขายวันนี้ (Aggregate)
-export async function getTodaySales() {
-  const ctx = await requirePermission('SALE_VIEW');
-  const canViewProfit = hasPermission(ctx, 'SALE_VIEW_PROFIT');
-  
-  return SaleService.getTodayAggregate(ctx, { canViewProfit });
-}
+// =============================================================================
+// PAYMENT VERIFICATION
+// =============================================================================
 
-export async function getRecentSales(limit: number = 5) {
-  const ctx = await requirePermission('SALE_VIEW');
-  const canViewProfit = hasPermission(ctx, 'SALE_VIEW_PROFIT');
-
-  return SaleService.getRecentList(limit, ctx, { canViewProfit });
-}
-
-// =================================================================
-// G1: Payment Verification Actions
-// =================================================================
-
-/**
- * ตรวจสอบหลักฐานการชำระเงิน (Verify / Reject)
- */
 export async function verifyPayment(
-  saleId: string, 
-  status: 'VERIFIED' | 'REJECTED', 
+  saleId: string,
+  status: 'VERIFIED' | 'REJECTED',
   note?: string
 ): Promise<ActionResponse> {
+  const ctx = await requirePermission('PAYMENT_VERIFY');
+
   try {
-    const ctx = await requirePermission('PAYMENT_VERIFY');
+    const sanitizedSaleId = z.string().min(1).parse(saleId);
+    const sanitizedNote = note ? z.string().max(500).parse(note.trim()) : undefined;
 
-    // Input sanitization
-    const sanitizedSaleId = z.string().min(1).safeParse(saleId);
-    if (!sanitizedSaleId.success) return { success: false, message: 'รหัสรายการขายไม่ถูกต้อง' };
-    
-    const sanitizedNote = note ? z.string().max(500).safeParse(note.trim()) : undefined;
-    if (sanitizedNote && !sanitizedNote.success) return { success: false, message: 'หมายเหตุยาวเกินไป (สูงสุด 500 ตัวอักษร)' };
-
-    await SaleService.verifyPayment(sanitizedSaleId.data, status, sanitizedNote?.data, ctx);
-
+    await SaleService.verifyPayment(sanitizedSaleId, status, sanitizedNote, ctx);
     revalidatePath('/sales');
     revalidatePath(`/sales/${saleId}`);
     return { success: true, message: status === 'VERIFIED' ? 'ยืนยันการชำระเงินสำเร็จ' : 'ปฏิเสธการชำระเงิน' };
   } catch (error: unknown) {
-    if (error instanceof ServiceError) return { success: false, message: error.message };
-    return { success: false, message: (error as Error).message || 'เกิดข้อผิดพลาด' };
+    return handleActionError(error, 'เกิดข้อผิดพลาดในการตรวจสอบการชำระเงิน', { path: 'verifyPayment', userId: ctx.userId, saleId });
   }
 }
 
-/**
- * อัพโหลดหลักฐานการชำระเงิน (สลิป)
- */
 export async function uploadPaymentProof(
-  saleId: string, 
+  saleId: string,
   proofUrl: string
 ): Promise<ActionResponse> {
+  const ctx = await requirePermission('SALE_VIEW');
+
   try {
-    const ctx = await requirePermission('SALE_VIEW');
+    const sanitizedSaleId = z.string().min(1).parse(saleId);
+    const sanitizedUrl = z.string().url().max(2048).parse(proofUrl);
 
-    // Input sanitization
-    const sanitizedSaleId = z.string().min(1).safeParse(saleId);
-    if (!sanitizedSaleId.success) return { success: false, message: 'รหัสรายการขายไม่ถูกต้อง' };
-    
-    const sanitizedUrl = z.string().url().max(2048).safeParse(proofUrl);
-    if (!sanitizedUrl.success) return { success: false, message: 'URL หลักฐานไม่ถูกต้อง' };
-
-    await SaleService.uploadPaymentProof(sanitizedSaleId.data, sanitizedUrl.data, ctx);
-
+    await SaleService.uploadPaymentProof(sanitizedSaleId, sanitizedUrl, ctx);
     revalidatePath('/sales');
     revalidatePath(`/sales/${saleId}`);
     return { success: true, message: 'อัพโหลดหลักฐานสำเร็จ' };
   } catch (error: unknown) {
-    if (error instanceof ServiceError) return { success: false, message: error.message };
-    return { success: false, message: (error as Error).message || 'เกิดข้อผิดพลาด' };
+    return handleActionError(error, 'เกิดข้อผิดพลาดในการอัปโหลดหลักฐาน', { path: 'uploadPaymentProof', userId: ctx.userId, saleId });
   }
 }

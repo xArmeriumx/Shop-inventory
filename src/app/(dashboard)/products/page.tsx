@@ -8,7 +8,6 @@ import { getProducts } from '@/actions/products';
 import { ProductsTable } from '@/components/products/products-table';
 import { ProductsToolbar } from '@/components/products/products-toolbar';
 import { ProductImportButton } from '@/components/products/product-import-button';
-import { requirePermission } from '@/lib/auth-guard';
 import { Guard } from '@/components/auth/guard';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -51,7 +50,6 @@ function ProductsSkeleton() {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default async function ProductsPage(props: ProductsPageProps) {
-  await requirePermission('PRODUCT_VIEW');
 
   return (
     <div className="space-y-6">

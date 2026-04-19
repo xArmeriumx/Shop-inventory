@@ -19,15 +19,16 @@ export * from './notification.service';
 export * from './ai.service';
 export * from './onboarding.service';
 export * from './system.service';
+export type { OcrParcel, ParcelMatch } from './shipment.service';
 
 export { ServiceError } from '@/types/domain';
-export type { 
-  RequestContext, 
-  GetCustomersParams, 
+export type {
+  RequestContext,
+  GetCustomersParams,
   GetProductsParams,
   GetSalesParams,
   GetPurchasesParams,
-  BatchProductInput, 
+  BatchProductInput,
   BatchCreateResult,
   PaginatedResult,
   SerializedProduct,

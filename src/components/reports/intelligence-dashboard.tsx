@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { 
-  TrendingUp, 
-  Package, 
-  AlertTriangle, 
-  Clock, 
-  ChevronRight, 
-  ArrowUpRight, 
+import { useState, useEffect, useCallback } from 'react';
+import {
+  TrendingUp,
+  Package,
+  AlertTriangle,
+  Clock,
+  ChevronRight,
+  ArrowUpRight,
   Info,
   ChevronDown,
   LayoutGrid,
@@ -17,22 +17,22 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { 
-  getInventoryIntelligence, 
-  getProcurementAging 
+import {
+  getInventoryIntelligence,
+  getProcurementAging
 } from '@/actions/analytics';
 import { formatCurrency } from '@/lib/formatters';
 import Link from 'next/link';
 import { SalesHeatmap } from './sales-heatmap';
 import ReorderSuggestions from './reorder-suggestions';
-import { 
-  LineChart, 
-  Line, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend, 
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
   ResponsiveContainer,
   AreaChart,
   Area
@@ -44,11 +44,7 @@ export function IntelligenceDashboard({ startDate, endDate }: { startDate?: stri
   const [aging, setAging] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadData();
-  }, [windowDays]);
-
-  async function loadData() {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const [intelData, agingData] = await Promise.all([
@@ -60,7 +56,11 @@ export function IntelligenceDashboard({ startDate, endDate }: { startDate?: stri
     } finally {
       setLoading(false);
     }
-  }
+  }, [windowDays]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData, windowDays]);
 
   if (loading && !intelligence) {
     return (
@@ -241,10 +241,9 @@ export function IntelligenceDashboard({ startDate, endDate }: { startDate?: stri
                       <span className="font-bold">{s.avgLeadTime} วัน</span>
                     </div>
                     <div className="w-full bg-muted rounded-full h-2">
-                      <div 
-                        className={`h-2 rounded-full ${
-                          s.avgLeadTime < 5 ? 'bg-green-500' : s.avgLeadTime < 10 ? 'bg-orange-500' : 'bg-red-500'
-                        }`} 
+                      <div
+                        className={`h-2 rounded-full ${s.avgLeadTime < 5 ? 'bg-green-500' : s.avgLeadTime < 10 ? 'bg-orange-500' : 'bg-red-500'
+                          }`}
                         style={{ width: `${Math.min(100, (s.avgLeadTime / 14) * 100)}%` }}
                       />
                     </div>
@@ -252,7 +251,7 @@ export function IntelligenceDashboard({ startDate, endDate }: { startDate?: stri
                 ))}
               </div>
             </div>
-            
+
             <div className="border rounded-xl overflow-hidden">
               <div className="bg-muted/50 p-3 border-b text-xs font-bold uppercase tracking-wider text-muted-foreground">ประวัติการสั่งซื้อล่าสุด</div>
               <div className="divide-y max-h-[250px] overflow-y-auto">
@@ -286,7 +285,7 @@ export function IntelligenceDashboard({ startDate, endDate }: { startDate?: stri
         <div className="flex-1">
           <h4 className="font-bold text-primary">Intelligence Insight</h4>
           <p className="text-sm text-foreground/80 leading-relaxed mt-1">
-            ในรอบ {windowDays} วันที่ผ่านมา คุณมีสินค้า <strong>{intelligence?.sluggish?.length} รายการ</strong> ที่ไม่ขยับเลย 
+            ในรอบ {windowDays} วันที่ผ่านมา คุณมีสินค้า <strong>{intelligence?.sluggish?.length} รายการ</strong> ที่ไม่ขยับเลย
             คิดเป็นมูลค่าเงินจมในสต็อก <strong>{formatCurrency(intelligence?.sluggish?.reduce((sum: any, p: any) => sum + p.stockValue, 0))}</strong>.
             แนะนำให้ทำโปรโมชั่นเพื่อระบายของ หรือตรวจสอบพิกัดการวางหน้าร้านใหม่
           </p>

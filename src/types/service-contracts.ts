@@ -494,9 +494,10 @@ export interface IShippingService {
   cancel(id: string, reason: string | undefined, ctx: RequestContext): Promise<any>;
 
   // Logistics Logic
-  getStats(ctx: RequestContext): Promise<any>;
+  getStats(ctx: RequestContext): Promise<Record<string, number>>;
   matchParcelsToSales(parcels: any[], ctx: RequestContext): Promise<any[]>;
   getSalesWithoutShipment(ctx: RequestContext): Promise<any[]>;
+  getLogisticsGaps(ctx: RequestContext): Promise<any[]>;
 
   /**
    * อัปเดตสถานะจัดส่ง + Auto-Sync กลับไปยัง Sale

@@ -3,14 +3,13 @@
 import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/auth-guard';
 import { z } from 'zod';
-import { ReturnService, ServiceError } from '@/services';
+import { ReturnService } from '@/services';
 import type { ActionResponse } from '@/types/domain';
+import { handleActionError } from '@/lib/error-handler';
 
 // =============================================================================
 // G3: Partial Returns (คืนสินค้าบางส่วน)
 // =============================================================================
-
-// ── Schemas ──────────────────────────────────────────────────────────────────
 
 const returnItemSchema = z.object({
   saleItemId: z.string().min(1, 'กรุณาเลือกรายการสินค้า'),
@@ -30,15 +29,8 @@ const createReturnSchema = z.object({
 
 type CreateReturnInput = z.infer<typeof createReturnSchema>;
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-
-
-// ── Actions ──────────────────────────────────────────────────────────────────
-
 /**
  * ดูรายการสินค้าที่คืนได้จากบิลขาย
- * Returns items with their max returnable quantity
  */
 export async function getReturnableSaleItems(saleId: string) {
   const ctx = await requirePermission('RETURN_CREATE');
@@ -46,16 +38,13 @@ export async function getReturnableSaleItems(saleId: string) {
 }
 
 /**
- * สร้างรายการคืนสินค้า (Atomic: validate → create return → restore stock)
+ * สร้างรายการคืนสินค้า
  */
 export async function createReturn(input: CreateReturnInput): Promise<ActionResponse> {
+  const ctx = await requirePermission('RETURN_CREATE');
+
   try {
-    const ctx = await requirePermission('RETURN_CREATE');
-
-    // 1. Validate input
     const data = createReturnSchema.parse(input);
-
-    // 2. Call Service
     const result = await ReturnService.create(data, ctx);
 
     revalidatePath('/sales');
@@ -69,9 +58,10 @@ export async function createReturn(input: CreateReturnInput): Promise<ActionResp
       data: result,
     };
   } catch (error: unknown) {
-    if (error instanceof z.ZodError) return { success: false, message: error.errors[0].message };
-    if (error instanceof ServiceError) return { success: false, message: error.message };
-    return { success: false, message: (error as Error).message || 'เกิดข้อผิดพลาด' };
+    if (error instanceof z.ZodError) {
+      return { success: false, message: error.errors[0].message };
+    }
+    return handleActionError(error, 'เกิดข้อผิดพลาดในการบันทึกการคืนสินค้า', { path: 'createReturn', userId: ctx.userId });
   }
 }
 

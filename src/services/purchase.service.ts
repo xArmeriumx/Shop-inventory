@@ -1,11 +1,8 @@
 import { db, runInTransaction } from '@/lib/db';
-import { Prisma, Purchase } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { PurchaseInput } from '@/schemas/purchase';
 import { StockService } from './stock.service';
-// Types imported from @/types/domain
-import { money, toNumber, calcSubtotal } from '@/lib/money';
-import { logger } from '@/lib/logger';
-import { paginatedQuery, buildSearchFilter, buildDateRangeFilter } from '@/lib/pagination';
+import { money, calcSubtotal } from '@/lib/money';
 
 import {
   RequestContext,
@@ -13,16 +10,20 @@ import {
   GetPurchasesParams,
   DocumentType,
   PurchaseStatus,
-  PurchaseType,
-  SerializedPurchase,
-  SerializedPurchaseWithItems,
   GetIncompletePurchasesParams,
+  PaginatedResult,
 } from '@/types/domain';
+import {
+  SerializedPurchase,
+  SerializedPurchaseWithItems
+} from '@/types/serialized';
 import { IPurchaseService, PurchaseRequestInput } from '@/types/service-contracts';
 import { SequenceService } from './sequence.service';
 import { AuditService } from './audit.service';
 import { PURCHASE_AUDIT_POLICIES } from './purchase.policy';
 import { Security } from './security';
+import { paginatedQuery, buildSearchFilter, buildDateRangeFilter } from '@/lib/pagination';
+import { serializePurchase, serializePurchaseItem } from '@/lib/mappers';
 
 export const CANCEL_PURCHASE_REASONS = {
   WRONG_ENTRY: 'บันทึกผิดพลาด',
@@ -37,10 +38,6 @@ export interface CancelPurchaseInput {
   reasonDetail?: string;
 }
 
-const MAX_PURCHASE_RETRIES = 5;
-
-// Replaced by SequenceService
-
 export const PurchaseService: IPurchaseService = {
   /**
    * ดึงข้อมูลการซื้อทั้งหมด (Pagination)
@@ -52,14 +49,14 @@ export const PurchaseService: IPurchaseService = {
     const searchFilter = buildSearchFilter(search, ['notes']);
     const dateFilter = buildDateRangeFilter(startDate, endDate);
 
-    const where = {
+    const where: Prisma.PurchaseWhereInput = {
       shopId: ctx.shopId,
       ...(searchFilter && searchFilter),
       ...(dateFilter && { date: dateFilter }),
       ...(paymentMethod && { paymentMethod }),
     };
 
-    const result = await paginatedQuery<any>(db.purchase as any, {
+    const result = await paginatedQuery(db.purchase, {
       where,
       include: {
         items: { include: { product: { select: { name: true } } } },
@@ -70,16 +67,14 @@ export const PurchaseService: IPurchaseService = {
       orderBy: { date: 'desc' },
     });
 
-    // Mutate in-place: avoid creating new objects (reduces GC pressure)
-    for (const p of result.data) {
-      (p as any).totalCost = toNumber(p.totalCost);
-      for (const i of (p as any).items) {
-        i.costPrice = toNumber(i.costPrice);
-        i.subtotal = toNumber(i.subtotal);
-      }
-    }
-
-    return result;
+    return {
+      ...result,
+      data: result.data.map(p => ({
+        ...serializePurchase(p),
+        items: (p as any).items.map((i: any) => serializePurchaseItem(i)),
+        supplier: (p as any).supplier
+      })),
+    };
   },
 
   /**
@@ -99,20 +94,26 @@ export const PurchaseService: IPurchaseService = {
       throw new ServiceError('ไม่พบข้อมูลการซื้อ');
     }
 
-    // Mutate in-place: avoid creating new objects (UC 6)
     const supplierMoq = purchase.supplier?.moq ? Number(purchase.supplier.moq) : null;
-    (purchase as any).totalCost = toNumber(purchase.totalCost);
-    for (const i of (purchase as any).items) {
-      i.costPrice = toNumber(i.costPrice);
-      i.subtotal = toNumber(i.subtotal);
-      i.moq = supplierMoq; // UC 6: Display field
-    }
+    const serialized = serializePurchase(purchase) as SerializedPurchaseWithItems;
 
-    return purchase as any;
+    serialized.items = (purchase as any).items.map((i: any) => ({
+      ...serializePurchaseItem(i),
+      moq: supplierMoq,
+    }));
+
+    serialized.supplier = purchase.supplier ? {
+      name: purchase.supplier.name,
+      phone: purchase.supplier.phone,
+      address: purchase.supplier.address,
+      taxId: purchase.supplier.taxId,
+    } : null;
+
+    return serialized;
   },
 
   /**
-   * สร้างการสั่งซื้อเข้าร้าน พร้อมอัปเดตสต็อกและต้นทุน (FIFO / Weighted Avg concept applied here)
+   * สร้างการสั่งซื้อเข้าร้าน พร้อมอัปเดตสต็อกและต้นทุน
    */
   async create(ctx: RequestContext, payload: PurchaseInput, tx?: Prisma.TransactionClient): Promise<SerializedPurchase> {
     Security.requirePermission(ctx, 'PURCHASE_CREATE');
@@ -181,19 +182,7 @@ export const PurchaseService: IPurchaseService = {
             prisma
           );
 
-          // P1.3: ไม่ overwrite costPrice ที่นี่ (ก่อนรับของเข้าคลัง)
-          // การอัปเดตต้นทุนสินค้าจะเกิดขึ้นใน receivePurchase() ด้วย Weighted Average
-          // เพื่อให้สอดคล้องกับ "ต้นทุนที่แท้จริง ณ เวลารับสินค้า" เท่านั้น
-
-          return {
-            ...newPurchase,
-            totalCost: toNumber(newPurchase.totalCost),
-            items: newPurchase.items.map(item => ({
-              ...item,
-              costPrice: toNumber(item.costPrice),
-              subtotal: toNumber(item.subtotal),
-            })),
-          } as any;
+          return serializePurchase(newPurchase);
         });
       }
     );
@@ -260,10 +249,6 @@ export const PurchaseService: IPurchaseService = {
     );
   },
 
-  // ==========================================
-  // ERP ENHANCED METHODS (PR/PO Workflow)
-  // ==========================================
-
   async createRequest(payload, ctx) {
     Security.requirePermission(ctx, 'PURCHASE_CREATE');
     return await runInTransaction(undefined, async (prisma) => {
@@ -313,12 +298,8 @@ export const PurchaseService: IPurchaseService = {
   },
 
   async approveRequest(prId: string, ctx: RequestContext) {
-    // P1.2: Guard — require explicit permission for approval mutations
     Security.requirePermission(ctx, 'PURCHASE_EDIT');
-
-    const pr = await db.purchase.findFirst({
-      where: { id: prId, shopId: ctx.shopId },
-    });
+    const pr = await db.purchase.findFirst({ where: { id: prId, shopId: ctx.shopId } });
     if (!pr) throw new ServiceError('ไม่พบใบขอซื้อ');
     if (pr.status === PurchaseStatus.APPROVED) throw new ServiceError('ใบขอซื้อนี้ได้รับการอนุมัติแล้ว');
     if (pr.status === 'CANCELLED') throw new ServiceError('ไม่สามารถอนุมัติใบขอซื้อที่ถูกยกเลิกแล้ว');
@@ -408,14 +389,11 @@ export const PurchaseService: IPurchaseService = {
 
   async checkMOQ(items, ctx, supplierId) {
     const productIds = items.map(i => i.productId);
-
-    // Get general product MOQ
     const products = await db.product.findMany({
       where: { id: { in: productIds }, shopId: ctx.shopId },
       select: { id: true, name: true, moq: true },
     });
 
-    // Get supplier-specific MOQ if supplierId is provided
     let supplierProducts: any[] = [];
     if (supplierId) {
       supplierProducts = await db.supplierProduct.findMany({
@@ -436,7 +414,6 @@ export const PurchaseService: IPurchaseService = {
       const p = products.find(prod => prod.id === item.productId);
       if (!p) continue;
 
-      // Rule 5.5: Priority = SupplierProduct.moq > Product.moq
       const sMoq = supplierMoqMap.get(item.productId);
       const effectiveMoq = (sMoq !== undefined && sMoq !== null) ? sMoq : (p.moq || 0);
 
@@ -464,9 +441,6 @@ export const PurchaseService: IPurchaseService = {
     };
   },
 
-  /**
-   * ERP Rule 10.3: Distribute indirect charges (Shipping, Handling) into product unit costs
-   */
   async allocateCharges(purchaseId: string, ctx: RequestContext, tx: Prisma.TransactionClient) {
     const purchase = await tx.purchase.findFirst({
       where: { id: purchaseId, shopId: ctx.shopId },
@@ -483,7 +457,6 @@ export const PurchaseService: IPurchaseService = {
 
     if (!purchase) return;
 
-    // 1. Identify "Charge" items vs "Product" items
     const chargeItems = purchase.items.filter(item => {
       const metadata = item.product?.categoryRef?.metadata as any;
       return metadata?.isCharge === true;
@@ -496,13 +469,11 @@ export const PurchaseService: IPurchaseService = {
 
     if (chargeItems.length === 0 || productItems.length === 0) return;
 
-    // 2. Calculate Total Charges to distribute
-    const totalCharges = chargeItems.reduce((sum, item) => money.add(sum, toNumber(item.subtotal)), 0);
-    const totalProductValue = productItems.reduce((sum, item) => money.add(sum, toNumber(item.subtotal)), 0);
+    const totalCharges = chargeItems.reduce((sum, item) => money.add(sum, Number(item.subtotal)), 0);
+    const totalProductValue = productItems.reduce((sum, item) => money.add(sum, Number(item.subtotal)), 0);
 
     if (totalProductValue <= 0) return;
 
-    // 3. Distribute proportionally
     await AuditService.runWithAudit(
       ctx,
       {
@@ -511,17 +482,16 @@ export const PurchaseService: IPurchaseService = {
       },
       async () => {
         for (const item of productItems) {
-          const itemRatio = money.divide(toNumber(item.subtotal), totalProductValue);
-          const allocatedAmount = money.multiply(totalCharges, itemRatio);
+          const itemRatio = Number(item.subtotal) / totalProductValue;
+          const allocatedAmount = totalCharges * itemRatio;
 
-          const newSubtotal = money.add(toNumber(item.subtotal), allocatedAmount);
-          const newUnitPrice = money.divide(newSubtotal, item.quantity);
+          const newSubtotal = Number(item.subtotal) + allocatedAmount;
+          const newUnitPrice = newSubtotal / item.quantity;
 
-          // Update the PurchaseItem with the 'Landed Cost'
           await tx.purchaseItem.update({
             where: { id: item.id },
             data: {
-              costPrice: newUnitPrice, // Update the effective cost for this shipment
+              costPrice: newUnitPrice,
               subtotal: newSubtotal
             }
           });
@@ -574,8 +544,14 @@ export const PurchaseService: IPurchaseService = {
           await Promise.all(fullPurchase.items.map(item => {
             const product = productMap.get(item.productId);
             if (!product) return Promise.resolve();
-            const totalQty = Math.max(1, (product.stock || 0) + item.quantity);
-            const weightedCost = (((product.stock || 0) * (toNumber(product.costPrice) || 0)) + (item.quantity * toNumber(item.costPrice))) / totalQty;
+            const currentStock = Number(product.stock) || 0;
+            const currentCost = Number(product.costPrice) || 0;
+            const newQty = item.quantity;
+            const newCost = Number(item.costPrice);
+
+            const totalQty = Math.max(1, currentStock + newQty);
+            const weightedCost = ((currentStock * currentCost) + (newQty * newCost)) / totalQty;
+
             return prisma.product.update({ where: { id: item.productId }, data: { costPrice: Number(weightedCost.toFixed(2)) } });
           }));
 
@@ -591,30 +567,13 @@ export const PurchaseService: IPurchaseService = {
     );
   },
 
-  /**
-   * เครื่องมือสำหรับ Admin: ดึงรายการ PR ที่ข้อมูลไม่ครบ (เช่น ไม่มีผู้ขาย)
-   */
   async getIncompleteRequests(params: GetIncompletePurchasesParams, ctx: RequestContext) {
     Security.requirePermission(ctx, 'PURCHASE_VIEW');
-
-    const where: Prisma.PurchaseWhereInput = {
-      shopId: ctx.shopId,
-      status: 'DRAFT',
-      supplierId: null,
-    };
-
+    const where: Prisma.PurchaseWhereInput = { shopId: ctx.shopId, status: 'DRAFT', supplierId: null };
     const count = await db.purchase.count({ where });
     const purchases = await db.purchase.findMany({
       where,
-      include: {
-        items: {
-          include: {
-            product: {
-              select: { name: true, sku: true }
-            }
-          }
-        }
-      },
+      include: { items: { include: { product: { select: { name: true, sku: true } } } } },
       orderBy: { createdAt: 'desc' },
       skip: ((params.page || 1) - 1) * (params.limit || 10),
       take: params.limit || 10,
@@ -622,13 +581,8 @@ export const PurchaseService: IPurchaseService = {
 
     return {
       items: purchases.map(p => ({
-        ...p,
-        totalCost: Number(p.totalCost),
-        items: p.items.map(item => ({
-          ...item,
-          costPrice: Number(item.costPrice),
-          subtotal: Number(item.subtotal),
-        })),
+        ...serializePurchase(p),
+        items: (p as any).items.map((item: any) => serializePurchaseItem(item)),
       })),
       total: count,
       page: params.page || 1,
@@ -637,51 +591,22 @@ export const PurchaseService: IPurchaseService = {
     };
   },
 
-  /**
-   * เครื่องมือสำหรับ Admin: มอบหมายผู้ขายให้กับ PR แบบด่วน
-   */
   async quickAssignSupplier(ids: string[], supplierId: string, ctx: RequestContext) {
     Security.requirePermission(ctx, 'PURCHASE_EDIT');
-
     if (!ids.length) return { success: true, count: 0 };
 
     const result = await db.purchase.updateMany({
-      where: {
-        id: { in: ids },
-        shopId: ctx.shopId,
-        status: 'DRAFT',
-        supplierId: null,
-      },
-      data: {
-        supplierId,
-      },
+      where: { id: { in: ids }, shopId: ctx.shopId, status: 'DRAFT', supplierId: null },
+      data: { supplierId },
     });
-
-    await AuditService.runWithAudit(
-      ctx,
-      {
-        action: 'UPDATE',
-        category: 'PURCHASE',
-        details: `Quick assign supplier ${supplierId} to ${result.count} documents`,
-        resourceId: ids[0], // Reference one of the IDs
-      },
-      async () => {
-        // Audit is logged by the system
-      }
-    );
 
     return { success: true, count: result.count };
   },
 
-  /**
-   * UC 22: Bulk Create Draft PRs from suggestions
-   */
   async createBulkDraftPRs(entries: { productId: string, quantity: number, supplierId?: string }[], ctx: RequestContext) {
     Security.requirePermission(ctx, 'PURCHASE_CREATE');
-
     if (!entries.length) return { success: true, createdCount: 0 };
 
-    // Group items by supplier
     const groupedBySupplier = new Map<string | 'NONE', typeof entries>();
     entries.forEach(item => {
       const key = item.supplierId || 'NONE';
@@ -689,67 +614,52 @@ export const PurchaseService: IPurchaseService = {
       groupedBySupplier.get(key)!.push(item);
     });
 
-    return await AuditService.runWithAudit(
-      ctx,
-      {
-        action: 'CREATE',
-        category: 'PURCHASE',
-        details: `Bulk generate PR drafts for ${groupedBySupplier.size} suppliers from suggestions`,
-      },
-      async () => {
-        return runInTransaction(undefined, async (prisma) => {
-          let prCount = 0;
-
-          // Create one PR per supplier
-          for (const [supplierId, items] of Array.from(groupedBySupplier.entries())) {
-            const actualSupplierId = supplierId === 'NONE' ? null : supplierId;
-
-            // Get product info for cost and packaging
-            const productIds = items.map(i => i.productId);
-            const products = await prisma.product.findMany({
-              where: { id: { in: productIds } },
-              select: { id: true, costPrice: true, packagingQty: true }
-            });
-            const productMap = new Map(products.map(p => [p.id, p]));
-
-            const requestNumber = await SequenceService.generate(ctx, DocumentType.PURCHASE_REQUEST, prisma, {
-              purchaseType: 'LOCAL',
-            });
-
-            await prisma.purchase.create({
-              data: {
-                purchaseNumber: requestNumber,
-                purchaseType: 'LOCAL',
-                docType: 'REQUEST',
-                status: PurchaseStatus.DRAFT,
-                supplierId: actualSupplierId,
-                userId: ctx.userId,
-                shopId: ctx.shopId,
-                totalCost: items.reduce((sum, i) => {
-                  const p = productMap.get(i.productId);
-                  return money.add(sum, calcSubtotal(i.quantity, toNumber(p?.costPrice || 0)));
-                }, 0),
-                items: {
-                  create: items.map(item => {
-                    const p = productMap.get(item.productId);
-                    const cost = toNumber(p?.costPrice || 0);
-                    return {
-                      productId: item.productId,
-                      quantity: item.quantity,
-                      costPrice: cost,
-                      subtotal: calcSubtotal(item.quantity, cost),
-                      packagingQty: p?.packagingQty || 1,
-                    };
-                  }),
-                },
-              },
-            });
-            prCount++;
-          }
-
-          return { success: true, createdCount: prCount };
+    return await runInTransaction(undefined, async (prisma) => {
+      let prCount = 0;
+      for (const [supplierId, items] of Array.from(groupedBySupplier.entries())) {
+        const actualSupplierId = supplierId === 'NONE' ? null : supplierId;
+        const productIds = items.map(i => i.productId);
+        const products = await prisma.product.findMany({
+          where: { id: { in: productIds } },
+          select: { id: true, costPrice: true, packagingQty: true }
         });
+        const productMap = new Map(products.map(p => [p.id, p]));
+
+        const requestNumber = await SequenceService.generate(ctx, DocumentType.PURCHASE_REQUEST, prisma, {
+          purchaseType: 'LOCAL',
+        });
+
+        await prisma.purchase.create({
+          data: {
+            purchaseNumber: requestNumber,
+            purchaseType: 'LOCAL',
+            docType: 'REQUEST',
+            status: PurchaseStatus.DRAFT,
+            supplierId: actualSupplierId,
+            userId: ctx.userId,
+            shopId: ctx.shopId,
+            totalCost: items.reduce((sum, i) => {
+              const p = productMap.get(i.productId);
+              return sum + (i.quantity * Number(p?.costPrice || 0));
+            }, 0),
+            items: {
+              create: items.map(item => {
+                const p = productMap.get(item.productId);
+                const cost = Number(p?.costPrice || 0);
+                return {
+                  productId: item.productId,
+                  quantity: item.quantity,
+                  costPrice: cost,
+                  subtotal: item.quantity * cost,
+                  packagingQty: p?.packagingQty || 1,
+                };
+              }),
+            },
+          },
+        });
+        prCount++;
       }
-    );
+      return { success: true, createdCount: prCount };
+    });
   }
 };

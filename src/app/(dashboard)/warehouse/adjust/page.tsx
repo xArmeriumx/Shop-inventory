@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useTransition, Suspense } from 'react';
+import { useState, useEffect, useTransition, Suspense, useCallback } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Save, Plus, Minus, LayoutGrid, Package, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -32,19 +32,20 @@ function MobileAdjustContent() {
 
   const productId = searchParams.get('productId');
 
+  const loadProduct = useCallback(async (id: string) => {
+    try {
+      const res = await quickSearchProduct(id);
+      setProduct(res);
+    } catch (err) {
+      console.error('Failed to load product', err);
+    }
+  }, []);
+
   useEffect(() => {
     if (productId) {
       loadProduct(productId);
     }
-  }, [productId]);
-
-  async function loadProduct(id: string) {
-    // In a real app, I'd have a getProductById action, using quickSearch for now
-    // By passing the ID as a "query", the service will find it if it's treated as SKU or I should add a specific action.
-    // For now, I'll use the ID directly if the service supports it or add a quick helper.
-    const res = await quickSearchProduct(productId!); 
-    setProduct(res);
-  }
+  }, [productId, loadProduct]);
 
   const handleAdjust = () => {
     if (!product) return;
@@ -105,24 +106,24 @@ function MobileAdjustContent() {
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="grid grid-cols-3 gap-2">
-            <Button 
-              variant={type === 'ADD' ? 'default' : 'outline'} 
+            <Button
+              variant={type === 'ADD' ? 'default' : 'outline'}
               className={cn("h-12 flex-col gap-0", type === 'ADD' && "bg-green-600 hover:bg-green-700")}
               onClick={() => setType('ADD')}
             >
               <Plus className="h-4 w-4" />
               <span className="text-[10px]">เพิ่มเข้า</span>
             </Button>
-            <Button 
-              variant={type === 'REMOVE' ? 'default' : 'outline'} 
+            <Button
+              variant={type === 'REMOVE' ? 'default' : 'outline'}
               className={cn("h-12 flex-col gap-0", type === 'REMOVE' && "bg-red-600 hover:bg-red-700")}
               onClick={() => setType('REMOVE')}
             >
               <Minus className="h-4 w-4" />
               <span className="text-[10px]">เบิกออก</span>
             </Button>
-            <Button 
-              variant={type === 'SET' ? 'default' : 'outline'} 
+            <Button
+              variant={type === 'SET' ? 'default' : 'outline'}
               className={cn("h-12 flex-col gap-0", type === 'SET' && "bg-blue-600 hover:bg-blue-700")}
               onClick={() => setType('SET')}
             >
@@ -134,23 +135,23 @@ function MobileAdjustContent() {
           <div className="space-y-2">
             <label className="text-sm font-bold uppercase tracking-wider text-muted-foreground">จำนวนที่ {type === 'ADD' ? 'เพิ่มร' : type === 'REMOVE' ? 'หักออก' : 'นับได้จริง'}</label>
             <div className="flex gap-2">
-              <Button 
-                variant="outline" 
-                size="icon" 
+              <Button
+                variant="outline"
+                size="icon"
                 className="h-14 w-14 shrink-0"
                 onClick={() => setQuantity(q => Math.max(0, q - 1))}
               >
                 <Minus className="h-6 w-6" />
               </Button>
-              <Input 
-                type="number" 
+              <Input
+                type="number"
                 className="h-14 text-center text-3xl font-black"
                 value={quantity}
                 onChange={(e) => setQuantity(Number(e.target.value))}
               />
-              <Button 
-                variant="outline" 
-                size="icon" 
+              <Button
+                variant="outline"
+                size="icon"
                 className="h-14 w-14 shrink-0"
                 onClick={() => setQuantity(q => q + 1)}
               >
@@ -178,8 +179,8 @@ function MobileAdjustContent() {
 
             <div className="space-y-1.5">
               <label className="text-sm font-medium">หมายเหตุเพิ่มเติม</label>
-              <Input 
-                placeholder="ระบุรายละเอียด..." 
+              <Input
+                placeholder="ระบุรายละเอียด..."
                 className="h-12"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
@@ -187,8 +188,8 @@ function MobileAdjustContent() {
             </div>
           </div>
 
-          <Button 
-            className="w-full h-14 text-lg font-bold shadow-lg" 
+          <Button
+            className="w-full h-14 text-lg font-bold shadow-lg"
             disabled={isPending}
             onClick={handleAdjust}
           >

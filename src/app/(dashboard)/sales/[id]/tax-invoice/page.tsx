@@ -22,11 +22,7 @@ const printStyles = `
   }
 `;
 
-import { requirePermission } from '@/lib/auth-guard';
-
 async function TaxInvoice({ id }: { id: string }) {
-  await requirePermission('SALE_VIEW');
-
   const [sale, shop] = await Promise.all([
     getSale(id),
     getShop(),
@@ -44,7 +40,7 @@ async function TaxInvoice({ id }: { id: string }) {
   return (
     <div className="bg-white min-h-screen p-8 max-w-[210mm] mx-auto text-black">
       <style>{printStyles}</style>
-      
+
       {/* Header */}
       <div className="flex justify-between items-start mb-8">
         <div>

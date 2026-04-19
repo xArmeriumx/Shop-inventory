@@ -1,18 +1,10 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { db } from '@/lib/db';
-import { requirePermission, hasPermission } from '@/lib/auth-guard';
-import { logger } from '@/lib/logger';
-import { paginatedQuery, buildSearchFilter } from '@/lib/pagination';
+import { requirePermission } from '@/lib/auth-guard';
 import { productSchema, productUpdateSchema, type ProductInput, type ProductUpdateInput } from '@/schemas/product';
-import { Product } from '@prisma/client';
 import { ActionResponse } from '@/types/domain';
-
-import { Prisma } from '@prisma/client';
-import { Decimal } from '@prisma/client/runtime/library';
-import { VERSION_CONFLICT_ERROR } from '@/lib/optimistic-lock';
-export type { BatchProductInput, BatchCreateResult } from '@/services';
+import { handleActionError } from '@/lib/error-handler';
 import {
   ProductService,
   ServiceError,
@@ -21,6 +13,9 @@ import {
   type BatchCreateResult,
   type SerializedProduct
 } from '@/services';
+
+// Re-export types for other components (like scan-review-modal)
+export type { BatchProductInput, BatchCreateResult, SerializedProduct };
 
 //get product (paginated)
 export async function getProducts(params: any = {}) {
@@ -32,12 +27,7 @@ export async function getProducts(params: any = {}) {
 //get product by id 
 export async function getProduct(id: string) {
   const ctx = await requirePermission('PRODUCT_VIEW');
-  try {
-    return await ProductService.getById(id, ctx);
-  } catch (error: unknown) {
-    if (error instanceof ServiceError) throw new Error(error.message);
-    throw error;
-  }
+  return ProductService.getById(id, ctx);
 }
 
 //create product  
@@ -56,35 +46,11 @@ export async function createProduct(input: ProductInput): Promise<ActionResponse
   }
 
   try {
-    // โยนงานต่อให้ Service Layer ซึ่งจะจัดการเรื่องเช็คซ้ำ การสร้างของ และโยง Stock
-    const product = await ProductService.create(
-      ctx,
-      validated.data
-    );
-
+    const product = await ProductService.create(ctx, validated.data);
     revalidatePath('/products');
-    return {
-      success: true,
-      message: 'สร้างสินค้าสำเร็จ',
-      data: product
-    };
+    return { success: true, message: 'สร้างสินค้าสำเร็จ', data: product };
   } catch (error: unknown) {
-    // กรณีที่ Service ตั้งใจโยน Validation Exception ออกมา
-    if (error instanceof ServiceError) {
-      return {
-        success: false,
-        message: error.message,
-        errors: error.errors,
-        action: error.action
-      };
-    }
-
-    const typedError = error as Error;
-    await logger.error('Create product error', typedError, { path: 'createProduct', userId: ctx.userId });
-    return {
-      success: false,
-      message: typedError.message || 'เกิดข้อผิดพลาดในการสร้างสินค้า'
-    };
+    return handleActionError(error, 'เกิดข้อผิดพลาดในการสร้างสินค้า', { path: 'createProduct', userId: ctx.userId });
   }
 }
 
@@ -104,36 +70,12 @@ export async function updateProduct(id: string, input: ProductUpdateInput): Prom
   }
 
   try {
-    const product = await ProductService.update(
-      id,
-      ctx,
-      validated.data
-    );
-
+    const product = await ProductService.update(id, ctx, validated.data);
     revalidatePath('/products');
     revalidatePath(`/products/${id}`);
-
-    return {
-      success: true,
-      message: 'อัปเดตสินค้าสำเร็จ',
-      data: product
-    };
+    return { success: true, message: 'อัปเดตสินค้าสำเร็จ', data: product };
   } catch (error: unknown) {
-    if (error instanceof ServiceError) {
-      return {
-        success: false,
-        message: error.message,
-        errors: error.errors,
-        action: error.action
-      };
-    }
-
-    const typedError = error as Error;
-    await logger.error('Update product error', typedError, { path: 'updateProduct', userId: ctx.userId, productId: id });
-    return {
-      success: false,
-      message: typedError.message || 'เกิดข้อผิดพลาดในการอัปเดตสินค้า'
-    };
+    return handleActionError(error, 'เกิดข้อผิดพลาดในการอัปเดตสินค้า', { path: 'updateProduct', userId: ctx.userId, productId: id });
   }
 }
 
@@ -144,22 +86,10 @@ export async function deleteProduct(id: string): Promise<ActionResponse> {
 
   try {
     await ProductService.delete(id, ctx);
-
     revalidatePath('/products');
-    return {
-      success: true,
-      message: 'ลบสินค้าสำเร็จ'
-    };
+    return { success: true, message: 'ลบสินค้าสำเร็จ' };
   } catch (error: unknown) {
-    if (error instanceof ServiceError) {
-      return { success: false, message: error.message, action: error.action };
-    }
-    const typedError = error as Error;
-    await logger.error('Delete product error', typedError, { path: 'deleteProduct', userId: ctx.userId, productId: id });
-    return {
-      success: false,
-      message: typedError.message || 'เกิดข้อผิดพลาดในการลบสินค้า'
-    };
+    return handleActionError(error, 'เกิดข้อผิดพลาดในการลบสินค้า', { path: 'deleteProduct', userId: ctx.userId, productId: id });
   }
 }
 
@@ -182,14 +112,14 @@ export async function getLowStockProducts(limit: number = 5) {
 }
 
 // Adjust Stock (เพิ่ม/ลดสต็อก)
-interface AdjustStockInput {
+interface AdjustStockInputManual {
   type: 'ADD' | 'REMOVE' | 'SET';
   quantity: number;
   note: string;
   reason?: string;
 }
 
-export async function adjustStock(productId: string, input: AdjustStockInput): Promise<ActionResponse> {
+export async function adjustStock(productId: string, input: AdjustStockInputManual): Promise<ActionResponse> {
   const ctx = await requirePermission('PRODUCT_EDIT');
   try {
     await ProductService.adjustStockManual(productId, {
@@ -200,10 +130,7 @@ export async function adjustStock(productId: string, input: AdjustStockInput): P
     revalidatePath(`/products/${productId}`);
     return { success: true, message: 'ปรับปรุงสต็อกสำเร็จ' };
   } catch (error: unknown) {
-    if (error instanceof ServiceError) return { success: false, message: error.message, action: error.action };
-    const typedError = error as Error;
-    await logger.error('Adjust stock error', typedError, { path: 'adjustStock', userId: ctx.userId, productId });
-    return { success: false, message: typedError.message || 'เกิดข้อผิดพลาดในการปรับปรุงสต็อก' };
+    return handleActionError(error, 'เกิดข้อผิดพลาดในการปรับปรุงสต็อก', { path: 'adjustStock', userId: ctx.userId, productId });
   }
 }
 
@@ -219,28 +146,18 @@ export async function batchCreateProducts(inputs: BatchProductInput[]): Promise<
   try {
     const result = await ProductService.batchCreate(inputs, ctx);
     revalidatePath('/products');
-
     return {
       success: true,
       message: `สร้างสินค้าสำเร็จ ${result.created.length} รายการ${result.failed.length > 0 ? `, ข้าม ${result.failed.length} รายการ` : ''}`,
       data: result,
     };
   } catch (error: unknown) {
-    if (error instanceof ServiceError) {
-      return {
-        success: false,
-        message: error.message,
-        data: { success: false, created: [], failed: (error.errors as any)?._batch || [] },
-      };
-    }
-
-    const typedError = error as Error;
-    await logger.error('Batch create products error', typedError, { path: 'batchCreateProducts', userId: ctx.userId, inputCount: inputs.length });
-    return {
-      success: false,
-      message: typedError.message || 'เกิดข้อผิดพลาดในการสร้างสินค้า',
-    };
+    return handleActionError(error, 'เกิดข้อผิดพลาดในการสร้างสินค้า', { path: 'batchCreateProducts', userId: ctx.userId, inputCount: inputs.length });
   }
 }
-
-
+// Get Stock Movement History (ประวัติการเคลื่อนไหวของสต็อก)
+export async function getProductHistory(productId: string, page: number = 1, limit: number = 20) {
+  await requirePermission('PRODUCT_VIEW');
+  const { StockService } = await import('@/services');
+  return StockService.getProductHistory(productId, page, limit);
+}

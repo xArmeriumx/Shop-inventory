@@ -3,14 +3,22 @@
 import { revalidatePath } from 'next/cache';
 import { shipmentSchema, updateShipmentSchema, updateShipmentStatusSchema } from '@/schemas/shipment';
 import type { ShipmentInput, UpdateShipmentInput, UpdateShipmentStatusInput } from '@/schemas/shipment';
-import type { ActionResponse } from '@/types/domain';
-export type { OcrParcel, ParcelMatch } from '@/services';
-import { ShipmentService, type OcrParcel, type ParcelMatch, ServiceError } from '@/services';
+import { ActionResponse } from '@/types/domain';
+import { handleActionError } from '@/lib/error-handler';
 import { requirePermission } from '@/lib/auth-guard';
-import { logger } from '@/lib/logger';
+import {
+  ShipmentService,
+  type OcrParcel,
+  type ParcelMatch,
+  ServiceError
+} from '@/services';
+
+export type { OcrParcel, ParcelMatch };
 
 // =============================================================================
-// STATUS TRANSITION VALIDATION
+// SHIPMENT LIST & DETAIL
+// =============================================================================
+
 export async function getShipments(params: any = {}) {
   const ctx = await requirePermission('SHIPMENT_VIEW');
   return ShipmentService.getList(params, ctx);
@@ -18,21 +26,18 @@ export async function getShipments(params: any = {}) {
 
 export async function getShipment(id: string) {
   const ctx = await requirePermission('SHIPMENT_VIEW');
-  try {
-    return await ShipmentService.getById(id, ctx);
-  } catch (error: unknown) {
-    if (error instanceof ServiceError) throw new Error(error.message);
-    throw error;
-  }
+  return ShipmentService.getById(id, ctx);
 }
 
-// =============================================================================
 export async function getSalesWithoutShipment() {
   const ctx = await requirePermission('SHIPMENT_CREATE');
   return ShipmentService.getSalesWithoutShipment(ctx);
 }
 
 // =============================================================================
+// SHIPMENT OPERATIONS
+// =============================================================================
+
 export async function createShipment(input: ShipmentInput): Promise<ActionResponse> {
   const ctx = await requirePermission('SHIPMENT_CREATE');
 
@@ -47,31 +52,16 @@ export async function createShipment(input: ShipmentInput): Promise<ActionRespon
 
   try {
     const result = await ShipmentService.create(validated.data, ctx);
-
     revalidatePath('/shipments');
     revalidatePath('/sales');
     revalidatePath('/expenses');
     revalidatePath('/dashboard');
-    return {
-      success: true,
-      message: 'สร้างรายการจัดส่งสำเร็จ',
-      data: result,
-    };
+    return { success: true, message: 'สร้างรายการจัดส่งสำเร็จ', data: result };
   } catch (error: unknown) {
-    if (error instanceof ServiceError) return { success: false, message: error.message, action: error.action };
-    const typedError = error as Error;
-    await logger.error('Failed to create shipment', typedError, {
-      path: 'createShipment',
-      userId: ctx.userId,
-    });
-    return {
-      success: false,
-      message: typedError.message || 'เกิดข้อผิดพลาดในการสร้างรายการจัดส่ง',
-    };
+    return handleActionError(error, 'เกิดข้อผิดพลาดในการสร้างรายการจัดส่ง', { path: 'createShipment', userId: ctx.userId });
   }
 }
 
-// =============================================================================
 export async function updateShipment(input: UpdateShipmentInput): Promise<ActionResponse> {
   const ctx = await requirePermission('SHIPMENT_EDIT');
 
@@ -86,29 +76,14 @@ export async function updateShipment(input: UpdateShipmentInput): Promise<Action
 
   try {
     await ShipmentService.update(validated.data, ctx);
-
     revalidatePath('/shipments');
     revalidatePath(`/shipments/${validated.data.id}`);
-    return {
-      success: true,
-      message: 'อัพเดทข้อมูลจัดส่งสำเร็จ',
-    };
+    return { success: true, message: 'อัพเดทข้อมูลจัดส่งสำเร็จ' };
   } catch (error: unknown) {
-    if (error instanceof ServiceError) return { success: false, message: error.message };
-    const typedError = error as Error;
-    await logger.error('Failed to update shipment', typedError, {
-      path: 'updateShipment',
-      userId: ctx.userId,
-      shipmentId: validated.data.id,
-    });
-    return {
-      success: false,
-      message: typedError.message || 'เกิดข้อผิดพลาด',
-    };
+    return handleActionError(error, 'เกิดข้อผิดพลาดในการอัปเดตข้อมูลจัดส่ง', { path: 'updateShipment', userId: ctx.userId, shipmentId: validated.data.id });
   }
 }
 
-// =============================================================================
 export async function updateShipmentStatus(input: UpdateShipmentStatusInput): Promise<ActionResponse> {
   const ctx = await requirePermission('SHIPMENT_EDIT');
 
@@ -129,72 +104,41 @@ export async function updateShipmentStatus(input: UpdateShipmentStatusInput): Pr
     revalidatePath('/sales');
     revalidatePath('/products');
     revalidatePath('/dashboard');
-    return {
-      success: true,
-      message: 'บันทึกความคืบหน้าสำเร็จ',
-    };
+    return { success: true, message: 'บันทึกความคืบหน้าสำเร็จ' };
   } catch (error: unknown) {
-    if (error instanceof ServiceError) return { success: false, message: error.message };
-    const typedError = error as Error;
-    await logger.error('Failed to update shipment status', typedError, {
-      path: 'updateShipmentStatus',
-      userId: ctx.userId,
-      shipmentId: validated.data.id,
-    });
-    return {
-      success: false,
-      message: typedError.message || 'เกิดข้อผิดพลาด',
-    };
+    return handleActionError(error, 'เกิดข้อผิดพลาดในการเปลี่ยนสถานะรายการจัดส่ง', { path: 'updateShipmentStatus', userId: ctx.userId, shipmentId: validated.data.id });
   }
 }
 
-// =============================================================================
-export async function cancelShipment(
-  id: string,
-  reason?: string
-): Promise<ActionResponse> {
+export async function cancelShipment(id: string, reason?: string): Promise<ActionResponse> {
   const ctx = await requirePermission('SHIPMENT_CANCEL');
 
   try {
     await ShipmentService.cancel(id, reason, ctx);
-
     revalidatePath('/shipments');
     revalidatePath(`/shipments/${id}`);
-    return {
-      success: true,
-      message: 'ยกเลิกรายการจัดส่งสำเร็จ',
-    };
+    return { success: true, message: 'ยกเลิกรายการจัดส่งสำเร็จ' };
   } catch (error: unknown) {
-    if (error instanceof ServiceError) return { success: false, message: error.message };
-    const typedError = error as Error;
-    await logger.error('Failed to cancel shipment', typedError, {
-      path: 'cancelShipment',
-      userId: ctx.userId,
-      shipmentId: id,
-    });
-    return {
-      success: false,
-      message: typedError.message || 'เกิดข้อผิดพลาดในการยกเลิก',
-    };
+    return handleActionError(error, 'เกิดข้อผิดพลาดในการยกเลิกรายการจัดส่ง', { path: 'cancelShipment', userId: ctx.userId, shipmentId: id });
   }
 }
 
 // =============================================================================
-// OCR Match interface export removed since they are moved to services.
+// LOGISTICS INTELLIGENCE
+// =============================================================================
 
 export async function matchParcelsToSales(parcels: OcrParcel[]): Promise<ParcelMatch[]> {
   const ctx = await requirePermission('SHIPMENT_CREATE');
   return ShipmentService.matchParcelsToSales(parcels, ctx);
 }
 
-// =============================================================================
 export async function calculateShipmentLoad(id: string): Promise<ActionResponse<any>> {
   const ctx = await requirePermission('SHIPMENT_VIEW');
   try {
     const result = await ShipmentService.calculateLoad(id, ctx);
     return { success: true, data: result };
-  } catch (error: any) {
-    return { success: false, message: error.message || 'เกิดข้อผิดพลาด' };
+  } catch (error: unknown) {
+    return handleActionError(error, 'เกิดข้อผิดพลาดในการคำนวณภาระบรรทุก', { path: 'calculateShipmentLoad', userId: ctx.userId, shipmentId: id });
   }
 }
 
@@ -204,12 +148,8 @@ export async function processShipmentRoute(ids: string[], type: 'OUTBOUND' | 'IN
     const result = await ShipmentService.processRoute(ids, type, ctx);
     revalidatePath('/shipments');
     return { success: true, message: 'จัดลำดับเส้นทางสำเร็จ', data: result };
-  } catch (error: any) {
-    return { 
-      success: false, 
-      message: error.message || 'เกิดข้อผิดพลาด',
-      action: error instanceof ServiceError ? error.action : undefined
-    };
+  } catch (error: unknown) {
+    return handleActionError(error, 'เกิดข้อผิดพลาดในการจัดเส้นทาง', { path: 'processShipmentRoute', userId: ctx.userId });
   }
 }
 

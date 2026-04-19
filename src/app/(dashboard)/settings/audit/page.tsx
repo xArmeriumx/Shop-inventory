@@ -1,6 +1,5 @@
 import { Suspense } from 'react';
-import { requireAuth } from '@/lib/auth-guard';
-import { Security } from '@/services/security';
+import { requirePermission } from '@/lib/auth-guard';
 import { AuditLogViewer } from '@/components/settings/audit-log-viewer';
 import { SecurityDashboardCards } from '@/components/settings/security-dashboard';
 import { Separator } from '@/components/ui/separator';
@@ -8,8 +7,7 @@ import { BackPageHeader } from '@/components/ui/back-page-header';
 import Loading from '@/app/(dashboard)/loading';
 
 export default async function AuditSettingsPage() {
-  const sessionCtx = await requireAuth();
-  Security.requireAnyPermission(sessionCtx as any, ['TEAM_EDIT', 'SETTINGS_SHOP']);
+  await requirePermission('TEAM_EDIT');
 
   return (
     <div className="space-y-6">

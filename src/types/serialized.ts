@@ -1,4 +1,4 @@
-import type { Product, Sale, SaleItem, Purchase, PurchaseItem, Expense, Income, Customer, Supplier } from '@prisma/client';
+import type { Product, Sale, SaleItem, Purchase, PurchaseItem, Expense, Income, Customer, Supplier, Shipment, Return, ReturnItem } from '@prisma/client';
 
 // ============================================================================
 // Serialized Types
@@ -88,6 +88,28 @@ export type SerializedCustomer = Omit<Customer, 'creditLimit'> & {
  */
 export type SerializedSupplier = Omit<Supplier, 'moq'> & {
   moq: number | null;
+};
+
+/**
+ * Shipment with Decimal fields converted to number
+ */
+export type SerializedShipment = Omit<Shipment, 'shippingCost'> & {
+  shippingCost: number | null;
+};
+
+/**
+ * Return with Decimal fields converted to number
+ */
+export type SerializedReturn = Omit<Return, 'refundAmount'> & {
+  refundAmount: number;
+};
+
+/**
+ * ReturnItem with Decimal fields converted to number
+ */
+export type SerializedReturnItem = Omit<ReturnItem, 'refundPerUnit' | 'refundAmount'> & {
+  refundPerUnit: number;
+  refundAmount: number;
 };
 
 // ============================================================================

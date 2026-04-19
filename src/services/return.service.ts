@@ -2,43 +2,20 @@ import { db, runInTransaction } from '@/lib/db';
 import { Prisma } from '@prisma/client';
 import { StockService } from './stock.service';
 import { NotificationService } from './notification.service';
-import { ServiceError, RequestContext } from '@/types/domain';
+import {
+  ServiceError,
+  RequestContext,
+  DocumentType,
+} from '@/types/domain';
+import {
+  SerializedReturn,
+  SerializedReturnItem
+} from '@/types/serialized';
 import { money, toNumber, calcSubtotal } from '@/lib/money';
 import { AuditService } from './audit.service';
 import { RETURN_AUDIT_POLICIES } from './return.policy';
-
-const MAX_RETURN_RETRIES = 5;
-
-/**
- * Auto-gen return number: RET-00001, RET-00002, ...
- */
-async function generateReturnNumber(tx: Prisma.TransactionClient, shopId: string): Promise<string> {
-  for (let attempt = 0; attempt < MAX_RETURN_RETRIES; attempt++) {
-    const lastReturn = await tx.return.findFirst({
-      where: { shopId },
-      orderBy: { returnNumber: 'desc' },
-      select: { returnNumber: true },
-    });
-
-    const lastNumber = lastReturn?.returnNumber
-      ? parseInt(lastReturn.returnNumber.split('-')[1] || '0')
-      : 0;
-
-    const newNumber = lastNumber + 1 + attempt;
-    const returnNumber = `RET-${String(newNumber).padStart(5, '0')}`;
-
-    const exists = await tx.return.findFirst({
-      where: { shopId, returnNumber },
-      select: { id: true },
-    });
-
-    if (!exists) {
-      return returnNumber;
-    }
-  }
-
-  return `RET-${Date.now()}`;
-}
+import { SequenceService } from './sequence.service';
+import { serializeReturn, serializeReturnItem } from '@/lib/mappers';
 
 export interface ReturnItemInput {
   saleItemId: string;
@@ -84,13 +61,13 @@ export const ReturnService = {
     return (sale.items as any[]).map((item: any) => {
       const alreadyReturned = (item.returnItems as any[]).reduce((sum: number, ri: any) => sum + ri.quantity, 0);
       const maxReturnable = item.quantity - alreadyReturned;
-      
+
       const subtotal = toNumber(item.subtotal);
       const discount = toNumber(item.discountAmount);
       const itemNetPerUnit = item.quantity > 0
         ? money.round(money.divide(money.subtract(subtotal, discount), item.quantity))
         : 0;
-      
+
       const netPerUnit = money.round(money.multiply(itemNetPerUnit, billDiscountRatio));
 
       return {
@@ -108,9 +85,9 @@ export const ReturnService = {
   },
 
   /**
-   * สร้างรายการคืนสินค้า (Atomic: validate → create return → restore stock)
+   * สร้างรายการคืนสินค้า
    */
-  async create(input: CreateReturnInput, ctx: RequestContext, tx?: Prisma.TransactionClient) {
+  async create(input: CreateReturnInput, ctx: RequestContext, tx?: Prisma.TransactionClient): Promise<SerializedReturn> {
     const saleMatch = await db.sale.findFirst({
       where: { id: input.saleId, shopId: ctx.shopId },
       select: { invoiceNumber: true }
@@ -148,7 +125,7 @@ export const ReturnService = {
             const maxReturnable = saleItem.quantity - alreadyReturned;
 
             if (item.quantity > maxReturnable) {
-              throw new ServiceError(`สินค้ารายการ "${item.saleItemId}" คืนได้สูงสุด ${maxReturnable} ชิ้น`);
+              throw new ServiceError(`สินค้ารายการ "${saleItem.productId}" คืนได้สูงสุด ${maxReturnable} ชิ้น`);
             }
 
             const refundAmount = calcSubtotal(item.quantity, item.refundPerUnit);
@@ -163,7 +140,7 @@ export const ReturnService = {
             });
           }
 
-          const returnNumber = await generateReturnNumber(prisma, ctx.shopId);
+          const returnNumber = await SequenceService.generate(ctx, DocumentType.RETURN, prisma);
 
           const returnRecord = await prisma.return.create({
             data: {
@@ -182,7 +159,7 @@ export const ReturnService = {
             include: { items: true },
           });
 
-          // Bulk stock restore
+          // Stock restoration logic
           await StockService.recordMovements(
             ctx,
             returnItemsData.map(item => ({
@@ -212,9 +189,9 @@ export const ReturnService = {
           await prisma.sale.update({
             where: { id: input.saleId },
             data: {
-              netAmount:    { decrement: totalRefund },
-              totalCost:    { decrement: totalReturnCost },
-              profit:       { decrement: profitAdjustment },
+              netAmount: { decrement: totalRefund },
+              totalCost: { decrement: totalReturnCost },
+              profit: { decrement: profitAdjustment },
             },
           });
 
@@ -224,11 +201,11 @@ export const ReturnService = {
             type: 'RETURN_CREATED',
             severity: 'WARNING',
             title: `คืนสินค้า ${returnRecord.returnNumber}`,
-            message: `คืนเงิน ${toNumber(totalRefund)} บาท`,
+            message: `คืนเงิน ${totalRefund} บาท`,
             link: `/returns/${returnRecord.id}`,
-          }).catch(() => {});
+          }).catch(() => { });
 
-          return returnRecord;
+          return serializeReturn(returnRecord);
         });
       }
     );
@@ -242,7 +219,7 @@ export const ReturnService = {
     const limit = options?.limit || 20;
     const skip = (page - 1) * limit;
 
-    const where: any = { shopId: ctx.shopId };
+    const where: Prisma.ReturnWhereInput = { shopId: ctx.shopId };
 
     if (options?.search) {
       where.OR = [
@@ -273,17 +250,13 @@ export const ReturnService = {
 
     const totalPages = Math.ceil(total / limit);
 
-    // Mutate in-place: avoid creating new objects (reduces GC pressure)
-    for (const r of data) {
-      (r as any).refundAmount = toNumber(r.refundAmount);
-      for (const ri of (r as any).items) {
-        ri.refundPerUnit = toNumber(ri.refundPerUnit);
-        ri.refundAmount = toNumber(ri.refundAmount);
-      }
-    }
-
     return {
-      data,
+      data: data.map(r => ({
+        ...serializeReturn(r),
+        items: (r as any).items.map((ri: any) => serializeReturnItem(ri)),
+        sale: (r as any).sale,
+        user: (r as any).user
+      })),
       pagination: {
         total,
         page,
@@ -321,13 +294,11 @@ export const ReturnService = {
 
     if (!returnRecord) return null;
 
-    // Mutate in-place: avoid creating new objects
-    (returnRecord as any).refundAmount = toNumber(returnRecord.refundAmount);
-    for (const ri of (returnRecord as any).items) {
-      ri.refundPerUnit = toNumber(ri.refundPerUnit);
-      ri.refundAmount = toNumber(ri.refundAmount);
-    }
-
-    return returnRecord as any;
+    return {
+      ...serializeReturn(returnRecord),
+      items: (returnRecord as any).items.map((ri: any) => serializeReturnItem(ri)),
+      sale: (returnRecord as any).sale,
+      user: (returnRecord as any).user
+    };
   }
 };

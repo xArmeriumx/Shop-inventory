@@ -3,7 +3,6 @@ import { notFound } from 'next/navigation';
 import { type Metadata } from 'next';
 import { getSale } from '@/actions/sales';
 import { getShop } from '@/actions/shop';
-import { requirePermission } from '@/lib/auth-guard';
 import { SaleDetailView } from '@/components/sales/sale-detail-view';
 import Loading from '@/app/(dashboard)/loading';
 
@@ -29,8 +28,6 @@ export async function generateMetadata({ params }: SaleDetailsPageProps): Promis
 // ─── Data Fetcher ─────────────────────────────────────────────────────────────
 
 async function SaleDetails({ id }: { id: string }) {
-  await requirePermission('SALE_VIEW');
-
   const [sale, shop] = await Promise.all([getSale(id), getShop()]);
   if (!sale) notFound();
 

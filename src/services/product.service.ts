@@ -16,23 +16,14 @@ import {
   SerializedProduct,
   AdjustStockInput
 } from '@/types/domain';
-import { IProductService } from '@/types/service-contracts';
-import { toNumber } from '@/lib/money';
-
-import { STOCK_AUDIT_POLICIES } from './stock.policy';
 import { PRODUCT_AUDIT_POLICIES } from './product.policy';
+import { STOCK_AUDIT_POLICIES } from './stock.policy';
+import { serializeProduct } from '@/lib/mappers';
+import { IProductService } from '@/types/service-contracts';
 
 /**
- * Helper สำหรับแปลง Prisma Product เป็น SerializedProduct
+ * @module ProductService
  */
-function serializeProduct(product: any): SerializedProduct {
-  return {
-    ...product,
-    costPrice: toNumber(product.costPrice),
-    salePrice: toNumber(product.salePrice),
-    packagingQty: product.packagingQty || 1,
-  };
-}
 
 export const ProductService: IProductService = {
   /**
@@ -438,8 +429,8 @@ export const ProductService: IProductService = {
               }
             }
           });
-        } catch (error: any) {
-          if (error.code === 'P2002') throw new ServiceError('พบ SKU หรือชื่อซ้ำในระบบ');
+        } catch (error: unknown) {
+          if ((error as any).code === 'P2002') throw new ServiceError('พบ SKU หรือชื่อซ้ำในระบบ');
           throw error;
         }
 

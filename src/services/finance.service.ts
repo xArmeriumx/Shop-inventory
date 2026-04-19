@@ -6,7 +6,7 @@ import { IncomeInput } from '@/schemas/income';
 import { ExpenseInput } from '@/schemas/expense';
 import { paginatedQuery, buildSearchFilter, buildDateRangeFilter } from '@/lib/pagination';
 import { toNumber } from '@/lib/money';
-
+import { FINANCE_CONSTANTS, serializeIncome, serializeExpense } from '@/lib/mappers';
 import { IFinanceService } from '@/types/service-contracts';
 
 export const FinanceService: IFinanceService = {
@@ -35,10 +35,7 @@ export const FinanceService: IFinanceService = {
 
     return {
       ...result,
-      data: result.data.map((income) => ({
-        ...(income as any),
-        amount: toNumber(income.amount),
-      })),
+      data: result.data.map(serializeIncome),
     };
   },
 
@@ -49,10 +46,7 @@ export const FinanceService: IFinanceService = {
 
     if (!income) throw new ServiceError('ไม่พบข้อมูลรายรับ');
 
-    return {
-      ...(income as any),
-      amount: toNumber(income.amount)
-    } as SerializedIncome;
+    return serializeIncome(income);
   },
 
   async createIncome(data: IncomeInput, ctx: RequestContext): Promise<SerializedIncome> {
@@ -70,10 +64,7 @@ export const FinanceService: IFinanceService = {
       }
     );
 
-    return {
-      ...(income as any),
-      amount: toNumber(income.amount)
-    } as SerializedIncome;
+    return serializeIncome(income);
   },
 
   async updateIncome(id: string, data: IncomeInput, ctx: RequestContext): Promise<SerializedIncome> {
@@ -98,10 +89,7 @@ export const FinanceService: IFinanceService = {
       }
     );
 
-    return {
-      ...(updated as any),
-      amount: toNumber(updated.amount)
-    } as SerializedIncome;
+    return serializeIncome(updated);
   },
 
   async deleteIncome(id: string, ctx: RequestContext): Promise<void> {
@@ -172,10 +160,7 @@ export const FinanceService: IFinanceService = {
 
     return {
       ...result,
-      data: result.data.map((expense) => ({
-        ...(expense as any),
-        amount: toNumber(expense.amount),
-      })),
+      data: result.data.map(serializeExpense),
     };
   },
 
@@ -186,10 +171,7 @@ export const FinanceService: IFinanceService = {
 
     if (!expense) throw new ServiceError('ไม่พบข้อมูลค่าใช้จ่าย');
 
-    return {
-      ...(expense as any),
-      amount: toNumber(expense.amount)
-    } as SerializedExpense;
+    return serializeExpense(expense);
   },
 
   async createExpense(data: ExpenseInput, ctx: RequestContext): Promise<SerializedExpense> {
@@ -207,10 +189,7 @@ export const FinanceService: IFinanceService = {
       }
     );
 
-    return {
-      ...(expense as any),
-      amount: toNumber(expense.amount)
-    } as SerializedExpense;
+    return serializeExpense(expense);
   },
 
   async updateExpense(id: string, data: ExpenseInput, ctx: RequestContext): Promise<SerializedExpense> {
@@ -235,10 +214,7 @@ export const FinanceService: IFinanceService = {
       }
     );
 
-    return {
-      ...(updated as any),
-      amount: toNumber(updated.amount)
-    } as SerializedExpense;
+    return serializeExpense(updated);
   },
 
   async deleteExpense(id: string, ctx: RequestContext): Promise<void> {
@@ -330,10 +306,10 @@ export const FinanceService: IFinanceService = {
       }
     });
 
-    // Basic calculation for VAT 7% (Inclusive)
+    // Standard calculation for VAT (ไทย)
     const reportData = sales.map(s => {
       const net = toNumber(s.netAmount);
-      const vat = net * 7 / 107;
+      const vat = net * FINANCE_CONSTANTS.VAT_RATE / FINANCE_CONSTANTS.TAX_INCLUSIVE_DIVISOR;
       const amountBeforeVat = net - vat;
 
       return {

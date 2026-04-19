@@ -8,7 +8,6 @@ import { SalesToolbar } from '@/components/sales/sales-toolbar';
 import { SaleStatus } from '@/types/domain';
 import { SalesExportButton } from '@/components/sales/sales-export-button';
 
-import { requirePermission } from '@/lib/auth-guard';
 import { Guard } from '@/components/auth/guard';
 
 interface SalesPageProps {
@@ -24,8 +23,6 @@ interface SalesPageProps {
 }
 
 export default async function SalesPage({ searchParams }: SalesPageProps) {
-  await requirePermission('SALE_VIEW');
-
   const page = Number(searchParams.page) || 1;
   const search = searchParams.search || '';
   const startDate = searchParams.startDate || '';
