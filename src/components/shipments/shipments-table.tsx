@@ -5,14 +5,15 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
-import { EmptyState } from '@/components/ui/empty-state';
-import { TablePagination, type PaginationInfo } from '@/components/ui/table-pagination';
-import { GuidedErrorAlert } from '@/components/ui/guided-error-alert';
+  Button,
+  EmptyState,
+  TablePagination,
+  GuidedErrorAlert,
+} from '@/components/ui';
+import type { PaginationInfo } from '@/components/ui';
 import { ShipmentStatusBadge } from './shipment-status-badge';
 import { formatCurrency, formatDate } from '@/lib/formatters';
-import { useUrlFilters } from '@/hooks/use-url-filters';
+import { useUrlFilters } from '@/hooks';
 import { Eye, Package, MapPin, Loader2 } from 'lucide-react';
 import { processShipmentRoute } from '@/actions/shipments';
 import { toast } from 'sonner';

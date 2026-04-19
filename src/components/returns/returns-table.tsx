@@ -3,13 +3,14 @@
 import Link from 'next/link';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { StatusBadge, type StatusConfig } from '@/components/ui/status-badge';
-import { TablePagination, type PaginationInfo } from '@/components/ui/table-pagination';
-import { EmptyState } from '@/components/ui/empty-state';
+  Badge,
+  StatusBadge,
+  TablePagination,
+  EmptyState,
+} from '@/components/ui';
+import type { StatusConfig, PaginationInfo } from '@/components/ui';
 import { formatCurrency, formatDate } from '@/lib/formatters';
-import { useUrlFilters } from '@/hooks/use-url-filters';
+import { useUrlFilters } from '@/hooks';
 import { RotateCcw } from 'lucide-react';
 
 // ─── Status Config (SSOT for return status display) ──────────────────────────

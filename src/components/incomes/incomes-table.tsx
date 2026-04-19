@@ -5,14 +5,14 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { EmptyState } from '@/components/ui/empty-state';
-import { TablePagination, type PaginationInfo } from '@/components/ui/table-pagination';
+  Button, Badge,
+  EmptyState,
+  TablePagination,
+} from '@/components/ui';
+import type { PaginationInfo } from '@/components/ui';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { INCOME_CATEGORIES } from '@/schemas/income';
-import { useUrlFilters } from '@/hooks/use-url-filters';
+import { useUrlFilters } from '@/hooks';
 import { Edit, Trash2, TrendingUp } from 'lucide-react';
 import { deleteIncome } from '@/actions/incomes';
 import { toast } from 'sonner';

@@ -7,18 +7,17 @@ import { useRouter } from 'next/navigation';
 import type { SerializedProduct } from '@/types/serialized';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { TablePagination, type PaginationInfo } from '@/components/ui/table-pagination';
-import { EmptyState } from '@/components/ui/empty-state';
+  Button, Badge,
+  EmptyState,
+  TablePagination,
+} from '@/components/ui';
+import type { PaginationInfo } from '@/components/ui';
 import { formatCurrency } from '@/lib/formatters';
 import { PRODUCT_CATEGORIES } from '@/lib/constants';
 import { Edit, Trash2, Package } from 'lucide-react';
 import { deleteProduct } from '@/actions/products';
 import { cn } from '@/lib/utils';
-import { usePermissions } from '@/hooks/use-permissions';
-import { useUrlFilters } from '@/hooks/use-url-filters';
+import { usePermissions, useUrlFilters } from '@/hooks';
 import { Guard } from '@/components/auth/guard';
 import { toast } from 'sonner';
 
