@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter } from 'next/font/google';
+import { Inter, IBM_Plex_Sans_Thai } from 'next/font/google';
 import './globals.css';
 import { Toaster } from 'sonner';
 import { Providers } from '@/components/providers';
@@ -8,7 +8,15 @@ import { siteConfig } from '@/config/site';
 
 const inter = Inter({
   subsets: ['latin'],
+  display: 'swap',
   variable: '--font-inter',
+});
+
+const ibmPlexSansThai = IBM_Plex_Sans_Thai({
+  weight: ['100', '200', '300', '400', '500', '600', '700'],
+  subsets: ['thai', 'latin'],
+  display: 'swap',
+  variable: '--font-ibm-thai',
 });
 
 export const metadata: Metadata = {
@@ -89,8 +97,8 @@ export default async function RootLayout({
   const session = await auth();
 
   return (
-    <html lang="en">
-      <body className={inter.className}>
+    <html lang="th" suppressHydrationWarning>
+      <body className={`${inter.variable} ${ibmPlexSansThai.variable} font-sans antialiased text-[15px]`}>
         <Providers session={session}>
           {children}
           <Toaster richColors closeButton position="top-center" />

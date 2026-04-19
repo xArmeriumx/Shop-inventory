@@ -67,16 +67,24 @@
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground antialiased;
-    font-feature-settings:
-      "rlig" 1,
-      "calt" 1;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    line-height: 1.6;
+    /* Increased for Thai clarity */
   }
+
   /* Smoother font rendering */
   html {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Standardizing Thai line-height across the system */
+  :lang(th) {
+    line-height: 1.6;
   }
 }
 
@@ -122,18 +130,23 @@
     margin: 0;
     size: auto;
   }
+
   body {
     visibility: hidden;
   }
+
   .print\:hidden {
     display: none !important;
   }
+
   .print\:shadow-none {
     box-shadow: none !important;
   }
+
   .print\:border-none {
     border: none !important;
   }
+
   div:has(> .print\:shadow-none) {
     visibility: visible;
     position: absolute;
