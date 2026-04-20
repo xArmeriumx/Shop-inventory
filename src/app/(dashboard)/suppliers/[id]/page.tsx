@@ -15,6 +15,7 @@ import {
   Package,
   Clock,
   Wallet,
+  Pencil,
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -57,12 +58,20 @@ export default async function SupplierProfilePage({ params }: { params: { id: st
             <p className="text-sm text-muted-foreground">Code: {supplier.code}</p>
           )}
         </div>
-        <Button asChild>
-          <Link href={`/purchases/new?supplierId=${supplier.id}`}>
-            <Plus className="h-4 w-4 mr-2" />
-            New Purchase
-          </Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" asChild>
+            <Link href={`/suppliers/${supplier.id}/edit`}>
+              <Pencil className="h-4 w-4 mr-2" />
+              Edit Supplier
+            </Link>
+          </Button>
+          <Button asChild>
+            <Link href={`/purchases/new?supplierId=${supplier.id}`}>
+              <Plus className="h-4 w-4 mr-2" />
+              New Purchase
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}

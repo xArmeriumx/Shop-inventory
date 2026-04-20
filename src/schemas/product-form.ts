@@ -18,22 +18,52 @@ import { z } from 'zod';
 
 export const productFormSchema = z.object({
     // -- Identity --
-    name: z.string().min(1, 'กรุณากรอกชื่อสินค้า').max(200, 'ชื่อสินค้าต้องไม่เกิน 200 ตัวอักษร'),
-    description: z.string().max(1000, 'รายละเอียดต้องไม่เกิน 1000 ตัวอักษร').optional().nullable(),
-    sku: z.string().max(50, 'SKU ต้องไม่เกิน 50 ตัวอักษร').optional().nullable(),
-    category: z.string().min(1, 'กรุณาเลือกหมวดหมู่'),
+    name: z.string()
+        .trim()
+        .min(1, 'กรุณากรอกชื่อสินค้า')
+        .max(200, 'ชื่อสินค้าต้องไม่เกิน 200 ตัวอักษร'),
+    description: z.string()
+        .trim()
+        .max(1000, 'รายละเอียดต้องไม่เกิน 1000 ตัวอักษร')
+        .optional()
+        .nullable(),
+    sku: z.string()
+        .trim()
+        .toUpperCase()
+        .max(50, 'SKU ต้องไม่เกิน 50 ตัวอักษร')
+        .optional()
+        .nullable(),
+    category: z.string()
+        .trim()
+        .min(1, 'กรุณาเลือกหมวดหมู่'),
 
     // -- Pricing --
-    costPrice: z.coerce.number({ invalid_type_error: 'กรุณากรอกราคาทุน' }).min(0, 'ราคาทุนต้องไม่ติดลบ').max(999999999, 'ราคาทุนสูงเกินไป'),
-    salePrice: z.coerce.number({ invalid_type_error: 'กรุณากรอกราคาขาย' }).min(0, 'ราคาขายต้องไม่ติดลบ').max(999999999, 'ราคาขายสูงเกินไป'),
+    costPrice: z.coerce.number({ invalid_type_error: 'กรุณากรอกราคาทุน' })
+        .min(0, 'ราคาทุนต้องไม่ติดลบ')
+        .max(999999999, 'ราคาทุนสูงเกินไป'),
+    salePrice: z.coerce.number({ invalid_type_error: 'กรุณากรอกราคาขาย' })
+        .min(0, 'ราคาขายต้องไม่ติดลบ')
+        .max(999999999, 'ราคาขายสูงเกินไป'),
 
     // -- Inventory --
-    stock: z.coerce.number({ invalid_type_error: 'กรุณากรอกจำนวนสต็อก' }).int('จำนวนต้องเป็นจำนวนเต็ม').min(0, 'จำนวนสต็อกต้องไม่ติดลบ'),
-    minStock: z.coerce.number().int().min(0).default(5),
+    stock: z.coerce.number({ invalid_type_error: 'กรุณากรอกจำนวนสต็อก' })
+        .int('จำนวนต้องเป็นจำนวนเต็ม')
+        .min(0, 'จำนวนสต็อกต้องไม่ติดลบ'),
+    minStock: z.coerce.number()
+        .int('จำนวนต้องเป็นจำนวนเต็ม')
+        .min(0)
+        .default(5),
 
     // -- ERP / Procurement --
-    moq: z.coerce.number().int().min(0).optional().nullable(),
-    packagingQty: z.coerce.number().int().min(1, 'จำนวนต่อแพ็กต้องมีอย่างน้อย 1').default(1),
+    moq: z.coerce.number()
+        .int('จำนวนต้องเป็นจำนวนเต็ม')
+        .min(0)
+        .optional()
+        .nullable(),
+    packagingQty: z.coerce.number()
+        .int('จำนวนต้องเป็นจำนวนเต็ม')
+        .min(1, 'จำนวนต่อแพ็กต้องมีอย่างน้อย 1')
+        .default(1),
     isActive: z.boolean().default(true),
     isSaleable: z.boolean().default(true),
 

@@ -5,9 +5,9 @@ import { paginatedQuery, buildSearchFilter } from '@/lib/pagination';
 import { logger } from '@/lib/logger';
 import type { Customer } from '@prisma/client';
 
-import { 
-  RequestContext, 
-  ServiceError, 
+import {
+  RequestContext,
+  ServiceError,
   GetCustomersParams,
   SerializedCustomer,
   PaginatedResult,
@@ -22,23 +22,43 @@ export const CustomerService: ICustomerService = {
     const searchFilter = buildSearchFilter(search, ['name', 'phone', 'address', 'email']);
 
     const where = {
-      shopId: ctx.shopId, 
+      shopId: ctx.shopId,
       ...(searchFilter && searchFilter),
       deletedAt: null,
     };
 
-    const result = await paginatedQuery<Customer>(db.customer, {
+    const result = await paginatedQuery<any>(db.customer, {
       where,
+      include: {
+        _count: {
+          select: { sales: { where: { status: { not: 'CANCELLED' } } } },
+        },
+      },
       page,
       limit,
       orderBy: { name: 'asc' },
     });
 
+    // Fetch volume (Accumulated Sales) for these specific customers
+    const customerIds = result.data.map((c: any) => c.id);
+    const volumeData = await db.sale.groupBy({
+      by: ['customerId'],
+      where: {
+        customerId: { in: customerIds },
+        status: { not: 'CANCELLED' },
+        shopId: ctx.shopId,
+      },
+      _sum: { netAmount: true },
+    });
+
+    const volumeMap = new Map(volumeData.map(v => [v.customerId, Number(v._sum.netAmount || 0)]));
+
     return {
       ...result,
-      data: result.data.map(c => ({
+      data: result.data.map((c: any) => ({
         ...c,
         creditLimit: c.creditLimit ? Number(c.creditLimit) : null,
+        totalVolume: volumeMap.get(c.id) || 0,
       })),
     };
   },
@@ -256,11 +276,11 @@ export const CustomerService: ICustomerService = {
     const shipmentCosts = allShipments
       .filter((s: any) => s.shippingCost && s.status !== 'CANCELLED')
       .map((s: any) => s.shippingCost!);
-      
+
     const avgShippingCost = shipmentCosts.length > 0
       ? shipmentCosts.reduce((a: number, b: number) => a + b, 0) / shipmentCosts.length
       : 0;
-      
+
     const totalShippingCost = shipmentCosts.reduce((a: number, b: number) => a + b, 0);
 
     const providerCounts: Record<string, number> = {};
@@ -269,7 +289,7 @@ export const CustomerService: ICustomerService = {
       .forEach((s: any) => {
         providerCounts[s.shippingProvider!] = (providerCounts[s.shippingProvider!] || 0) + 1;
       });
-      
+
     const topProvider = Object.entries(providerCounts)
       .sort((a, b) => b[1] - a[1])[0]?.[0] || null;
 
@@ -448,7 +468,7 @@ export const CustomerService: ICustomerService = {
   async batchCreate(inputs: any[], ctx: RequestContext) {
     // Expected Columns (Standard Template)
     const REQUIRED_COLUMNS = ['name', 'phone', 'email', 'address', 'region'];
-    
+
     const results = {
       success: [] as any[],
       failed: [] as any[],
@@ -460,9 +480,9 @@ export const CustomerService: ICustomerService = {
       const isStructureValid = REQUIRED_COLUMNS.every(col => inputKeys.includes(col));
 
       if (!isStructureValid) {
-        results.failed.push({ 
-          data: input, 
-          error: `Structure Mismatch: Missing required columns (${REQUIRED_COLUMNS.filter(c => !inputKeys.includes(c)).join(', ')})` 
+        results.failed.push({
+          data: input,
+          error: `Structure Mismatch: Missing required columns (${REQUIRED_COLUMNS.filter(c => !inputKeys.includes(c)).join(', ')})`
         });
         continue;
       }
@@ -487,7 +507,7 @@ export const CustomerService: ICustomerService = {
     });
 
     if (!customer) throw new ServiceError('ไม่พบข้อมูลลูกค้า');
-    
+
     // ถ้าไม่มีการตั้งวงเงิน (null หรือ 0) ถือว่าไม่มีขีดจำกัด (ใช้งานง่ายสำหรับร้านทั่วไป)
     const limit = customer.creditLimit ? Number(customer.creditLimit) : 0;
     if (limit <= 0) {

@@ -1,22 +1,56 @@
 'use client';
 
-import { Truck, RotateCcw, Box, Package, History, Search, MoreVertical, CheckCircle2, Clock } from 'lucide-react';
+import { Truck, RotateCcw, Box, Package, History, Search, CheckCircle2, Clock } from 'lucide-react';
+import { TableView, Column } from '@/components/ui/table-view';
+
+interface Shipment {
+    id: string;
+    order: string;
+    carrier: string;
+    track: string;
+    status: string;
+    date: string;
+}
 
 export function ShipmentsView() {
-    const shipments = [
+    const shipments: Shipment[] = [
         { id: 'SHP-001', order: 'INV-2024001', carrier: 'Kerry Express', track: 'KRY990123', status: 'จัดส่งสำเร็จ', date: 'วันนี้ 14:20' },
         { id: 'SHP-002', order: 'INV-2024002', carrier: 'Flash Express', track: 'FLH440556', status: 'กำลังจัดส่ง', date: 'วันนี้ 11:45' },
         { id: 'SHP-003', order: 'INV-2024004', carrier: 'J&T Express', track: 'JNT770889', status: 'เตรียมจัดส่ง', date: 'วานนี้ 16:30' },
     ];
 
+    const columns: Column<Shipment>[] = [
+        {
+            header: 'ขนส่ง / Tracking',
+            accessor: (s) => (
+                <>
+                    <div className="font-bold">{s.carrier}</div>
+                    <div className="text-[10px] text-muted-foreground">{s.track}</div>
+                </>
+            )
+        },
+        { header: 'เลขอ้างอิงบิล', accessor: 'order', className: 'font-medium' },
+        {
+            header: 'สถานะ',
+            align: 'center',
+            accessor: (s) => (
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${s.status === 'จัดส่งสำเร็จ' ? 'bg-green-100 text-green-700' : s.status === 'กำลังจัดส่ง' ? 'bg-blue-100 text-blue-700' : 'bg-muted text-muted-foreground'}`}>
+                    {s.status}
+                </span>
+            )
+        },
+        { header: 'อัปเดตล่าสุด', accessor: 'date', align: 'right', className: 'text-xs text-muted-foreground' }
+    ];
+
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold tracking-tight">การจัดส่ง</h1>
-                    <p className="text-sm text-muted-foreground">ติดตามสถานะพัสดุและเลข Tracking รายบิล</p>
-                </div>
-            </div>
+            <TableView
+                title="การจัดส่ง"
+                description="ติดตามสถานะพัสดุและเลข Tracking รายบิล"
+                items={shipments}
+                columns={columns}
+                keyExtractor={(s) => s.id}
+            />
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {[
@@ -35,99 +69,79 @@ export function ShipmentsView() {
                     </div>
                 ))}
             </div>
-
-            <div className="rounded-xl border bg-background shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm min-w-[700px]">
-                        <thead>
-                            <tr className="border-b bg-muted/20 text-muted-foreground font-bold uppercase tracking-wider text-[10px]">
-                                <th className="px-6 py-4">ขนส่ง / Tracking</th>
-                                <th className="px-6 py-4">เลขอ้างอิงบิล</th>
-                                <th className="px-6 py-4 text-center">สถานะ</th>
-                                <th className="px-6 py-4 text-right">อัปเดตล่าสุด</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border/50">
-                            {shipments.map((s) => (
-                                <tr key={s.id} className="group">
-                                    <td className="px-6 py-4">
-                                        <div className="font-bold">{s.carrier}</div>
-                                        <div className="text-[10px] text-muted-foreground">{s.track}</div>
-                                    </td>
-                                    <td className="px-6 py-4 font-medium">{s.order}</td>
-                                    <td className="px-6 py-4 text-center">
-                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${s.status === 'จัดส่งสำเร็จ' ? 'bg-green-100 text-green-700' : s.status === 'กำลังจัดส่ง' ? 'bg-blue-100 text-blue-700' : 'bg-muted text-muted-foreground'}`}>
-                                            {s.status}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4 text-right text-xs text-muted-foreground">{s.date}</td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
         </div>
     );
 }
 
 export function ReturnsView() {
+    const returns = [
+        { id: 'RET-001', order: 'INV-2024005', product: 'Smart Watch S7', qty: 1, amount: '฿1,200', reason: 'สินค้ามีตำหนิ', date: 'วันนี้ 15:30' },
+        { id: 'RET-002', order: 'INV-2023990', product: 'USB-C Hub', qty: 2, amount: '฿1,700', reason: 'เปลี่ยนใจ', date: 'วานนี้ 09:10' },
+    ];
+
+    const columns: Column<typeof returns[0]>[] = [
+        { header: 'เลขอ้างอิงคืน', accessor: 'id', className: 'font-bold' },
+        { header: 'รายการสินค้า', accessor: 'product' },
+        { header: 'จำนวน', accessor: 'qty', align: 'center' },
+        { header: 'ยอดเงินคืน', accessor: 'amount', align: 'right', className: 'font-bold text-red-600' },
+        { header: 'เหตุผล', accessor: 'reason', className: 'text-xs italic text-muted-foreground' },
+        { header: 'วันที่', accessor: 'date', align: 'right', className: 'text-xs' }
+    ];
+
     return (
         <div className="space-y-6">
-            <h1 className="text-2xl font-bold tracking-tight">การคืนสินค้า</h1>
-            <div className="h-64 rounded-xl border border-dashed flex flex-col items-center justify-center text-muted-foreground p-8 text-center space-y-4">
-                <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
-                    <RotateCcw className="h-6 w-6" />
-                </div>
-                <div>
-                    <h3 className="font-bold text-foreground">ไม่มีรายการคืนสินค้าในขณะนี้</h3>
-                    <p className="text-xs max-w-xs mx-auto mt-1">รายการคืนจะปรากฏขึ้นเมื่อลูกค้าขอคืนสินค้าจากประวัติการขาย</p>
-                </div>
-            </div>
+            <TableView
+                title="รายการคืนสินค้า"
+                description="จัดการการคืนสินค้า คืนสต็อก และคืนเงินลูกค้า"
+                items={returns}
+                columns={columns}
+                keyExtractor={(r) => r.id}
+            />
         </div>
     );
 }
 
 export function WarehouseView() {
     return (
-        <div className="space-y-8">
+        <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight">คลังสินค้า (Mobile)</h1>
-                    <p className="text-sm text-muted-foreground text-pretty">ออกแบบสำหรับการสแกนด้วยโทรศัพท์มือถือที่หน้าคลัง</p>
+                    <h1 className="text-2xl font-bold tracking-tight">คลังสินค้า</h1>
+                    <p className="text-sm text-muted-foreground">ตรวจสอบพื้นที่จัดเก็บและสถานะสต็อกรายคลัง</p>
                 </div>
             </div>
 
-            <div className="max-w-xs mx-auto bg-background border-[8px] border-muted rounded-[3rem] h-[550px] shadow-2xl relative overflow-hidden flex flex-col">
-                <div className="h-6 w-32 bg-muted mx-auto rounded-b-2xl mb-4" />
-                <div className="flex-1 p-6 space-y-6">
-                    <div className="bg-muted/30 p-4 rounded-2xl flex items-center gap-4">
-                        <div className="h-10 w-10 rounded-xl bg-foreground flex items-center justify-center text-background">
-                            <Search className="h-5 w-5" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {[
+                    { name: 'คลังสินค้าหลัก (Bangkok)', capacity: '85%', items: 1240, color: 'bg-green-500' },
+                    { name: 'คลังสินค้าสำรอง (Nonthaburi)', capacity: '30%', items: 450, color: 'bg-blue-500' },
+                ].map((w, i) => (
+                    <div key={i} className="p-6 rounded-xl border bg-background shadow-sm space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div className="font-bold text-lg">{w.name}</div>
+                            <div className={`h-2 w-2 rounded-full ${w.color} animate-pulse`} />
                         </div>
-                        <div className="font-bold text-sm">สแกนสินค้า...</div>
-                    </div>
-
-                    <div className="space-y-3">
-                        <div className="text-[10px] font-black tracking-widest text-muted-foreground uppercase px-2">งานที่ต้องทำ</div>
-                        {[
-                            { title: 'รับของเข้า (PO-2024001)', icon: Package, count: '12 รายการ' },
-                            { title: 'ตรวจนับสต็อกประจำสัปดาห์', icon: History, count: '45 รายการ' },
-                        ].map((task, i) => (
-                            <div key={i} className="p-4 rounded-2xl border bg-background shadow-sm flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="h-8 w-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center"><task.icon className="h-4 w-4" /></div>
-                                    <div className="font-bold text-[11px] leading-tight">{task.title}</div>
-                                </div>
-                                <div className="text-[9px] font-bold text-muted-foreground">{task.count}</div>
+                        <div className="space-y-2">
+                            <div className="flex justify-between text-xs font-medium">
+                                <span className="text-muted-foreground">ความจุที่ใช้ไป</span>
+                                <span>{w.capacity}</span>
                             </div>
-                        ))}
+                            <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                                <div className={`h-full ${w.color}`} style={{ width: w.capacity }} />
+                            </div>
+                        </div>
+                        <div className="pt-2 flex items-center justify-between">
+                            <div className="text-xs text-muted-foreground">สินค้าทั้งหมด <span className="font-bold text-foreground">{w.items} ชิ้น</span></div>
+                            <button className="text-xs font-bold text-primary hover:underline">จัดการคลัง ➔</button>
+                        </div>
                     </div>
+                ))}
+            </div>
 
-                    <div className="absolute bottom-10 left-6 right-6 h-12 rounded-xl bg-foreground text-background flex items-center justify-center font-bold text-sm shadow-xl">
-                        เปิดกล้องสแกนบาร์โค้ด
-                    </div>
-                </div>
+            <div className="p-8 rounded-xl border border-dashed bg-muted/20 text-center">
+                <Box className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
+                <h3 className="font-bold text-foreground">ไม่มีข้อมูลการเคลื่อนย้ายล่าสุด</h3>
+                <p className="text-xs max-w-xs mx-auto mt-1">ประวัติการย้ายสินค้าระหว่างคลังจะแสดงผลที่นี่เมื่อมีการทำรายการ</p>
             </div>
         </div>
     );

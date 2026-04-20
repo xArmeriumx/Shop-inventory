@@ -3,142 +3,96 @@ import { groq, DEFAULT_MODEL, SHOP_AI_SYSTEM_PROMPT, detectToolFromMessage } fro
 import { getShopContextForAI } from '@/actions/ai';
 import { getToolDefinitions, executeTool } from '@/lib/ai/tools';
 import { withAuth } from '@/lib/auth/api-guard';
+import { AiStreamUtils } from '@/lib/ai/ai-stream-utils';
 
 export const POST = withAuth(async (request: NextRequest, session: any) => {
   try {
     const shopId = session.user.shopId;
     const userId = session.user.id;
-    
+
     const { messages, confirmTool, confirmParams } = await request.json();
 
-    const context = {
-      userId,
-      shopId,
-    };
+    const context = { userId, shopId };
 
-    // Handle tool confirmation
+    // Handle tool confirmation (Early return)
     if (confirmTool) {
       const result = await executeTool(confirmTool, confirmParams, context, true);
-      return Response.json({ 
+      return Response.json({
         message: result.message,
         toolResult: result,
       });
     }
 
     if (!messages || !Array.isArray(messages)) {
-      return new Response(JSON.stringify({ error: 'Messages are required' }), { 
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      return Response.json({ error: 'Messages are required' }, { status: 400 });
     }
 
     // Get the latest user message for fallback detection
     const latestUserMessage = messages.filter((m: any) => m.role === 'user').pop()?.content || '';
 
-    // Get shop context
+    // Get shop context (Modular Service + PromptBuilder inside the action)
     const shopContext = await getShopContextForAI();
 
-    // Build messages with system prompt and context
-    const systemMessage = {
-      role: 'system' as const,
-      content: `${SHOP_AI_SYSTEM_PROMPT}\n\n--- ข้อมูลร้านปัจจุบัน ---\n${shopContext}`,
-    };
-
-    // Call Groq API with tools (lower temperature for stability)
+    // Call Groq API
     const response = await groq.chat.completions.create({
       model: DEFAULT_MODEL,
-      messages: [systemMessage, ...messages],
+      messages: [
+        { role: 'system', content: `${SHOP_AI_SYSTEM_PROMPT}\n\n--- ข้อมูลร้านปัจจุบัน ---\n${shopContext}` },
+        ...messages
+      ],
       tools: getToolDefinitions(),
       tool_choice: 'auto',
-      temperature: 0.3, // Lower for more stable tool detection
+      temperature: 0.3,
       max_tokens: 1024,
       stream: true,
     });
 
-    // Handle streaming response with potential tool calls
-    const encoder = new TextEncoder();
-    let toolCalls: any[] = [];
-    let textContent = '';
-
     const stream = new ReadableStream({
       async start(controller) {
+        const { encodeChunk, encodeDone } = AiStreamUtils.createEncoder();
+        let toolCalls: any[] = [];
+        let textContent = '';
+
         try {
           for await (const chunk of response) {
             const delta = chunk.choices[0]?.delta;
-            
-            // Handle text content
             if (delta?.content) {
               textContent += delta.content;
-              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content: delta.content })}\n\n`));
+              controller.enqueue(encodeChunk(AiStreamUtils.formatContentChunk(delta.content)));
             }
-            
-            // Handle tool calls
+
             if (delta?.tool_calls) {
-              for (const toolCall of delta.tool_calls) {
-                if (toolCall.index !== undefined) {
-                  if (!toolCalls[toolCall.index]) {
-                    toolCalls[toolCall.index] = {
-                      id: toolCall.id,
-                      function: { name: '', arguments: '' },
-                    };
+              for (const tc of delta.tool_calls) {
+                if (tc.index !== undefined) {
+                  if (!toolCalls[tc.index]) {
+                    toolCalls[tc.index] = { id: tc.id, function: { name: '', arguments: '' } };
                   }
-                  if (toolCall.function?.name) {
-                    toolCalls[toolCall.index].function.name = toolCall.function.name;
-                  }
-                  if (toolCall.function?.arguments) {
-                    toolCalls[toolCall.index].function.arguments += toolCall.function.arguments;
-                  }
+                  if (tc.function?.name) toolCalls[tc.index].function.name = tc.function.name;
+                  if (tc.function?.arguments) toolCalls[tc.index].function.arguments += tc.function.arguments;
                 }
               }
             }
           }
 
-          // Process tool calls if any
+          // Process tool calls
           if (toolCalls.length > 0) {
             for (const toolCall of toolCalls) {
               if (toolCall?.function?.name) {
-                try {
-                  const params = JSON.parse(toolCall.function.arguments || '{}');
-                  const result = await executeTool(toolCall.function.name, params, context, false);
-                  
-                  controller.enqueue(encoder.encode(`data: ${JSON.stringify({ 
-                    toolResult: result,
-                    toolName: toolCall.function.name,
-                  })}\n\n`));
-                } catch (e) {
-                  console.error('Tool execution error:', e);
-                }
+                const params = JSON.parse(toolCall.function.arguments || '{}');
+                const result = await executeTool(toolCall.function.name, params, context, false);
+                controller.enqueue(encodeChunk(AiStreamUtils.formatToolChunk(toolCall.function.name, result)));
               }
             }
-          } else if (textContent && !textContent.includes('ไม่สามารถ') && !textContent.includes('ทำไม่ได้')) {
-            // No tool calls - check for fallback keyword detection
+          } else if (textContent && !textContent.includes('ไม่สามารถ')) {
+            // Fallback detection
             const fallback = detectToolFromMessage(latestUserMessage);
-            
             if (fallback && fallback.params) {
-              console.log('Fallback detected:', fallback);
-              
-              // Validate that we have necessary params
-              const hasValidParams = 
-                (fallback.tool === 'create_expense' && fallback.params.amount > 0) ||
-                (fallback.tool === 'create_income' && fallback.params.amount > 0) ||
-                (fallback.tool === 'create_product' && fallback.params.name && fallback.params.price > 0) ||
-                (fallback.tool === 'check_stock' && fallback.params.productName) ||
-                (fallback.tool === 'generate_report');
-
-              if (hasValidParams) {
-                const result = await executeTool(fallback.tool, fallback.params, context, false);
-                
-                // Clear text content and send tool result instead
-                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ 
-                  toolResult: result,
-                  toolName: fallback.tool,
-                  fallback: true,
-                })}\n\n`));
-              }
+              const result = await executeTool(fallback.tool, fallback.params, context, false);
+              controller.enqueue(encodeChunk(AiStreamUtils.formatToolChunk(fallback.tool, result, true)));
             }
           }
 
-          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+          controller.enqueue(encodeDone());
           controller.close();
         } catch (error) {
           console.error('Streaming error:', error);
@@ -156,9 +110,6 @@ export const POST = withAuth(async (request: NextRequest, session: any) => {
     });
   } catch (error) {
     console.error('AI Chat error:', error);
-    return new Response(
-      JSON.stringify({ error: 'เกิดข้อผิดพลาดในการประมวลผล กรุณาลองใหม่อีกครั้ง' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
-    );
+    return Response.json({ error: 'เกิดข้อผิดพลาดในการประมวลผล' }, { status: 500 });
   }
 }, { rateLimitPolicy: 'ai' });

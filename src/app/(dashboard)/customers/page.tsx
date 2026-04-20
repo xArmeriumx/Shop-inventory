@@ -1,22 +1,23 @@
-import Link from 'next/link';
-import { Plus } from 'lucide-react';
-import { PageHeader } from '@/components/layout/page-header';
-import { Button } from '@/components/ui/button';
+import { Suspense } from 'react';
 import { getCustomers } from '@/actions/customers';
-import { CustomersTable } from '@/components/customers/customers-table';
+import { SectionHeader } from '@/components/ui/section-header';
 import { CustomersToolbar } from '@/components/customers/customers-toolbar';
-import { CustomersExportButton } from '@/components/customers/customers-export-button';
+import { CustomerGrid } from '@/components/customers/customer-grid';
+import { CustomersTable } from '@/components/customers/customers-table';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface CustomersPageProps {
   searchParams: {
     page?: string;
     search?: string;
+    view?: string;
   };
 }
 
 export default async function CustomersPage({ searchParams }: CustomersPageProps) {
   const page = Number(searchParams.page) || 1;
   const search = searchParams.search || '';
+  const view = searchParams.view || 'grid';
 
   const { data: customers, pagination } = await getCustomers({
     page,
@@ -24,22 +25,24 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
   });
 
   return (
-    <div>
-      <PageHeader title="ลูกค้า" description="จัดการข้อมูลลูกค้า">
-        <div className="flex gap-2">
-          <CustomersExportButton />
-          <Button asChild>
-            <Link href="/customers/new">
-              <Plus className="mr-2 h-4 w-4" />
-              เพิ่มลูกค้า
-            </Link>
-          </Button>
-        </div>
-      </PageHeader>
+    <div className="space-y-6">
+      <SectionHeader
+        title="ลูกค้า"
+        description="จัดการข้อมูลผู้ติดต่อและประวัติการซื้อ"
+      />
 
       <div className="space-y-4">
-        <CustomersToolbar search={search} />
-        <CustomersTable customers={customers} pagination={pagination} />
+        <CustomersToolbar initialSearch={search} />
+
+        <Suspense fallback={<Skeleton className="w-full h-96 rounded-3xl" />}>
+          {view === 'table' ? (
+            <div className="bg-card rounded-3xl border shadow-sm overflow-hidden">
+              <CustomersTable customers={customers} pagination={pagination} />
+            </div>
+          ) : (
+            <CustomerGrid customers={customers as any} pagination={pagination} />
+          )}
+        </Suspense>
       </div>
     </div>
   );

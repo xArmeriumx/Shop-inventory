@@ -20,6 +20,10 @@ import {
   Sparkles,
   RotateCcw,
   ShieldCheck,
+  FileText,
+  ClipboardList,
+  CheckCircle2,
+  PackageCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -35,6 +39,13 @@ const navItems = [
     href: '/dashboard',
     icon: LayoutDashboard,
   },
+  // --- Sales & Logistics ---
+  {
+    title: 'ใบเสนอราคา',
+    href: '/quotations',
+    icon: FileText,
+    permission: 'QUOTATION_VIEW' as Permission,
+  },
   {
     title: 'ขายสินค้า',
     href: '/sales',
@@ -48,11 +59,18 @@ const navItems = [
     permission: 'SHIPMENT_VIEW' as Permission,
   },
   {
+    title: 'ใบส่งของ',
+    href: '/deliveries',
+    icon: PackageCheck,
+    permission: 'DELIVERY_VIEW' as Permission,
+  },
+  {
     title: 'คืนสินค้า',
     href: '/returns',
     icon: RotateCcw,
     permission: 'RETURN_VIEW' as Permission,
   },
+  // --- Inventory ---
   {
     title: 'สินค้า',
     href: '/products',
@@ -65,8 +83,15 @@ const navItems = [
     icon: Truck,
     permission: 'STOCK_VIEW' as Permission,
   },
+  // --- Procurement ---
   {
-    title: 'ซื้อสินค้า',
+    title: 'ขอซื้อสินค้า (PR)',
+    href: '/order-requests',
+    icon: ClipboardList,
+    permission: 'ORDER_REQUEST_VIEW' as Permission,
+  },
+  {
+    title: 'ซื้อสินค้า (PO)',
     href: '/purchases',
     icon: Receipt,
     permission: 'PURCHASE_VIEW' as Permission,
@@ -74,9 +99,10 @@ const navItems = [
   {
     title: 'ผู้จำหน่าย',
     href: '/suppliers',
-    icon: Truck,
+    icon: Truck, // TODO: Use Building2?
     permission: 'SUPPLIER_VIEW' as Permission,
   },
+  // --- CRM & Others ---
   {
     title: 'ลูกค้า',
     href: '/customers',
@@ -104,6 +130,12 @@ const navItems = [
 
 const secondaryNavItems = [
   {
+    title: 'รออนุมัติ',
+    href: '/approvals',
+    icon: CheckCircle2,
+    permission: 'APPROVAL_VIEW' as Permission,
+  },
+  {
     title: 'รายงาน',
     href: '/reports',
     icon: BarChart3,
@@ -113,8 +145,6 @@ const secondaryNavItems = [
     title: 'ตั้งค่า',
     href: '/settings',
     icon: Settings,
-    // Settings has its own internal tabs with permissions
-    // but the page itself is accessible to all logged-in users (for profile)
   },
   {
     title: 'คู่มือ',
@@ -193,7 +223,7 @@ export function Sidebar({ isCollapsed = false, onToggle, className }: SidebarPro
           if (item.permission && !hasPermission(item.permission)) {
             return null;
           }
-          
+
           const isActive = pathname ? (pathname === item.href || pathname.startsWith(`${item.href}/`)) : false;
           return (
             <Link

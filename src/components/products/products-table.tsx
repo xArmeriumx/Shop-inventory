@@ -9,15 +9,14 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
   Button, Badge,
   EmptyState,
-  TablePagination,
+  PaginationControl,
 } from '@/components/ui';
-import type { PaginationInfo } from '@/components/ui';
 import { formatCurrency } from '@/lib/formatters';
 import { PRODUCT_CATEGORIES } from '@/lib/constants';
 import { Edit, Trash2, Package } from 'lucide-react';
 import { deleteProduct } from '@/actions/products';
 import { cn } from '@/lib/utils';
-import { usePermissions, useUrlFilters } from '@/hooks';
+import { usePermissions } from '@/hooks';
 import { Guard } from '@/components/auth/guard';
 import { toast } from 'sonner';
 
@@ -25,7 +24,14 @@ import { toast } from 'sonner';
 
 interface ProductsTableProps {
   products: SerializedProduct[];
-  pagination: PaginationInfo;
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPrevPage: boolean;
+  };
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -37,7 +43,6 @@ const getCategoryLabel = (value: string) =>
 
 export function ProductsTable({ products, pagination }: ProductsTableProps) {
   const router = useRouter();
-  const { goToPage, isPending } = useUrlFilters();
   const { hasPermission } = usePermissions();
   const canViewCost = hasPermission('PRODUCT_VIEW_COST');
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -72,13 +77,13 @@ export function ProductsTable({ products, pagination }: ProductsTableProps) {
         <div className="overflow-x-auto -mx-px">
           <Table className="min-w-[600px]">
             <TableHeader>
-              <TableRow>
+              <TableRow className="bg-muted/50">
                 <TableHead className="w-12" />
-                <TableHead>สินค้า</TableHead>
-                <TableHead className="hidden sm:table-cell">หมวดหมู่</TableHead>
-                {canViewCost && <TableHead className="text-right hidden md:table-cell">ราคาทุน</TableHead>}
-                <TableHead className="text-right">ราคาขาย</TableHead>
-                <TableHead className="text-right">สต็อก (พร้อมขาย)</TableHead>
+                <TableHead className="font-bold">สินค้า</TableHead>
+                <TableHead className="hidden sm:table-cell font-bold">หมวดหมู่</TableHead>
+                {canViewCost && <TableHead className="text-right hidden md:table-cell font-bold">ราคาทุน</TableHead>}
+                <TableHead className="text-right font-bold">ราคาขาย</TableHead>
+                <TableHead className="text-right font-bold">สต็อก (พร้อมขาย)</TableHead>
                 <TableHead className="w-[80px] sm:w-[100px]" />
               </TableRow>
             </TableHeader>
@@ -91,7 +96,7 @@ export function ProductsTable({ products, pagination }: ProductsTableProps) {
                   <TableRow key={product.id} className={cn('group', !product.isActive && 'opacity-60 bg-muted/30')}>
                     {/* Thumbnail */}
                     <TableCell className="p-2">
-                      <div className="relative w-10 h-10 rounded-md overflow-hidden bg-muted flex items-center justify-center">
+                      <div className="relative w-10 h-10 rounded-md overflow-hidden bg-muted flex items-center justify-center border border-border/40">
                         {productImage ? (
                           <Image src={productImage} alt={product.name} fill className="object-cover" sizes="40px" />
                         ) : (
@@ -104,7 +109,7 @@ export function ProductsTable({ products, pagination }: ProductsTableProps) {
                     <TableCell>
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
-                          <p className="font-medium line-clamp-1">{product.name}</p>
+                          <p className="font-bold line-clamp-1">{product.name}</p>
                           {!product.isActive && (
                             <Badge variant="outline" className="text-[10px] h-4 px-1 text-muted-foreground border-muted-foreground">ปิดใช้งาน</Badge>
                           )}
@@ -134,14 +139,14 @@ export function ProductsTable({ products, pagination }: ProductsTableProps) {
                     )}
 
                     {/* Sale Price */}
-                    <TableCell className="text-right font-medium text-primary">
+                    <TableCell className="text-right font-bold text-primary">
                       {formatCurrency(product.salePrice.toString())}
                     </TableCell>
 
                     {/* Stock */}
                     <TableCell className="text-right">
                       <div className="flex flex-col items-end">
-                        <span className={cn('font-semibold', isLowStock ? 'text-destructive' : 'text-green-600')}>
+                        <span className={cn('font-bold', isLowStock ? 'text-destructive' : 'text-green-600')}>
                           {available}
                         </span>
                         <span className="text-[10px] text-muted-foreground whitespace-nowrap">
@@ -153,12 +158,12 @@ export function ProductsTable({ products, pagination }: ProductsTableProps) {
                     {/* Actions */}
                     <TableCell>
                       <div className="flex items-center justify-end gap-0.5">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-primary/10 hover:text-primary" asChild>
                           <Link href={`/products/${product.id}`}><Edit className="h-4 w-4" /></Link>
                         </Button>
                         <Guard permission="PRODUCT_DELETE">
                           <Button
-                            variant="ghost" size="icon" className="h-8 w-8"
+                            variant="ghost" size="icon" className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
                             onClick={() => handleDelete(product.id, product.name)}
                             disabled={deletingId === product.id}
                           >
@@ -175,7 +180,7 @@ export function ProductsTable({ products, pagination }: ProductsTableProps) {
         </div>
       </div>
 
-      <TablePagination pagination={pagination} onPageChange={goToPage} isPending={isPending} />
+      <PaginationControl pagination={pagination} />
     </div>
   );
 }

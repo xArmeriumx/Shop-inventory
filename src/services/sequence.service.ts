@@ -89,6 +89,18 @@ const DEFAULT_CONFIGS: Record<string, Omit<SequenceConfig, 'documentType'>> = {
     padLength: 5,
     useBuddhistYear: false,
   },
+  [DocumentType.ORDER_REQUEST]: {
+    format: SequenceFormat.STANDARD,
+    resetCycle: 'MONTHLY',
+    padLength: 5,
+    useBuddhistYear: false,
+  },
+  [DocumentType.DELIVERY_ORDER]: {
+    format: SequenceFormat.STANDARD,
+    resetCycle: 'MONTHLY',
+    padLength: 5,
+    useBuddhistYear: false,
+  },
 };
 
 // ============================================================================
@@ -109,7 +121,7 @@ function buildSequencePrefix(
 
   // 1. Explicit Custom Prefix (Highest Priority) - UC 8 (OD prefix)
   if (customPrefix) return customPrefix;
-  
+
   // 2. Special Purchase Logic - UC 5 (Local/Foreign)
   if (docType === DocumentType.PURCHASE_ORDER || docType === DocumentType.PURCHASE_REQUEST) {
     const pType = overrides?.purchaseType;

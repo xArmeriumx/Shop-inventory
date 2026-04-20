@@ -11,9 +11,10 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Edit, Trash2, ChevronLeft, ChevronRight, Phone, Mail } from 'lucide-react';
+import { Edit, Trash2, Phone, Mail } from 'lucide-react';
 import { deleteCustomer } from '@/actions/customers';
 import { useState, useTransition } from 'react';
+import { PaginationControl } from '@/components/ui/pagination-control';
 
 interface Customer {
   id: string;
@@ -37,18 +38,8 @@ interface CustomersTableProps {
 
 export function CustomersTable({ customers, pagination }: CustomersTableProps) {
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [deletingId, setDeletingId] = useState<string | null>(null);
-
-  const handlePageChange = (newPage: number) => {
-    const params = new URLSearchParams(searchParams);
-    params.set('page', String(newPage));
-    startTransition(() => {
-      router.push(`${pathname}?${params.toString()}`);
-    });
-  };
 
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(`ต้องการลบลูกค้า "${name}" หรือไม่?`)) {
@@ -86,18 +77,18 @@ export function CustomersTable({ customers, pagination }: CustomersTableProps) {
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>ชื่อลูกค้า</TableHead>
-                <TableHead className="hidden sm:table-cell">ติดต่อ</TableHead>
-                <TableHead className="hidden md:table-cell">ที่อยู่</TableHead>
+              <TableRow className="bg-muted/50">
+                <TableHead className="font-bold">ชื่อลูกค้า</TableHead>
+                <TableHead className="hidden sm:table-cell font-bold">ติดต่อ</TableHead>
+                <TableHead className="hidden md:table-cell font-bold">ที่อยู่</TableHead>
                 <TableHead className="w-[80px] sm:w-[100px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {customers.map((customer) => (
-                <TableRow key={customer.id}>
+                <TableRow key={customer.id} className="hover:bg-muted/30 transition-colors">
                   <TableCell>
-                    <Link href={`/customers/${customer.id}`} className="font-medium text-primary hover:underline">
+                    <Link href={`/customers/${customer.id}`} className="font-bold text-primary hover:underline">
                       {customer.name}
                     </Link>
                     {/* Mobile: show contact inline */}
@@ -139,7 +130,7 @@ export function CustomersTable({ customers, pagination }: CustomersTableProps) {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center justify-end gap-0.5">
-                      <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-primary/10 hover:text-primary transition-colors" asChild>
                         <Link href={`/customers/${customer.id}/edit`}>
                           <Edit className="h-4 w-4" />
                         </Link>
@@ -147,7 +138,7 @@ export function CustomersTable({ customers, pagination }: CustomersTableProps) {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8"
+                        className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive transition-colors"
                         onClick={() => handleDelete(customer.id, customer.name)}
                         disabled={deletingId === customer.id}
                       >
@@ -162,33 +153,8 @@ export function CustomersTable({ customers, pagination }: CustomersTableProps) {
         </div>
       </div>
 
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          แสดง {((pagination.page - 1) * pagination.limit) + 1} -{' '}
-          {Math.min(pagination.page * pagination.limit, pagination.total)} จาก{' '}
-          {pagination.total} รายการ
-        </p>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handlePageChange(pagination.page - 1)}
-            disabled={!pagination.hasPrevPage || isPending}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <span className="text-sm">
-            หน้า {pagination.page} / {pagination.totalPages}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handlePageChange(pagination.page + 1)}
-            disabled={!pagination.hasNextPage || isPending}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
+      <div className="px-4">
+        <PaginationControl pagination={pagination} />
       </div>
     </div>
   );

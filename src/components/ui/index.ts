@@ -39,6 +39,7 @@ export { FormField } from './form-field';
 export { GuidedErrorAlert } from './guided-error-alert';
 export { ImageModal } from './image-modal';
 export { MetricCard } from './metric-card';
+export { PaginationControl } from './pagination-control';
 export { SafeBoundary } from './safe-boundary';
 export { SafeInput } from './safe-input';
 export { SearchToolbar } from './search-toolbar';
@@ -47,7 +48,6 @@ export { StatusBadge } from './status-badge';
 export { TablePagination } from './table-pagination';
 export { TableShell } from './table-shell';
 
-// Types — separated so consumers can `import type` cleanly
 export type { StatusConfig } from './status-badge';
-export type { PaginationInfo, TablePaginationProps } from './table-pagination';
 export type { SectionHeaderProps } from './section-header';
+export type { PaginationInfo } from './table-pagination';

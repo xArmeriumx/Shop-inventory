@@ -17,15 +17,16 @@ export const PERMISSION_PRESETS = {
     'SHIPMENT_VIEW', 'SHIPMENT_CREATE', 'SHIPMENT_EDIT', 'SHIPMENT_CANCEL',
     'PAYMENT_VERIFY',      // G1
     'RETURN_VIEW', 'RETURN_CREATE',  // G3
+    'DELIVERY_VIEW', 'DELIVERY_VALIDATE', // ERP
   ] as const,
-  
+
   CASHIER: [
     'PRODUCT_VIEW',
     'SALE_VIEW', 'SALE_CREATE',
     'CUSTOMER_VIEW', 'CUSTOMER_CREATE',
     'POS_ACCESS',
   ] as const,
-  
+
   STOCK_KEEPER: [
     'PRODUCT_VIEW', 'PRODUCT_CREATE', 'PRODUCT_EDIT', 'PRODUCT_VIEW_COST',
     'STOCK_VIEW_HISTORY', 'STOCK_ADJUST',
@@ -139,6 +140,13 @@ export const PERMISSION_GROUPS = {
     permissions: [
       { key: 'RETURN_VIEW', label: 'ดูรายการคืนสินค้า' },
       { key: 'RETURN_CREATE', label: 'สร้างรายการคืนสินค้า' },
+    ],
+  },
+  deliveries: {
+    label: 'ใบส่งสินค้า',
+    permissions: [
+      { key: 'DELIVERY_VIEW', label: 'ดูใบส่งสินค้า' },
+      { key: 'DELIVERY_VALIDATE', label: 'ตรวจสอบใบส่งสินค้า' },
     ],
   },
 } as const;

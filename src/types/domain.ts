@@ -162,6 +162,27 @@ export const SaleStatus = {
 
 export type SaleStatus = (typeof SaleStatus)[keyof typeof SaleStatus];
 
+export interface GetQuotationsParams extends BaseQueryParams {
+  customerId?: string;
+  status?: QuotationStatus;
+}
+
+export interface CreateQuotationInput {
+  customerId: string;
+  salespersonId?: string;
+  date?: Date;
+  validUntil?: Date;
+  currencyCode?: string;
+  notes?: string;
+  items: Array<{
+    productId: string;
+    description?: string;
+    quantity: number;
+    unitPrice: number;
+    discount?: number;
+  }>;
+}
+
 // ============================================================================
 // PURCHASE DOMAIN
 // ============================================================================
@@ -194,6 +215,22 @@ export const PurchaseStatus = {
 } as const;
 
 export type PurchaseStatus = (typeof PurchaseStatus)[keyof typeof PurchaseStatus];
+
+export interface GetOrderRequestsParams extends BaseQueryParams {
+  requesterId?: string;
+  status?: OrderRequestStatus;
+}
+
+export interface CreateOrderRequestInput {
+  requesterId: string;
+  notes?: string;
+  items: Array<{
+    productId?: string;
+    description?: string;
+    quantity: number;
+    uom?: string;
+  }>;
+}
 
 // ============================================================================
 // CUSTOMER / CRM DOMAIN
@@ -228,9 +265,40 @@ export const DocumentType = {
   CREDIT_NOTE: 'CN',
   QUOTATION: 'QT',
   BILLING: 'BIL',
+  ORDER_REQUEST: 'OR',
+  DELIVERY_ORDER: 'DO',
 } as const;
 
 export type DocumentType = (typeof DocumentType)[keyof typeof DocumentType];
+
+export const QuotationStatus = {
+  DRAFT: 'DRAFT',
+  SENT: 'SENT',
+  CONFIRMED: 'CONFIRMED',
+  CANCELLED: 'CANCELLED',
+} as const;
+
+export type QuotationStatus = (typeof QuotationStatus)[keyof typeof QuotationStatus];
+
+export const OrderRequestStatus = {
+  DRAFT: 'DRAFT',
+  SUBMITTED: 'SUBMITTED',
+  APPROVED: 'APPROVED',
+  IN_PROGRESS: 'IN_PROGRESS',
+  DONE: 'DONE',
+  CANCELLED: 'CANCELLED',
+} as const;
+
+export type OrderRequestStatus = (typeof OrderRequestStatus)[keyof typeof OrderRequestStatus];
+
+export const ApprovalStatus = {
+  PENDING: 'PENDING',
+  APPROVED: 'APPROVED',
+  REJECTED: 'REJECTED',
+  CANCELLED: 'CANCELLED',
+} as const;
+
+export type ApprovalStatus = (typeof ApprovalStatus)[keyof typeof ApprovalStatus];
 
 export const SequenceFormat = {
   STANDARD: 'STANDARD',
@@ -269,6 +337,76 @@ export const ShipmentStatus = {
 } as const;
 
 export type ShipmentStatus = (typeof ShipmentStatus)[keyof typeof ShipmentStatus];
+
+export const DeliveryStatus = {
+  DRAFT: 'DRAFT',
+  WAITING: 'WAITING',
+  PROCESSING: 'PROCESSING',
+  SHIPPED: 'SHIPPED',
+  DELIVERED: 'DELIVERED',
+  CANCELLED: 'CANCELLED',
+} as const;
+
+export type DeliveryStatus = (typeof DeliveryStatus)[keyof typeof DeliveryStatus];
+
+export const InvoiceStatus = {
+  DRAFT: 'DRAFT',
+  POSTED: 'POSTED',
+  PAID: 'PAID',
+  CANCELLED: 'CANCELLED',
+} as const;
+
+export type InvoiceStatus = (typeof InvoiceStatus)[keyof typeof InvoiceStatus];
+
+export interface GetInvoicesParams extends BaseQueryParams {
+  saleId?: string;
+  customerId?: string;
+  status?: InvoiceStatus;
+}
+
+export interface CreateInvoiceInput {
+  saleId?: string;
+  customerId?: string;
+  date?: Date;
+  dueDate?: Date;
+  currencyCode?: string;
+  notes?: string;
+  items: Array<{
+    productId: string;
+    description?: string;
+    quantity: number;
+    unitPrice: number;
+  }>;
+}
+
+export interface GetDeliveryOrdersParams extends BaseQueryParams {
+  saleId?: string;
+  status?: DeliveryStatus;
+}
+
+export interface CreateDeliveryOrderInput {
+  saleId: string;
+  scheduledDate?: Date;
+  notes?: string;
+  items: Array<{
+    productId: string;
+    quantity: number;
+  }>;
+}
+
+export interface SubmitApprovalInput {
+  documentType: 'SALE' | 'PURCHASE' | 'ORDER_REQUEST';
+  documentId: string;
+  approverUserIds: string[]; // List of historical approvers or initial set
+}
+
+export interface ApprovalActionInput {
+  approvalInstanceId: string;
+  documentId?: string;       // Optional: for lookup if instanceId is empty
+  documentType?: string;     // Optional: for lookup if instanceId is empty
+  action: 'APPROVE' | 'REJECT';
+  reason?: string;
+}
 
 /**
  * มาตรฐานการเปลี่ยนสถานะการจัดส่ง (Logistics Workflow)

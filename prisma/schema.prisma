@@ -38,6 +38,7 @@ model User {
   stockLogs     StockLog[]
   shipments     Shipment[]
   returns       Return[]      // G3: Returns
+  deliveryOrders DeliveryOrder[] @relation("UserToDeliveryOrders")
 }
 
 // ==================== Lookup System (Custom Dropdowns) ====================
@@ -146,6 +147,15 @@ model Shop {
   customerAddresses CustomerAddress[]
   returns          Return[]
   notifications    Notification[]
+  
+  // ERP: Core Data
+  quotations       Quotation[]
+  orderRequests    OrderRequest[]
+  invoices         Invoice[]
+  
+  // ERP: New Relations for Shop
+  approvalInstances ApprovalInstance[]
+  deliveryOrders    DeliveryOrder[]
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -232,6 +242,24 @@ enum Permission {
   SHIPMENT_CREATE
   SHIPMENT_EDIT
   SHIPMENT_CANCEL
+
+  // Quotations & Order Requests
+  QUOTATION_VIEW
+  QUOTATION_CREATE
+  QUOTATION_EDIT
+  QUOTATION_CONFIRM
+  
+  ORDER_REQUEST_VIEW
+  ORDER_REQUEST_CREATE
+  ORDER_REQUEST_SUBMIT
+  
+  // Approvals
+  APPROVAL_VIEW
+  APPROVAL_ACTION
+  
+  // Delivery Orders
+  DELIVERY_VIEW
+  DELIVERY_VALIDATE
 }
 
 model Role {
@@ -282,9 +310,11 @@ model ShopMember {
   joinedAt  DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([userId, shopId])  // A user can only be in a shop once
-  @@index([shopId])
   @@index([userId])
+  
+  // ERP: Relations
+  quotations        Quotation[]
+  orderRequests     OrderRequest[]
 }
 
 // ==================== Core Models ====================
@@ -333,6 +363,12 @@ model Product {
   stockLogs     StockLog[]
   returnItems   ReturnItem[]  // G3: Returns
   supplierProducts SupplierProduct[] // ERP: Supplier Intelligence
+
+  // ERP: New Relations
+  quotationLines      QuotationLine[]
+  orderRequestLines    OrderRequestLine[]
+  deliveryOrderLines   DeliveryOrderLine[]
+  invoiceLines         InvoiceLine[]
 
   // Soft Delete
   deletedAt   DateTime?
@@ -432,6 +468,10 @@ model Customer {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // ERP: Relations
+  quotations    Quotation[]
+  invoices      Invoice[]
+
   @@index([userId])
   @@index([userId, deletedAt])
   @@index([shopId])  // RBAC index
@@ -470,6 +510,9 @@ model Purchase {
 
   items       PurchaseItem[]
   stockLogs   StockLog[]
+  
+  // ERP: Approvals
+  approvals   ApprovalInstance[]
 
   // Cancel/Void (Audit-Ready)
   status        String    @default("ACTIVE")  // ACTIVE | CANCELLED | RECEIVED
@@ -565,6 +608,18 @@ model Sale {
   stockLogs     StockLog[]
   shipments     Shipment[]
   returns       Return[]     // G3: Returns
+  
+  // ERP: Delivery Orders
+  deliveryOrders DeliveryOrder[]
+  
+  // ERP: Approvals
+  approvals      ApprovalInstance[]
+  
+  // ERP: Quotations
+  quotations     Quotation[]
+  
+  // ERP: Invoices
+  invoices       Invoice[]
 
   // Cancel/Void (Audit-Ready)
   status        String    @default("ACTIVE")  // ACTIVE | CANCELLED
@@ -1042,3 +1097,312 @@ model SupplierProduct {
   @@index([productId])
   @@index([supplierId])
 }
+
+// ==================== ERP: Approvals (Rule 5.7 / Domain 7) ====================
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+model ApprovalInstance {
+  id             String         @id @default(cuid())
+  shopId         String
+  shop           Shop           @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  
+  documentType   String         // "SALE", "PURCHASE", "ORDER_REQUEST"
+  documentId     String
+  
+  status         ApprovalStatus @default(PENDING)
+  currentLevel   Int            @default(1)
+  
+  // Explicit Relations to source documents
+  saleId         String?
+  sale           Sale?          @relation(fields: [saleId], references: [id])
+  
+  purchaseId     String?
+  purchase       Purchase?      @relation(fields: [purchaseId], references: [id])
+  
+  orderRequestId String?
+  orderRequest   OrderRequest?  @relation(fields: [orderRequestId], references: [id])
+  
+  steps          ApprovalStep[]
+  
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@index([shopId, status])
+  @@index([documentType, documentId])
+}
+
+model ApprovalStep {
+  id                 String           @id @default(cuid())
+  approvalInstanceId String
+  approvalInstance   ApprovalInstance @relation(fields: [approvalInstanceId], references: [id], onDelete: Cascade)
+  
+  level              Int              @default(1)
+  approverUserId     String
+  status             ApprovalStatus   @default(PENDING)
+  
+  actionAt           DateTime?
+  reason             String?          @db.Text
+  
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  @@index([approverUserId, status])
+}
+
+// ==================== ERP: Delivery Orders (Rule 7.2 / Domain 10.3) ====================
+
+enum DeliveryStatus {
+  DRAFT
+  WAITING
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+model DeliveryOrder {
+  id             String         @id @default(cuid())
+  deliveryNo     String         // DO-00001
+  
+  saleId         String
+  sale           Sale           @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  
+  status         DeliveryStatus @default(WAITING)
+  scheduledDate  DateTime?
+  deliveredAt    DateTime?
+  
+  notes          String?        @db.Text
+  
+  // Ownership
+  userId         String
+  user           User           @relation("UserToDeliveryOrders", fields: [userId], references: [id], onDelete: Cascade)
+  shopId         String
+  shop           Shop           @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  items          DeliveryOrderLine[]
+  
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([shopId, deliveryNo])
+  @@index([saleId])
+  @@index([shopId, status])
+}
+
+model DeliveryOrderLine {
+  id              String         @id @default(cuid())
+  deliveryOrderId String
+  deliveryOrder   DeliveryOrder  @relation(fields: [deliveryOrderId], references: [id], onDelete: Cascade)
+  
+  productId       String
+  product         Product        @relation(fields: [productId], references: [id])
+  
+  quantity        Int
+  pickedQty       Int            @default(0)
+  
+  createdAt       DateTime       @default(now())
+
+  @@index([deliveryOrderId])
+  @@index([productId])
+}
+
+// ==================== ERP: Quotations (Domain 8.1) ====================
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  CONFIRMED
+  CANCELLED
+}
+
+model Quotation {
+  id             String         @id @default(cuid())
+  quotationNo    String         // QT-00001
+  
+  customerId     String
+  customer       Customer       @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  
+  salespersonId  String?
+  salesperson    ShopMember?    @relation(fields: [salespersonId], references: [id], onDelete: SetNull)
+  
+  saleId         String?
+  sale           Sale?          @relation(fields: [saleId], references: [id])
+  
+  status         QuotationStatus @default(DRAFT)
+  date           DateTime       @default(now())
+  validUntil     DateTime?
+  
+  currencyCode   String         @default("THB")
+  totalAmount    Decimal        @db.Decimal(10, 2)
+  
+  notes          String?        @db.Text
+  
+  // Ownership
+  shopId         String
+  shop           Shop           @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  items          QuotationLine[]
+  
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([shopId, quotationNo])
+  @@index([customerId])
+  @@index([shopId, status])
+}
+
+model QuotationLine {
+  id             String         @id @default(cuid())
+  quotationId    String
+  quotation      Quotation      @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  
+  productId      String
+  product        Product        @relation(fields: [productId], references: [id])
+  
+  description    String?        @db.Text
+  quantity       Int
+  unitPrice      Decimal        @db.Decimal(10, 2)
+  discount       Decimal        @default(0) @db.Decimal(10, 2)
+  subtotal       Decimal        @db.Decimal(10, 2)
+  
+  sortOrder      Int            @default(0)
+  
+  createdAt      DateTime       @default(now())
+
+  @@index([quotationId])
+  @@index([productId])
+}
+
+// ==================== ERP: Order Requests (Domain 9.1) ====================
+
+enum OrderRequestStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+model OrderRequest {
+  id             String         @id @default(cuid())
+  requestNo      String         // OR-00001
+  
+  requesterId    String
+  requester      ShopMember     @relation(fields: [requesterId], references: [id])
+  
+  status         OrderRequestStatus @default(DRAFT)
+  date           DateTime       @default(now())
+  
+  notes          String?        @db.Text
+  
+  // Ownership
+  shopId         String
+  shop           Shop           @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  items          OrderRequestLine[]
+  
+  // ERP: Approvals
+  approvals      ApprovalInstance[]
+  
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([shopId, requestNo])
+  @@index([requesterId])
+  @@index([shopId, status])
+}
+
+model OrderRequestLine {
+  id             String         @id @default(cuid())
+  orderRequestId String
+  orderRequest   OrderRequest   @relation(fields: [orderRequestId], references: [id], onDelete: Cascade)
+  
+  productId      String?
+  product        Product?       @relation(fields: [productId], references: [id])
+  
+  description    String?        @db.Text
+  quantity       Int
+  uom            String?
+  
+  sortOrder      Int            @default(0)
+  
+  createdAt      DateTime       @default(now())
+
+  @@index([orderRequestId])
+  @@index([productId])
+}
+
+// ==================== ERP: Invoices (Domain 11.1) ====================
+
+enum InvoiceStatus {
+  DRAFT
+  POSTED
+  PAID
+  CANCELLED
+}
+
+model Invoice {
+  id             String         @id @default(cuid())
+  invoiceNo      String         // INV-00001
+  
+  saleId         String?
+  sale           Sale?          @relation(fields: [saleId], references: [id])
+  
+  customerId     String?
+  customer       Customer?      @relation(fields: [customerId], references: [id])
+  
+  status         InvoiceStatus  @default(DRAFT)
+  date           DateTime       @default(now())
+  dueDate        DateTime?
+  
+  currencyCode   String         @default("THB")
+  totalAmount    Decimal        @db.Decimal(10, 2)
+  residualAmount Decimal        @default(0) @db.Decimal(10, 2) // จำนวนเงินคงค้าง
+  
+  notes          String?        @db.Text
+  
+  // Ownership
+  shopId         String
+  shop           Shop           @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  items          InvoiceLine[]
+  
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([shopId, invoiceNo])
+  @@index([saleId])
+  @@index([customerId])
+  @@index([shopId, status])
+}
+
+model InvoiceLine {
+  id             String         @id @default(cuid())
+  invoiceId      String
+  invoice        Invoice        @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  
+  productId      String
+  product        Product        @relation(fields: [productId], references: [id])
+  
+  description    String?        @db.Text
+  quantity       Int
+  unitPrice      Decimal        @db.Decimal(10, 2)
+  subtotal       Decimal        @db.Decimal(10, 2)
+  
+  sortOrder      Int            @default(0)
+  
+  createdAt      DateTime       @default(now())
+
+  @@index([invoiceId])
+  @@index([productId])
+}
+
+
+

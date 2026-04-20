@@ -1,166 +1,28 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { Sparkles, Send, Loader2, Zap, Command, ShieldCheck, Cpu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Send, Bot, User, Loader2, Sparkles, Zap, Check, X, MessageCircle, Lightbulb } from 'lucide-react';
-
-interface Message {
-  role: 'user' | 'assistant';
-  content: string;
-}
-
-interface ConfirmationData {
-  title: string;
-  items: { label: string; value: string; icon?: string }[];
-  toolName: string;
-  params: Record<string, any>;
-}
-
-const SUGGESTED_QUESTIONS = [
-  { text: 'ยอดขายวันนี้?', icon: '📊' },
-  { text: 'เช็คสต็อก Labubu', icon: '📦' },
-  { text: 'บันทึกค่าไฟ 2500', icon: '💡' },
-  { text: 'สรุปเดือนนี้', icon: '📈' },
-  { text: 'เพิ่มสินค้าใหม่', icon: '➕' },
-];
+import { useAIChat } from '@/hooks/use-ai-chat';
+import { ChatMessage } from './chat-message';
+import { ChatConfirmation } from './chat-confirmation';
+import { ChatWelcome } from './chat-welcome';
 
 export function AIChat() {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [streamingContent, setStreamingContent] = useState('');
-  const [confirmation, setConfirmation] = useState<ConfirmationData | null>(null);
-  const [isConfirming, setIsConfirming] = useState(false);
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  // Auto scroll to bottom
-  useEffect(() => {
-    if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTo({
-        top: scrollAreaRef.current.scrollHeight,
-        behavior: 'smooth'
-      });
-    }
-  }, [messages, streamingContent, confirmation]);
-
-  const handleConfirm = async () => {
-    if (!confirmation) return;
-    
-    setIsConfirming(true);
-    try {
-      const response = await fetch('/api/ai/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          confirmTool: confirmation.toolName,
-          confirmParams: confirmation.params,
-        }),
-      });
-
-      const data = await response.json();
-      setMessages(prev => [...prev, { role: 'assistant', content: data.message }]);
-      setConfirmation(null);
-    } catch (error) {
-      setMessages(prev => [...prev, { role: 'assistant', content: '❌ เกิดข้อผิดพลาด กรุณาลองใหม่' }]);
-    } finally {
-      setIsConfirming(false);
-    }
-  };
-
-  const handleCancel = () => {
-    setConfirmation(null);
-    setMessages(prev => [...prev, { role: 'assistant', content: '❌ ยกเลิกการดำเนินการ' }]);
-  };
-
-  const sendMessage = async (content: string) => {
-    if (!content.trim() || isLoading) return;
-
-    const cleanContent = content.replace(/^[📊🏆⚠️📈💰📦➕💡]\\s*/, '');
-    
-    const userMessage: Message = { role: 'user', content: cleanContent };
-    setMessages(prev => [...prev, userMessage]);
-    setInput('');
-    setIsLoading(true);
-    setStreamingContent('');
-    setConfirmation(null);
-
-    try {
-      const response = await fetch('/api/ai/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [...messages, userMessage].map(m => ({
-            role: m.role,
-            content: m.content,
-          })),
-        }),
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        setMessages(prev => [...prev, { role: 'assistant', content: `❌ ${data.error || 'เกิดข้อผิดพลาด'}` }]);
-        return;
-      }
-
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      let fullContent = '';
-      let hasToolResult = false;
-
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          const chunk = decoder.decode(value);
-          const lines = chunk.split('\n');
-
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              const data = line.slice(6);
-              if (data === '[DONE]') continue;
-              
-              try {
-                const parsed = JSON.parse(data);
-                
-                if (parsed.content) {
-                  fullContent += parsed.content;
-                  setStreamingContent(fullContent);
-                }
-                
-                if (parsed.toolResult) {
-                  hasToolResult = true;
-                  
-                  if (parsed.toolResult.requireConfirmation) {
-                    setConfirmation(parsed.toolResult.confirmationData);
-                    setStreamingContent('');
-                  } else {
-                    setStreamingContent('');
-                    setMessages(prev => [...prev, { role: 'assistant', content: parsed.toolResult.message }]);
-                  }
-                }
-              } catch (e) {
-                // Skip invalid JSON
-              }
-            }
-          }
-        }
-      }
-
-      if (fullContent && !hasToolResult) {
-        setMessages(prev => [...prev, { role: 'assistant', content: fullContent }]);
-      }
-      setStreamingContent('');
-    } catch (error) {
-      setMessages(prev => [...prev, { role: 'assistant', content: '❌ ไม่สามารถเชื่อมต่อได้ กรุณาลองใหม่' }]);
-    } finally {
-      setIsLoading(false);
-      inputRef.current?.focus();
-    }
-  };
+  const {
+    messages,
+    input,
+    setInput,
+    isLoading,
+    streamingContent,
+    confirmation,
+    isConfirming,
+    scrollAreaRef,
+    sendMessage,
+    handleConfirm,
+    handleCancel,
+  } = useAIChat();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -168,195 +30,83 @@ export function AIChat() {
   };
 
   return (
-    <Card className="flex flex-col h-[calc(100vh-8rem)] overflow-hidden border shadow-sm">
+    <Card className="flex flex-col h-[calc(100vh-8rem)] overflow-hidden border-border/40 shadow-2xl shadow-muted/20 rounded-[2.5rem] bg-background/60 backdrop-blur-xl relative">
+      {/* Immersive background pattern */}
+      <div className="absolute inset-0 bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:16px_16px] opacity-[0.15] -z-10" />
+
       {/* Header */}
-      <CardHeader className="border-b py-4 bg-muted/30">
-        <CardTitle className="flex items-center gap-3 text-lg">
-          <div className="relative">
-            <div className="p-2.5 bg-primary rounded-xl shadow-sm">
-              <Sparkles className="h-5 w-5 text-primary-foreground" />
+      <CardHeader className="border-b border-border/40 py-6 bg-background/40 backdrop-blur-sm z-10">
+        <CardTitle className="flex items-center gap-5 text-xl">
+          <div className="relative group/bot cursor-pointer">
+            <div className="absolute inset-0 bg-primary/20 rounded-2xl blur-xl group-hover:bg-primary/30 transition-all duration-500 opacity-0 group-hover:opacity-100" />
+            <div className="relative p-3.5 bg-gradient-to-br from-primary to-primary/80 rounded-2xl shadow-lg shadow-primary/20 transform transition-all duration-500 group-hover:scale-110 group-hover:rotate-3">
+              <Sparkles className="h-6 w-6 text-primary-foreground" />
+            </div>
+            <div className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-green-500 border-4 border-background rounded-full shadow-sm" />
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2.5">
+              <span className="font-black tracking-tighter text-2xl bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">ผู้ช่วยอัจฉริยะ</span>
+              <div className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-black bg-primary/10 text-primary rounded-xl border border-primary/20 uppercase tracking-widest shadow-sm">
+                <Cpu className="h-3 w-3" />
+                AI SYSTEM
+              </div>
+            </div>
+            <div className="flex items-center gap-2 mt-0.5">
+              <ShieldCheck className="h-3.5 w-3.5 text-blue-500/80" />
+              <p className="text-xs text-muted-foreground font-bold tracking-tight opacity-80 truncate">
+                เชื่อมต่อข้อมูลร้านค้าของคุณอย่างปลอดภัย
+              </p>
             </div>
           </div>
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <span className="font-semibold">AI ผู้ช่วยอัจฉริยะ</span>
-              <span className="px-2 py-0.5 text-[10px] font-medium bg-primary/10 text-primary rounded-full">BETA</span>
-            </div>
-            <p className="text-xs text-muted-foreground font-normal mt-0.5">
-              พร้อมช่วยเหลือคุณตลอด 24 ชั่วโมง
-            </p>
-          </div>
-          
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-green-500/10 border border-green-500/20 rounded-full">
-            <span className="relative flex h-2 w-2">
+
+          <div className="hidden md:flex items-center gap-3 px-5 py-2.5 bg-muted/40 border border-border/40 rounded-2xl shadow-inner group/status cursor-help">
+            <div className="relative flex h-2.5 w-2.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
-            </span>
-            <span className="text-xs font-medium text-green-600 dark:text-green-400">Online</span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
+            </div>
+            <span className="text-[11px] font-black text-foreground/70 uppercase tracking-[0.15em] group-hover:text-green-600 transition-colors">ระบบพร้อมใช้งาน</span>
           </div>
         </CardTitle>
       </CardHeader>
-      
-      <CardContent className="flex-1 flex flex-col p-0 overflow-hidden">
+
+      <CardContent className="flex-1 flex flex-col p-0 overflow-hidden relative">
         {/* Chat Messages Area */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-muted/10" ref={scrollAreaRef}>
+        <div className="flex-1 overflow-y-auto px-6 py-8 space-y-10 scrollbar-none" ref={scrollAreaRef}>
           {messages.length === 0 && !streamingContent && !confirmation ? (
-            // Welcome Screen
-            <div className="h-full flex flex-col items-center justify-center text-center p-6 animate-in fade-in-0 zoom-in-95 duration-500">
-              {/* Bot Icon */}
-              <div className="relative mb-6">
-                <div className="w-20 h-20 rounded-2xl bg-primary/10 border-2 border-primary/20 flex items-center justify-center shadow-lg">
-                  <Bot className="h-10 w-10 text-primary" />
-                </div>
-                <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-lg bg-primary flex items-center justify-center shadow-md">
-                  <MessageCircle className="h-4 w-4 text-primary-foreground" />
-                </div>
-              </div>
-              
-              <h2 className="text-2xl font-bold mb-2">สวัสดีครับ! 👋</h2>
-              <p className="text-muted-foreground mb-8 max-w-md leading-relaxed">
-                ผมคือ AI ผู้ช่วยร้านค้า พร้อมช่วย
-                <span className="text-primary font-medium"> บันทึกข้อมูล</span>,
-                <span className="text-primary font-medium"> เช็คสต็อก</span> และ
-                <span className="text-primary font-medium"> สรุปรายงาน</span> ให้คุณ
-              </p>
-              
-              {/* Suggested Actions */}
-              <div className="w-full max-w-lg">
-                <div className="flex items-center gap-2 mb-3 justify-center">
-                  <Lightbulb className="h-4 w-4 text-amber-500" />
-                  <span className="text-sm text-muted-foreground">ลองถามคำถามเหล่านี้</span>
-                </div>
-                <div className="flex flex-wrap gap-2 justify-center">
-                  {SUGGESTED_QUESTIONS.map((q, i) => (
-                    <Button
-                      key={q.text}
-                      variant="outline"
-                      size="sm"
-                      onClick={() => sendMessage(q.text)}
-                      className="text-sm hover:bg-primary/5 hover:border-primary/30 transition-all animate-in fade-in-0 slide-in-from-bottom-2"
-                      style={{ animationDelay: `${i * 80}ms`, animationFillMode: 'both' }}
-                    >
-                      <span className="mr-1.5">{q.icon}</span>
-                      {q.text}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            </div>
+            <ChatWelcome onSendMessage={sendMessage} />
           ) : (
-            <div className="space-y-4">
+            <div className="max-w-4xl mx-auto w-full space-y-8">
               {messages.map((message, index) => (
-                <div
-                  key={index}
-                  className={`flex gap-3 animate-in fade-in-0 slide-in-from-bottom-2 duration-300 ${
-                    message.role === 'user' ? 'justify-end' : 'justify-start'
-                  }`}
-                >
-                  {message.role === 'assistant' && (
-                    <div className="w-9 h-9 rounded-lg bg-muted border flex items-center justify-center flex-shrink-0">
-                      <Bot className="h-5 w-5 text-muted-foreground" />
-                    </div>
-                  )}
-                  
-                  <div
-                    className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                      message.role === 'user'
-                        ? 'bg-primary text-primary-foreground rounded-br-md'
-                        : 'bg-card border shadow-sm rounded-bl-md'
-                    }`}
-                  >
-                    <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                      {message.content}
-                    </div>
-                  </div>
-                  
-                  {message.role === 'user' && (
-                    <div className="w-9 h-9 rounded-lg bg-primary flex items-center justify-center flex-shrink-0">
-                      <User className="h-5 w-5 text-primary-foreground" />
-                    </div>
-                  )}
-                </div>
+                <ChatMessage key={index} message={message} />
               ))}
-              
-              {/* Streaming Message */}
+
               {streamingContent && (
-                <div className="flex gap-3 justify-start animate-in fade-in-0 slide-in-from-bottom-2">
-                  <div className="w-9 h-9 rounded-lg bg-muted border flex items-center justify-center flex-shrink-0">
-                    <Bot className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                  <div className="max-w-[80%] bg-card border shadow-sm rounded-2xl rounded-bl-md px-4 py-3">
-                    <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                      {streamingContent}
-                      <span className="inline-block w-2 h-4 bg-primary ml-1 animate-pulse rounded-sm" />
-                    </div>
-                  </div>
-                </div>
+                <ChatMessage message={{ role: 'assistant', content: streamingContent }} isStreaming={true} />
               )}
 
-              {/* Confirmation Dialog */}
               {confirmation && (
-                <div className="flex gap-3 justify-start animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-2 duration-300">
-                  <div className="w-9 h-9 rounded-lg bg-muted border flex items-center justify-center flex-shrink-0">
-                    <Bot className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                  <div className="max-w-[85%] bg-card border-2 border-primary/30 rounded-2xl rounded-bl-md px-5 py-4 shadow-md">
-                    <h4 className="font-semibold text-base mb-3 flex items-center gap-2">
-                      {confirmation.title}
-                    </h4>
-                    
-                    <div className="space-y-2 mb-4">
-                      {confirmation.items.map((item, i) => (
-                        <div key={i} className="flex items-center gap-3 bg-muted/50 rounded-lg px-3 py-2.5">
-                          <span className="text-lg">{item.icon}</span>
-                          <span className="text-muted-foreground text-sm">{item.label}:</span>
-                          <span className="font-medium text-sm">{item.value}</span>
-                        </div>
-                      ))}
-                    </div>
-                    
-                    <div className="flex gap-2">
-                      <Button
-                        onClick={handleConfirm}
-                        disabled={isConfirming}
-                        className="flex-1 bg-green-600 hover:bg-green-500 text-white"
-                      >
-                        {isConfirming ? (
-                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                        ) : (
-                          <Check className="h-4 w-4 mr-2" />
-                        )}
-                        ยืนยัน
-                      </Button>
-                      <Button
-                        onClick={handleCancel}
-                        variant="outline"
-                        disabled={isConfirming}
-                        className="flex-1 border-destructive/50 text-destructive hover:bg-destructive/10"
-                      >
-                        <X className="h-4 w-4 mr-2" />
-                        ยกเลิก
-                      </Button>
-                    </div>
-                  </div>
-                </div>
+                <ChatConfirmation
+                  confirmation={confirmation}
+                  isConfirming={isConfirming}
+                  onConfirm={handleConfirm}
+                  onCancel={handleCancel}
+                />
               )}
-              
-              {/* Loading */}
+
               {isLoading && !streamingContent && !confirmation && (
-                <div className="flex gap-3 justify-start animate-in fade-in-0 slide-in-from-bottom-2">
-                  <div className="w-9 h-9 rounded-lg bg-muted border flex items-center justify-center flex-shrink-0">
-                    <Bot className="h-5 w-5 text-muted-foreground" />
+                <div className="flex gap-4 justify-start animate-in fade-in-0 duration-700">
+                  <div className="w-10 h-10 rounded-2xl bg-muted/50 border border-border/40 flex items-center justify-center shadow-inner">
+                    <Loader2 className="h-5 w-5 text-primary/60 animate-spin" />
                   </div>
-                  <div className="bg-card border shadow-sm rounded-2xl rounded-bl-md px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="flex gap-1">
-                        <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                        <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                        <span className="w-2 h-2 bg-primary rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-                      </div>
-                      <span className="text-xs text-muted-foreground ml-1">กำลังคิด...</span>
+                  <div className="bg-card/60 backdrop-blur-sm border border-border/20 shadow-sm rounded-2xl px-6 py-3.5 flex items-center gap-3">
+                    <div className="flex gap-1">
+                      <div className="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                      <div className="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                      <div className="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce" />
                     </div>
+                    <span className="text-[11px] font-black text-muted-foreground/50 uppercase tracking-[0.2em]">กำลังคิด</span>
                   </div>
                 </div>
               )}
@@ -364,35 +114,52 @@ export function AIChat() {
           )}
         </div>
 
-        {/* Input Area */}
-        <div className="border-t bg-card p-4">
-          <form onSubmit={handleSubmit} className="flex gap-3">
-            <Input
-              ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="พิมพ์คำสั่ง เช่น 'บันทึกค่าไฟ 2500' หรือ 'สรุปยอดวันนี้'..."
-              disabled={isLoading || !!confirmation}
-              className="flex-1 py-5 rounded-xl border-2 focus:border-primary/50 transition-all"
-            />
-            <Button 
-              type="submit" 
-              disabled={isLoading || !input.trim() || !!confirmation}
-              size="lg"
-              className="rounded-xl px-5 transition-all hover:scale-105 disabled:hover:scale-100"
-            >
-              {isLoading ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                <Send className="h-5 w-5" />
-              )}
-            </Button>
-          </form>
-          <div className="flex items-center justify-center gap-2 mt-2.5">
-            <Zap className="h-3.5 w-3.5 text-amber-500" />
-            <span className="text-xs text-muted-foreground">
-              Powered by Llama 3 • สามารถบันทึกข้อมูล เช็คสต็อก สร้างรายงานได้
-            </span>
+        {/* Input Area - Command Center Style */}
+        <div className="p-8 pt-0 z-10">
+          <div className="max-w-4xl mx-auto">
+            <form onSubmit={handleSubmit} className="relative group/form">
+              <div className="absolute inset-0 bg-primary/5 rounded-[2rem] blur-2xl opacity-0 group-focus-within/form:opacity-100 transition-opacity duration-700" />
+
+              <div className="relative flex items-center gap-3 p-2 bg-background/80 backdrop-blur-md border-2 border-border/40 rounded-[2rem] shadow-2xl transition-all duration-500 group-focus-within/form:border-primary/40 group-focus-within/form:shadow-primary/5">
+                <div className="pl-4 text-muted-foreground/40 group-focus-within/form:text-primary/40 transition-colors">
+                  <Command className="h-5 w-5" />
+                </div>
+
+                <Input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="พิมพ์คำถามหรือคำสั่งของคุณได้ที่นี่..."
+                  disabled={isLoading || !!confirmation}
+                  className="flex-1 h-14 bg-transparent border-none focus-visible:ring-0 text-[15px] font-medium placeholder:text-muted-foreground/40 placeholder:font-bold"
+                />
+
+                <Button
+                  type="submit"
+                  disabled={isLoading || !input.trim() || !!confirmation}
+                  size="icon"
+                  className="h-12 w-12 rounded-2xl transition-all duration-500 hover:scale-105 active:scale-95 shadow-xl shadow-primary/20 bg-primary hover:bg-primary/90 disabled:opacity-30 disabled:grayscale"
+                >
+                  {isLoading ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <Send className="h-5 w-5" />
+                  )}
+                </Button>
+              </div>
+
+              <div className="flex items-center justify-between px-6 mt-4">
+                <div className="flex items-center gap-3 text-muted-foreground/40">
+                  <Zap className="h-3.5 w-3.5" />
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] transition-colors group-focus-within/form:text-primary/40 font-black">
+                    ระบบประมวลผลคำสั่งอัจฉริยะ
+                  </span>
+                </div>
+                <div className="hidden sm:flex items-center gap-2">
+                  <kbd className="px-2 py-1 bg-muted/40 border border-border/40 rounded-lg text-[9px] font-black text-muted-foreground/60">ENTER</kbd>
+                  <span className="text-[9px] font-black text-muted-foreground/30 uppercase tracking-widest">เพื่อส่งข้อความ</span>
+                </div>
+              </div>
+            </form>
           </div>
         </div>
       </CardContent>
