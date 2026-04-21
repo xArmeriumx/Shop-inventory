@@ -60,6 +60,24 @@ export const supplierSchema = z.object({
     .optional()
     .nullable()
     .transform((val) => val ? sanitizeText(normalizeWhitespace(val) || '') : val),
+
+  // ERP Phase 8 Fields
+  creditLimit: z.coerce.number()
+    .min(0, 'วงเงินเครดิตต้องไม่ติดลบ')
+    .optional()
+    .nullable(),
+  creditTerm: z.coerce.number()
+    .int('เครดิตเทอมต้องเป็นจำนวนเต็ม')
+    .min(0, 'เครดิตเทอมต้องไม่ติดลบ')
+    .optional()
+    .nullable(),
+  paymentTerms: z.string()
+    .max(1000)
+    .optional()
+    .nullable(),
+
+  // Rule 6: Nested addresses for CRUD
+  addresses: z.array(z.any()).optional().default([]),
 });
 
 export type SupplierInput = z.input<typeof supplierSchema>;

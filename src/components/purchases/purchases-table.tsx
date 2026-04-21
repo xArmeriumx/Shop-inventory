@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { PaginationControl } from '@/components/ui/pagination-control';
 import { EmptyState } from '@/components/ui/empty-state';
 import { GuidedErrorAlert } from '@/components/ui/guided-error-alert';
-import { CancelDialog, PURCHASE_CANCEL_REASONS } from '@/components/shared/cancel-dialog';
+import { CancelDialog, PURCHASE_VOID_REASONS } from '@/components/shared/cancel-dialog';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { getPurchaseStatusLabel } from '@/lib/erp-utils';
 import { cancelPurchase, convertToPurchaseOrder } from '@/actions/purchases';
@@ -200,7 +200,7 @@ export function PurchasesTable({ purchases, pagination }: PurchasesTableProps) {
         description="ยกเลิกรายการซื้อนี้"
         stockChangePreview="สต็อกจะถูกหักออกตามจำนวนที่ซื้อ"
         isLoading={isProcessing}
-        reasons={PURCHASE_CANCEL_REASONS}
+        reasons={PURCHASE_VOID_REASONS}
       />
     </div>
   );

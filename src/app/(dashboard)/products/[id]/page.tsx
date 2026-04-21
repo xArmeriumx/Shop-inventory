@@ -1,11 +1,11 @@
 import { notFound } from 'next/navigation';
 import { PageHeader } from '@/components/layout/page-header';
 import { ProductForm } from '@/components/products/product-form';
-import { getProduct, getProductHistory } from '@/actions/products';
+import { getProduct } from '@/actions/products';
 import { getLookupValues, seedDefaultLookupValues } from '@/actions/lookups';
-import { StockHistoryTableClientWrapper } from '@/components/products/stock-history-table-client-wrapper';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ProductBarcodeTab } from '@/components/products/product-barcode-tab';
+import { ProductHistoryTab } from '@/components/shared/intelligence/product-history-tab';
 
 interface EditProductPageProps {
   params: {
@@ -16,10 +16,8 @@ interface EditProductPageProps {
   };
 }
 
-export default async function EditProductPage({ params, searchParams }: EditProductPageProps) {
+export default async function EditProductPage({ params }: EditProductPageProps) {
   let product;
-  const historyPage = Number(searchParams.historyPage) || 1;
-  const historyLimit = 20;
 
   try {
     product = await getProduct(params.id);
@@ -32,13 +30,6 @@ export default async function EditProductPage({ params, searchParams }: EditProd
 
   // Fetch categories from DB
   const categories = await getLookupValues('PRODUCT_CATEGORY');
-
-  // Fetch history with pagination
-  const { data: history, pagination } = await getProductHistory(params.id, historyPage, historyLimit);
-
-  // We need a client wrapper to handle URL updates for pagination
-  // Or we can simple use Link based approach if we don't want a client wrapper.
-  // Actually, let's create a Client Component wrapper for the history table to handle router.push
 
   return (
     <div>
@@ -62,10 +53,7 @@ export default async function EditProductPage({ params, searchParams }: EditProd
           </TabsContent>
 
           <TabsContent value="history">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium">ประวัติการเคลื่อนไหว</h3>
-            </div>
-            <StockHistoryTableClientWrapper logs={history} pagination={pagination} />
+            <ProductHistoryTab productId={params.id} />
           </TabsContent>
 
           <TabsContent value="barcode">

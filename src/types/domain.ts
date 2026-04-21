@@ -23,7 +23,9 @@ import type { Prisma, Permission } from '@prisma/client';
  */
 export interface RequestContext {
   userId: string;
+  memberId?: string; // Standard ERP Actor ID
   userName?: string;
+
   userEmail?: string;
   shopId: string;
   permissions: Permission[];
@@ -161,6 +163,10 @@ export const SaleStatus = {
 } as const;
 
 export type SaleStatus = (typeof SaleStatus)[keyof typeof SaleStatus];
+
+export type EditLockStatus = 'NONE' | 'BILLED' | 'CANCELLED' | 'APPROVED' | 'POSTED' | 'PAID';
+
+export type DocPaymentStatus = 'UNPAID' | 'PARTIAL' | 'PAID';
 
 export interface GetQuotationsParams extends BaseQueryParams {
   customerId?: string;
@@ -462,6 +468,7 @@ export const StockMovement = {
   PURCHASE_CANCEL: 'PURCHASE_CANCEL',
   RESERVATION: 'RESERVATION',
   RELEASE: 'RELEASE',
+  STOCK_TAKE_RECONCILIATION: 'STOCK_TAKE_RECONCILIATION',
 } as const;
 
 export type StockMovement = (typeof StockMovement)[keyof typeof StockMovement];

@@ -37,7 +37,7 @@ export function RolesTable({ roles }: RolesTableProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const { hasPermission } = usePermissions();
   
-  const canEditRoles = hasPermission('TEAM_EDIT');
+  const canEditRoles = hasPermission('SETTINGS_ROLES');
 
   const handleDelete = async (role: Role) => {
     if (role._count.members > 0) {

@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { SequenceService } from './sequence.service';
+import { StockService } from './stock.service';
 import {
     DocumentType,
     DeliveryStatus,
@@ -8,7 +9,6 @@ import {
     type CreateDeliveryOrderInput,
     type GetDeliveryOrdersParams
 } from '@/types/domain';
-import { Prisma } from '@prisma/client';
 
 /**
  * DeliveryOrderService — ระบบใบส่งสินค้าและโลจิสติกส์ (Delivery & Logistics Management)
@@ -21,24 +21,24 @@ export const DeliveryOrderService = {
         const { page = 1, limit = 10, search, status, saleId } = params;
         const skip = (page - 1) * limit;
 
-        const where: Prisma.DeliveryOrderWhereInput = {
+        const where = {
             shopId: ctx.shopId,
-            status,
-            saleId,
-            OR: search ? [
-                { deliveryNo: { contains: search, mode: 'insensitive' } }
-            ] : undefined,
+            ...(status && { status }),
+            ...(saleId && { saleId }),
+            ...(search && {
+                OR: [{ deliveryNo: { contains: search, mode: 'insensitive' as const } }],
+            }),
         };
 
         const [data, total] = await Promise.all([
-            db.deliveryOrder.findMany({
+            (db as any).deliveryOrder.findMany({
                 where,
                 include: { sale: { include: { customer: true } } },
                 orderBy: { createdAt: 'desc' },
                 skip,
                 take: limit,
             }),
-            db.deliveryOrder.count({ where }),
+            (db as any).deliveryOrder.count({ where }),
         ]);
 
         return {
@@ -56,7 +56,7 @@ export const DeliveryOrderService = {
      * GetById — รายละเอียดใบส่งของรายใบ
      */
     async getById(ctx: RequestContext, id: string) {
-        const delivery = await db.deliveryOrder.findUnique({
+        const delivery = await (db as any).deliveryOrder.findUnique({
             where: { id },
             include: {
                 sale: { include: { customer: true, items: true } },
@@ -77,7 +77,6 @@ export const DeliveryOrderService = {
      */
     async create(ctx: RequestContext, input: CreateDeliveryOrderInput) {
         return await db.$transaction(async (tx) => {
-            // 1. Validate Sale exists and belongs to shop
             const sale = await tx.sale.findUnique({
                 where: { id: input.saleId },
                 include: { items: true }
@@ -87,19 +86,19 @@ export const DeliveryOrderService = {
                 throw new ServiceError('ไม่พบรายการขาย');
             }
 
-            // 2. Generate Number
             const deliveryNo = await SequenceService.generate(ctx, DocumentType.DELIVERY_ORDER, tx);
 
-            // 3. Create Delivery Order
-            return await tx.deliveryOrder.create({
+            return await (tx as any).deliveryOrder.create({
                 data: {
                     shopId: ctx.shopId,
-                    userId: ctx.userId,
                     deliveryNo,
                     saleId: input.saleId,
+                    userId: ctx.userId,
+                    memberId: ctx.memberId,
                     status: DeliveryStatus.WAITING,
                     scheduledDate: input.scheduledDate,
                     notes: input.notes,
+
                     items: {
                         create: input.items.map((item) => ({
                             productId: item.productId,
@@ -114,11 +113,17 @@ export const DeliveryOrderService = {
     },
 
     /**
-     * Validate — ยืนยันการส่งของ (ตัดสต็อกจริง)
+     * Validate — ยืนยันการส่งของ (ตัดสต็อกจริง + sync SO status)
+     *
+     * Flow:
+     *   1. Guard: ต้องอยู่ในสถานะ WAITING หรือ PROCESSING
+     *   2. ตัดสต็อกจริงผ่าน StockService.recordMovements
+     *   3. อัปเดตสถานะ DeliveryOrder → DELIVERED
+     *   4. Sync สถานะกลับ Sale: deliveryStatus → DELIVERED, bookingStatus → DEDUCTED
      */
     async validate(ctx: RequestContext, id: string) {
         return await db.$transaction(async (tx) => {
-            const delivery = await tx.deliveryOrder.findUnique({
+            const delivery = await (tx as any).deliveryOrder.findUnique({
                 where: { id },
                 include: { items: true, sale: true },
             });
@@ -127,12 +132,32 @@ export const DeliveryOrderService = {
                 throw new ServiceError('ไม่พบใบส่งของ');
             }
 
-            if (delivery.status !== DeliveryStatus.WAITING && delivery.status !== DeliveryStatus.PROCESSING) {
+            if (
+                delivery.status !== DeliveryStatus.WAITING &&
+                delivery.status !== DeliveryStatus.PROCESSING
+            ) {
                 throw new ServiceError('ใบส่งของนี้ได้รับการดำเนินการไปแล้ว');
             }
 
-            // 1. Update Delivery Status
-            await tx.deliveryOrder.update({
+            // ── 1. Deduct stock for each item ────────────────────────────────
+            await StockService.recordMovements(
+                ctx,
+                delivery.items.map((item: any) => ({
+                    productId: item.productId,
+                    type: 'SALE' as const,
+                    quantity: -item.quantity, // negative = outgoing
+                    userId: ctx.userId,
+                    shopId: ctx.shopId,
+                    saleId: delivery.saleId,
+                    deliveryOrderId: delivery.id, // ★ NEW: Pass DO ID as source
+                    note: `ส่งของจากใบส่งสินค้า: ${delivery.deliveryNo}`,
+                    requireStock: false,
+                })),
+                tx
+            );
+
+            // ── 2. Update Delivery status ─────────────────────────────────────
+            await (tx as any).deliveryOrder.update({
                 where: { id },
                 data: {
                     status: DeliveryStatus.DELIVERED,
@@ -140,16 +165,14 @@ export const DeliveryOrderService = {
                 },
             });
 
-            // 2. Sync Status กลับไปยัง Sale
+            // ── 3. Sync status back to Sale ───────────────────────────────────
             await tx.sale.update({
                 where: { id: delivery.saleId },
                 data: {
                     deliveryStatus: 'DELIVERED',
-                    bookingStatus: 'DEDUCTED' // ตัดสต็อกจริงแล้ว
+                    bookingStatus: 'DEDUCTED',
                 },
             });
-
-            // TODO: บันทึก Stock Movmement จริงผ่าน StockService
 
             return true;
         });

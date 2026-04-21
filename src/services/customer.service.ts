@@ -1,90 +1,83 @@
 import { db } from '@/lib/db';
-// Types imported from @/types/domain
-import { CustomerInput } from '@/schemas/customer';
+import { customerSchema, type CustomerInput } from '@/schemas/customer';
+import { partnerAddressSchema } from '@/schemas/partner-common';
 import { paginatedQuery, buildSearchFilter } from '@/lib/pagination';
 import { logger } from '@/lib/logger';
-import type { Customer } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import { AuditService } from '@/services/audit.service';
+import { CUSTOMER_AUDIT_POLICIES } from '@/services/customer.policy';
+import type { SerializedCustomer, RequestContext, SerializedPartnerAddress, ActionResponse } from '@/types/domain';
 
-import {
-  RequestContext,
-  ServiceError,
-  GetCustomersParams,
-  SerializedCustomer,
-  PaginatedResult,
-} from '@/types/domain';
-import { AuditService } from './audit.service';
-import { CUSTOMER_AUDIT_POLICIES } from './customer.policy';
-import { ICustomerService } from '@/types/service-contracts';
+export class ServiceError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ServiceError';
+  }
+}
 
-export const CustomerService: ICustomerService = {
-  async getList(params: GetCustomersParams = {}, ctx: RequestContext): Promise<PaginatedResult<SerializedCustomer>> {
-    const { page = 1, limit = 20, search } = params;
-    const searchFilter = buildSearchFilter(search, ['name', 'phone', 'address', 'email']);
-
-    const where = {
+export const CustomerService = {
+  async getAll(ctx: RequestContext, params: { page?: number; limit?: number; search?: string; region?: string; groupCode?: string }) {
+    const where: any = {
       shopId: ctx.shopId,
-      ...(searchFilter && searchFilter),
       deletedAt: null,
     };
 
-    const result = await paginatedQuery<any>(db.customer, {
+    if (params.search) {
+      where.OR = [
+        { name: { contains: params.search, mode: 'insensitive' } },
+        { phone: { contains: params.search, mode: 'insensitive' } },
+        { email: { contains: params.search, mode: 'insensitive' } },
+      ];
+    }
+
+    if (params.region) where.partnerAddresses = { some: { region: params.region, deletedAt: null } };
+    if (params.groupCode) where.groupCode = params.groupCode;
+
+    return paginatedQuery(db.customer as any, {
       where,
+      orderBy: { name: 'asc' },
       include: {
-        _count: {
-          select: { sales: { where: { status: { not: 'CANCELLED' } } } },
+        partnerAddresses: {
+          where: { isDefaultBilling: true, deletedAt: null },
+          take: 1,
         },
       },
-      page,
-      limit,
-      orderBy: { name: 'asc' },
+      page: params.page,
+      limit: params.limit,
     });
-
-    // Fetch volume (Accumulated Sales) for these specific customers
-    const customerIds = result.data.map((c: any) => c.id);
-    const volumeData = await db.sale.groupBy({
-      by: ['customerId'],
-      where: {
-        customerId: { in: customerIds },
-        status: { not: 'CANCELLED' },
-        shopId: ctx.shopId,
-      },
-      _sum: { netAmount: true },
-    });
-
-    const volumeMap = new Map(volumeData.map(v => [v.customerId, Number(v._sum.netAmount || 0)]));
-
-    return {
-      ...result,
-      data: result.data.map((c: any) => ({
-        ...c,
-        creditLimit: c.creditLimit ? Number(c.creditLimit) : null,
-        totalVolume: volumeMap.get(c.id) || 0,
-      })),
-    };
   },
 
-  async getById(id: string, ctx: RequestContext): Promise<SerializedCustomer> {
+  async getForSelect(ctx: RequestContext) {
+    return (db as any).customer.findMany({
+      where: { shopId: ctx.shopId, deletedAt: null },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    });
+  },
+
+  async getById(id: string, ctx: RequestContext): Promise<SerializedCustomer | null> {
     const customer = await db.customer.findFirst({
       where: { id, shopId: ctx.shopId, deletedAt: null },
       include: {
-        salesPersons: {
-          select: {
-            id: true,
-            userId: true,
-            departmentCode: true,
-            user: { select: { name: true, email: true } }
-          }
-        }
-      }
+        partnerAddresses: {
+          where: { deletedAt: null },
+          include: { contacts: { where: { deletedAt: null } } },
+        },
+      },
     });
 
-    if (!customer) {
-      throw new ServiceError('ไม่พบข้อมูลลูกค้า');
-    }
+    return customer as any;
+  },
+
+  async getProfile(id: string, ctx: RequestContext) {
+    const customer = await this.getById(id, ctx);
+    if (!customer) return null;
 
     return {
-      ...customer,
-      creditLimit: customer.creditLimit ? Number(customer.creditLimit) : null,
+      customer: customer as any,
+      sales: [],
+      stats: { totalSpend: 0, orderCount: 0, avgOrderValue: 0, lastSaleDate: null },
+      topProducts: [],
     };
   },
 
@@ -93,99 +86,147 @@ export const CustomerService: ICustomerService = {
       ctx,
       CUSTOMER_AUDIT_POLICIES.CREATE(data.name),
       async () => {
-        // ERP UC 3: Auto-assign Salespersons by Region
-        let assignedSalespersons: { id: string }[] = [];
-        if (data.region) {
-          const salesTeam = await this.getSalespersonsByRegion(data.region, ctx);
-          assignedSalespersons = salesTeam.map(s => ({ id: s.id }));
-        }
+        const { partnerAddresses, ...customerData } = data as any;
 
-        const customer = await db.customer.create({
-          data: {
-            ...data,
-            name: data.name,
-            phone: data.phone || null,
-            address: data.address || null,
-            taxId: data.taxId || null,
-            notes: data.notes || null,
-            userId: ctx.userId,
-            shopId: ctx.shopId,
-            salesPersons: assignedSalespersons.length > 0 ? {
-              connect: assignedSalespersons
-            } : undefined,
-          },
+        const customer = await db.$transaction(async (tx) => {
+          const c = await (tx as any).customer.create({
+            data: {
+              ...customerData,
+              userId: ctx.userId,
+              shopId: ctx.shopId,
+            } as Prisma.CustomerUncheckedCreateInput,
+          });
+
+          if (partnerAddresses && partnerAddresses.length > 0) {
+            for (const addr of partnerAddresses) {
+              const { contacts, ...addrData } = addr;
+              await (tx as any).partnerAddress.create({
+                data: {
+                  ...addrData,
+                  customerId: c.id,
+                  shopId: ctx.shopId,
+                  contacts: {
+                    create: contacts?.map((con: any) => ({
+                      ...con,
+                      shopId: ctx.shopId,
+                    })),
+                  },
+                },
+              });
+            }
+          }
+
+          return c;
         });
 
-        return {
-          ...customer,
-          creditLimit: customer.creditLimit ? Number(customer.creditLimit) : null,
-        };
+        return customer as any;
       }
     );
   },
 
   async update(id: string, ctx: RequestContext, data: CustomerInput): Promise<SerializedCustomer> {
-    const existing = await db.customer.findFirst({
-      where: { id, shopId: ctx.shopId, deletedAt: null },
-    });
-
-    if (!existing) {
-      throw new ServiceError('ไม่พบข้อมูลลูกค้า หรือลูกค้าถูกลบไปแล้ว');
-    }
+    const existing = await this.getById(id, ctx);
+    if (!existing) throw new ServiceError('ไม่พบข้อมูลลูกค้า');
 
     return AuditService.runWithAudit(
       ctx,
       {
         ...CUSTOMER_AUDIT_POLICIES.UPDATE(id, existing.name),
         beforeSnapshot: () => existing,
-        afterSnapshot: () => db.customer.findFirst({ where: { id } }),
+        afterSnapshot: () => this.getById(id, ctx),
       },
       async () => {
-        // ERP UC 3: Auto-update Salespersons if Region changed
-        let salespersonUpdate: any = undefined;
-        if (data.region && data.region !== existing.region) {
-          const salesTeam = await this.getSalespersonsByRegion(data.region, ctx);
-          salespersonUpdate = {
-            set: salesTeam.map(s => ({ id: s.id }))
-          };
-        }
+        const { partnerAddresses, ...customerData } = data as any;
 
-        const customer = await db.customer.update({
-          where: { id },
-          data: {
-            ...data,
-            name: data.name,
-            phone: data.phone || null,
-            address: data.address || null,
-            taxId: data.taxId || null,
-            notes: data.notes || null,
-            salesPersons: salespersonUpdate,
-          },
+        const customer = await db.$transaction(async (tx) => {
+          const c = await tx.customer.update({
+            where: { id },
+            data: customerData,
+          });
+
+          if (partnerAddresses) {
+            const existingAddressIds = (existing as any).partnerAddresses.map((a: any) => a.id);
+            const incomingAddressIds = partnerAddresses.filter((a: any) => a.id).map((a: any) => a.id as string);
+
+            const removedAddressIds = existingAddressIds.filter((id: string) => !incomingAddressIds.includes(id));
+            if (removedAddressIds.length > 0) {
+              await (tx as any).partnerAddress.updateMany({
+                where: { id: { in: removedAddressIds } },
+                data: { deletedAt: new Date() },
+              });
+            }
+
+            for (const addr of partnerAddresses) {
+              const { id: addrId, contacts, ...addrData } = addr;
+              if (addrId && existingAddressIds.includes(addrId)) {
+                await (tx as any).partnerAddress.update({
+                  where: { id: addrId },
+                  data: addrData,
+                });
+
+                const existingAddr = (existing as any).partnerAddresses.find((a: any) => a.id === addrId);
+                const existingContactIds = existingAddr?.contacts.map((c: any) => c.id) || [];
+                const incomingContactIds = contacts?.filter((c: any) => c.id).map((c: any) => c.id as string) || [];
+
+                const removedContactIds = existingContactIds.filter((id: string) => !incomingContactIds.includes(id));
+                if (removedContactIds.length > 0) {
+                  await (tx as any).partnerContact.updateMany({
+                    where: { id: { in: removedContactIds } },
+                    data: { deletedAt: new Date() },
+                  });
+                }
+
+                if (contacts) {
+                  for (const contact of contacts) {
+                    const { id: contactId, ...contactData } = contact;
+                    if (contactId && existingContactIds.includes(contactId)) {
+                      await (tx as any).partnerContact.update({
+                        where: { id: contactId },
+                        data: contactData,
+                      });
+                    } else {
+                      await (tx as any).partnerContact.create({
+                        data: {
+                          ...contactData,
+                          partnerAddressId: addrId,
+                          shopId: ctx.shopId,
+                        },
+                      });
+                    }
+                  }
+                }
+              } else {
+                await (tx as any).partnerAddress.create({
+                  data: {
+                    ...addrData,
+                    customerId: id,
+                    shopId: ctx.shopId,
+                    contacts: {
+                      create: contacts?.map((con: any) => ({
+                        ...con,
+                        shopId: ctx.shopId,
+                      })),
+                    },
+                  },
+                });
+              }
+            }
+          }
+          return c;
         });
 
-        return {
-          ...customer,
-          creditLimit: customer.creditLimit ? Number(customer.creditLimit) : null,
-        };
+        return customer as any;
       }
     );
   },
 
-  async delete(id: string, ctx: RequestContext): Promise<void> {
-    const existing = await db.customer.findFirst({
-      where: { id, shopId: ctx.shopId, deletedAt: null },
-    });
-
-    if (!existing) {
-      throw new ServiceError('ไม่พบข้อมูลลูกค้า');
-    }
+  async delete(id: string, ctx: RequestContext): Promise<ActionResponse> {
+    const existing = await this.getById(id, ctx);
+    if (!existing) return { success: false, message: 'ไม่พบข้อมูลลูกค้า' };
 
     await AuditService.runWithAudit(
       ctx,
-      {
-        ...CUSTOMER_AUDIT_POLICIES.DELETE(id, existing.name),
-        beforeSnapshot: () => existing,
-      },
+      CUSTOMER_AUDIT_POLICIES.DELETE(id, existing.name),
       async () => {
         await db.customer.update({
           where: { id },
@@ -193,352 +234,71 @@ export const CustomerService: ICustomerService = {
         });
       }
     );
+
+    return { success: true, message: 'ลบข้อมูลลูกค้าสำเร็จ' };
   },
 
-  async getForSelect(ctx: RequestContext) {
-    return db.customer.findMany({
-      where: { shopId: ctx.shopId, deletedAt: null },
-      select: { id: true, name: true, phone: true, address: true, taxId: true },
-      orderBy: { name: 'asc' },
-    });
-  },
-
-  async getProfile(id: string, ctx: RequestContext) {
-    const customer = await db.customer.findFirst({
-      where: { id, shopId: ctx.shopId, deletedAt: null },
-      include: {
-        addresses: {
-          where: { deletedAt: null },
-          orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
-        },
-        sales: {
-          select: {
-            id: true,
-            invoiceNumber: true,
-            date: true,
-            totalAmount: true,
-            totalCost: true,
-            profit: true,
-            paymentMethod: true,
-            status: true,
-            items: { select: { quantity: true } },
-            shipments: {
-              select: {
-                id: true,
-                shipmentNumber: true,
-                status: true,
-                trackingNumber: true,
-                shippingProvider: true,
-                shippingCost: true,
-                recipientName: true,
-                shippingAddress: true,
-                shippedAt: true,
-                deliveredAt: true,
-                createdAt: true,
-              },
-              orderBy: { createdAt: 'desc' },
-            },
-          },
-          orderBy: { date: 'desc' },
-        },
-      },
+  async checkCreditLimit(customerId: string, amount: number, ctx: RequestContext, tx?: any) {
+    const prisma = tx || db;
+    const customer = await prisma.customer.findUnique({
+      where: { id: customerId },
+      select: { creditLimit: true }
     });
 
-    if (!customer) {
-      throw new ServiceError('ไม่พบข้อมูลลูกค้า');
+    if (!customer || !customer.creditLimit || Number(customer.creditLimit) <= 0) return true;
+
+    const sales = await prisma.sale.findMany({
+      where: { customerId, shopId: ctx.shopId, status: 'ACTIVE' },
+      select: { netAmount: true }
+    });
+
+    const currentExposure = sales.reduce((sum: any, sale: any) => sum + Number(sale.netAmount), 0);
+    if (currentExposure + amount > Number(customer.creditLimit)) {
+      throw new ServiceError(`วงเงินเครดิตไม่เพียงพอ (วงเงิน: ${customer.creditLimit}, ใช้ไปแล้ว: ${currentExposure}, ต้องการใช้เพิ่ม: ${amount})`);
     }
 
-    const allShipments = customer.sales.flatMap((sale: any) =>
-      sale.shipments.map((s: any) => ({
-        ...s,
-        shippingCost: s.shippingCost ? Number(s.shippingCost) : null,
-        saleInvoice: sale.invoiceNumber,
-        saleId: sale.id,
-      }))
-    );
-
-    const activeSales = customer.sales.filter((s: any) => s.status !== 'CANCELLED');
-
-    const totalSpent = activeSales.reduce((sum: number, s: any) => sum + Number(s.totalAmount), 0);
-    const totalProfit = activeSales.reduce((sum: number, s: any) => sum + Number(s.profit), 0);
-
-    const nonCancelledShipments = allShipments.filter((s: any) => s.status !== 'CANCELLED');
-    const deliveredCount = allShipments.filter((s: any) => s.status === 'DELIVERED').length;
-    const returnedCount = allShipments.filter((s: any) => s.status === 'RETURNED').length;
-    const cancelledCount = allShipments.filter((s: any) => s.status === 'CANCELLED').length;
-    const pendingCount = allShipments.filter((s: any) => s.status === 'PENDING').length;
-    const shippedCount = allShipments.filter((s: any) => s.status === 'SHIPPED').length;
-
-    const deliveryRate = nonCancelledShipments.length > 0
-      ? (deliveredCount / nonCancelledShipments.length) * 100
-      : 0;
-
-    const shipmentCosts = allShipments
-      .filter((s: any) => s.shippingCost && s.status !== 'CANCELLED')
-      .map((s: any) => s.shippingCost!);
-
-    const avgShippingCost = shipmentCosts.length > 0
-      ? shipmentCosts.reduce((a: number, b: number) => a + b, 0) / shipmentCosts.length
-      : 0;
-
-    const totalShippingCost = shipmentCosts.reduce((a: number, b: number) => a + b, 0);
-
-    const providerCounts: Record<string, number> = {};
-    allShipments
-      .filter((s: any) => s.shippingProvider && s.status !== 'CANCELLED')
-      .forEach((s: any) => {
-        providerCounts[s.shippingProvider!] = (providerCounts[s.shippingProvider!] || 0) + 1;
-      });
-
-    const topProvider = Object.entries(providerCounts)
-      .sort((a, b) => b[1] - a[1])[0]?.[0] || null;
-
-    const saleDates = activeSales.map((s: any) => s.date);
-    const firstOrderDate = saleDates.length > 0 ? saleDates[saleDates.length - 1] : null;
-    const lastOrderDate = saleDates.length > 0 ? saleDates[0] : null;
-
-    return {
-      customer: {
-        id: customer.id,
-        name: customer.name,
-        phone: customer.phone,
-        email: (customer as any).email as string | null,
-        address: customer.address,
-        taxId: customer.taxId,
-        notes: customer.notes,
-        createdAt: customer.createdAt,
-      },
-      addresses: customer.addresses,
-      stats: {
-        totalOrders: activeSales.length,
-        totalSpent,
-        totalProfit,
-        totalShipments: allShipments.length,
-        deliveredCount,
-        returnedCount,
-        cancelledCount,
-        pendingCount,
-        shippedCount,
-        deliveryRate,
-        avgShippingCost,
-        totalShippingCost,
-        topProvider,
-        providerBreakdown: providerCounts,
-        firstOrderDate,
-        lastOrderDate,
-      },
-      sales: customer.sales.map((sale: any) => ({
-        id: sale.id,
-        invoiceNumber: sale.invoiceNumber,
-        date: sale.date,
-        totalAmount: Number(sale.totalAmount),
-        profit: Number(sale.profit),
-        paymentMethod: sale.paymentMethod,
-        status: sale.status,
-        itemCount: sale.items.reduce((sum: number, i: any) => sum + i.quantity, 0),
-        shipmentCount: sale.shipments.length,
-        latestShipmentStatus: sale.shipments[0]?.status || null,
-      })),
-      shipments: allShipments,
-    };
+    return true;
   },
 
-  async getAddresses(customerId: string, ctx: RequestContext) {
-    return db.customerAddress.findMany({
+  // Address-specific actions (Simplified for ERP UI)
+  async getAddresses(customerId: string, ctx: RequestContext): Promise<SerializedPartnerAddress[]> {
+    const addresses = await (db as any).partnerAddress.findMany({
       where: { customerId, shopId: ctx.shopId, deletedAt: null },
-      orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }],
+      include: { contacts: { where: { deletedAt: null } } },
     });
+    return addresses as any[];
   },
 
-  async getAddressById(id: string, ctx: RequestContext) {
-    const address = await db.customerAddress.findFirst({
-      where: { id, shopId: ctx.shopId, deletedAt: null },
+  async createAddress(customerId: string, ctx: RequestContext, data: any): Promise<SerializedPartnerAddress> {
+    const { contacts, ...addrData } = data;
+    const addr = await (db as any).partnerAddress.create({
+      data: {
+        ...addrData,
+        customerId,
+        shopId: ctx.shopId,
+        contacts: {
+          create: contacts?.map((c: any) => ({
+            ...c,
+            shopId: ctx.shopId,
+          })),
+        },
+      },
+      include: { contacts: true },
     });
-    if (!address) throw new ServiceError('ไม่พบข้อมูลที่อยู่');
-    return address;
-  },
-
-  async createAddress(customerId: string, ctx: RequestContext, data: any): Promise<any> {
-    const customer = await db.customer.findFirst({
-      where: { id: customerId, shopId: ctx.shopId, deletedAt: null },
-    });
-
-    if (!customer) throw new ServiceError('ไม่พบข้อมูลลูกค้า');
-
-    return AuditService.runWithAudit(
-      ctx,
-      CUSTOMER_AUDIT_POLICIES.ADDRESS_CREATE(customer.name),
-      async () => {
-        if (data.isDefault) {
-          await db.customerAddress.updateMany({
-            where: { customerId, shopId: ctx.shopId, isDefault: true },
-            data: { isDefault: false },
-          });
-        }
-
-        return db.customerAddress.create({
-          data: { ...data, customerId, shopId: ctx.shopId },
-        });
-      }
-    );
+    return addr as any;
   },
 
   async updateAddress(id: string, ctx: RequestContext, data: any): Promise<void> {
-    const existing = await db.customerAddress.findFirst({
-      where: { id, shopId: ctx.shopId, deletedAt: null },
-      include: { customer: { select: { name: true } } }
+    await (db as any).partnerAddress.update({
+      where: { id },
+      data,
     });
-
-    if (!existing) throw new ServiceError('ไม่พบข้อมูลที่อยู่');
-
-    await AuditService.runWithAudit(
-      ctx,
-      {
-        ...CUSTOMER_AUDIT_POLICIES.ADDRESS_UPDATE(id, existing.customer.name),
-        beforeSnapshot: () => existing,
-        afterSnapshot: () => db.customerAddress.findFirst({ where: { id } }),
-      },
-      async () => {
-        if (data.isDefault) {
-          await db.customerAddress.updateMany({
-            where: {
-              customerId: existing.customerId,
-              shopId: ctx.shopId,
-              isDefault: true,
-              id: { not: id },
-            },
-            data: { isDefault: false },
-          });
-        }
-
-        await db.customerAddress.update({
-          where: { id },
-          data,
-        });
-      }
-    );
   },
 
   async deleteAddress(id: string, ctx: RequestContext): Promise<void> {
-    const existing = await db.customerAddress.findFirst({
-      where: { id, shopId: ctx.shopId, deletedAt: null },
-      include: { customer: { select: { name: true } } }
-    });
-
-    if (!existing) throw new ServiceError('ไม่พบข้อมูลที่อยู่');
-
-    await AuditService.runWithAudit(
-      ctx,
-      {
-        ...CUSTOMER_AUDIT_POLICIES.ADDRESS_DELETE(id, existing.customer.name),
-        beforeSnapshot: () => existing,
-      },
-      async () => {
-        await db.customerAddress.update({
-          where: { id },
-          data: { deletedAt: new Date() },
-        });
-      }
-    );
-  },
-
-  /**
-   * REAL: Region-Salesperson Mapping (ERP Module 2 - UC 3)
-   * ค้นหาพนักงานขายที่มีความเชี่ยวชาญหรือดูแลภูมิภาคนั้นๆ
-   */
-  async getSalespersonsByRegion(region: string, ctx: RequestContext) {
-    return db.shopMember.findMany({
-      where: {
-        shopId: ctx.shopId,
-        regionIds: { has: region }
-      },
-      select: {
-        id: true,
-        userId: true,
-        departmentCode: true,
-        user: { select: { name: true, email: true } }
-      }
+    await (db as any).partnerAddress.update({
+      where: { id },
+      data: { deletedAt: new Date() },
     });
   },
-
-  /**
-   * UC 12: Contact Import Template (Strict Structure)
-   * รักษาโครงสร้างไฟล์ Import ให้คงเดิม 100% ห้ามสลับหรือลดคอลัมน์
-   */
-  async batchCreate(inputs: any[], ctx: RequestContext) {
-    // Expected Columns (Standard Template)
-    const REQUIRED_COLUMNS = ['name', 'phone', 'email', 'address', 'region'];
-
-    const results = {
-      success: [] as any[],
-      failed: [] as any[],
-    };
-
-    for (const input of inputs) {
-      // Logic: ห้ามสลับ/เพิ่ม/ลดคอลัมน์ (Validate payload keys)
-      const inputKeys = Object.keys(input);
-      const isStructureValid = REQUIRED_COLUMNS.every(col => inputKeys.includes(col));
-
-      if (!isStructureValid) {
-        results.failed.push({
-          data: input,
-          error: `Structure Mismatch: Missing required columns (${REQUIRED_COLUMNS.filter(c => !inputKeys.includes(c)).join(', ')})`
-        });
-        continue;
-      }
-      try {
-        const created = await this.create(ctx, input);
-        results.success.push(created);
-      } catch (err: any) {
-        results.failed.push({ data: input, error: err.message });
-      }
-    }
-
-    return results;
-  },
-
-  /**
-   * ตรวจสอบสถานะเครดิตของลูกค้า (ERP Rule 6)
-   */
-  async checkCreditLimit(customerId: string, requestedAmount: number, ctx: RequestContext) {
-    const customer = await db.customer.findFirst({
-      where: { id: customerId, shopId: ctx.shopId, deletedAt: null },
-      select: { creditLimit: true },
-    });
-
-    if (!customer) throw new ServiceError('ไม่พบข้อมูลลูกค้า');
-
-    // ถ้าไม่มีการตั้งวงเงิน (null หรือ 0) ถือว่าไม่มีขีดจำกัด (ใช้งานง่ายสำหรับร้านทั่วไป)
-    const limit = customer.creditLimit ? Number(customer.creditLimit) : 0;
-    if (limit <= 0) {
-      return {
-        creditLimit: 0,
-        currentOutstanding: 0,
-        availableCredit: 999999999,
-        isWithinLimit: true,
-      };
-    }
-
-    // คำนวณยอดค้างชำระ (บิลที่ยังไม่ชำระและไม่ได้ยกเลิก)
-    const unpaidSales = await db.sale.aggregate({
-      where: {
-        customerId,
-        shopId: ctx.shopId,
-        status: { not: 'CANCELLED' },
-        billingStatus: { not: 'PAID' },
-      },
-      _sum: { netAmount: true },
-    });
-
-    const currentOutstanding = Number(unpaidSales._sum?.netAmount || 0);
-    const availableCredit = limit - currentOutstanding;
-    const isWithinLimit = (currentOutstanding + requestedAmount) <= limit;
-
-    return {
-      creditLimit: limit,
-      currentOutstanding,
-      availableCredit,
-      isWithinLimit,
-    };
-  }
 };

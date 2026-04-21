@@ -1,447 +1,253 @@
-import { NotificationService } from './notification.service';
+import { db, runInTransaction } from '@/lib/db';
+import {
+  RequestContext,
+  ServiceError,
+  StockMovement,
+  DocumentType,
+  StockAvailability,
+} from '@/types/domain';
 import { IStockService } from '@/types/service-contracts';
+import { SequenceService } from './sequence.service';
 import { AuditService } from './audit.service';
 import { STOCK_AUDIT_POLICIES } from './stock.policy';
-import { db, runInTransaction } from '@/lib/db';
 import { Prisma } from '@prisma/client';
-import { RequestContext, ServiceError, StockAvailability, StockMovement } from '@/types/domain';
 
-interface CreateStockMovementParams {
+export interface CreateStockMovementParams {
   productId: string;
   type: StockMovement;
-  quantity: number; // Positive for add, Negative for remove
-  userId: string;
-  shopId?: string;
+  quantity: number;
+  note?: string;
+  referenceId?: string;
+  referenceType?: string;
   saleId?: string;
   purchaseId?: string;
+  deliveryOrderId?: string;
   returnId?: string;
-  note?: string;
-  date?: Date | string;
+  ctx: RequestContext;
   tx?: Prisma.TransactionClient;
   requireStock?: boolean;
 }
 
 export const StockService: IStockService = {
   /**
-   * จองสต็อกสินค้า (เมื่อ Sale เปลี่ยนสถานะเป็น CONFIRMED)
-   * - เพิ่ม reservedStock
-   * - ตรวจสอบ available (onHand - reserved) >= quantity
+   * บันทึกการเคลื่อนไหวสต็อก (Source of Truth สำหรับการตัดสต็อก)
    */
-  /**
-   * จองสต็อกสินค้า (เมื่อ Sale เปลี่ยนสถานะเป็น CONFIRMED)
-   * - เพิ่ม reservedStock
-   * - ตรวจสอบ available (onHand - reserved) >= quantity
-   */
-  async reserveStock(productId, quantity, ctx, tx) {
-    await AuditService.runWithAudit(
+  async recordMovement(ctx: RequestContext, params: CreateStockMovementParams) {
+    const {
+      productId,
+      type,
+      quantity,
+      note,
+      saleId,
+      purchaseId,
+      deliveryOrderId,
+      returnId,
+      tx,
+      requireStock = true,
+    } = params;
+
+    return AuditService.runWithAudit(
       ctx,
-      STOCK_AUDIT_POLICIES.RESERVE(productId, quantity),
+      STOCK_AUDIT_POLICIES.MOVE(productId, type as any, quantity, note),
       async () => {
-        return runInTransaction(tx, async (prisma) => {
-          const product = await prisma.product.findUnique({
-            where: { id: productId },
-            select: { stock: true, reservedStock: true, name: true, shopId: true },
-          });
+        const executor = tx || db;
 
-          if (!product || product.shopId !== ctx.shopId) {
-            throw new Error(`ไม่พบสินค้า: ${productId}`);
-          }
-
-          const available = product.stock - product.reservedStock;
-          if (available < quantity) {
-            throw new ServiceError(
-              `สต็อกสินค้า "${product.name}" ไม่พอสำหรับจอง (คงเหลือที่สั่งซื้อได้: ${available})`,
-              undefined,
-              { label: 'สั่งซื้อสินค้าเพิ่ม', href: '/purchases/new' }
-            );
-          }
-
-          const updatedProduct = await prisma.product.update({
-            where: { id: productId },
-            data: {
-              reservedStock: { increment: quantity },
-            },
-          });
-
-          // บันทึก log การจอง
-          await prisma.stockLog.create({
-            data: {
-              type: 'RESERVATION',
-              productId,
-              quantity,
-              balance: product.stock, // onHand balance doesn't change
-              userId: ctx.userId,
-              shopId: ctx.shopId,
-              note: `จองสต็อกคงคลังสำหรับใบสั่งซื้อ`,
-            },
-          });
-
-          return {
-            ...updatedProduct,
-            changeQty: quantity,
-            reserveBefore: product.reservedStock,
-            reserveAfter: updatedProduct.reservedStock,
-          };
+        // ดึงข้อมูลสินค้าและสต็อกล่าสุด (Lock for update ถ้าอยู่ใน transaction)
+        const product = await executor.product.findUnique({
+          where: { id: productId },
+          select: { stock: true, reservedStock: true, shopId: true },
         });
+
+        if (!product) throw new ServiceError('ไม่พบสินค้า');
+        if (product.shopId !== ctx.shopId) throw new ServiceError('ไม่มีสิทธิ์จัดการสินค้านี้');
+
+        // คำนวณสต็อกใหม่
+        let newStock = product.stock;
+        let newReserved = product.reservedStock;
+
+        // Logic ตามความหมายทางธุรกิจของ ERP
+        switch (type) {
+          case 'PURCHASE': // รับเข้าจากใบสั่งซื้อ
+          case 'RETURN': // รับเข้าจากการคืนสินค้า
+            newStock += quantity;
+            break;
+
+          case 'CANCEL': // จ่ายออกทั่วไป
+            if (requireStock && product.stock < quantity) {
+              throw new ServiceError(`สต็อกไม่เพียงพอ (คงเหลือ: ${product.stock}, ต้องการ: ${quantity})`);
+            }
+            newStock -= quantity;
+            break;
+
+          case 'SALE': // ตัดสต็อกจากการขาย (ลด Stock, ลด Reserved)
+            if (requireStock && product.stock < quantity) {
+              throw new ServiceError(`สต็อกไม่เพียงพอ (คงเหลือ: ${product.stock}, ต้องการ: ${quantity})`);
+            }
+            newStock -= quantity;
+            // ถ้าระบบมีการจองสต็อกไว้ (Reserved) ให้ตัด Reserved ออกด้วย
+            if (product.reservedStock >= quantity) {
+              newReserved -= quantity;
+            }
+            break;
+
+          case 'RESERVATION': // จองสต็อก (เพิ่ม Reserved, Stock เท่าเดิม)
+            if (requireStock && (product.stock - product.reservedStock) < quantity) {
+              throw new ServiceError(`สต็อกพร้อมขายไม่เพียงพอ (คงเหลือ: ${product.stock}, จองแล้ว: ${product.reservedStock}, ต้องการจองเพิ่ม: ${quantity})`);
+            }
+            newReserved += quantity;
+            break;
+
+          case 'RELEASE': // ปล่อยการจอง (ลด Reserved, Stock เท่าเดิม)
+            newReserved = Math.max(0, product.reservedStock - quantity);
+            break;
+
+          default:
+            // Custom types or adjustments
+            if (type === 'ADJUSTMENT' as any) {
+              newStock += quantity; // Positive or negative
+            }
+        }
+
+        // อัปเดตสต็อกที่สินค้า
+        await executor.product.update({
+          where: { id: productId },
+          data: {
+            stock: newStock,
+            reservedStock: newReserved,
+            isLowStock: newStock <= 5, // Simple threshold logic
+          },
+        });
+
+        // บันทึก Log
+        const logData = {
+          type,
+          productId,
+          quantity,
+          balance: newStock,
+          note,
+          saleId,
+          purchaseId,
+          deliveryOrderId,
+          returnId,
+          userId: ctx.userId,
+          shopId: ctx.shopId,
+        };
+
+        const log = await (executor as any).stockLog.create({
+          data: {
+            ...logData,
+            memberId: ctx.memberId || null,
+          } as any,
+        });
+
+        return log;
       }
     );
   },
 
   /**
-   * ตัดสต็อกจริง (เมื่อ Delivery confirmed)
-   * - ลด onHand (stock)
-   * - ลด reservedStock ที่จองไว้
+   * จองสต็อกสินค้า (เมื่อ Sale เปลี่ยนสถานะเป็น CONFIRMED)
    */
-  async deductStock(productId, quantity, ctx, tx) {
-    await AuditService.runWithAudit(
+  async reserveStock(productId: string, quantity: number, ctx: RequestContext, tx: Prisma.TransactionClient) {
+    return this.recordMovement(ctx, {
+      productId,
+      type: 'RESERVATION',
+      quantity,
+      note: 'จองสินค้าสำหรับรายการขาย',
       ctx,
-      STOCK_AUDIT_POLICIES.DEDUCT(productId, quantity),
-      async () => {
-        return runInTransaction(tx, async (prisma) => {
-          const product = await prisma.product.findUnique({
-            where: { id: productId },
-            select: { id: true, stock: true, reservedStock: true, minStock: true, name: true, shopId: true },
-          });
-
-          if (!product || product.shopId !== ctx.shopId) {
-            throw new Error(`ไม่พบสินค้า: ${productId}`);
-          }
-
-          // P1.1: Guard — reservedStock ห้ามติดลบ
-          if (product.reservedStock < quantity) {
-            throw new ServiceError(
-              `ไม่สามารถตัดสต็อกสินค้า "${product.name}" ได้: สต็อกที่จองไว้ (${product.reservedStock}) น้อยกว่าที่ต้องการตัด (${quantity})`,
-            );
-          }
-
-          const newStock = product.stock - quantity;
-          const isLowStock = newStock <= product.minStock;
-
-          const updatedProduct = await prisma.product.update({
-            where: { id: productId },
-            data: {
-              stock: newStock,
-              reservedStock: { decrement: quantity },
-              isLowStock,
-            },
-          });
-
-          // บันทึก log การตัดสต็อก
-          await prisma.stockLog.create({
-            data: {
-              type: 'SALE',
-              productId,
-              quantity: -quantity,
-              balance: newStock,
-              userId: ctx.userId,
-              shopId: ctx.shopId,
-              note: `ตัดสต็อกสินค้าจริง (ส่งของสำเร็จ)`,
-            },
-          });
-
-          // Notification: Trigger Operational Health Check (Summary)
-          NotificationService.checkOperationalHealth(ctx.shopId).catch(() => { });
-
-          return {
-            ...updatedProduct,
-            qtyBefore: product.stock,
-            qtyAfter: updatedProduct.stock,
-            reserveBefore: product.reservedStock,
-            reserveAfter: updatedProduct.reservedStock,
-            changeQty: -quantity,
-          };
-        });
-      }
-    );
+      tx,
+    });
   },
 
   /**
-   * ปล่อยการจอง (เมื่อ Sale ถูก Cancel)
-   * - ลด reservedStock
+   * ปล่อยการจอง (เมื่อ Sale ถูก Cancel ก่อนส่งของ)
    */
-  async releaseStock(productId, quantity, ctx, tx) {
-    await AuditService.runWithAudit(
+  async releaseStock(productId: string, quantity: number, ctx: RequestContext, tx: Prisma.TransactionClient) {
+    return this.recordMovement(ctx, {
+      productId,
+      type: 'RELEASE',
+      quantity,
+      note: 'คืนสต็อกจากการยกเลิกรายการขาย',
       ctx,
-      STOCK_AUDIT_POLICIES.RELEASE(productId, quantity),
-      async () => {
-        return runInTransaction(tx, async (prisma) => {
-          const product = await prisma.product.findUnique({
-            where: { id: productId },
-            select: { id: true, stock: true, reservedStock: true, shopId: true, name: true },
-          });
+      tx,
+      requireStock: false,
+    });
+  },
 
-          if (!product) throw new Error(`ไม่พบสินค้า: ${productId}`);
-
-          // P1.1: Guard — reservedStock ห้ามติดลบ
-          if (product.reservedStock < quantity) {
-            throw new ServiceError(
-              `ไม่สามารถปล่อยการจองสินค้า "${product.name}": สต็อกที่จองไว้ (${product.reservedStock}) น้อยกว่าที่ต้องการปล่อย (${quantity})`,
-            );
-          }
-
-          const updatedProduct = await prisma.product.update({
-            where: { id: productId },
-            data: {
-              reservedStock: { decrement: quantity },
-            },
-          });
-
-          // บันทึก log การปล่อยจอง
-          await prisma.stockLog.create({
-            data: {
-              type: 'RELEASE',
-              productId,
-              quantity: -quantity,
-              balance: product.stock,
-              userId: ctx.userId,
-              shopId: ctx.shopId,
-              note: `ยกเลิกการจองสต็อก (ใบสั่งซื้อถูกยกเลิก)`,
-            },
-          });
-
-          return {
-            ...updatedProduct,
-            reserveBefore: product.reservedStock,
-            reserveAfter: updatedProduct.reservedStock,
-            changeQty: -quantity,
-          };
-        });
-      }
-    );
+  /**
+   * ตัดสต็อกจริงเมื่อส่งสินค้า
+   */
+  async deductStock(productId: string, quantity: number, ctx: RequestContext, tx?: Prisma.TransactionClient, docRef?: { saleId?: string; deliveryOrderId?: string }) {
+    return this.recordMovement(ctx, {
+      productId,
+      type: 'SALE',
+      quantity,
+      saleId: docRef?.saleId,
+      deliveryOrderId: docRef?.deliveryOrderId,
+      note: `ตัดสต็อกสำหรับรายการขาย`,
+      ctx,
+      tx,
+    });
   },
 
   /**
    * ดึงสถานะสต็อกแบบ Business-Ready
    */
-  async getAvailability(productId, ctx) {
+  async getAvailability(productId: string, ctx: RequestContext): Promise<StockAvailability> {
     const product = await db.product.findUnique({
       where: { id: productId },
       select: { stock: true, reservedStock: true, minStock: true, isLowStock: true, shopId: true },
     });
 
-    if (!product || product.shopId !== ctx.shopId) {
-      throw new Error(`ไม่พบสินค้า: ${productId}`);
-    }
+    if (!product || product.shopId !== ctx.shopId) throw new ServiceError('ไม่พบสินค้า');
 
     return {
       onHand: product.stock,
       reserved: product.reservedStock,
       available: product.stock - product.reservedStock,
-      isLowStock: product.isLowStock,
-      minStock: product.minStock,
+      isLowStock: !!product.isLowStock,
+      minStock: product.minStock || 0,
     };
   },
 
-  /**
-   * Records a stock movement and updates the product balance atomically.
-   */
-  async recordMovement(ctx: RequestContext, {
-    productId,
-    type,
-    quantity,
-    userId,
-    shopId,
-    saleId,
-    purchaseId,
-    returnId,
-    note,
-    date,
-    tx,
-    requireStock,
-  }: CreateStockMovementParams) {
-    return AuditService.runWithAudit(
-      ctx,
-      STOCK_AUDIT_POLICIES.MOVE(productId, type, quantity, note),
-      async () => {
-        const finalDate = date ? new Date(date) : new Date();
+  async recordMovements(ctx: RequestContext, movements: any[], tx: Prisma.TransactionClient) {
+    const created = await (tx as any).stockLog.createMany({
+      data: movements.map(l => ({ ...l, memberId: ctx.memberId || null, shopId: ctx.shopId, userId: ctx.userId })) as any,
+    });
 
-        return runInTransaction(tx, async (prisma) => {
-          const currentProduct = await prisma.product.findUnique({
-            where: { id: productId },
-            select: { id: true, name: true, stock: true, reservedStock: true, minStock: true, shopId: true },
-          });
-
-          if (!currentProduct) {
-            throw new Error(`ไม่พบสินค้า ID: ${productId}`);
-          }
-
-          const available = currentProduct.stock - currentProduct.reservedStock;
-          const newStock = currentProduct.stock + quantity;
-
-          if (requireStock && (available + quantity < 0)) {
-            throw new ServiceError(
-              `สินค้า "${currentProduct.name}" สต็อกไม่พอ (เหลือที่สั่งได้ ${available})`,
-              undefined,
-              { label: 'สั่งซื้อสินค้าเพิ่ม', href: '/purchases/new' }
-            );
-          }
-
-          const isLowStock = newStock <= currentProduct.minStock;
-          const finalShopId = shopId || currentProduct.shopId;
-
-          const updatedProduct = await prisma.product.update({
-            where: { id: productId },
-            data: {
-              stock: newStock,
-              isLowStock,
-            },
-          });
-
-          // Notification: Trigger Operational Health Check (Summary)
-          NotificationService.checkOperationalHealth(finalShopId).catch(() => { });
-
-          await prisma.stockLog.create({
-            data: {
-              type,
-              productId,
-              quantity,
-              balance: updatedProduct.stock,
-              saleId,
-              purchaseId,
-              returnId,
-              note,
-              date: finalDate,
-              userId,
-              shopId: finalShopId,
-            },
-          });
-
-          // Return enriched result for audit after-snapshot
-          return {
-            ...updatedProduct,
-            qtyBefore: currentProduct.stock,
-            qtyAfter: updatedProduct.stock,
-            changeQty: quantity,
-          };
+    // Simple bulk update for low stock flag (could be optimized)
+    const productIds = Array.from(new Set(movements.map(l => l.productId)));
+    for (const pid of productIds) {
+      const p = await tx.product.findUnique({ where: { id: pid }, select: { stock: true } });
+      if (p) {
+        await tx.product.update({
+          where: { id: pid },
+          data: { isLowStock: p.stock <= 5 }
         });
       }
-    );
+    }
   },
 
-  async recordMovements(ctx: RequestContext, movements: CreateStockMovementParams[], tx: Prisma.TransactionClient) {
-    if (movements.length === 0) return;
-
-    await AuditService.runWithAudit(
-      ctx,
-      STOCK_AUDIT_POLICIES.BULK_MOVE(movements.length),
-      async () => {
-        const productIds = Array.from(new Set(movements.map(m => m.productId)));
-
-        // R-INV-02: Read product metadata (for validation + minStock check only)
-        // We do NOT use the stock value from here for updates — the DB handles that atomically
-        const products = await tx.product.findMany({
-          where: { id: { in: productIds } },
-          select: { id: true, name: true, stock: true, reservedStock: true, minStock: true, shopId: true },
-        });
-        const productMap = new Map(products.map(p => [p.id, p]));
-
-        // Pre-validate all movements before any DB mutation (Fail Fast principle)
-        for (const m of movements) {
-          const product = productMap.get(m.productId);
-          if (!product) throw new Error(`ไม่พบสินค้า ID: ${m.productId}`);
-
-          if (m.requireStock) {
-            const available = product.stock - product.reservedStock;
-            if (available + m.quantity < 0) {
-              throw new ServiceError(
-                `สินค้า "${product.name}" สต็อกไม่พอ (สั่งได้ ${available})`,
-                undefined,
-                { label: 'สั่งซื้อสินค้าเพิ่ม', href: '/purchases/new' }
-              );
-            }
-          }
-        }
-
-        // R-INV-02: Atomic SQL UPDATE — ป้องกัน race condition
-        // ใช้ SET stock = stock + qty แทนการ read → compute → write
-        // เพื่อให้ DB เป็น owner ของการเปลี่ยนแปลง ไม่ใช่ application
-        const atomicUpdates: Promise<any>[] = [];
-        const stockLogData: Prisma.StockLogCreateManyInput[] = [];
-        let totalQtyChange = 0;
-
-        for (const m of movements) {
-          const product = productMap.get(m.productId)!;
-          const finalShopId = m.shopId || product.shopId;
-          const finalDate = m.date ? new Date(m.date) : new Date();
-          totalQtyChange += m.quantity;
-
-          // Atomic stock increment at DB level
-          atomicUpdates.push(
-            tx.$executeRaw`
-              UPDATE "Product"
-              SET
-                stock       = stock + ${m.quantity},
-                "isLowStock" = (stock + ${m.quantity} <= "minStock"),
-                "updatedAt" = NOW()
-              WHERE id = ${m.productId}
-            `
-          );
-
-          // StockLog balance will be approximate here — use DB trigger or
-          // a follow-up read if precise balance snapshot is required.
-          // For now, optimistic balance = current + delta (acceptable for logs)
-          stockLogData.push({
-            type: m.type,
-            productId: m.productId,
-            quantity: m.quantity,
-            balance: product.stock + m.quantity, // Optimistic snapshot
-            saleId: m.saleId,
-            purchaseId: m.purchaseId,
-            returnId: m.returnId,
-            note: m.note,
-            date: finalDate,
-            userId: m.userId,
-            shopId: finalShopId,
-          });
-        }
-
-        // Execute all atomic stock updates + log inserts in parallel within the tx
-        await Promise.all([
-          ...atomicUpdates,
-          tx.stockLog.createMany({ data: stockLogData }),
-        ]);
-
-        // Trigger health check after bulk movement (fire-and-forget)
-        const shopIds = new Set(stockLogData.map(s => s.shopId));
-        shopIds.forEach(shopId => {
-          NotificationService.checkOperationalHealth(shopId).catch(() => { });
-        });
-
-        return {
-          affectedCount: movements.length,
-          affectedProductIds: productIds.slice(0, 10),
-          hasOverflowIds: productIds.length > 10,
-          totalQuantityChange: totalQtyChange,
-          movementTypes: Array.from(new Set(movements.map(m => m.type))),
-        };
-      }
-    );
-  },
-
-  async getProductHistory(productId, page = 1, limit = 20) {
+  async getProductHistory(productId: string, page: number = 1, limit: number = 10) {
     const skip = (page - 1) * limit;
     const [data, total] = await Promise.all([
-      db.stockLog.findMany({
+      (db as any).stockLog.findMany({
         where: { productId },
-        orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
-        include: { user: { select: { name: true } } },
+        orderBy: { createdAt: 'desc' },
         skip,
         take: limit,
       }),
-      db.stockLog.count({ where: { productId } }),
+      (db as any).stockLog.count({ where: { productId } }),
     ]);
 
-    const totalPages = Math.ceil(total / limit);
     return {
       data,
       pagination: {
-        total,
         page,
         limit,
-        totalPages,
-        hasNextPage: page < totalPages,
-        hasPrevPage: page > 1,
-      },
+        total,
+        totalPages: Math.ceil(total / limit),
+      }
     };
   }
 };

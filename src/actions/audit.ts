@@ -17,9 +17,7 @@ export type GetAuditLogsResult = {
 
 /**
  * Fetch paginated audit logs for the current shop.
- * Requires TEAM_VIEW or higher permission for basic audit trail visibility.
- * (For a stricter system, you might require a dedicated AUDIT_VIEW permission, 
- * but TEAM_VIEW / SETTINGS_SHOP usually covers Admin operations in this ERP).
+ * Requires SETTINGS_ROLES or higher permission for basic audit trail visibility.
  */
 export async function getAuditLogs(options: {
   page?: number;
@@ -35,15 +33,14 @@ export async function getAuditLogs(options: {
   try {
     const sessionCtx = await requireAuth();
     if (!sessionCtx.shopId) {
-       throw new ServiceError('กรุณาเลือกร้านค้าเพื่อดูข้อมูล');
+      throw new ServiceError('กรุณาเลือกร้านค้าเพื่อดูข้อมูล');
     }
     const ctx = sessionCtx as any;
-    
-    // Only Owners or Admins (with TEAM_EDIT or SETTINGS_SHOP) should see full audit logs
-    Security.requireAnyPermission(ctx, ['TEAM_EDIT', 'SETTINGS_SHOP']);
+
+    Security.requireAnyPermission(ctx, ['SETTINGS_ROLES' as any, 'SETTINGS_SHOP' as any]);
 
     const result = await AuditService.getActivityLog(ctx.shopId, options);
-    
+
     return {
       ...result,
       success: true,
@@ -64,14 +61,14 @@ export async function getSecurityMetrics() {
   try {
     const sessionCtx = await requireAuth();
     if (!sessionCtx.shopId) {
-       throw new ServiceError('กรุณาเลือกร้านค้าเพื่อดูข้อมูล');
+      throw new ServiceError('กรุณาเลือกร้านค้าเพื่อดูข้อมูล');
     }
     const ctx = sessionCtx as any;
-    
-    Security.requirePermission(ctx, 'SETTINGS_SHOP');
+
+    Security.requirePermission(ctx, 'SETTINGS_SHOP' as any);
 
     const metrics = await AuditService.getSecurityDashboardMetrics(ctx.shopId);
-    
+
     return {
       ...metrics,
       success: true,
@@ -92,14 +89,14 @@ export async function exportAuditLogsAction(startDate: string, endDate: string, 
   try {
     const sessionCtx = await requireAuth();
     if (!sessionCtx.shopId) {
-       throw new ServiceError('กรุณาเลือกร้านค้าเพื่อทำการ Export');
+      throw new ServiceError('กรุณาเลือกร้านค้าเพื่อทำการ Export');
     }
     const ctx = sessionCtx as any;
-    
-    Security.requirePermission(ctx, 'SETTINGS_SHOP');
+
+    Security.requirePermission(ctx, 'SETTINGS_SHOP' as any);
 
     const data = await ExportService.exportAuditLogsData(startDate, endDate, ctx, format);
-    
+
     return {
       success: true,
       data,

@@ -1,0 +1,35 @@
+'use client';
+
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { ClipboardCheck } from 'lucide-react';
+import { StockTakeSetupModal } from '@/components/inventory/stock-take-setup-modal';
+import { Guard } from '@/components/auth/guard';
+
+interface StartStockTakeButtonProps {
+    productIds: string[];
+}
+
+export function StartStockTakeButton({ productIds }: StartStockTakeButtonProps) {
+    const [open, setOpen] = useState(false);
+
+    return (
+        <Guard permission={"STOCK_TAKE_CREATE" as any}>
+            <Button
+                variant="outline"
+                className="text-primary border-primary/20 hover:bg-primary/5"
+                onClick={() => setOpen(true)}
+            >
+                <ClipboardCheck className="mr-2 h-4 w-4" />
+                เริ่มตรวจนับสต็อก ({productIds.length})
+            </Button>
+
+            <StockTakeSetupModal
+                open={open}
+                onOpenChange={setOpen}
+                productIds={productIds}
+                totalCount={productIds.length}
+            />
+        </Guard>
+    );
+}

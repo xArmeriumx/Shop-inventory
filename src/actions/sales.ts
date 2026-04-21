@@ -13,7 +13,9 @@ import {
   type GetSalesParams,
   type CancelSaleInput
 } from '@/services';
+import { serialize } from '@/lib/utils';
 import { SerializedSale } from '@/types/serialized';
+
 
 // =============================================================================
 // SALE LIST & DETAIL
@@ -22,26 +24,34 @@ import { SerializedSale } from '@/types/serialized';
 export async function getSales(params: GetSalesParams = {}) {
   const ctx = await requirePermission('SALE_VIEW');
   const canViewProfit = hasPermission(ctx, 'SALE_VIEW_PROFIT');
-  return SaleService.getList(params, ctx, { canViewProfit });
+  const result = await SaleService.getList(params, ctx, { canViewProfit });
+  return serialize(result);
 }
+
 
 export async function getSale(id: string) {
   const ctx = await requirePermission('SALE_VIEW');
   const canViewProfit = hasPermission(ctx, 'SALE_VIEW_PROFIT');
-  return SaleService.getById(id, ctx, { canViewProfit });
+  const sale = await SaleService.getById(id, ctx, { canViewProfit });
+  return serialize(sale);
 }
+
 
 export async function getTodaySales() {
   const ctx = await requirePermission('SALE_VIEW');
   const canViewProfit = hasPermission(ctx, 'SALE_VIEW_PROFIT');
-  return SaleService.getTodayAggregate(ctx, { canViewProfit });
+  const result = await SaleService.getTodayAggregate(ctx, { canViewProfit });
+  return serialize(result);
 }
+
 
 export async function getRecentSales(limit: number = 5) {
   const ctx = await requirePermission('SALE_VIEW');
   const canViewProfit = hasPermission(ctx, 'SALE_VIEW_PROFIT');
-  return SaleService.getRecentList(limit, ctx, { canViewProfit });
+  const result = await SaleService.getRecentList(limit, ctx, { canViewProfit });
+  return serialize(result);
 }
+
 
 // =============================================================================
 // SALE OPERATIONS
@@ -63,8 +73,9 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<Seria
     const sale = await SaleService.create(ctx, validated.data);
     revalidatePath('/sales');
     revalidatePath('/dashboard');
-    return { success: true, message: 'บันทึกการขายสำเร็จ', data: sale };
+    return serialize({ success: true, message: 'บันทึกการขายสำเร็จ', data: sale });
   } catch (error: unknown) {
+
     return handleActionError(error, 'เกิดข้อผิดพลาดในการบันทึกการขาย', { path: 'createSale', userId: ctx.userId });
   }
 }
@@ -94,7 +105,7 @@ export async function verifyPayment(
   status: 'VERIFIED' | 'REJECTED',
   note?: string
 ): Promise<ActionResponse> {
-  const ctx = await requirePermission('PAYMENT_VERIFY');
+  const ctx = await requirePermission('FINANCE_VIEW_LEDGER' as any);
 
   try {
     const sanitizedSaleId = z.string().min(1).parse(saleId);

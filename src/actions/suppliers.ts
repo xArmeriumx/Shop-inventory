@@ -9,7 +9,7 @@ import type { Supplier } from '@prisma/client';
 import { SupplierService, ServiceError } from '@/services';
 
 export async function getSuppliersForSelect() {
-  const ctx = await requirePermission('SUPPLIER_VIEW');
+  const ctx = await requirePermission('PURCHASE_VIEW');
   return SupplierService.getForSelect(ctx);
 }
 
@@ -18,12 +18,12 @@ export async function getSuppliers(params: {
   limit?: number;
   search?: string;
 } = {}) {
-  const ctx = await requirePermission('SUPPLIER_VIEW');
-  return SupplierService.getList(params, ctx);
+  const ctx = await requirePermission('PURCHASE_VIEW' as any);
+  return SupplierService.getAll(ctx, params);
 }
 
 export async function getSupplier(id: string) {
-  const ctx = await requirePermission('SUPPLIER_VIEW');
+  const ctx = await requirePermission('PURCHASE_VIEW' as any);
   try {
     return await SupplierService.getById(id, ctx);
   } catch (error: unknown) {
@@ -33,8 +33,8 @@ export async function getSupplier(id: string) {
 }
 
 export async function createSupplier(input: SupplierInput): Promise<ActionResponse<SerializedSupplier>> {
-  const ctx = await requirePermission('SUPPLIER_CREATE');
-  
+  const ctx = await requirePermission('PURCHASE_CREATE' as any);
+
   const validated = supplierSchema.safeParse(input);
   if (!validated.success) {
     return {
@@ -43,7 +43,7 @@ export async function createSupplier(input: SupplierInput): Promise<ActionRespon
       message: 'ข้อมูลผู้จำหน่ายไม่ถูกต้อง',
     };
   }
-  
+
   try {
     const supplier = await SupplierService.create(ctx, validated.data);
     revalidatePath('/suppliers');
@@ -66,8 +66,8 @@ export async function updateSupplier(
   id: string,
   input: SupplierInput
 ): Promise<ActionResponse<SerializedSupplier>> {
-  const ctx = await requirePermission('SUPPLIER_EDIT');
-  
+  const ctx = await requirePermission('PURCHASE_UPDATE' as any);
+
   const validated = supplierSchema.safeParse(input);
   if (!validated.success) {
     return {
@@ -76,7 +76,7 @@ export async function updateSupplier(
       message: 'ข้อมูลผู้จำหน่ายไม่ถูกต้อง',
     };
   }
-  
+
   try {
     const supplier = await SupplierService.update(id, ctx, validated.data);
     revalidatePath('/suppliers');
@@ -98,8 +98,8 @@ export async function updateSupplier(
 }
 
 export async function deleteSupplier(id: string): Promise<ActionResponse<void>> {
-  const ctx = await requirePermission('SUPPLIER_DELETE');
-  
+  const ctx = await requirePermission('PURCHASE_VOID' as any);
+
   try {
     await SupplierService.delete(id, ctx);
     revalidatePath('/suppliers');
@@ -119,7 +119,7 @@ export async function deleteSupplier(id: string): Promise<ActionResponse<void>> 
 }
 
 export async function getSupplierProfile(id: string) {
-  const ctx = await requirePermission('SUPPLIER_VIEW');
+  const ctx = await requirePermission('PURCHASE_VIEW');
   try {
     return await SupplierService.getProfile(id, ctx);
   } catch (error: unknown) {

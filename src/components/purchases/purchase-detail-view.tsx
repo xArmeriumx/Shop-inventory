@@ -8,6 +8,8 @@ import { getPurchaseStatusLabel, calculateCtn } from '@/lib/erp-utils';
 import { PrintButton } from '@/components/sales/print-button';
 import { ReceiptImage } from '@/components/receipts/receipt-image';
 import { BackPageHeader } from '@/components/ui/back-page-header';
+import { PdfPrintTrigger } from '@/features/print/components/pdf-print-trigger';
+import { buildPurchasePrintDTO } from '@/features/print/builders/purchase-order-print.builder';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -29,7 +31,12 @@ export function PurchaseDetailView({ purchase, shop }: PurchaseDetailViewProps) 
         <div className="space-y-6">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between print:hidden">
                 <BackPageHeader backHref="/purchases" title="รายละเอียดการซื้อ" />
-                <PrintButton />
+                <PdfPrintTrigger
+                    type="PURCHASE"
+                    documentData={buildPurchasePrintDTO(purchase, shop)}
+                    fileName={`PO-${purchase.invoiceNumber || purchase.id.slice(0, 8)}.pdf`}
+                    label="พิมพ์ใบสั่งซื้อ (PDF)"
+                />
             </div>
 
             <Card className="print:shadow-none print:border-none">

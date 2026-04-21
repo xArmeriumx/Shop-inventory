@@ -63,8 +63,8 @@ export function TeamMembersTable({ members, roles }: TeamMembersTableProps) {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const { hasPermission } = usePermissions();
   
-  const canEditTeam = hasPermission('TEAM_EDIT');
-  const canRemoveMembers = hasPermission('TEAM_REMOVE');
+  const canEditTeam = hasPermission('SETTINGS_ROLES');
+  const canRemoveMembers = hasPermission('SETTINGS_ROLES');
 
   const handleRoleChange = async (memberId: string, roleId: string) => {
     setUpdatingId(memberId);

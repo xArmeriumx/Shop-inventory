@@ -9,7 +9,7 @@ import { requirePermission } from '@/lib/auth-guard';
 import { Guard } from '@/components/auth/guard';
 
 async function RolesContent() {
-  await requirePermission('TEAM_VIEW');
+  await requirePermission('SETTINGS_ROLES');
   const roles = await getRoles();
 
   return (
@@ -19,7 +19,7 @@ async function RolesContent() {
           <CardTitle>Roles ทั้งหมด</CardTitle>
           <CardDescription>กำหนดสิทธิ์การเข้าถึงสำหรับสมาชิกในทีม</CardDescription>
         </div>
-        <Guard permission="TEAM_EDIT">
+        <Guard permission="SETTINGS_ROLES">
           <CreateRoleDialog />
         </Guard>
       </CardHeader>

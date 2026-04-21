@@ -82,6 +82,11 @@ export const QuotationService = {
      */
     async create(ctx: RequestContext, input: CreateQuotationInput) {
         return await db.$transaction(async (tx) => {
+            // 0. Ensure member exists (Self-healing/Verification from Context)
+            if (!ctx.memberId) {
+                throw new ServiceError('ไม่พบข้อมูลพนักงานในระบบ (Member Identity Missing)');
+            }
+
             // 1. Generate Sequence Number
             const quotationNo = await SequenceService.generate(ctx, DocumentType.QUOTATION, tx);
 
@@ -91,7 +96,7 @@ export const QuotationService = {
                     shopId: ctx.shopId,
                     quotationNo,
                     customerId: input.customerId,
-                    salespersonId: input.salespersonId || ctx.userId,
+                    salespersonId: input.salespersonId || ctx.memberId,
                     date: input.date || new Date(),
                     validUntil: input.validUntil,
                     currencyCode: input.currencyCode || 'THB',

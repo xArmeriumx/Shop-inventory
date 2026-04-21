@@ -54,13 +54,15 @@ export const FinanceService: IFinanceService = {
       ctx,
       FINANCE_AUDIT_POLICIES.INCOME_CREATE(data.description || ''),
       async () => {
-        return db.income.create({
+        const income = await db.income.create({
           data: {
             ...data,
             userId: ctx.userId,
+            memberId: ctx.memberId || null,
             shopId: ctx.shopId,
-          },
+          } as any,
         });
+        return income;
       }
     );
 
@@ -179,13 +181,15 @@ export const FinanceService: IFinanceService = {
       ctx,
       FINANCE_AUDIT_POLICIES.EXPENSE_CREATE(data.description || ''),
       async () => {
-        return db.expense.create({
+        const expense = await db.expense.create({
           data: {
             ...data,
             userId: ctx.userId,
+            memberId: ctx.memberId || null,
             shopId: ctx.shopId,
-          },
+          } as any,
         });
+        return expense;
       }
     );
 

@@ -13,11 +13,11 @@
  *   8.  Shipment on CANCELLED sale — shipment linked to cancelled sale but not cancelled itself
  *   9.  Expense/Income cross-shop — category LookupValue belongs to different shop
  *  10.  Customer with deleted-at but active sales — soft-deleted customer still referenced by active sales
- *  11.  Supplier with deleted-at but active purchases — same for suppliers
+ *  11.  Supplier with deleted-at but active purchases — same for partnerAddress
  *  12.  Duplicate customer name within shop — possible data duplication
  *  13.  ShopMember referencing non-existent Role — FK integrity
  *  14.  Sale netAmount vs totalAmount - discountAmount — net math check
- *  15.  CustomerAddress orphan — address where customer is soft-deleted
+ *  15.  PartnerAddress orphan — address where customer is soft-deleted
  *
  * Usage:
  *   npx tsx scripts/audit-data-integrity-v10.ts
@@ -527,12 +527,12 @@ async function checkSaleNetAmountMath() {
 }
 
 // =====================================================================
-// 15. CustomerAddress orphan: address with soft-deleted customer
+// 15. PartnerAddress orphan: address with soft-deleted customer
 // =====================================================================
 async function checkCustomerAddressOrphans() {
-  startCheck('CustomerAddress where customer is soft-deleted');
+  startCheck('PartnerAddress where customer is soft-deleted');
 
-  const bad = await prisma.customerAddress.findMany({
+  const bad = await (prisma as any).partnerAddress.findMany({
     where: {
       deletedAt: null,
       customer: { deletedAt: { not: null } },

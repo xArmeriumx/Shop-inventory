@@ -13,9 +13,12 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { FormField } from '@/components/ui/form-field';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Badge } from '@/components/ui/badge';
+import { AlertCircle } from 'lucide-react';
 
 import { updateRole } from '@/actions/roles';
-import { PERMISSION_GROUPS } from '@/lib/permissions';
+import { MAP_GROUPS, getPermission } from '@/constants/permissions';
 import { roleFormSchema, getRoleFormDefaults } from '@/schemas/role-form';
 import type { RoleFormValues } from '@/schemas/role-form';
 
@@ -23,46 +26,19 @@ import type { RoleFormValues } from '@/schemas/role-form';
 // Constants: Permission Dependencies
 // ============================================================================
 
+// Dependency mapping is now partially handled by the registry or business logic.
+// For now, we'll keep the legacy PERMISSION_DEPENDENCIES but update it to use new keys.
 const PERMISSION_DEPENDENCIES: Record<string, string[]> = {
-  // Sales dependencies
   'SALE_CREATE': ['SALE_VIEW', 'PRODUCT_VIEW'],
   'SALE_CANCEL': ['SALE_VIEW'],
   'SALE_VIEW_PROFIT': ['SALE_VIEW'],
-
-  // POS needs access to products and sales creation
-  'POS_ACCESS': ['SALE_CREATE', 'SALE_VIEW', 'PRODUCT_VIEW', 'CUSTOMER_VIEW'],
-
-  // Product management
+  'INVOICE_CREATE': ['INVOICE_VIEW', 'SALE_VIEW'],
+  'INVOICE_CANCEL': ['INVOICE_VIEW'],
+  'FINANCE_MANAGE': ['FINANCE_VIEW'],
   'PRODUCT_CREATE': ['PRODUCT_VIEW'],
-  'PRODUCT_EDIT': ['PRODUCT_VIEW'],
-  'PRODUCT_DELETE': ['PRODUCT_VIEW'],
-  'PRODUCT_VIEW_COST': ['PRODUCT_VIEW'],
-
-  // Stock dependencies
-  'STOCK_ADJUST': ['PRODUCT_VIEW'],
-  'STOCK_VIEW_HISTORY': ['PRODUCT_VIEW'],
-
-  // Purchase dependencies
-  'PURCHASE_CREATE': ['PURCHASE_VIEW', 'PRODUCT_VIEW'],
-  'PURCHASE_CANCEL': ['PURCHASE_VIEW'],
-
-  // Customer dependencies
-  'CUSTOMER_CREATE': ['CUSTOMER_VIEW'],
-  'CUSTOMER_EDIT': ['CUSTOMER_VIEW'],
-  'CUSTOMER_DELETE': ['CUSTOMER_VIEW'],
-
-  // Expense dependencies
-  'EXPENSE_CREATE': ['EXPENSE_VIEW'],
-  'EXPENSE_EDIT': ['EXPENSE_VIEW'],
-  'EXPENSE_DELETE': ['EXPENSE_VIEW'],
-
-  // Report dependencies
-  'REPORT_EXPORT': ['REPORT_VIEW_SALES'],
-
-  // Team dependencies
-  'TEAM_INVITE': ['TEAM_VIEW'],
-  'TEAM_EDIT': ['TEAM_VIEW'],
-  'TEAM_REMOVE': ['TEAM_VIEW'],
+  'PRODUCT_UPDATE': ['PRODUCT_VIEW'],
+  'STOCK_CORRECT': ['STOCK_VIEW'],
+  'TEAM_MANAGE': ['SETTINGS_ROLES'],
 };
 
 // ============================================================================
@@ -162,25 +138,55 @@ function PermissionGroup({ groupKey, group, isPending, isSystem }: {
           onCheckedChange={(checked) => handleGroupToggle(checked as boolean)}
           disabled={isPending || isSystem}
         />
-        <Label htmlFor={`group-${groupKey}`} className="font-semibold text-base">
+        <Label htmlFor={`group-${groupKey}`} className="font-semibold text-base cursor-pointer">
           {group.label}
         </Label>
       </div>
 
-      <div className="space-y-2">
-        {group.permissions.map((perm: any) => (
-          <div key={perm.key} className="flex items-center space-x-2">
-            <Checkbox
-              id={perm.key}
-              checked={currentPermissions.includes(perm.key)}
-              onCheckedChange={(checked) => handleToggle(perm.key, checked as boolean)}
-              disabled={isPending || isSystem}
-            />
-            <Label htmlFor={perm.key} className="cursor-pointer font-normal">
-              {perm.label}
-            </Label>
-          </div>
-        ))}
+      <div className="space-y-3">
+        {group.permissions.map((perm: any) => {
+          const meta = getPermission(perm.key);
+          const isHighRisk = meta?.risk === 'high';
+
+          return (
+            <div key={perm.key} className="flex items-start space-x-2 group">
+              <Checkbox
+                id={perm.key}
+                className="mt-1"
+                checked={currentPermissions.includes(perm.key)}
+                onCheckedChange={(checked) => handleToggle(perm.key, checked as boolean)}
+                disabled={isPending || isSystem}
+              />
+              <div className="grid gap-1.5 leading-none">
+                <div className="flex items-center gap-2">
+                  <Label
+                    htmlFor={perm.key}
+                    className={`cursor-pointer font-medium ${isHighRisk ? 'text-destructive' : ''}`}
+                  >
+                    {perm.label}
+                  </Label>
+                  {isHighRisk && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <AlertCircle className="h-3 w-3 text-destructive" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>สิทธิ์ที่มีความเสี่ยงสูง: กระทบฐานข้อมูลหรืองบประมาณ</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                </div>
+                {meta?.description && (
+                  <p className="text-xs text-muted-foreground">
+                    {meta.description}
+                  </p>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -284,7 +290,7 @@ export function RoleForm({ role }: RoleFormProps) {
           </div>
 
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {Object.entries(PERMISSION_GROUPS).map(([groupKey, group]) => (
+            {Object.entries(MAP_GROUPS).map(([groupKey, group]) => (
               <PermissionGroup
                 key={groupKey}
                 groupKey={groupKey}

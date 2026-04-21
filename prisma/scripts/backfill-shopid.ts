@@ -17,18 +17,22 @@ const prisma = new PrismaClient();
 
 // All permissions for auto-created Owner role
 const ALL_PERMISSIONS: Permission[] = [
-  'PRODUCT_VIEW', 'PRODUCT_CREATE', 'PRODUCT_EDIT', 'PRODUCT_DELETE', 'PRODUCT_VIEW_COST',
-  'STOCK_VIEW_HISTORY', 'STOCK_ADJUST',
-  'SALE_VIEW', 'SALE_CREATE', 'SALE_VIEW_PROFIT', 'SALE_CANCEL',
-  'PURCHASE_VIEW', 'PURCHASE_CREATE', 'PURCHASE_CANCEL',
-  'CUSTOMER_VIEW', 'CUSTOMER_CREATE', 'CUSTOMER_EDIT', 'CUSTOMER_DELETE',
-  'SUPPLIER_VIEW', 'SUPPLIER_CREATE', 'SUPPLIER_EDIT', 'SUPPLIER_DELETE',
-  'EXPENSE_VIEW', 'EXPENSE_CREATE', 'EXPENSE_EDIT', 'EXPENSE_DELETE',
-  'INCOME_VIEW', 'INCOME_CREATE', 'INCOME_EDIT', 'INCOME_DELETE',
-  'REPORT_VIEW_SALES', 'REPORT_VIEW_PROFIT', 'REPORT_EXPORT',
-  'SETTINGS_SHOP', 'SETTINGS_LOOKUPS',
-  'TEAM_VIEW', 'TEAM_INVITE', 'TEAM_EDIT', 'TEAM_REMOVE',
-  'POS_ACCESS',
+  'PRODUCT_VIEW', 'PRODUCT_CREATE', 'PRODUCT_UPDATE', 'PRODUCT_DELETE', 'PRODUCT_VIEW_COST',
+  'SALE_VIEW', 'SALE_CREATE', 'SALE_UPDATE', 'SALE_CANCEL', 'SALE_VOID', 'SALE_VIEW_PROFIT', 'SALE_EDIT_LOCKED',
+  'INVOICE_VIEW', 'INVOICE_CREATE', 'INVOICE_POST', 'INVOICE_CANCEL', 'INVOICE_MANAGE',
+  'FINANCE_VIEW_LEDGER', 'FINANCE_PAYMENT_VOID', 'FINANCE_MANAGE_CREDIT',
+  'STOCK_VIEW_HISTORY', 'STOCK_ADJUST', 'STOCK_TAKE_APPROVE', 'WAREHOUSE_MANAGE',
+  'PURCHASE_VIEW', 'PURCHASE_CREATE', 'PURCHASE_UPDATE', 'PURCHASE_VOID',
+  'CUSTOMER_VIEW', 'CUSTOMER_CREATE', 'CUSTOMER_UPDATE', 'CUSTOMER_DELETE',
+  'EXPENSE_VIEW', 'EXPENSE_CREATE', 'EXPENSE_UPDATE', 'EXPENSE_DELETE',
+  'RETURN_VIEW', 'RETURN_CREATE',
+  'SETTINGS_SHOP', 'SETTINGS_ROLES', 'AUDIT_VIEW',
+  'REPORT_VIEW_SALES', 'REPORT_EXPORT',
+  'POS_ACCESS', 'SHIPMENT_VIEW', 'SHIPMENT_CREATE', 'SHIPMENT_EDIT', 'SHIPMENT_CANCEL',
+  'QUOTATION_VIEW', 'QUOTATION_CREATE', 'QUOTATION_EDIT', 'QUOTATION_CONFIRM',
+  'ORDER_REQUEST_VIEW', 'ORDER_REQUEST_CREATE', 'ORDER_REQUEST_SUBMIT',
+  'APPROVAL_VIEW', 'APPROVAL_ACTION',
+  'DELIVERY_VIEW', 'DELIVERY_VALIDATE'
 ];
 
 interface BackfillStats {
@@ -38,11 +42,11 @@ interface BackfillStats {
 }
 
 async function createShopForUser(
-  userId: string, 
+  userId: string,
   userName: string | null
 ): Promise<string> {
   const shopName = userName ? `${userName}'s Shop` : 'My Shop';
-  
+
   return await prisma.$transaction(async (tx) => {
     // 1. Create Shop
     const shop = await tx.shop.create({
@@ -79,15 +83,15 @@ async function createShopForUser(
 }
 
 async function backfillUserData(
-  userId: string, 
+  userId: string,
   shopId: string,
   stats: BackfillStats
 ): Promise<void> {
   const models = [
-    'Product', 'Supplier', 'Customer', 'Purchase', 
+    'Product', 'Supplier', 'Customer', 'Purchase',
     'Sale', 'Expense', 'Income', 'StockLog'
   ];
-  
+
   for (const model of models) {
     try {
       const result = await prisma.$executeRawUnsafe(
@@ -95,7 +99,7 @@ async function backfillUserData(
         shopId,
         userId
       );
-      
+
       if (result > 0) {
         stats.recordsUpdated[model] = (stats.recordsUpdated[model] || 0) + result;
         console.log(`   ✅ ${model}: ${result} records updated`);
@@ -109,7 +113,7 @@ async function backfillUserData(
 async function backfillShopId() {
   console.log('🚀 Starting ShopId Backfill Migration...\n');
   console.log('⚠️  Make sure you have a backup before proceeding!\n');
-  
+
   const stats: BackfillStats = {
     usersProcessed: 0,
     shopsCreated: 0,
@@ -118,11 +122,11 @@ async function backfillShopId() {
 
   // 1. Find all users with NULL shopId data
   console.log('🔍 Finding users with NULL shopId data...\n');
-  
-  const usersWithNullData = await prisma.$queryRaw<Array<{ 
-    userId: string; 
-    email: string; 
-    name: string | null 
+
+  const usersWithNullData = await prisma.$queryRaw<Array<{
+    userId: string;
+    email: string;
+    name: string | null
   }>>`
     SELECT DISTINCT u.id as "userId", u.email, u.name
     FROM "User" u
@@ -170,12 +174,12 @@ async function backfillShopId() {
       if (ownedShop) {
         shopId = ownedShop.id;
         console.log(`   📦 Using owned shop: ${shopId}`);
-        
+
         // Create ShopMember if missing
         const ownerRole = await prisma.role.findFirst({
           where: { shopId: ownedShop.id, isSystem: true },
         });
-        
+
         if (ownerRole) {
           await prisma.shopMember.create({
             data: {
@@ -207,14 +211,14 @@ async function backfillShopId() {
   console.log(`Users processed: ${stats.usersProcessed}`);
   console.log(`Shops created:   ${stats.shopsCreated}`);
   console.log('\nRecords updated per model:');
-  
+
   for (const [model, count] of Object.entries(stats.recordsUpdated)) {
     console.log(`   ${model}: ${count}`);
   }
-  
+
   console.log('\n✅ Backfill migration completed!');
   console.log('📋 Next step: Run npx tsx prisma/scripts/verify-no-nulls.ts');
-  
+
   await prisma.$disconnect();
 }
 

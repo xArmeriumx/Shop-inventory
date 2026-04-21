@@ -152,7 +152,9 @@ export const PurchaseService: IPurchaseService = {
               purchaseNumber,
               date: purchaseData.date ? new Date(purchaseData.date) : new Date(),
               userId: ctx.userId,
+              memberId: ctx.memberId || null,
               shopId: ctx.shopId,
+
               totalCost,
               items: {
                 create: items.map((item) => ({
@@ -163,7 +165,7 @@ export const PurchaseService: IPurchaseService = {
                   subtotal: calcSubtotal(item.quantity, item.costPrice),
                 })),
               },
-            },
+            } as any,
             include: { items: true },
           });
 
@@ -192,7 +194,7 @@ export const PurchaseService: IPurchaseService = {
    * ยกเลิกการซื้อ (คืนสต็อก และลดยอดใช้จ่าย)
    */
   async cancel(input: CancelPurchaseInput, ctx: RequestContext) {
-    Security.requirePermission(ctx, 'PURCHASE_CANCEL');
+    Security.requirePermission(ctx, 'PURCHASE_VOID');
     const { id, reasonCode, reasonDetail } = input;
 
     if (!reasonCode) throw new ServiceError('กรุณาเลือกเหตุผลในการยกเลิก');
@@ -298,7 +300,7 @@ export const PurchaseService: IPurchaseService = {
   },
 
   async approveRequest(prId: string, ctx: RequestContext) {
-    Security.requirePermission(ctx, 'PURCHASE_EDIT');
+    Security.requirePermission(ctx, 'PURCHASE_UPDATE');
     const pr = await db.purchase.findFirst({ where: { id: prId, shopId: ctx.shopId } });
     if (!pr) throw new ServiceError('ไม่พบใบขอซื้อ');
     if (pr.status === PurchaseStatus.APPROVED) throw new ServiceError('ใบขอซื้อนี้ได้รับการอนุมัติแล้ว');
@@ -592,7 +594,7 @@ export const PurchaseService: IPurchaseService = {
   },
 
   async quickAssignSupplier(ids: string[], supplierId: string, ctx: RequestContext) {
-    Security.requirePermission(ctx, 'PURCHASE_EDIT');
+    Security.requirePermission(ctx, 'PURCHASE_UPDATE');
     if (!ids.length) return { success: true, count: 0 };
 
     const result = await db.purchase.updateMany({

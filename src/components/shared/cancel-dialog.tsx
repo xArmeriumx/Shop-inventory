@@ -177,7 +177,7 @@ export const SALE_CANCEL_REASONS = {
   OTHER: 'อื่นๆ',
 };
 
-export const PURCHASE_CANCEL_REASONS = {
+export const PURCHASE_VOID_REASONS = {
   WRONG_ENTRY: 'บันทึกผิดพลาด',
   SUPPLIER_ISSUE: 'ปัญหาจากผู้จำหน่าย',
   DAMAGED: 'สินค้าชำรุด',

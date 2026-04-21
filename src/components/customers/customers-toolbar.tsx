@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState, useTransition, useEffect } from 'react';
+import { useState, useTransition, useEffect, useCallback } from 'react';
 
 export function CustomersToolbar({ initialSearch = '' }: { initialSearch?: string }) {
   const router = useRouter();
@@ -18,7 +18,7 @@ export function CustomersToolbar({ initialSearch = '' }: { initialSearch?: strin
     setSearchTerm(value);
   };
 
-  const executeSearch = (value: string) => {
+  const executeSearch = useCallback((value: string) => {
     startTransition(() => {
       const params = new URLSearchParams(searchParams.toString());
       if (value) {
@@ -29,7 +29,7 @@ export function CustomersToolbar({ initialSearch = '' }: { initialSearch?: strin
       params.set('page', '1');
       router.push(`/customers?${params.toString()}`);
     });
-  };
+  }, [router, searchParams]);
 
   // True Debounce Effect
   useEffect(() => {
@@ -38,7 +38,7 @@ export function CustomersToolbar({ initialSearch = '' }: { initialSearch?: strin
       executeSearch(searchTerm);
     }, 500);
     return () => clearTimeout(timeout);
-  }, [searchTerm]);
+  }, [searchTerm, initialSearch, executeSearch]);
 
   // Keyboard support
   const handleKeyDown = (e: React.KeyboardEvent) => {

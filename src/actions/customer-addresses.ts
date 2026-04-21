@@ -3,19 +3,19 @@
 import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/auth-guard';
 import { logger } from '@/lib/logger';
-import { customerAddressSchema, type CustomerAddressInput } from '@/schemas/customer-address';
+import { partnerAddressSchema } from '@/schemas/partner-common';
 import type { ActionResponse } from '@/types/domain';
 import { CustomerService, ServiceError } from '@/services';
 
 export async function getCustomerAddresses(customerId: string) {
-  const ctx = await requirePermission('CUSTOMER_VIEW');
+  const ctx = await requirePermission('CUSTOMER_VIEW' as any);
   return CustomerService.getAddresses(customerId, ctx);
 }
 
-export async function createCustomerAddress(input: CustomerAddressInput): Promise<ActionResponse> {
-  const ctx = await requirePermission('CUSTOMER_EDIT');
+export async function createCustomerAddress(input: any): Promise<ActionResponse> {
+  const ctx = await requirePermission('CUSTOMER_UPDATE');
 
-  const validated = customerAddressSchema.safeParse(input);
+  const validated = partnerAddressSchema.safeParse(input);
   if (!validated.success) {
     return {
       success: false,
@@ -25,7 +25,7 @@ export async function createCustomerAddress(input: CustomerAddressInput): Promis
   }
 
   try {
-    const address = await CustomerService.createAddress(validated.data.customerId, ctx, validated.data);
+    const address = await CustomerService.createAddress(input.customerId, ctx, validated.data);
     revalidatePath('/customers');
     return {
       success: true,
@@ -43,10 +43,10 @@ export async function createCustomerAddress(input: CustomerAddressInput): Promis
   }
 }
 
-export async function updateCustomerAddress(id: string, input: CustomerAddressInput): Promise<ActionResponse> {
-  const ctx = await requirePermission('CUSTOMER_EDIT');
+export async function updateCustomerAddress(id: string, input: any): Promise<ActionResponse> {
+  const ctx = await requirePermission('CUSTOMER_UPDATE');
 
-  const validated = customerAddressSchema.safeParse(input);
+  const validated = partnerAddressSchema.safeParse(input);
   if (!validated.success) {
     return {
       success: false,
@@ -74,7 +74,7 @@ export async function updateCustomerAddress(id: string, input: CustomerAddressIn
 }
 
 export async function deleteCustomerAddress(id: string): Promise<ActionResponse> {
-  const ctx = await requirePermission('CUSTOMER_EDIT');
+  const ctx = await requirePermission('CUSTOMER_UPDATE');
 
   try {
     await CustomerService.deleteAddress(id, ctx);

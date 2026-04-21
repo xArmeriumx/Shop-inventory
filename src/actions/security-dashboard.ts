@@ -19,8 +19,8 @@ export async function getSecurityDashboardData(): Promise<SecurityDashboardResul
     }
     const ctx = sessionCtx as any;
     
-    // Only Owners or Admins (with TEAM_EDIT or SETTINGS_SHOP) should see full security dashboard
-    Security.requireAnyPermission(ctx, ['TEAM_EDIT', 'SETTINGS_SHOP']);
+    // Only Owners or Admins (with SETTINGS_ROLES or SETTINGS_SHOP) should see full security dashboard
+    Security.requireAnyPermission(ctx, ['SETTINGS_ROLES', 'SETTINGS_SHOP']);
 
     const metrics = await AuditService.getSecurityDashboardMetrics(ctx.shopId);
     

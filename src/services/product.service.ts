@@ -52,8 +52,9 @@ export const ProductService: IProductService = {
               isSaleable: payload.isSaleable ?? payload.isActive ?? true,
               metadata: (payload.metadata as Prisma.InputJsonValue) ?? Prisma.JsonNull,
               userId: ctx.userId,
+              memberId: ctx.memberId || null,
               shopId: ctx.shopId,
-            },
+            } as any,
           });
 
           const initialStock = payload.stock ?? 0;
@@ -63,6 +64,7 @@ export const ProductService: IProductService = {
               type: 'ADJUSTMENT',
               quantity: initialStock,
               userId: ctx.userId,
+              memberId: ctx.memberId,
               shopId: ctx.shopId,
               note: 'สต็อกเริ่มต้น (สร้างสินค้าใหม่)',
               tx: prisma,

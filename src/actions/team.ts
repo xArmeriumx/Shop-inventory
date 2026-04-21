@@ -8,7 +8,7 @@ export type { InviteMemberInput } from '@/services';
 import { IamService, type InviteMemberInput, ServiceError } from '@/services';
 
 export async function getTeamMembers() {
-  const ctx = await requirePermission('TEAM_VIEW');
+  const ctx = await requirePermission('SETTINGS_ROLES');
   return IamService.getTeamMembers(ctx);
 }
 
@@ -18,7 +18,7 @@ export async function getShopTeamInfo() {
 }
 
 export async function updateMemberRole(memberId: string, roleId: string): Promise<ActionResponse> {
-  const ctx = await requirePermission('TEAM_EDIT');
+  const ctx = await requirePermission('SETTINGS_ROLES');
 
   try {
     await IamService.updateMemberRole(memberId, roleId, ctx);
@@ -33,7 +33,7 @@ export async function updateMemberRole(memberId: string, roleId: string): Promis
 }
 
 export async function removeMember(memberId: string): Promise<ActionResponse> {
-  const ctx = await requirePermission('TEAM_REMOVE');
+  const ctx = await requirePermission('SETTINGS_ROLES');
 
   try {
     await IamService.removeMember(memberId, ctx);
@@ -51,7 +51,7 @@ export async function removeMember(memberId: string): Promise<ActionResponse> {
 }
 
 export async function inviteMember(input: InviteMemberInput): Promise<ActionResponse> {
-  const ctx = await requirePermission('TEAM_INVITE', { rateLimitPolicy: 'invite' });
+  const ctx = await requirePermission('SETTINGS_ROLES', { rateLimitPolicy: 'invite' });
 
   try {
     await IamService.inviteMember(input, ctx);

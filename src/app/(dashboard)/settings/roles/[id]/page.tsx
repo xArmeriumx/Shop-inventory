@@ -16,8 +16,8 @@ interface PageProps {
 }
 
 async function EditRoleContent({ id }: { id: string }) {
-  // Guard: Must have TEAM_EDIT permission to edit roles
-  await requirePermission('TEAM_EDIT');
+  // Guard: Must have SETTINGS_ROLES permission to edit roles
+  await requirePermission('SETTINGS_ROLES');
 
   const role = await getRole(id);
 

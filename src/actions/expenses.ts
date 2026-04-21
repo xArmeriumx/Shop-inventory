@@ -39,7 +39,7 @@ export async function createExpense(input: ExpenseInput) {
 }
 
 export async function updateExpense(id: string, input: ExpenseInput) {
-  const ctx = await requirePermission('EXPENSE_EDIT');
+  const ctx = await requirePermission('EXPENSE_UPDATE');
 
   const validated = expenseSchema.safeParse(input);
   if (!validated.success) {

@@ -13,7 +13,7 @@ import { requirePermission } from '@/lib/auth-guard';
 import { Guard } from '@/components/auth/guard';
 
 async function TeamContent() {
-  await requirePermission('TEAM_VIEW');
+  await requirePermission('SETTINGS_ROLES');
 
   const [members, roles, shopInfo] = await Promise.all([
     getTeamMembers(),
@@ -47,7 +47,7 @@ async function TeamContent() {
             <CardTitle>สมาชิกในทีม</CardTitle>
             <CardDescription>จัดการสมาชิกและสิทธิ์การเข้าถึง</CardDescription>
           </div>
-          <Guard permission="TEAM_INVITE">
+          <Guard permission="SETTINGS_ROLES">
             <InviteMemberDialog roles={roles} />
           </Guard>
         </CardHeader>

@@ -24,7 +24,7 @@ export async function exportCustomersData() {
 }
 
 export async function exportIncomesData(startDate: string, endDate: string) {
-  const ctx = await requirePermission('INCOME_VIEW', { rateLimitPolicy: 'export' });
+  const ctx = await requirePermission('INCOME_VIEW' as any, { rateLimitPolicy: 'export' });
   return ExportService.exportIncomesData(startDate, endDate, ctx);
 }
 

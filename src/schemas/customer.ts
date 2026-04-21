@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { sanitizeText } from '@/lib/sanitize';
 import { normalizePhone, normalizeTaxId, normalizeEmail, normalizeWhitespace } from '@/lib/normalizers';
+import { partnerAddressSchema, partnerContactSchema } from './partner-common';
 
 export const customerSchema = z.object({
   name: z
@@ -48,6 +49,18 @@ export const customerSchema = z.object({
     .optional()
     .nullable()
     .transform((val) => val ? sanitizeText(normalizeWhitespace(val) || '') : val),
+  shippingAddress: z
+    .string()
+    .max(500, 'ที่อยู่จัดส่งต้องไม่เกิน 500 ตัวอักษร')
+    .optional()
+    .nullable()
+    .transform((val) => val ? sanitizeText(normalizeWhitespace(val) || '') : val),
+  billingAddress: z
+    .string()
+    .max(500, 'ที่อยู่แจ้งหนี้ต้องไม่เกิน 500 ตัวอักษร')
+    .optional()
+    .nullable()
+    .transform((val) => val ? sanitizeText(normalizeWhitespace(val) || '') : val),
   notes: z
     .string()
     .max(1000, 'หมายเหตุต้องไม่เกิน 1000 ตัวอักษร')
@@ -62,17 +75,19 @@ export const customerSchema = z.object({
     .string()
     .optional()
     .nullable(),
-  creditLimit: z
+  creditLimit: z.coerce
     .number()
     .min(0, 'วงเงินเครดิตต้องไม่ติดลบ')
     .optional()
     .nullable(),
-  creditTerm: z
+  creditTerm: z.coerce
     .number()
     .int('ระยะเวลาเครดิตต้องเป็นจำนวนเต็ม')
     .min(0, 'ระยะเวลาเครดิตต้องไม่ติดลบ')
     .optional()
     .nullable(),
+
+  partnerAddresses: z.array(partnerAddressSchema).optional().default([]),
 });
 
 export type CustomerInput = z.input<typeof customerSchema>;

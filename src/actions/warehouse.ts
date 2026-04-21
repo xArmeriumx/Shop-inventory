@@ -83,7 +83,7 @@ export async function getPendingDeliveries() {
  * ยืนยันการรับสินค้าเข้าคลัง
  */
 export async function confirmReceipt(purchaseId: string) {
-  const ctx = await requirePermission('PURCHASE_APPROVE');
+  const ctx = await requirePermission('APPROVAL_ACTION');
   const result = await PurchaseService.receivePurchase(purchaseId, ctx);
   revalidatePath('/warehouse');
   revalidatePath('/purchases');

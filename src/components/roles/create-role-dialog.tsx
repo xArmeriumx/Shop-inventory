@@ -37,7 +37,7 @@ export function CreateRoleDialog() {
   const [error, setError] = useState('');
   const { hasPermission } = usePermissions();
   
-  const canEditRoles = hasPermission('TEAM_EDIT');
+  const canEditRoles = hasPermission('SETTINGS_ROLES');
 
   if (!canEditRoles) {
     return null;

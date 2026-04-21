@@ -8,17 +8,17 @@ import { GetFinanceParams } from '@/types/domain';
 import { handleActionError } from '@/lib/error-handler';
 
 export async function getIncomes(params: GetFinanceParams = {}) {
-  const ctx = await requirePermission('INCOME_VIEW');
+  const ctx = await requirePermission('INCOME_VIEW' as any);
   return FinanceService.getIncomes(params, ctx);
 }
 
 export async function getIncome(id: string) {
-  const ctx = await requirePermission('INCOME_VIEW');
+  const ctx = await requirePermission('INCOME_VIEW' as any);
   return FinanceService.getIncomeById(id, ctx);
 }
 
 export async function createIncome(input: IncomeInput) {
-  const ctx = await requirePermission('INCOME_CREATE');
+  const ctx = await requirePermission('INCOME_CREATE' as any);
 
   const validated = incomeSchema.safeParse(input);
   if (!validated.success) {
@@ -39,7 +39,7 @@ export async function createIncome(input: IncomeInput) {
 }
 
 export async function updateIncome(id: string, input: IncomeInput) {
-  const ctx = await requirePermission('INCOME_EDIT');
+  const ctx = await requirePermission('INCOME_UPDATE' as any);
 
   const validated = incomeSchema.safeParse(input);
   if (!validated.success) {
@@ -61,7 +61,7 @@ export async function updateIncome(id: string, input: IncomeInput) {
 }
 
 export async function deleteIncome(id: string) {
-  const ctx = await requirePermission('INCOME_DELETE');
+  const ctx = await requirePermission('INCOME_DELETE' as any);
 
   try {
     await FinanceService.deleteIncome(id, ctx);
@@ -78,6 +78,6 @@ export async function deleteIncome(id: string) {
 }
 
 export async function getMonthlyIncomes() {
-  const ctx = await requirePermission('INCOME_VIEW');
+  const ctx = await requirePermission('INCOME_VIEW' as any);
   return FinanceService.getMonthlyIncomes(ctx);
 }

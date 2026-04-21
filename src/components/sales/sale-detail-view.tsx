@@ -1,25 +1,34 @@
+'use client';
+
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 import { th } from 'date-fns/locale';
-import { Send, Truck, RotateCcw } from 'lucide-react';
+import { Send, Truck, RotateCcw, Wallet, PlusCircle, CheckCircle2, FilePlus, ExternalLink } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { formatCurrency } from '@/lib/formatters';
 import { calculateCtn } from '@/lib/erp-utils';
 import { PrintButton } from '@/components/sales/print-button';
 import { ReceiptImage } from '@/components/receipts/receipt-image';
 import { ShipmentStatusBadge } from '@/components/shipments/shipment-status-badge';
-import { PaymentSection } from '@/components/sales/payment-section';
 import { BackPageHeader } from '@/components/ui/back-page-header';
 import { Guard } from '@/components/auth/guard';
+import { PaymentModal } from '@/components/finance/payment-modal';
+import { FinancialTimeline } from '@/components/finance/financial-timeline';
+import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
+import { createInvoiceFromSale } from '@/actions/invoices';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
 interface SaleDetailViewProps {
     sale: any;
     shop: any;
+    payments?: any[];
 }
 
 // ─── SaleDetailView ──────────────────────────────────────────────────────────────
@@ -28,9 +37,31 @@ interface SaleDetailViewProps {
  * Renders the complete sale detail receipt view.
  * Extracted from sales/[id]/page.tsx to keep the page file thin.
  */
-export function SaleDetailView({ sale, shop }: SaleDetailViewProps) {
+export function SaleDetailView({ sale, shop, payments = [] }: SaleDetailViewProps) {
+    const router = useRouter();
+    const [isPending, startTransition] = useTransition();
+    const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+
     const zonedDate = toZonedTime(sale.date, 'Asia/Bangkok');
     const activeShipment = sale.shipments?.[0];
+    const existingInvoice = sale.invoices?.[0];
+
+    const totalAmount = Number(sale.netAmount) || Number(sale.totalAmount);
+    const paidAmount = Number(sale.paidAmount);
+    const residualAmount = Number(sale.residualAmount);
+    const isFullyPaid = residualAmount <= 0;
+
+    const handleCreateInvoice = () => {
+        startTransition(async () => {
+            const res = await createInvoiceFromSale(sale.id);
+            if (res.success) {
+                toast.success(res.message);
+                router.push(`/invoices/${(res.data as any).id}`);
+            } else {
+                toast.error(res.message);
+            }
+        });
+    };
 
     return (
         <div className="space-y-6">
@@ -38,6 +69,25 @@ export function SaleDetailView({ sale, shop }: SaleDetailViewProps) {
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between print:hidden">
                 <BackPageHeader backHref="/sales" title="รายละเอียดการขาย" />
                 <div className="flex gap-2">
+                    {existingInvoice ? (
+                        <Button variant="outline" className="border-blue-500 text-blue-600 hover:bg-blue-50" asChild>
+                            <Link href={`/invoices/${existingInvoice.id}`}>
+                                <ExternalLink className="mr-2 h-4 w-4" /> ดูใบแจ้งหนี้
+                            </Link>
+                        </Button>
+                    ) : (
+                        <Guard permission={'SALE_CREATE' as any}>
+                            <Button
+                                variant="outline"
+                                className="border-primary text-primary hover:bg-primary/5"
+                                onClick={handleCreateInvoice}
+                                disabled={isPending || sale.status === 'CANCELLED' || sale.billingStatus === 'BILLED'}
+                            >
+                                <FilePlus className="mr-2 h-4 w-4" />
+                                {isPending ? 'กำลังสร้าง...' : 'สร้างใบแจ้งหนี้'}
+                            </Button>
+                        </Guard>
+                    )}
                     <Button variant="outline" asChild>
                         <a href={`/sales/${sale.id}/tax-invoice`} target="_blank" rel="noopener noreferrer">
                             พิมพ์ใบกำกับภาษี (A4)
@@ -46,6 +96,29 @@ export function SaleDetailView({ sale, shop }: SaleDetailViewProps) {
                     <PrintButton />
                 </div>
             </div>
+
+            {/* Lock Banner */}
+            {sale.editLockStatus !== 'NONE' && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800 flex items-start gap-3 print:hidden">
+                    <div className="bg-amber-100 p-1.5 rounded-full">
+                        <CheckCircle2 className="h-4 w-4 text-amber-600" />
+                    </div>
+                    <div className="flex-1">
+                        <p className="font-bold flex items-center gap-2">
+                            เอกสารนี้ถูกล็อก (Locked)
+                            <Badge variant="outline" className="bg-amber-100 border-amber-300 text-amber-700 ml-2">
+                                {sale.editLockStatus}
+                            </Badge>
+                        </p>
+                        <p className="mt-0.5 opacity-90">{sale.lockReason || 'เอกสารนี้ไม่สามารถแก้ไขได้เนื่องจากเข้าสู่กระบวนการถัดไปแล้ว'}</p>
+                    </div>
+                    {existingInvoice && (
+                        <Button variant="link" className="text-amber-700 font-bold h-auto p-0 underline decoration-amber-300" asChild>
+                            <Link href={`/invoices/${existingInvoice.id}`}>ไปที่ใบแจ้งหนี้</Link>
+                        </Button>
+                    )}
+                </div>
+            )}
 
             {/* Main Receipt Card */}
             <Card className="print:shadow-none print:border-none">
@@ -84,23 +157,75 @@ export function SaleDetailView({ sale, shop }: SaleDetailViewProps) {
                             )}
                         </div>
                         <div className="text-right">
-                            <h3 className="font-semibold mb-2">วิธีการชำระเงิน</h3>
+                            <h3 className="font-semibold mb-2">วิธีการชำระเงินเดิม</h3>
                             <p className="text-sm">{sale.paymentMethod === 'CASH' ? 'เงินสด' : 'เงินโอน/QR'}</p>
                         </div>
                     </div>
 
-                    {/* Payment Status */}
-                    {sale.paymentMethod !== 'CASH' && (
-                        <PaymentSection
-                            saleId={sale.id}
-                            invoiceNumber={sale.invoiceNumber}
-                            paymentStatus={sale.paymentStatus || 'VERIFIED'}
-                            paymentMethod={sale.paymentMethod}
-                            paymentProof={sale.paymentProof}
-                            paymentNote={sale.paymentNote}
-                            paymentVerifiedAt={sale.paymentVerifiedAt}
-                        />
-                    )}
+                    {/* Financial Summary & Actions */}
+                    <div className="mb-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="md:col-span-2">
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center gap-2">
+                                    <Wallet className="h-5 w-5 text-primary" />
+                                    <h3 className="font-bold">รายงานการชำระเงิน (Ledger)</h3>
+                                </div>
+                                {!isFullyPaid && sale.status !== 'CANCELLED' && (
+                                    <Guard permission={'PAYMENT_RECORD' as any}>
+                                        <Button size="sm" onClick={() => setIsPaymentModalOpen(true)} className="h-8">
+                                            <PlusCircle className="h-4 w-4 mr-2" />
+                                            บันทึกการชำระเงิน
+                                        </Button>
+                                    </Guard>
+                                )}
+                            </div>
+                            <FinancialTimeline
+                                payments={payments}
+                                saleId={sale.id}
+                                totalAmount={totalAmount}
+                                paidAmount={paidAmount}
+                                residualAmount={residualAmount}
+                            />
+                        </div>
+
+                        <div className="bg-muted/30 p-6 rounded-xl border space-y-4">
+                            <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-tight">สรุปยอดการเงิน</h4>
+                            <div className="space-y-3">
+                                <div className="flex justify-between items-center text-sm">
+                                    <span>ยอดรวมสุทธิ</span>
+                                    <span className="font-medium">{formatCurrency(Number(sale.netAmount) || Number(sale.totalAmount))}</span>
+                                </div>
+                                <div className="flex justify-between items-center text-sm text-green-600">
+                                    <span>ชำระแล้ว</span>
+                                    <span className="font-medium">{formatCurrency(Number(sale.paidAmount))}</span>
+                                </div>
+                                <Separator />
+                                <div className="flex justify-between items-center">
+                                    <span className="font-bold">ยอดคงเหลือ</span>
+                                    <span className={`text-xl font-black ${isFullyPaid ? 'text-green-600' : 'text-red-600'}`}>
+                                        {formatCurrency(residualAmount)}
+                                    </span>
+                                </div>
+                            </div>
+                            {isFullyPaid ? (
+                                <Badge className="w-full justify-center py-2 bg-green-100 text-green-700 hover:bg-green-100 border-green-200">
+                                    <CheckCircle2 className="h-4 w-4 mr-2" /> ชำระครบถ้วนแล้ว
+                                </Badge>
+                            ) : (
+                                <Badge variant="outline" className="w-full justify-center py-2 border-red-200 text-red-600 bg-red-50">
+                                    รอชำระ {formatCurrency(residualAmount)}
+                                </Badge>
+                            )}
+                        </div>
+                    </div>
+
+                    <PaymentModal
+                        isOpen={isPaymentModalOpen}
+                        onClose={() => setIsPaymentModalOpen(false)}
+                        saleId={sale.id}
+                        residualAmount={residualAmount}
+                        parentTitle={`บิลเลขที่ ${sale.invoiceNumber}`}
+                    />
 
                     {/* Items Table */}
                     <div className="rounded-md border mb-8 print:border-gray-200">
@@ -141,8 +266,8 @@ export function SaleDetailView({ sale, shop }: SaleDetailViewProps) {
                         </table>
                     </div>
 
-                    {/* Totals */}
-                    <div className="flex justify-end">
+                    {/* Totals Section */}
+                    <div className="flex justify-end mb-8">
                         <div className="w-64 space-y-2">
                             <div className="flex justify-between text-sm">
                                 <span className="text-muted-foreground">ยอดรวมสินค้า</span>
@@ -205,7 +330,7 @@ export function SaleDetailView({ sale, shop }: SaleDetailViewProps) {
                             </div>
                         </div>
                     ) : sale.status !== 'CANCELLED' ? (
-                        <Guard permission="SHIPMENT_CREATE">
+                        <Guard permission={'SHIPMENT_CREATE' as any}>
                             <div className="mt-8 border-t pt-4 print:hidden">
                                 <div className="flex gap-2">
                                     <Button variant="outline" size="sm" asChild>
@@ -213,7 +338,7 @@ export function SaleDetailView({ sale, shop }: SaleDetailViewProps) {
                                             <Send className="h-4 w-4 mr-2" />สร้างรายการจัดส่ง
                                         </Link>
                                     </Button>
-                                    <Guard permission="RETURN_CREATE">
+                                    <Guard permission={'RETURN_CREATE' as any}>
                                         <Button variant="outline" size="sm" asChild>
                                             <Link href={`/returns/create?saleId=${sale.id}`}>
                                                 <RotateCcw className="h-4 w-4 mr-2" />คืนสินค้า

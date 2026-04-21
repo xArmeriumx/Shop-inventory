@@ -19,7 +19,7 @@ export const PURCHASE_AUDIT_POLICIES = {
   }),
 
   CANCEL: (purchaseNumber: string, reason: string): AuditPolicy => ({
-    action: 'PURCHASE_CANCEL',
+    action: 'PURCHASE_VOID',
     targetType: 'Purchase',
     note: `ยกเลิกรายการซื้อ ${purchaseNumber}${reason ? ` (สาเหตุ: ${reason})` : ''}`,
     afterSnapshot: (data: any) => ({
@@ -35,7 +35,7 @@ export const PURCHASE_AUDIT_POLICIES = {
   }),
 
   APPROVE: (prNumber: string): AuditPolicy => ({
-    action: 'PURCHASE_APPROVE',
+    action: 'APPROVAL_ACTION',
     targetType: 'Purchase',
     note: `อนุมัติใบขอซื้อ ${prNumber}`,
     afterSnapshot: (data: any) => ({

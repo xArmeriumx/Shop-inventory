@@ -4,6 +4,7 @@ import { type Metadata } from 'next';
 import { getSale } from '@/actions/sales';
 import { getShop } from '@/actions/shop';
 import { SaleDetailView } from '@/components/sales/sale-detail-view';
+import { getPaymentHistoryAction } from '@/actions/payments';
 import Loading from '@/app/(dashboard)/loading';
 
 interface SaleDetailsPageProps {
@@ -28,10 +29,15 @@ export async function generateMetadata({ params }: SaleDetailsPageProps): Promis
 // ─── Data Fetcher ─────────────────────────────────────────────────────────────
 
 async function SaleDetails({ id }: { id: string }) {
-  const [sale, shop] = await Promise.all([getSale(id), getShop()]);
+  const [sale, shop, paymentsRes] = await Promise.all([
+    getSale(id),
+    getShop(),
+    getPaymentHistoryAction({ saleId: id })
+  ]);
+
   if (!sale) notFound();
 
-  return <SaleDetailView sale={sale} shop={shop} />;
+  return <SaleDetailView sale={sale} shop={shop} payments={paymentsRes.success ? paymentsRes.data : []} />;
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────

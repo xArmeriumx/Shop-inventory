@@ -7,14 +7,20 @@ import { orderRequestSchema, type OrderRequestInput } from '@/schemas/order-requ
 import { OrderRequestService } from '@/services/order-request.service';
 import { ServiceError } from '@/types/domain';
 import type { ActionResponse } from '@/types/domain';
+import { serialize } from '@/lib/utils';
+
 
 export async function getOrderRequests(params: any = {}) {
-    const ctx = await requirePermission('ORDER_REQUEST_VIEW');
-    return OrderRequestService.list(ctx, params);
+    const ctx = await requirePermission('ORDER_REQUEST_VIEW' as any);
+
+    const result = await OrderRequestService.list(ctx, params);
+    return serialize(result);
 }
 
+
 export async function createOrderRequest(input: OrderRequestInput): Promise<ActionResponse> {
-    const ctx = await requirePermission('ORDER_REQUEST_CREATE');
+    const ctx = await requirePermission('ORDER_REQUEST_CREATE' as any);
+
 
     const validated = orderRequestSchema.safeParse(input);
     if (!validated.success) {
@@ -40,7 +46,8 @@ export async function createOrderRequest(input: OrderRequestInput): Promise<Acti
 }
 
 export async function submitOrderRequest(id: string): Promise<ActionResponse> {
-    const ctx = await requirePermission('ORDER_REQUEST_SUBMIT');
+    const ctx = await requirePermission('ORDER_REQUEST_SUBMIT' as any);
+
 
     try {
         await OrderRequestService.submit(ctx, id);

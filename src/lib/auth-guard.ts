@@ -14,7 +14,9 @@ export interface SessionContext {
   userName?: string;
   userEmail?: string;
   shopId?: string;
+  memberId?: string; // Add this
   roleId?: string;
+
   permissions: Permission[];
   isOwner: boolean;
   employeeDepartment?: string;
@@ -33,7 +35,7 @@ export interface ShopSessionContext extends SessionContext {
  */
 export const getSessionContext = cache(async (): Promise<SessionContext | null> => {
   const session = await auth();
-  
+
   if (!session?.user?.id) {
     return null;
   }
@@ -52,14 +54,16 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
       memberships: {
         take: 1, // Currently assuming 1 active shop per user
         select: {
+          id: true, // The ShopMember ID
           shopId: true,
           roleId: true,
           isOwner: true,
           departmentCode: true,
-          role: { 
-            select: { 
-              permissions: true 
-            } 
+
+          role: {
+            select: {
+              permissions: true
+            }
           }
         }
       }
@@ -97,12 +101,14 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
     userName,
     userEmail,
     shopId: membership.shopId,
+    memberId: membership.id,
     roleId: membership.roleId ?? undefined,
     permissions: (membership.role?.permissions as Permission[]) ?? [],
     isOwner: membership.isOwner,
     employeeDepartment: membership.departmentCode ?? undefined,
     sessionVersion: user.sessionVersion,
   };
+
 });
 
 /**
@@ -111,7 +117,7 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
  */
 export async function requireAuth(options?: { rateLimitPolicy?: RateLimitPolicy; actionName?: string }): Promise<SessionContext> {
   const ctx = await getSessionContext();
-  
+
   if (!ctx) {
     redirect('/login');
   }
@@ -120,7 +126,7 @@ export async function requireAuth(options?: { rateLimitPolicy?: RateLimitPolicy;
     const limiter = rateLimiters[options.rateLimitPolicy];
     const identifier = ctx.shopId ? `shop:${ctx.shopId}:${options.rateLimitPolicy}` : `user:${ctx.userId}:${options.rateLimitPolicy}`;
     const rlResult = await checkRateLimit(limiter, identifier, ctx, options.actionName || options.rateLimitPolicy);
-    
+
     if (!rlResult.success) {
       throw new Error(`Rate limit exceeded for action: ${options.actionName || options.rateLimitPolicy}. Please try again later.`);
     }
@@ -134,11 +140,11 @@ export async function requireAuth(options?: { rateLimitPolicy?: RateLimitPolicy;
  */
 export async function requireShop(options?: { rateLimitPolicy?: RateLimitPolicy; actionName?: string }): Promise<ShopSessionContext> {
   const ctx = await requireAuth(options);
-  
+
   if (!ctx.shopId) {
     redirect('/onboarding');
   }
-  
+
   return ctx as ShopSessionContext;
 }
 
@@ -148,7 +154,7 @@ export async function requireShop(options?: { rateLimitPolicy?: RateLimitPolicy;
  */
 export async function requirePermission(permission: Permission, options?: { rateLimitPolicy?: RateLimitPolicy; actionName?: string }): Promise<ShopSessionContext> {
   const ctx = await requireShop(options);
-  
+
   // 1. RBAC Check
   if (!hasPermission(ctx, permission)) {
     redirect('/dashboard');

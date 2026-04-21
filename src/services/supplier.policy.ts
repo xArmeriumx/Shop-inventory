@@ -5,14 +5,14 @@ import { AUDIT_ACTIONS } from './audit.service';
  */
 export const SUPPLIER_AUDIT_POLICIES = {
   CREATE: (name: string) => ({
-    action: 'SUPPLIER_CREATE',
+    action: 'PURCHASE_CREATE',
     targetType: 'Supplier',
     allowlist: ['name', 'code', 'contactName', 'phone', 'email', 'address', 'taxId', 'moq', 'purchaseNote', 'groupCode'],
     note: `เพิ่มผู้จำหน่ายใหม่: ${name}`,
   }),
 
   UPDATE: (id: string, name: string) => ({
-    action: 'SUPPLIER_UPDATE',
+    action: 'PURCHASE_UPDATE',
     targetType: 'Supplier',
     targetId: id,
     allowlist: ['name', 'code', 'contactName', 'phone', 'email', 'address', 'taxId', 'moq', 'purchaseNote', 'groupCode'],
@@ -20,7 +20,7 @@ export const SUPPLIER_AUDIT_POLICIES = {
   }),
 
   DELETE: (id: string, name: string) => ({
-    action: 'SUPPLIER_DELETE',
+    action: 'PURCHASE_DELETE',
     targetType: 'Supplier',
     targetId: id,
     allowlist: ['deletedAt'],

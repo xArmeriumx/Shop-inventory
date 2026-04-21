@@ -88,7 +88,7 @@ export const OrderRequestService = {
                 data: {
                     shopId: ctx.shopId,
                     requestNo,
-                    requesterId: input.requesterId,
+                    requesterId: input.requesterId || ctx.memberId || '',
                     date: new Date(),
                     notes: input.notes,
                     items: {

@@ -4,18 +4,18 @@
  */
 export const PERMISSION_PRESETS = {
   MANAGER: [
-    'PRODUCT_VIEW', 'PRODUCT_CREATE', 'PRODUCT_EDIT', 'PRODUCT_DELETE', 'PRODUCT_VIEW_COST',
+    'PRODUCT_VIEW', 'PRODUCT_CREATE', 'PRODUCT_UPDATE', 'PRODUCT_DELETE', 'PRODUCT_VIEW_COST',
     'STOCK_VIEW_HISTORY', 'STOCK_ADJUST',
     'SALE_VIEW', 'SALE_CREATE', 'SALE_VIEW_PROFIT', 'SALE_CANCEL',
-    'PURCHASE_VIEW', 'PURCHASE_CREATE', 'PURCHASE_CANCEL',
-    'CUSTOMER_VIEW', 'CUSTOMER_CREATE', 'CUSTOMER_EDIT', 'CUSTOMER_DELETE',
-    'EXPENSE_VIEW', 'EXPENSE_CREATE', 'EXPENSE_EDIT', 'EXPENSE_DELETE',
-    'REPORT_VIEW_SALES', 'REPORT_VIEW_PROFIT', 'REPORT_EXPORT',
-    'SETTINGS_SHOP', 'SETTINGS_LOOKUPS',
-    'TEAM_VIEW',
+    'PURCHASE_VIEW', 'PURCHASE_CREATE', 'PURCHASE_VOID',
+    'CUSTOMER_VIEW', 'CUSTOMER_CREATE', 'CUSTOMER_UPDATE', 'CUSTOMER_DELETE',
+    'EXPENSE_VIEW', 'EXPENSE_CREATE', 'EXPENSE_UPDATE', 'EXPENSE_DELETE',
+    'REPORT_VIEW_SALES', 'REPORT_VIEW_SALES', 'REPORT_EXPORT',
+    'SETTINGS_SHOP', 'SETTINGS_SHOP',
+    'SETTINGS_ROLES',
     'POS_ACCESS',
     'SHIPMENT_VIEW', 'SHIPMENT_CREATE', 'SHIPMENT_EDIT', 'SHIPMENT_CANCEL',
-    'PAYMENT_VERIFY',      // G1
+    'FINANCE_VIEW_LEDGER',      // G1
     'RETURN_VIEW', 'RETURN_CREATE',  // G3
     'DELIVERY_VIEW', 'DELIVERY_VALIDATE', // ERP
   ] as const,
@@ -28,7 +28,7 @@ export const PERMISSION_PRESETS = {
   ] as const,
 
   STOCK_KEEPER: [
-    'PRODUCT_VIEW', 'PRODUCT_CREATE', 'PRODUCT_EDIT', 'PRODUCT_VIEW_COST',
+    'PRODUCT_VIEW', 'PRODUCT_CREATE', 'PRODUCT_UPDATE', 'PRODUCT_VIEW_COST',
     'STOCK_VIEW_HISTORY', 'STOCK_ADJUST',
     'PURCHASE_VIEW', 'PURCHASE_CREATE',
   ] as const,
@@ -43,7 +43,7 @@ export const PERMISSION_GROUPS = {
     permissions: [
       { key: 'PRODUCT_VIEW', label: 'ดูสินค้า' },
       { key: 'PRODUCT_CREATE', label: 'เพิ่มสินค้า' },
-      { key: 'PRODUCT_EDIT', label: 'แก้ไขสินค้า' },
+      { key: 'PRODUCT_UPDATE', label: 'แก้ไขสินค้า' },
       { key: 'PRODUCT_DELETE', label: 'ลบสินค้า' },
       { key: 'PRODUCT_VIEW_COST', label: 'ดูราคาทุน' },
     ],
@@ -69,7 +69,7 @@ export const PERMISSION_GROUPS = {
     permissions: [
       { key: 'PURCHASE_VIEW', label: 'ดูรายการซื้อ' },
       { key: 'PURCHASE_CREATE', label: 'บันทึกการซื้อ' },
-      { key: 'PURCHASE_CANCEL', label: 'ยกเลิกรายการซื้อ' },
+      { key: 'PURCHASE_VOID', label: 'ยกเลิกรายการซื้อ' },
     ],
   },
   customers: {
@@ -77,7 +77,7 @@ export const PERMISSION_GROUPS = {
     permissions: [
       { key: 'CUSTOMER_VIEW', label: 'ดูลูกค้า' },
       { key: 'CUSTOMER_CREATE', label: 'เพิ่มลูกค้า' },
-      { key: 'CUSTOMER_EDIT', label: 'แก้ไขลูกค้า' },
+      { key: 'CUSTOMER_UPDATE', label: 'แก้ไขลูกค้า' },
       { key: 'CUSTOMER_DELETE', label: 'ลบลูกค้า' },
     ],
   },
@@ -86,7 +86,7 @@ export const PERMISSION_GROUPS = {
     permissions: [
       { key: 'EXPENSE_VIEW', label: 'ดูค่าใช้จ่าย' },
       { key: 'EXPENSE_CREATE', label: 'เพิ่มค่าใช้จ่าย' },
-      { key: 'EXPENSE_EDIT', label: 'แก้ไขค่าใช้จ่าย' },
+      { key: 'EXPENSE_UPDATE', label: 'แก้ไขค่าใช้จ่าย' },
       { key: 'EXPENSE_DELETE', label: 'ลบค่าใช้จ่าย' },
     ],
   },
@@ -94,7 +94,7 @@ export const PERMISSION_GROUPS = {
     label: 'รายงาน',
     permissions: [
       { key: 'REPORT_VIEW_SALES', label: 'ดูรายงานขาย' },
-      { key: 'REPORT_VIEW_PROFIT', label: 'ดูรายงานกำไร' },
+      { key: 'REPORT_VIEW_SALES', label: 'ดูรายงานกำไร' },
       { key: 'REPORT_EXPORT', label: 'ส่งออกรายงาน' },
     ],
   },
@@ -102,16 +102,16 @@ export const PERMISSION_GROUPS = {
     label: 'ตั้งค่า',
     permissions: [
       { key: 'SETTINGS_SHOP', label: 'ตั้งค่าร้านค้า' },
-      { key: 'SETTINGS_LOOKUPS', label: 'จัดการหมวดหมู่' },
+      { key: 'SETTINGS_SHOP', label: 'จัดการหมวดหมู่' },
     ],
   },
   team: {
     label: 'ทีม',
     permissions: [
-      { key: 'TEAM_VIEW', label: 'ดูสมาชิก' },
-      { key: 'TEAM_INVITE', label: 'เชิญสมาชิก' },
-      { key: 'TEAM_EDIT', label: 'จัดการสมาชิก' },
-      { key: 'TEAM_REMOVE', label: 'ลบสมาชิก' },
+      { key: 'SETTINGS_ROLES', label: 'ดูสมาชิก' },
+      { key: 'SETTINGS_ROLES', label: 'เชิญสมาชิก' },
+      { key: 'SETTINGS_ROLES', label: 'จัดการสมาชิก' },
+      { key: 'SETTINGS_ROLES', label: 'ลบสมาชิก' },
     ],
   },
   pos: {
@@ -132,7 +132,7 @@ export const PERMISSION_GROUPS = {
   payments: {
     label: 'การชำระเงิน',
     permissions: [
-      { key: 'PAYMENT_VERIFY', label: 'ตรวจสอบหลักฐานการชำระเงิน' },
+      { key: 'FINANCE_VIEW_LEDGER', label: 'ตรวจสอบหลักฐานการชำระเงิน' },
     ],
   },
   returns: {

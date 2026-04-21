@@ -6,6 +6,8 @@ import { approvalActionSchema, submitApprovalSchema, type ApprovalActionInputSch
 import { ApprovalService } from '@/services/approval.service';
 import { ServiceError } from '@/types/domain';
 import type { ActionResponse } from '@/types/domain';
+import { serialize } from '@/lib/utils';
+
 
 export async function submitForApproval(input: SubmitApprovalInputSchema): Promise<ActionResponse> {
     const ctx = await requirePermission('APPROVAL_ACTION');
@@ -57,11 +59,15 @@ export async function rejectStep(documentId: string, documentType: string, reaso
 
 export async function getApprovalStatus(documentType: string, documentId: string) {
     const ctx = await requirePermission('APPROVAL_VIEW');
-    return ApprovalService.getStatus(ctx, documentType, documentId);
+    const status = await ApprovalService.getStatus(ctx, documentType, documentId);
+    return serialize(status);
 }
+
 
 export async function getApprovals(params: { page?: number; limit?: number; status?: string }) {
     const ctx = await requirePermission('APPROVAL_VIEW');
-    return ApprovalService.list(ctx, params);
+    const result = await ApprovalService.list(ctx, params);
+    return serialize(result);
 }
+
 

@@ -1,79 +1,100 @@
 import { ServiceError, type RequestContext } from '@/types/domain';
 import type { Permission } from '@prisma/client';
-import { AuditService, AUDIT_STATUS } from './audit.service';
+import { AuditService } from './audit.service';
+import { getPermission } from '@/constants/permissions';
 
 /**
- * Service Layer Authorization Guard
- * 
- * Part of Defense in Depth strategy. Even if Route/Action level guards are bypassed,
- * the Service Layer will independently verify the identity and permissions.
- * 
- * Rule 12.1: All DENIED events are logged as best-effort audit trail.
+ * Service Layer Authorization Guard (8-Pillar Security Standard)
  */
 export const Security = {
   /**
-   * Ensure user has a specific permission.
-   * Logs PERMISSION_DENIED audit event before throwing — best-effort (never crashes flow).
+   * Ensure user has a specific permission. (Standard: MODULE_ACTION)
    */
-  requirePermission: (ctx: RequestContext, permission: Permission) => {
-    // 1. Owner bypass
+  require: (ctx: RequestContext, permission: Permission) => {
     if (ctx.isOwner) return;
 
-    // 2. Permission check
     if (!ctx.permissions.includes(permission)) {
-      console.warn(`[SECURITY] Unauthorized: User ${ctx.userId} (Shop ${ctx.shopId}) → ${permission} DENIED`);
-
-      // Best-effort audit log — do NOT await, do NOT let failure block the throw
-      AuditService.logDenied(ctx, {
-        action: 'PERMISSION_DENIED',
-        permission,
-        note: `User attempted action requiring ${permission}`,
-      }).catch(() => {
-        // Silently ignore audit failure — security throw must always happen
-      });
-
-      throw new ServiceError(`คุณไม่มีสิทธิ์เข้าถึงฟีเจอร์นี้ (${permission})`);
+      Security.handleDenied(ctx, permission);
     }
   },
 
   /**
    * Ensure user has at least one of the specified permissions.
    */
-  requireAnyPermission: (ctx: RequestContext, permissions: Permission[]) => {
+  requireAny: (ctx: RequestContext, permissions: Permission[]) => {
     if (ctx.isOwner) return;
 
     const hasAny = permissions.some(p => ctx.permissions.includes(p));
     if (!hasAny) {
-      const permList = permissions.join(', ');
-      console.warn(`[SECURITY] Unauthorized: User ${ctx.userId} → any of [${permList}] DENIED`);
-
-      AuditService.logDenied(ctx, {
-        action: 'PERMISSION_DENIED',
-        permission: permList,
-        note: `User attempted action requiring any of: ${permList}`,
-      }).catch(() => {});
-
-      throw new ServiceError('คุณไม่มีสิทธิ์เข้าถึงฟีเจอร์นี้');
+      Security.handleDenied(ctx, permissions.join(' | '));
     }
   },
 
   /**
-   * Ensure the resource belongs to the user's shop.
-   * Critical for multi-tenant isolation.
+   * Ensure user has ALL of the specified permissions.
    */
-  requireTenant: (ctx: RequestContext, resourceShopId: string | undefined | null) => {
-    if (!resourceShopId) return; // Allow if resource has no shop (global)
+  requireAll: (ctx: RequestContext, permissions: Permission[]) => {
+    if (ctx.isOwner) return;
+
+    const hasAll = permissions.every(p => ctx.permissions.includes(p));
+    if (!hasAll) {
+      const missing = permissions.filter(p => !ctx.permissions.includes(p));
+      Security.handleDenied(ctx, permissions.join(' & '), `Missing: ${missing.join(', ')}`);
+    }
+  },
+
+  /**
+   * Special Guard: Pass if user is the resource owner OR has the specific permission.
+   */
+  requireOwnerOr: (ctx: RequestContext, ownerMemberId: string | undefined, permission: Permission) => {
+    if (ctx.isOwner) return;
+    if (ownerMemberId && ctx.memberId === ownerMemberId) return;
+
+    Security.require(ctx, permission);
+  },
+
+  /**
+   * Multi-tenant Isolation: Ensure resource belongs to the current shop.
+   */
+  assertSameShop: (ctx: RequestContext, resourceShopId: string | null | undefined) => {
+    if (!resourceShopId) return;
 
     if (ctx.shopId !== resourceShopId) {
       console.error(`[SECURITY] Cross-tenant attempt: User ${ctx.userId} (Shop ${ctx.shopId}) → Shop ${resourceShopId}`);
 
       AuditService.logDenied(ctx, {
         action: 'CROSS_TENANT_ACCESS',
-        permission: 'TENANT_ISOLATION',
-        note: `Attempted to access resource from shop ${resourceShopId}`,
-      }).catch(() => {});
+        permission: 'DATA_ISOLATION',
+        note: `Attempted access to shop ${resourceShopId}`,
+      }).catch(() => { });
 
-      throw new ServiceError('บันทึกข้อมูลไม่สำเร็จ: ตรวจพบการพยายามเข้าถึงข้อมูลข้ามสาขา');
+      throw new ServiceError('สิทธิ์การเข้าถึงข้ามสาขาถูกปฏิเสธ: ตรวจพบความผิดปกติของข้อมูล');
     }
   },
+
+  /**
+   * Centralized Deny Handler with Registry Metadata (Pillar 1.7)
+   */
+  handleDenied: (ctx: RequestContext, permissionCode: string, extraNote?: string) => {
+    const meta = getPermission(permissionCode);
+    const label = meta?.label || permissionCode;
+    const risk = meta?.risk || 'medium';
+
+    console.warn(`[SECURITY][${risk.toUpperCase()}] Unauthorized: User ${ctx.userId} (Shop ${ctx.shopId}) → ${permissionCode} DENIED`);
+
+    // Pillar 1.7: Auditable Security Actions
+    AuditService.logDenied(ctx, {
+      action: 'PERMISSION_DENIED',
+      permission: permissionCode,
+      note: `${extraNote ? extraNote + '. ' : ''}User attempted action requiring ${label}. Risk: ${risk}`,
+    }).catch(() => { });
+
+    throw new ServiceError(`คุณไม่มีสิทธิ์เข้าถึงฟีเจอร์นี้ (${label})`);
+  },
+
+  /**
+   * Legacy wrapper for backward compatibility
+   */
+  requirePermission: (ctx: RequestContext, permission: Permission) => Security.require(ctx, permission),
+  requireAnyPermission: (ctx: RequestContext, permissions: Permission[]) => Security.requireAny(ctx, permissions),
 };

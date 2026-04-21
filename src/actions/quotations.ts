@@ -7,14 +7,20 @@ import { quotationSchema, type QuotationInput } from '@/schemas/quotation';
 import { QuotationService } from '@/services/quotation.service';
 import { ServiceError } from '@/types/domain';
 import type { ActionResponse } from '@/types/domain';
+import { serialize } from '@/lib/utils';
+
 
 export async function getQuotations(params: any = {}) {
-    const ctx = await requirePermission('QUOTATION_VIEW');
-    return QuotationService.list(ctx, params);
+    const ctx = await requirePermission('QUOTATION_VIEW' as any);
+
+    const result = await QuotationService.list(ctx, params);
+    return serialize(result);
 }
 
+
 export async function createQuotation(input: QuotationInput): Promise<ActionResponse> {
-    const ctx = await requirePermission('QUOTATION_CREATE');
+    const ctx = await requirePermission('QUOTATION_CREATE' as any);
+
 
     const validated = quotationSchema.safeParse(input);
     if (!validated.success) {
@@ -40,7 +46,8 @@ export async function createQuotation(input: QuotationInput): Promise<ActionResp
 }
 
 export async function confirmQuotation(id: string): Promise<ActionResponse> {
-    const ctx = await requirePermission('QUOTATION_CONFIRM');
+    const ctx = await requirePermission('QUOTATION_CONFIRM' as any);
+
 
     try {
         await QuotationService.confirm(ctx, id);
@@ -57,7 +64,8 @@ export async function confirmQuotation(id: string): Promise<ActionResponse> {
 }
 
 export async function cancelQuotation(id: string): Promise<ActionResponse> {
-    const ctx = await requirePermission('QUOTATION_EDIT');
+    const ctx = await requirePermission('QUOTATION_EDIT' as any);
+
 
     try {
         await QuotationService.cancel(ctx, id);

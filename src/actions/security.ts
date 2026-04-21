@@ -46,10 +46,10 @@ export async function revokeAllMySessions(): Promise<ActionResponse> {
  * The target user will be forced to re-login on their next request.
  * Admin's own session is NOT affected.
  * 
- * Requires: TEAM_EDIT permission (same level as role change).
+ * Requires: SETTINGS_ROLES permission (same level as role change).
  */
 export async function revokeUserSessionsByAdmin(targetUserId: string): Promise<ActionResponse> {
-  const ctx = await requirePermission('TEAM_EDIT');
+  const ctx = await requirePermission('SETTINGS_ROLES');
 
   if (targetUserId === ctx.userId) {
     return { success: false, message: 'ใช้ "ออกจากระบบทุกอุปกรณ์" สำหรับตัวเองแทน' };

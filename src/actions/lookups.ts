@@ -41,7 +41,7 @@ export async function getLookupValues(typeCode: LookupTypeCode) {
 }
 
 export async function getLookupValuesForSettings(typeCode: LookupTypeCode) {
-  const ctx = await requirePermission('SETTINGS_LOOKUPS');
+  const ctx = await requirePermission('SETTINGS_SHOP');
   return LookupService.getLookupValuesForSettings(typeCode, ctx);
 }
 
@@ -71,7 +71,7 @@ export async function createLookupValue(
   prevState: LookupValueState,
   formData: FormData
 ): Promise<LookupValueState> {
-  const ctx = await requirePermission('SETTINGS_LOOKUPS');
+  const ctx = await requirePermission('SETTINGS_SHOP');
 
   const rawData = {
     name: formData.get('name') as string,
@@ -101,7 +101,7 @@ export async function updateLookupValue(
   prevState: LookupValueState,
   formData: FormData
 ): Promise<LookupValueState> {
-  const ctx = await requirePermission('SETTINGS_LOOKUPS');
+  const ctx = await requirePermission('SETTINGS_SHOP');
 
   const rawData = {
     name: formData.get('name') as string || undefined,
@@ -127,7 +127,7 @@ export async function updateLookupValue(
 }
 
 export async function deleteLookupValue(id: string): Promise<LookupValueState> {
-  const ctx = await requirePermission('SETTINGS_LOOKUPS');
+  const ctx = await requirePermission('SETTINGS_SHOP');
 
   try {
     await LookupService.deleteLookupValue(id, ctx);
@@ -142,7 +142,7 @@ export async function deleteLookupValue(id: string): Promise<LookupValueState> {
 }
 
 export async function seedDefaultLookupValues() {
-  const ctx = await requirePermission('SETTINGS_LOOKUPS');
+  const ctx = await requirePermission('SETTINGS_SHOP');
 
   try {
     await LookupService.seedDefaultLookupValues(ctx);

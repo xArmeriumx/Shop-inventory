@@ -137,8 +137,8 @@ export const ShipmentService: IShippingService = {
             customer: true,
           },
         },
-        customerAddress: true,
-      },
+        partnerAddress: true,
+      } as any,
     });
 
     if (!shipment) throw new ServiceError('ไม่พบข้อมูลการจัดส่ง');
@@ -146,9 +146,9 @@ export const ShipmentService: IShippingService = {
     return {
       ...serializeShipment(shipment),
       allowedTransitions: getAllowedTransitions(shipment.status as ShipmentStatus),
-      sale: shipment.sale ? {
-        ...serializeSale(shipment.sale),
-        items: shipment.sale.items.map((item: any) => ({
+      sale: (shipment as any).sale ? {
+        ...serializeSale((shipment as any).sale),
+        items: (shipment as any).sale.items.map((item: any) => ({
           ...item,
           salePrice: Number(item.salePrice),
           costPrice: Number(item.costPrice),
@@ -205,7 +205,7 @@ export const ShipmentService: IShippingService = {
                 recipientName: data.recipientName,
                 recipientPhone: data.recipientPhone || null,
                 shippingAddress: data.shippingAddress,
-                customerAddressId: data.customerAddressId || null,
+                partnerAddressId: data.partnerAddressId || data.customerAddressId || null,
                 trackingNumber: data.trackingNumber || null,
                 shippingProvider: data.shippingProvider || null,
                 shippingCost: data.shippingCost || null,
@@ -214,7 +214,7 @@ export const ShipmentService: IShippingService = {
                 notes: data.notes || null,
                 userId: ctx.userId,
                 shopId: ctx.shopId,
-              },
+              } as any,
             });
 
             if (data.shippingCost && data.shippingCost > 0) {
@@ -409,14 +409,14 @@ export const ShipmentService: IShippingService = {
 
         const shipments = await db.shipment.findMany({
           where: { id: { in: ids }, shopId: ctx.shopId },
-          include: { customerAddress: true }
+          include: { partnerAddress: true } as any
         });
 
         const shippableItems = shipments.map(s => ({
           id: s.id,
           createdAt: s.createdAt,
-          latitude: s.customerAddress?.latitude ?? null,
-          longitude: s.customerAddress?.longitude ?? null,
+          latitude: (s as any).partnerAddress?.latitude ?? null,
+          longitude: (s as any).partnerAddress?.longitude ?? null,
         }));
 
         const sortedItems = sortShipmentsByRoute(shippableItems, type, origin);
@@ -445,7 +445,7 @@ export const ShipmentService: IShippingService = {
             }
           }
         }
-      }
+      } as any
     });
 
     if (!shipment) throw new ServiceError('ไม่พบข้อมูลการจัดส่ง');
@@ -454,7 +454,7 @@ export const ShipmentService: IShippingService = {
     let totalCbm = 0;    // m3
     let itemCount = 0;
 
-    const items = shipment.sale?.items || [];
+    const items = (shipment as any).sale?.items || [];
 
     for (const item of items) {
       const qty = item.quantity;

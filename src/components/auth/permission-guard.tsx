@@ -1,82 +1,94 @@
 'use client';
 
 import { usePermissions } from '@/hooks/use-permissions';
-import type { Permission } from '@prisma/client';
+import { Permission } from '@prisma/client';
 import type { ReactNode } from 'react';
+import { getPermission } from '@/constants/permissions';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import type { ComponentType } from 'react';
 
 interface PermissionGuardProps {
-  /** Single permission required */
   permission?: Permission;
-  /** Any of these permissions required (OR logic) */
-  anyOf?: Permission[];
-  /** All of these permissions required (AND logic) */
-  allOf?: Permission[];
-  /** Content to show if user has permission */
-  children: ReactNode;
-  /** Content to show if user lacks permission (default: null) */
+  permissions?: Permission[];
+  mode?: 'hide' | 'readonly' | 'message';
   fallback?: ReactNode;
-  /** If true, hide completely instead of showing fallback */
-  hide?: boolean;
+  children: ReactNode;
 }
 
-/**
- * Component to conditionally render content based on RBAC permissions
- * 
- * Usage:
- *   <PermissionGuard permission="PRODUCT_CREATE">
- *     <AddProductButton />
- *   </PermissionGuard>
- * 
- *   <PermissionGuard anyOf={['SALE_VIEW', 'SALE_CREATE']} fallback={<AccessDenied />}>
- *     <SalesTable />
- *   </PermissionGuard>
- */
 export function PermissionGuard({
   permission,
-  anyOf,
-  allOf,
+  permissions,
+  mode = 'hide',
+  fallback,
   children,
-  fallback = null,
-  hide = false,
 }: PermissionGuardProps) {
-  const { hasPermission, hasAnyPermission, hasAllPermissions, isLoading } = usePermissions();
+  const { hasPermission } = usePermissions();
 
-  // While loading session, show nothing or loading state
-  if (isLoading) {
-    return null;
+  const requiredPermissions = permissions || (permission ? [permission] : []);
+  const isAuthorized = requiredPermissions.length === 0 || requiredPermissions.some(p => hasPermission(p));
+
+  if (isAuthorized) {
+    return <>{children}</>;
   }
 
-  let hasAccess = false;
-
-  if (permission) {
-    hasAccess = hasPermission(permission);
-  } else if (anyOf && anyOf.length > 0) {
-    hasAccess = hasAnyPermission(anyOf);
-  } else if (allOf && allOf.length > 0) {
-    hasAccess = hasAllPermissions(allOf);
-  } else {
-    // No permission specified, allow access
-    hasAccess = true;
+  // Denied logic
+  if (fallback) {
+    return <>{fallback}</>;
   }
 
-  if (!hasAccess) {
-    return hide ? null : <>{fallback}</>;
+  const meta = permission ? getPermission(permission) : null;
+  const denyMessage = `คุณไม่มีสิทธิ์ใช้งานส่วนนี้ (ต้องการสิทธิ์: ${meta?.label || permission || 'ระบุสิทธิ์'})`;
+
+  if (mode === 'message') {
+    return (
+      <div className="p-8 border-2 border-dashed rounded-3xl flex flex-col items-center justify-center text-center space-y-4 bg-muted/30">
+        <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center">
+          <span className="text-2xl">🔒</span>
+        </div>
+        <div className="space-y-1">
+          <p className="font-semibold text-lg">{meta?.label || 'จำกัดการเข้าถึง'}</p>
+          <p className="text-muted-foreground text-sm max-w-xs mx-auto">
+            {denyMessage}
+          </p>
+        </div>
+      </div>
+    );
   }
 
-  return <>{children}</>;
+  if (mode === 'readonly') {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="opacity-70 grayscale pointer-events-none select-none relative">
+              <div className="absolute inset-0 z-10" />
+              {children}
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            <p className="text-xs">{denyMessage}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
+  // mode === 'hide'
+  return null;
 }
 
 /**
- * Higher-order component version for class components or complex cases
+ * Higher-Order Component version of PermissionGuard
  */
 export function withPermission<P extends object>(
-  WrappedComponent: React.ComponentType<P>,
-  permission: Permission
+  Component: ComponentType<P>,
+  permission: Permission,
+  mode: 'hide' | 'readonly' | 'message' = 'hide'
 ) {
-  return function PermissionWrapper(props: P) {
+  return function WithPermissionWrapper(props: P) {
     return (
-      <PermissionGuard permission={permission}>
-        <WrappedComponent {...props} />
+      <PermissionGuard permission={permission} mode={mode}>
+        <Component {...props} />
       </PermissionGuard>
     );
   };

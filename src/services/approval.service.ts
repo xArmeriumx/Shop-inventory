@@ -19,8 +19,8 @@ export const ApprovalService = {
     async submit(ctx: RequestContext, input: SubmitApprovalInput, tx?: Prisma.TransactionClient) {
         const client = tx || db;
 
-        // 1. ตรวจสอบว่ามี Approval Instance อยู่แล้วหรือไม่ (ห้ามส่งซ้ำถ้ายังไม่อนนุมัติ/reject)
-        const existing = await client.approvalInstance.findFirst({
+        // 1. ตรวจสอบว่ามี Approval Instance อยู่แล้วหรือไม่ (ห้ามส่งซ้ำถ้ายังไม่อนุมัติ/reject)
+        const existing = await (client as any).approvalInstance.findFirst({
             where: {
                 shopId: ctx.shopId,
                 documentType: input.documentType,
@@ -34,7 +34,7 @@ export const ApprovalService = {
         }
 
         // 2. สร้าง Approval Instance และ Steps ในคราวเดียว
-        return await client.approvalInstance.create({
+        return await (client as any).approvalInstance.create({
             data: {
                 shopId: ctx.shopId,
                 documentType: input.documentType,
@@ -66,11 +66,11 @@ export const ApprovalService = {
         return await db.$transaction(async (tx) => {
             // 1. ดึงข้อมูล Approval และ Step ปัจจุบัน
             const instance = input.approvalInstanceId
-                ? await tx.approvalInstance.findUnique({
+                ? await (tx as any).approvalInstance.findUnique({
                     where: { id: input.approvalInstanceId },
                     include: { steps: { orderBy: { level: 'asc' } } },
                 })
-                : await tx.approvalInstance.findFirst({
+                : await (tx as any).approvalInstance.findFirst({
                     where: {
                         shopId: ctx.shopId,
                         documentType: input.documentType,
@@ -88,13 +88,13 @@ export const ApprovalService = {
                 throw new ServiceError('การอนุมัตินี้สิ้นสุดไปแล้ว');
             }
 
-            const currentStep = instance.steps.find(s => s.level === instance.currentLevel);
+            const currentStep = instance.steps.find((s: any) => s.level === instance.currentLevel);
             if (!currentStep || currentStep.approverUserId !== ctx.userId) {
                 throw new ServiceError('คุณไม่มีสิทธิ์ในการดำเนินการขั้นตอนนี้');
             }
 
             // 2. อัปเดต Step
-            await tx.approvalStep.update({
+            await (tx as any).approvalStep.update({
                 where: { id: currentStep.id },
                 data: {
                     status: input.action === 'APPROVE' ? ApprovalStatus.APPROVED : ApprovalStatus.REJECTED,
@@ -106,7 +106,7 @@ export const ApprovalService = {
             // 3. ปรับปรุง Instance Status
             if (input.action === 'REJECT') {
                 // ถ้า Reject คือจบเลย
-                await tx.approvalInstance.update({
+                await (tx as any).approvalInstance.update({
                     where: { id: instance.id },
                     data: { status: ApprovalStatus.REJECTED },
                 });
@@ -115,17 +115,18 @@ export const ApprovalService = {
                 return ApprovalStatus.REJECTED;
             } else {
                 // ถ้า Approve ตรวจสอบว่ามีระดับถัดไปไหม
-                const nextStep = instance.steps.find(s => s.level === instance.currentLevel + 1);
+                const nextStep = instance.steps.find((s: any) => s.level === (instance.currentLevel + 1));
 
                 if (nextStep) {
-                    await tx.approvalInstance.update({
+                    await (tx as any).approvalInstance.update({
                         where: { id: instance.id },
                         data: { currentLevel: instance.currentLevel + 1 },
                     });
+
                     return ApprovalStatus.PENDING; // ยังเหลือขั้นถัดไป
                 } else {
                     // อนุมัติครบทุกขั้นแล้ว
-                    await tx.approvalInstance.update({
+                    await (tx as any).approvalInstance.update({
                         where: { id: instance.id },
                         data: { status: ApprovalStatus.APPROVED },
                     });
@@ -141,7 +142,7 @@ export const ApprovalService = {
      * GetStatus — ตรวจสอบสถานะปัจจุบัน
      */
     async getStatus(ctx: RequestContext, documentType: string, documentId: string) {
-        return await db.approvalInstance.findFirst({
+        return await (db as any).approvalInstance.findFirst({
             where: {
                 shopId: ctx.shopId,
                 documentType,
@@ -155,6 +156,7 @@ export const ApprovalService = {
             orderBy: { createdAt: 'desc' },
         });
     },
+
     /**
      * List — สำหรับกล่องข้อความขออนุมัติ (Approval Inbox)
      */
@@ -162,7 +164,7 @@ export const ApprovalService = {
         const { page = 1, limit = 10, status = ApprovalStatus.PENDING } = params;
         const skip = (page - 1) * limit;
 
-        const where: Prisma.ApprovalInstanceWhereInput = {
+        const where = {
             shopId: ctx.shopId,
             status: status as ApprovalStatus,
             steps: {
@@ -174,7 +176,7 @@ export const ApprovalService = {
         };
 
         const [data, total] = await Promise.all([
-            db.approvalInstance.findMany({
+            (db as any).approvalInstance.findMany({
                 where,
                 include: {
                     steps: { orderBy: { level: 'asc' } },
@@ -186,7 +188,7 @@ export const ApprovalService = {
                 skip,
                 take: limit,
             }),
-            db.approvalInstance.count({ where }),
+            (db as any).approvalInstance.count({ where }),
         ]);
 
         return {

@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useEffect, useTransition, useCallback } from 'react';
-import { 
-  History, 
-  Search, 
-  Filter, 
-  RefreshCw, 
-  ChevronLeft, 
+import {
+  History,
+  Search,
+  Filter,
+  RefreshCw,
+  ChevronLeft,
   ChevronRight,
   User as UserIcon,
   Download,
@@ -22,23 +22,23 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
 } from '@/components/ui/select';
-import { 
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -65,12 +65,13 @@ export default function AuditLogsPage() {
   const [isPending, startTransition] = useTransition();
   const [isExporting, setIsExporting] = useState(false);
 
+  const { action, status: filterStatus } = filters;
   const fetchLogs = useCallback(async (page = 1) => {
     const result = await getAuditLogs({
       page,
       limit: 20,
-      action: filters.action === 'ALL' ? undefined : filters.action,
-      status: (filters as any).status === 'ALL' ? undefined : (filters as any).status,
+      action: action === 'ALL' ? undefined : action,
+      status: (filterStatus as any) === 'ALL' ? undefined : (filterStatus as any),
       // Add more filter logic if backend supports it
     });
 
@@ -84,7 +85,7 @@ export default function AuditLogsPage() {
     } else {
       toast.error(result.message || 'ไม่สามารถโหลด Audit Log ได้');
     }
-  }, [filters.action, (filters as any).status]);
+  }, [action, filterStatus]);
 
   useEffect(() => {
     fetchLogs(1);
@@ -117,14 +118,14 @@ export default function AuditLogsPage() {
       const start = new Date();
       start.setDate(start.getDate() - 30);
       const end = new Date();
-      
+
       const result = await exportAuditLogsAction(start.toISOString(), end.toISOString(), format);
-      
+
       if (result.success && result.data) {
-        const content = format === 'JSON' 
+        const content = format === 'JSON'
           ? JSON.stringify(result.data, null, 2)
           : convertToCSV(result.data);
-          
+
         const blob = new Blob([content], { type: format === 'JSON' ? 'application/json' : 'text/csv' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -148,7 +149,7 @@ export default function AuditLogsPage() {
   function convertToCSV(data: any[]) {
     if (data.length === 0) return '';
     const headers = Object.keys(data[0]).join(',');
-    const rows = data.map(row => 
+    const rows = data.map(row =>
       Object.values(row)
         .map(val => {
           const s = String(val).replace(/"/g, '""');
@@ -185,9 +186,9 @@ export default function AuditLogsPage() {
               <DropdownMenuItem onClick={() => handleExport('JSON')}>Export as JSON (Full Snapshots)</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button 
-            variant="outline" 
-            size="sm" 
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => fetchLogs(pagination.page)}
             disabled={isPending}
           >
@@ -199,8 +200,8 @@ export default function AuditLogsPage() {
 
       {/* Smart Filter Presets (Governance Ops Enhancement) */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <Button 
-          variant={activePreset === 'security' ? 'default' : 'outline'} 
+        <Button
+          variant={activePreset === 'security' ? 'default' : 'outline'}
           className="h-auto py-3 justify-start gap-4 border-2"
           onClick={() => applyPreset('security', { action: 'ALL', status: 'DENIED' })}
         >
@@ -213,8 +214,8 @@ export default function AuditLogsPage() {
           </div>
         </Button>
 
-        <Button 
-          variant={activePreset === 'iam' ? 'default' : 'outline'} 
+        <Button
+          variant={activePreset === 'iam' ? 'default' : 'outline'}
           className="h-auto py-3 justify-start gap-4 border-2"
           onClick={() => applyPreset('iam', { action: 'TEAM_ROLE_UPDATE', targetType: 'Role' })}
         >
@@ -227,8 +228,8 @@ export default function AuditLogsPage() {
           </div>
         </Button>
 
-        <Button 
-          variant={activePreset === 'stock' ? 'default' : 'outline'} 
+        <Button
+          variant={activePreset === 'stock' ? 'default' : 'outline'}
           className="h-auto py-3 justify-start gap-4 border-2"
           onClick={() => applyPreset('stock', { action: 'STOCK_ADJUST', targetType: 'Product' })}
         >
@@ -241,8 +242,8 @@ export default function AuditLogsPage() {
           </div>
         </Button>
 
-        <Button 
-          variant={activePreset === 'finance' ? 'default' : 'outline'} 
+        <Button
+          variant={activePreset === 'finance' ? 'default' : 'outline'}
           className="h-auto py-3 justify-start gap-4 border-2"
           onClick={() => applyPreset('finance', { action: 'SALE_CANCEL', targetType: 'Sale' })}
         >
@@ -259,14 +260,14 @@ export default function AuditLogsPage() {
       <Card className="border-primary/10 shadow-lg bg-card/50 backdrop-blur-sm relative overflow-hidden">
         {activePreset && (
           <div className="absolute top-0 right-0 p-1">
-             <Button 
-              variant="ghost" 
-              size="sm" 
-              className="text-[10px] h-6 px-2 hover:bg-transparent" 
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-[10px] h-6 px-2 hover:bg-transparent"
               onClick={() => { setActivePreset(null); setFilters({ action: 'ALL', targetType: 'ALL', status: 'ALL', search: '' }); }}
             >
-               Clear Preset ✕
-             </Button>
+              Clear Preset ✕
+            </Button>
           </div>
         )}
         <CardHeader className="pb-3 border-b">
@@ -275,11 +276,11 @@ export default function AuditLogsPage() {
               <Filter className="h-4 w-4 text-muted-foreground" />
               Advanced Filters
             </CardTitle>
-            
+
             <div className="flex flex-wrap items-center gap-3">
               <div className="w-[180px]">
-                <Select 
-                  value={filters.action} 
+                <Select
+                  value={filters.action}
                   onValueChange={(val) => setFilters(prev => ({ ...prev, action: val }))}
                 >
                   <SelectTrigger className="h-9">
@@ -296,8 +297,8 @@ export default function AuditLogsPage() {
               </div>
 
               <div className="w-[180px]">
-                <Select 
-                  value={filters.targetType} 
+                <Select
+                  value={filters.targetType}
                   onValueChange={(val) => setFilters(prev => ({ ...prev, targetType: val }))}
                 >
                   <SelectTrigger className="h-9">
@@ -325,7 +326,7 @@ export default function AuditLogsPage() {
             </div>
           </div>
         </CardHeader>
-        
+
         <CardContent className="p-0">
           <Table>
             <TableHeader className="bg-muted/50">
@@ -352,11 +353,11 @@ export default function AuditLogsPage() {
                     <TableCell className="text-xs font-medium text-muted-foreground whitespace-nowrap">
                       <div className="flex flex-col">
                         <span className="flex items-center gap-1">
-                           <Calendar className="h-3 w-3" />
-                           {format(new Date(log.createdAt), 'dd MMM yy')}
+                          <Calendar className="h-3 w-3" />
+                          {format(new Date(log.createdAt), 'dd MMM yy')}
                         </span>
                         <span className="ml-4 opacity-70">
-                           {format(new Date(log.createdAt), 'HH:mm:ss')}
+                          {format(new Date(log.createdAt), 'HH:mm:ss')}
                         </span>
                       </div>
                     </TableCell>
@@ -376,28 +377,28 @@ export default function AuditLogsPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                       <div className="flex items-center gap-2">
-                          <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center">
-                             <UserIcon className="h-4 w-4 text-primary" />
-                          </div>
-                          <div className="flex flex-col">
-                             <span className="text-xs font-semibold">{log.actorName || 'System'}</span>
-                             <span className="text-[10px] text-muted-foreground">ID: {log.actorUserId?.slice(-6) || '-'}</span>
-                          </div>
-                       </div>
+                      <div className="flex items-center gap-2">
+                        <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center">
+                          <UserIcon className="h-4 w-4 text-primary" />
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-xs font-semibold">{log.actorName || 'System'}</span>
+                          <span className="text-[10px] text-muted-foreground">ID: {log.actorUserId?.slice(-6) || '-'}</span>
+                        </div>
+                      </div>
                     </TableCell>
                     <TableCell>
-                      <Badge 
-                        variant={log.status === 'SUCCESS' ? 'success' as any : 'destructive'} 
+                      <Badge
+                        variant={log.status === 'SUCCESS' ? 'success' as any : 'destructive'}
                         className="text-[10px] py-0 h-5"
                       >
                         {log.status}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         className="h-8 w-8 group-hover:bg-primary group-hover:text-primary-foreground transition-all shadow-sm"
                         onClick={() => openDetail(log)}
                       >
@@ -415,7 +416,7 @@ export default function AuditLogsPage() {
               )}
             </TableBody>
           </Table>
-          
+
           {/* Pagination */}
           {pagination.totalPages > 1 && (
             <div className="flex items-center justify-between p-4 border-t bg-muted/30">
@@ -453,19 +454,19 @@ export default function AuditLogsPage() {
       {/* Security Best Practices Warning (Governance ERP Rule 18) */}
       <div className="bg-primary/5 border border-primary/20 rounded-xl p-6 flex flex-col md:flex-row items-center gap-6 shadow-sm">
         <div className="h-12 w-12 rounded-2xl bg-primary/20 flex items-center justify-center flex-shrink-0 animate-pulse">
-           <ShieldCheck className="h-6 w-6 text-primary" />
+          <ShieldCheck className="h-6 w-6 text-primary" />
         </div>
         <div>
-           <h3 className="text-lg font-bold text-primary mb-1 tracking-tight">System Integrity & Audit Trail</h3>
-           <p className="text-sm text-muted-foreground leading-relaxed">
-             This audit trail is tamper-evident and captures deep state snapshots of all critical operations. 
-             It is used for troubleshooting, compliance auditing, and security forensics. 
-             All read and write operations on this log are themselves audited for maximum governance.
-           </p>
+          <h3 className="text-lg font-bold text-primary mb-1 tracking-tight">System Integrity & Audit Trail</h3>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            This audit trail is tamper-evident and captures deep state snapshots of all critical operations.
+            It is used for troubleshooting, compliance auditing, and security forensics.
+            All read and write operations on this log are themselves audited for maximum governance.
+          </p>
         </div>
       </div>
 
-      <AuditDetailModal 
+      <AuditDetailModal
         log={selectedLog}
         isOpen={isDetailOpen}
         onClose={() => setIsDetailOpen(false)}

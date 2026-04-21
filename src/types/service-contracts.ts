@@ -98,6 +98,7 @@ export interface ICustomerService {
     customerId: string,
     requestedAmount: number,
     ctx: RequestContext,
+    tx?: Prisma.TransactionClient,
   ): Promise<{
     creditLimit: number;
     currentOutstanding: number;
@@ -132,6 +133,13 @@ export interface ISupplierService {
   getProducts(supplierId: string, ctx: RequestContext): Promise<any[]>;
   upsertProduct(supplierId: string, productId: string, data: any, ctx: RequestContext): Promise<any>;
   removeProduct(supplierId: string, productId: string, ctx: RequestContext): Promise<any>;
+
+  // Address Management
+  getAddresses(supplierId: string, ctx: RequestContext): Promise<any[]>;
+  getAddressById(id: string, ctx: RequestContext): Promise<any>;
+  createAddress(supplierId: string, ctx: RequestContext, payload: any): Promise<any>;
+  updateAddress(id: string, ctx: RequestContext, payload: any): Promise<any>;
+  deleteAddress(id: string, ctx: RequestContext): Promise<void>;
 }
 
 // ============================================================================
@@ -223,8 +231,9 @@ export interface IStockService {
     productId: string,
     quantity: number,
     ctx: RequestContext,
-    tx: Prisma.TransactionClient,
-  ): Promise<void>;
+    tx?: Prisma.TransactionClient,
+    docRef?: { saleId?: string; deliveryOrderId?: string }
+  ): Promise<any>;
 
   /**
    * ปล่อยการจอง (เมื่อ Sale ถูก Cancel ก่อนส่งของ)

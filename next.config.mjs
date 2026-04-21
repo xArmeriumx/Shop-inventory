@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone", // Required for Docker deployment
+  transpilePackages: ["@react-pdf/renderer"],
   images: {
     remotePatterns: [
       {

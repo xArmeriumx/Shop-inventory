@@ -41,7 +41,8 @@ export default async function SupplierProfilePage({ params }: { params: { id: st
     notFound();
   }
 
-  const { supplier, purchases, stats, topProducts } = data;
+  if (!data) notFound();
+  const { supplier, purchases, stats, topProducts } = data as any;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">

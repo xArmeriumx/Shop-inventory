@@ -143,7 +143,7 @@ export function StockHistoryTable(props: StockHistoryTableProps) {
                       Sale 🔗
                     </Link>
                   ) : null}
-                  {(log.type === 'PURCHASE' || log.type === 'PURCHASE_CANCEL') && log.purchaseId ? (
+                  {(log.type === 'PURCHASE' || log.type === 'PURCHASE_VOID') && log.purchaseId ? (
                     <Link href={`/purchases/${log.purchaseId}`} className="text-orange-600 hover:underline inline-flex items-center gap-1">
                       Purchase 🔗
                     </Link>

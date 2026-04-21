@@ -1,5 +1,5 @@
 import { db, runInTransaction } from '@/lib/db';
-import { Prisma } from '@prisma/client';
+import { Prisma, Permission } from '@prisma/client';
 import { SaleInput } from '@/schemas/sale';
 import { StockService } from './stock.service';
 import { NotificationService } from './notification.service';
@@ -13,6 +13,8 @@ import {
   DocumentType,
   BookingStatus,
   SaleStatus,
+  DocPaymentStatus,
+  EditLockStatus,
   PaginatedResult,
 } from '@/types/domain';
 import {
@@ -26,6 +28,7 @@ import { CustomerService } from './customer.service';
 import { AuditService } from './audit.service';
 import { SALE_AUDIT_POLICIES } from './sale.policy';
 import { Security } from './security';
+import { WorkflowService } from './workflow.service';
 import { serializeSale, serializeSaleItem } from '@/lib/mappers';
 
 export const CANCEL_REASONS = {
@@ -44,7 +47,7 @@ export interface CancelSaleInput {
 /**
  * Enhanced Sale serialization with security controls
  */
-function localSerializeSale(sale: any, canViewProfit: boolean): any {
+function serializeSaleSafe(sale: any, canViewProfit: boolean): any {
   const base = serializeSale(sale);
   if (!canViewProfit) {
     base.totalCost = 0;
@@ -59,6 +62,11 @@ export const SaleService: ISaleService = {
    */
   async create(ctx: RequestContext, payload: SaleInput, tx?: Prisma.TransactionClient): Promise<SerializedSale> {
     Security.requirePermission(ctx, 'SALE_CREATE');
+    Security.assertSameShop(ctx, ctx.shopId);
+
+    if (!ctx.memberId) {
+      throw new ServiceError('ไม่สามารถสร้างรายการขายได้เนื่องจากไม่พบรหัสสมาชิก (memberId)');
+    }
     const { items, customerAddress, ...saleData } = payload;
 
     if (items.length === 0) {
@@ -80,12 +88,9 @@ export const SaleService: ISaleService = {
           const productIds = items.map(item => item.productId);
           const products = await prisma.product.findMany({
             where: { id: { in: productIds } },
-            select: { id: true, name: true, costPrice: true, stock: true, reservedStock: true, packagingQty: true },
+            select: { id: true, name: true, stock: true, reservedStock: true, costPrice: true, packagingQty: true },
           });
-
-          const productDataMap = new Map(
-            products.map(p => [p.id, p])
-          );
+          const productDataMap = new Map(products.map((p: any) => [p.id, p]));
 
           for (const item of items) {
             const product = productDataMap.get(item.productId);
@@ -136,8 +141,7 @@ export const SaleService: ISaleService = {
           // 4. Handle Customer & Credit
           let finalCustomerId = saleData.customerId;
           if (finalCustomerId) {
-            const creditStatus = await CustomerService.checkCreditLimit(finalCustomerId, netAmount, ctx);
-            if (!creditStatus.isWithinLimit) throw new ServiceError(`เกินวงเงินเครดิต: ${creditStatus.availableCredit}`);
+            await CustomerService.checkCreditLimit(finalCustomerId, netAmount, ctx, prisma);
           }
 
           // 5. Create Sale
@@ -145,12 +149,13 @@ export const SaleService: ISaleService = {
             data: {
               customerId: finalCustomerId || null,
               userId: ctx.userId,
+              memberId: ctx.memberId || null,
               shopId: ctx.shopId,
               invoiceNumber,
               date: saleData.date ? new Date(saleData.date) : new Date(),
               paymentMethod: saleData.paymentMethod,
               notes: saleData.notes || null,
-              departmentCode,
+              departmentCode: departmentCode || undefined,
               totalAmount,
               totalCost,
               profit: calcProfit(netAmount, totalCost),
@@ -158,14 +163,15 @@ export const SaleService: ISaleService = {
               discountValue: saleData.discountValue,
               discountAmount: billDiscountAmount,
               netAmount,
-              paymentStatus: saleData.paymentMethod === 'CREDIT' ? 'PENDING' : 'VERIFIED',
+              paymentStatus: (saleData.paymentMethod === 'CREDIT' ? 'UNPAID' : 'PAID') as DocPaymentStatus,
               items: { create: saleItemsToCreate },
-            },
+              partnerAddress: customerAddress ? JSON.stringify(customerAddress) : null,
+            } as Prisma.SaleUncheckedCreateInput,
             include: { items: true },
           });
 
           // 6. Record Stock Reservation
-          await Promise.all(sale.items.map(item =>
+          await Promise.all((sale.items || []).map((item: any) =>
             StockService.reserveStock(item.productId, item.quantity, ctx, prisma)
           ));
 
@@ -186,34 +192,46 @@ export const SaleService: ISaleService = {
             title: `ยอดขายใหม่ ${invoiceNumber}`,
             message: `ยอดรวม ${netAmount} บาท`,
             link: `/sales/${sale.id}`,
-          }).catch(() => { });
+          }, prisma).catch(() => { });
 
-          return localSerializeSale(updatedSale, true);
-        });
+          return serializeSaleSafe(updatedSale, true);
+        }, { timeout: 30000 });
       }
     );
   },
 
   async update(id: string, ctx: RequestContext, payload: any): Promise<SerializedSale> {
-    Security.requirePermission(ctx, 'SALE_CREATE');
+    Security.require(ctx, 'SALE_UPDATE' as Permission);
     const sale = await db.sale.findFirst({ where: { id, shopId: ctx.shopId } });
     if (!sale) throw new ServiceError('ไม่พบรายการขาย');
+
+    // Workflow Rule check (Pillar 1.1)
+    WorkflowService.canSaleAction(sale as any, 'UPDATE');
 
     return AuditService.runWithAudit(
       ctx,
       SALE_AUDIT_POLICIES.UPDATE(sale.invoiceNumber, payload),
       async () => {
-        if (sale.isLocked || sale.status === 'INVOICED' || sale.status === 'COMPLETED') {
-          const { notes, paymentMethod, channel } = payload;
-          const updated = await db.sale.update({
-            where: { id },
-            data: {
-              notes: notes ?? sale.notes,
-              paymentMethod: paymentMethod ?? sale.paymentMethod,
-              channel: channel ?? sale.channel,
-            },
-          });
-          return localSerializeSale(updated, true);
+        // ERP Rule: If document is locked for editing, only allow specific meta-fields 
+        // UNLESS user has SALE_UPDATE_LOCKED permission
+        const isLocked = ((sale as any).editLockStatus as unknown as EditLockStatus) !== 'NONE' || sale.isLocked;
+
+        if (isLocked) {
+          try {
+            Security.require(ctx, 'SALE_UPDATE_LOCKED' as Permission);
+          } catch (e) {
+            // If they DON'T have SALE_UPDATE_LOCKED, they can only edit meta-fields
+            const { notes, paymentMethod, channel } = payload;
+            const updated = await db.sale.update({
+              where: { id },
+              data: {
+                notes: notes ?? sale.notes,
+                paymentMethod: paymentMethod ?? sale.paymentMethod,
+                channel: channel ?? sale.channel,
+              },
+            });
+            return serializeSaleSafe(updated, true);
+          }
         }
 
         const updated = await db.sale.update({
@@ -221,7 +239,7 @@ export const SaleService: ISaleService = {
           data: payload,
         });
 
-        return localSerializeSale(updated, true);
+        return serializeSaleSafe(updated, true);
       }
     );
   },
@@ -231,11 +249,11 @@ export const SaleService: ISaleService = {
   },
 
   async getList(params: GetSalesParams = {}, ctx: RequestContext, options: { canViewProfit?: boolean } = {}): Promise<PaginatedResult<SerializedSaleListItem>> {
-    Security.requirePermission(ctx, 'SALE_VIEW');
+    Security.require(ctx, Permission.SALE_VIEW);
     const { page = 1, limit = 20, search, startDate, endDate, paymentMethod, channel, status } = params;
     const { canViewProfit = false } = options;
 
-    if (canViewProfit) Security.requirePermission(ctx, 'SALE_VIEW_PROFIT');
+    if (canViewProfit) Security.require(ctx, 'SALE_VIEW_PROFIT' as any);
 
     const searchFilter = buildSearchFilter(search, ['invoiceNumber', 'customerName', 'notes']);
     const dateFilter = buildDateRangeFilter(startDate, endDate);
@@ -262,14 +280,14 @@ export const SaleService: ISaleService = {
 
     return {
       ...result,
-      data: result.data.map((sale: any) => localSerializeSale(sale, canViewProfit)),
+      data: result.data.map((sale: any) => serializeSaleSafe(sale, canViewProfit)),
     };
   },
 
   async getById(id: string, ctx: RequestContext, options: { canViewProfit?: boolean } = {}): Promise<SerializedSaleWithItems> {
-    Security.requirePermission(ctx, 'SALE_VIEW');
+    Security.require(ctx, Permission.SALE_VIEW);
     const { canViewProfit = false } = options;
-    if (canViewProfit) Security.requirePermission(ctx, 'SALE_VIEW_PROFIT');
+    if (canViewProfit) Security.require(ctx, Permission.SALE_VIEW_PROFIT);
 
     const sale = await db.sale.findFirst({
       where: { id, shopId: ctx.shopId },
@@ -289,14 +307,10 @@ export const SaleService: ISaleService = {
 
     if (!sale) throw new ServiceError('ไม่พบข้อมูลการขาย');
 
-    const serializedSale = localSerializeSale(sale, canViewProfit) as SerializedSaleWithItems;
+    const serializedSale = serializeSaleSafe(sale, canViewProfit) as SerializedSaleWithItems;
 
-    serializedSale.items = (sale as any).items.map((item: any) => {
+    serializedSale.items = (sale.items || []).map((item: any) => {
       const serializedItem = serializeSaleItem(item);
-      if (!canViewProfit) {
-        serializedItem.costPrice = 0;
-        serializedItem.profit = 0;
-      }
 
       let virtualStockStatus = 'ยังไม่จองสต็อก';
       if (sale.status === SaleStatus.CONFIRMED || sale.status === SaleStatus.INVOICED) {
@@ -306,22 +320,29 @@ export const SaleService: ISaleService = {
         virtualStockStatus = 'ตัดสต็อกแล้ว';
       }
 
-      if (item.product) {
-        (serializedItem as any).stockStatus = {
+      return {
+        ...serializedItem,
+        product: item.product ? {
+          id: item.product.id,
+          name: item.product.name,
+          sku: item.product.sku,
+        } : { id: item.productId, name: 'Unknown Product', sku: null },
+        stockStatus: item.product ? {
           onHand: item.product.stock,
           reserved: item.product.reservedStock,
           available: item.product.stock - item.product.reservedStock,
           statusLabel: virtualStockStatus,
-        };
-      }
-      return serializedItem;
-    });
+        } : undefined
+      };
+    }) as any;
 
     return serializedSale;
   },
 
   async getTodayAggregate(ctx: RequestContext, options: { canViewProfit?: boolean } = {}): Promise<{ totalSales: number; saleCount: number; profit?: number }> {
+    Security.require(ctx, Permission.SALE_VIEW);
     const { canViewProfit = false } = options;
+    if (canViewProfit) Security.require(ctx, Permission.SALE_VIEW_PROFIT);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
@@ -345,8 +366,9 @@ export const SaleService: ISaleService = {
   },
 
   async getRecentList(limit: number, ctx: RequestContext, options: { canViewProfit?: boolean } = {}): Promise<SerializedSale[]> {
-    Security.requirePermission(ctx, 'SALE_VIEW');
+    Security.require(ctx, Permission.SALE_VIEW);
     const { canViewProfit = false } = options;
+    if (canViewProfit) Security.require(ctx, Permission.SALE_VIEW_PROFIT);
 
     const sales = await db.sale.findMany({
       where: { shopId: ctx.shopId },
@@ -357,11 +379,11 @@ export const SaleService: ISaleService = {
       take: limit,
     });
 
-    return sales.map(sale => localSerializeSale(sale, canViewProfit));
+    return sales.map(sale => serializeSaleSafe(sale, canViewProfit));
   },
 
   async cancel(input: CancelSaleInput, ctx: RequestContext) {
-    Security.requirePermission(ctx, 'SALE_CANCEL');
+    Security.require(ctx, Permission.SALE_CANCEL);
     const { id, reasonCode, reasonDetail } = input;
 
     if (!reasonCode) throw new ServiceError('กรุณาเลือกเหตุผลในการยกเลิก');
@@ -386,6 +408,11 @@ export const SaleService: ISaleService = {
 
           if (!fullSale) throw new ServiceError('ไม่พบข้อมูลการขาย');
           if (fullSale.status === 'CANCELLED') throw new ServiceError('รายการนี้ถูกยกเลิกไปแล้ว');
+
+          // ERP Rule: Cannot cancel if document is locked (e.g. invoiced)
+          if ((fullSale as any).editLockStatus !== 'NONE') {
+            throw new ServiceError((fullSale as any).lockReason || 'เอกสารนี้ถูกล็อก ไม่สามารถยกเลิกได้');
+          }
 
           const linkedShipments = await prisma.shipment.findMany({
             where: { saleId: id, status: { not: 'CANCELLED' } },
@@ -445,8 +472,9 @@ export const SaleService: ISaleService = {
     );
   },
 
-  async verifyPayment(saleId: string, status: 'VERIFIED' | 'REJECTED', note: string | undefined, ctx: RequestContext) {
-    Security.requirePermission(ctx, 'PAYMENT_VERIFY');
+  async verifyPayment(saleId: string, legacyStatus: 'VERIFIED' | 'REJECTED', note: string | undefined, ctx: RequestContext) {
+    const status = legacyStatus === 'VERIFIED' ? 'PAID' : 'UNPAID';
+    Security.requirePermission(ctx, 'FINANCE_VIEW_LEDGER' as any);
     const existingSale = await db.sale.findFirst({ where: { id: saleId, shopId: ctx.shopId } });
 
     if (!existingSale) throw new ServiceError('ไม่พบรายการขาย');
@@ -462,8 +490,8 @@ export const SaleService: ISaleService = {
         return db.sale.update({
           where: { id: saleId },
           data: {
-            paymentStatus: status,
-            paymentVerifiedAt: new Date(),
+            paymentStatus: status as DocPaymentStatus,
+            paymentVerifiedAt: status === 'PAID' ? new Date() : null,
             paymentVerifiedBy: ctx.userId,
             paymentNote: note || null,
           },
@@ -478,7 +506,7 @@ export const SaleService: ISaleService = {
 
     await db.sale.update({
       where: { id: saleId },
-      data: { paymentProof: proofUrl, paymentStatus: 'PENDING' },
+      data: { paymentProof: proofUrl, paymentStatus: 'UNPAID' },
     });
   },
 
@@ -545,7 +573,7 @@ export const SaleService: ISaleService = {
           if (!fullSale) throw new ServiceError('ไม่พบรายการขาย');
           if (fullSale.status === SaleStatus.COMPLETED) return fullSale;
 
-          if (fullSale.paymentStatus === 'PENDING') {
+          if (fullSale.paymentStatus === 'UNPAID') {
             throw new ServiceError(
               'กรุณายืนยันการชำระเงินก่อนปิดการขาย',
               undefined,
@@ -554,7 +582,7 @@ export const SaleService: ISaleService = {
           }
 
           await Promise.all(fullSale.items.map(item =>
-            StockService.deductStock(item.productId, item.quantity, ctx, prisma)
+            StockService.deductStock(item.productId, item.quantity, ctx, prisma, { saleId })
           ));
 
           const updated = await prisma.sale.update({

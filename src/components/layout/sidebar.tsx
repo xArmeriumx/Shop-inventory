@@ -24,6 +24,7 @@ import {
   ClipboardList,
   CheckCircle2,
   PackageCheck,
+  ClipboardCheck,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -70,7 +71,14 @@ const navItems = [
     icon: RotateCcw,
     permission: 'RETURN_VIEW' as Permission,
   },
+  {
+    title: 'ใบแจ้งหนี้',
+    href: '/invoices',
+    icon: Receipt,
+    permission: 'SALE_VIEW' as Permission,
+  },
   // --- Inventory ---
+
   {
     title: 'สินค้า',
     href: '/products',
@@ -82,6 +90,12 @@ const navItems = [
     href: '/warehouse',
     icon: Truck,
     permission: 'STOCK_VIEW' as Permission,
+  },
+  {
+    title: 'ตรวจนับสต็อก',
+    href: '/inventory/stock-take',
+    icon: ClipboardCheck as any,
+    permission: 'STOCK_TAKE_VIEW' as Permission,
   },
   // --- Procurement ---
   {
@@ -100,7 +114,7 @@ const navItems = [
     title: 'ผู้จำหน่าย',
     href: '/suppliers',
     icon: Truck, // TODO: Use Building2?
-    permission: 'SUPPLIER_VIEW' as Permission,
+    permission: 'PURCHASE_VIEW' as Permission,
   },
   // --- CRM & Others ---
   {
@@ -139,7 +153,7 @@ const secondaryNavItems = [
     title: 'รายงาน',
     href: '/reports',
     icon: BarChart3,
-    permission: 'REPORT_VIEW' as Permission,
+    permission: 'REPORT_VIEW_SALES' as Permission,
   },
   {
     title: 'ตั้งค่า',

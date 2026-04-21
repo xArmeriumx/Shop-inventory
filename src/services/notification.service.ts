@@ -1,10 +1,10 @@
 import { db } from '@/lib/db';
 import type { Prisma } from '@prisma/client';
 
-export type NotificationType = 
-  | 'LOW_STOCK' 
-  | 'NEW_SALE' 
-  | 'PAYMENT_PENDING' 
+export type NotificationType =
+  | 'LOW_STOCK'
+  | 'NEW_SALE'
+  | 'PAYMENT_PENDING'
   | 'RETURN_CREATED'
   | 'STALE_DOCS'
   | 'GOVERNANCE_INCIDENT'
@@ -27,8 +27,9 @@ export interface CreateNotificationParams {
 }
 
 export const NotificationService = {
-  async create(params: CreateNotificationParams): Promise<void> {
+  async create(params: CreateNotificationParams, tx?: Prisma.TransactionClient): Promise<void> {
     try {
+      const client = tx || db;
       const {
         shopId,
         userId = null,
@@ -43,7 +44,7 @@ export const NotificationService = {
       } = params;
 
       if (groupKey) {
-        await db.notification.upsert({
+        await client.notification.upsert({
           where: { shopId_groupKey: { shopId, groupKey } },
           create: {
             shopId, userId, type, severity, title, message, link,
@@ -57,7 +58,7 @@ export const NotificationService = {
           },
         });
       } else {
-        await db.notification.create({
+        await client.notification.create({
           data: {
             shopId, userId, type, severity, title, message, link,
             metadata: (metadata ?? undefined) as Prisma.InputJsonValue | undefined,
@@ -70,9 +71,10 @@ export const NotificationService = {
     }
   },
 
-  async removeByGroupKey(shopId: string, groupKey: string): Promise<void> {
+  async removeByGroupKey(shopId: string, groupKey: string, tx?: Prisma.TransactionClient): Promise<void> {
     try {
-      await db.notification.deleteMany({
+      const client = tx || db;
+      await client.notification.deleteMany({
         where: { shopId, groupKey },
       });
     } catch (error) {
@@ -161,8 +163,8 @@ export const NotificationService = {
       }),
       // 3. Shipment พิกัดไม่ครบ
       db.shipment.count({
-        where: { 
-          shopId, 
+        where: {
+          shopId,
           status: { notIn: ['CANCELLED', 'DELIVERED'] },
           OR: [{ latitude: null }, { longitude: null }]
         }

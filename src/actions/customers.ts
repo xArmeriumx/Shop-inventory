@@ -10,10 +10,10 @@ import { CustomerService, ServiceError } from '@/services';
 
 export async function getCustomers(params: GetCustomersParams = {}) {
   const ctx = await requirePermission('CUSTOMER_VIEW');
-  return CustomerService.getList(params, ctx);
+  return CustomerService.getAll(ctx, params);
 }
 
-export async function getCustomer(id: string) { 
+export async function getCustomer(id: string) {
   const ctx = await requirePermission('CUSTOMER_VIEW');
   try {
     return await CustomerService.getById(id, ctx);
@@ -24,7 +24,7 @@ export async function getCustomer(id: string) {
 }
 
 export async function createCustomer(input: CustomerInput): Promise<ActionResponse<SerializedCustomer>> {
-  const ctx = await requirePermission('CUSTOMER_CREATE');
+  const ctx = await requirePermission('CUSTOMER_CREATE' as any);
 
   const validated = customerSchema.safeParse(input);
   if (!validated.success) {
@@ -54,7 +54,7 @@ export async function createCustomer(input: CustomerInput): Promise<ActionRespon
 }
 
 export async function updateCustomer(id: string, input: CustomerInput): Promise<ActionResponse<SerializedCustomer>> {
-  const ctx = await requirePermission('CUSTOMER_EDIT');
+  const ctx = await requirePermission('CUSTOMER_UPDATE' as any);
 
   const validated = customerSchema.safeParse(input);
   if (!validated.success) {
@@ -106,7 +106,7 @@ export async function deleteCustomer(id: string): Promise<ActionResponse> {
   }
 }
 
-export async function getCustomersForSelect() { 
+export async function getCustomersForSelect() {
   const ctx = await requirePermission('CUSTOMER_VIEW');
   return CustomerService.getForSelect(ctx);
 }

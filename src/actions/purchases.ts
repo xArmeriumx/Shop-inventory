@@ -9,8 +9,10 @@ import {
   type GetPurchasesParams,
   type CancelPurchaseInput,
 } from '@/services';
+import { serialize } from '@/lib/utils';
 import type { ActionResponse } from '@/types/domain';
 import { SerializedPurchase } from '@/types/serialized';
+
 
 // =============================================================================
 // PURCHASE LIST & DETAIL
@@ -18,13 +20,17 @@ import { SerializedPurchase } from '@/types/serialized';
 
 export async function getPurchases(params: GetPurchasesParams = {}) {
   const ctx = await requirePermission('PURCHASE_VIEW');
-  return PurchaseService.getList(params, ctx);
+  const result = await PurchaseService.getList(params, ctx);
+  return serialize(result);
 }
+
 
 export async function getPurchase(id: string) {
   const ctx = await requirePermission('PURCHASE_VIEW');
-  return PurchaseService.getById(id, ctx);
+  const result = await PurchaseService.getById(id, ctx);
+  return serialize(result);
 }
+
 
 // =============================================================================
 // PURCHASE OPERATIONS
@@ -47,8 +53,9 @@ export async function createPurchase(input: PurchaseInput): Promise<ActionRespon
     revalidatePath('/purchases');
     revalidatePath('/products');
     revalidatePath('/dashboard');
-    return { success: true, message: 'บันทึกการสั่งซื้อสำเร็จ', data: purchase };
+    return serialize({ success: true, message: 'บันทึกการสั่งซื้อสำเร็จ', data: purchase });
   } catch (error: unknown) {
+
     return handleActionError(error, 'เกิดข้อผิดพลาดในการบันทึกการสั่งซื้อ', { path: 'createPurchase', userId: ctx.userId });
   }
 }
@@ -70,7 +77,7 @@ export async function createPurchaseRequest(input: PurchaseInput): Promise<Actio
 }
 
 export async function approvePurchaseRequest(id: string): Promise<ActionResponse> {
-  const ctx = await requirePermission('PURCHASE_APPROVE');
+  const ctx = await requirePermission('APPROVAL_ACTION');
   try {
     await PurchaseService.approveRequest(id, ctx);
     revalidatePath('/purchases');
@@ -94,7 +101,7 @@ export async function convertToPurchaseOrder(id: string): Promise<ActionResponse
 }
 
 export async function cancelPurchase(input: CancelPurchaseInput): Promise<ActionResponse> {
-  const ctx = await requirePermission('PURCHASE_CANCEL');
+  const ctx = await requirePermission('PURCHASE_VOID');
   try {
     await PurchaseService.cancel(input, ctx);
     revalidatePath('/purchases');

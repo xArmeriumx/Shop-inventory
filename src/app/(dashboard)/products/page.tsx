@@ -9,6 +9,7 @@ import { ProductsTable } from '@/components/products/products-table';
 import { ProductsToolbar } from '@/components/products/products-toolbar';
 import { ProductImportButton } from '@/components/products/product-import-button';
 import { Guard } from '@/components/auth/guard';
+import { StartStockTakeButton } from '@/components/products/start-stock-take-button';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -32,6 +33,9 @@ async function ProductsContent({ searchParams }: ProductsPageProps) {
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <StartStockTakeButton productIds={products.map(p => p.id)} />
+      </div>
       <ProductsToolbar search={search} category={category} />
       <ProductsTable products={products} pagination={pagination} />
     </div>

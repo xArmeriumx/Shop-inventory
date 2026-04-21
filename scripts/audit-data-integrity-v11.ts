@@ -6,9 +6,7 @@
  *
  * ── Cancel Lifecycle Integrity ──
  *   1.  Cancelled sale: total SALE_CANCEL stock restored vs expected
- *       (cancelSale deducts alreadyReturned, so restore = sold − returned)
  *   2.  Cancelled purchase: total PURCHASE_CANCEL stock deducted vs expected
- *       (cancelPurchase deducts full item quantity)
  *   3.  Cancelled sale still has cancelledAt/cancelledBy/cancelReason filled
  *   4.  Active sale has cancelledAt set (should be null)
  *
@@ -18,22 +16,13 @@
  *   7.  LookupValue cross-shop: LookupValue.shopId ≠ Product.shopId for categoryRef
  *
  * ── Multi-Default Constraint ──
- *   8.  Multiple isDefault CustomerAddress per customer
+ *   8.  Multiple isDefault PartnerAddress per customer
  *   9.  Multiple isDefault LookupValue per type+shop
  *
  * ── Financial Edge Cases ──
  *  10.  Sale discountAmount > totalAmount (discount exceeds pre-discount total)
  *  11.  Sale with discountType but discountValue = 0 or null (invalid combo)
  *  12.  Product salePrice < costPrice (selling below cost — INFO only)
- *
- * Verified against:
- *   - cancelSale (sales.ts L497-635): deducts alreadyReturned from restoreQty
- *   - cancelPurchase (purchases.ts L291-420): PURCHASE_CANCEL = -item.quantity
- *   - StockService.recordMovement: atomic increment, balance snapshot
- *   - Schema: CustomerAddress.isDefault, LookupValue.isDefault
- *   - Schema: Sale.discountType, discountValue, discountAmount, netAmount
- *
- * Cumulative: v1-v10(158) + v11(12) = 170 checks
  *
  * Usage:
  *   npx tsx scripts/audit-data-integrity-v11.ts
@@ -67,8 +56,6 @@ function endCheck(issues: number) {
 
 // =====================================================================
 // 1. Cancelled sale: SALE_CANCEL stock restored vs expected
-//    cancelSale: restoreQty = item.quantity - alreadyReturned
-//    So SUM(SALE_CANCEL qty for this sale) should = SUM(item.qty - returned)
 // =====================================================================
 async function checkCancelledSaleStockRestoreAmount() {
   startCheck('Cancelled sale: SALE_CANCEL restore qty vs expected');
@@ -95,7 +82,6 @@ async function checkCancelledSaleStockRestoreAmount() {
 
   let issues = 0;
   for (const sale of cancelledSales) {
-    // Expected total restore = sum of (item.qty - alreadyReturned) for items with restoreQty > 0
     let expectedRestore = 0;
     for (const item of sale.items) {
       const alreadyReturned = item.returnItems.reduce((s, r) => s + r.quantity, 0);
@@ -103,7 +89,6 @@ async function checkCancelledSaleStockRestoreAmount() {
       if (restoreQty > 0) expectedRestore += restoreQty;
     }
 
-    // Actual restore from StockLogs (SALE_CANCEL quantities are positive)
     const actualRestore = sale.stockLogs.reduce((s, l) => s + l.quantity, 0);
 
     if (expectedRestore !== actualRestore) {
@@ -121,8 +106,6 @@ async function checkCancelledSaleStockRestoreAmount() {
 
 // =====================================================================
 // 2. Cancelled purchase: PURCHASE_CANCEL stock deducted vs expected
-//    cancelPurchase: each item creates PURCHASE_CANCEL with -item.quantity
-//    SUM(PURCHASE_CANCEL qty) should = -SUM(item.qty) = negative total
 // =====================================================================
 async function checkCancelledPurchaseStockDeductAmount() {
   startCheck('Cancelled purchase: PURCHASE_CANCEL deduct qty vs expected');
@@ -303,16 +286,16 @@ async function checkProductCategoryRefCrossShop() {
 }
 
 // =====================================================================
-// 8. Multiple isDefault CustomerAddress per customer
+// 8. Multiple isDefault PartnerAddress per customer
 // =====================================================================
 async function checkMultipleDefaultAddresses() {
-  startCheck('Customers with multiple isDefault=true addresses');
+  startCheck('Customers with multiple isDefaultBilling=true addresses');
 
   const dupes: Array<{ customerId: string; cnt: bigint }> = await prisma.$queryRaw`
     SELECT ca."customerId", COUNT(*) as cnt
-    FROM "CustomerAddress" ca
+    FROM "PartnerAddress" ca
     JOIN "Customer" c ON c.id = ca."customerId"
-    WHERE ca."isDefault" = true
+    WHERE ca."isDefaultBilling" = true
       AND ca."deletedAt" IS NULL
       AND c."deletedAt" IS NULL
     GROUP BY ca."customerId"
@@ -327,7 +310,7 @@ async function checkMultipleDefaultAddresses() {
       select: { name: true },
     });
     console.log(
-      `\n    ⚠️  Customer "${customer?.name}": ${d.cnt} addresses marked isDefault=true`
+      `\n    ⚠️  Customer "${customer?.name}": ${d.cnt} addresses marked isDefaultBilling=true`
     );
   }
   endCheck(issues);
@@ -365,7 +348,6 @@ async function checkMultipleDefaultLookups() {
 
 // =====================================================================
 // 10. Sale discountAmount > totalAmount
-//     (createSale caps this, but check for corrupted data)
 // =====================================================================
 async function checkDiscountExceedsTotal() {
   startCheck('Sales where discountAmount > totalAmount');
@@ -395,7 +377,6 @@ async function checkDiscountExceedsTotal() {
 
 // =====================================================================
 // 11. Sale with discountType set but discountValue = 0/null
-//     (inconsistent: says PERCENT/FIXED but no value)
 // =====================================================================
 async function checkDiscountTypeNoValue() {
   startCheck('Sales with discountType but discountValue = 0 or null');
@@ -452,21 +433,15 @@ async function checkSalePriceBelowCost() {
   }
   if (count > 5) console.log(`\n    ... and ${count - 5} more`);
   if (count > 0) console.log(`\n    ℹ️  ${count} product(s) — may be intentional (promotions, clearance)`);
-  // INFO only, don't count as issues
   endCheck(0);
 }
 
-// =====================================================================
-// Main
-// =====================================================================
 async function main() {
   console.log('');
-  console.log('🔬 Data Integrity & Leak Audit v11');
+  console.log('🔬 Data Integrity & Leak Audit v11 (Unified Partner Infrastructure)');
   console.log('══════════════════════════════════════════');
   console.log('');
 
-  // --- Cancel Lifecycle ---
-  console.log('🚫 Cancel Lifecycle Integrity');
   await checkCancelledSaleStockRestoreAmount();
   await checkCancelledPurchaseStockDeductAmount();
   await checkCancelledSaleMetadata();
@@ -474,28 +449,21 @@ async function main() {
 
   console.log('');
 
-  // --- Shop RBAC ---
-  console.log('🔐 Shop RBAC & Ownership');
   await checkShopWithoutOwner();
   await checkShopMultipleOwners();
   await checkProductCategoryRefCrossShop();
 
   console.log('');
 
-  // --- Multi-Default Constraint ---
-  console.log('🎯 Uniqueness Constraints');
   await checkMultipleDefaultAddresses();
   await checkMultipleDefaultLookups();
 
   console.log('');
 
-  // --- Financial Edge Cases ---
-  console.log('💰 Financial Edge Cases');
   await checkDiscountExceedsTotal();
   await checkDiscountTypeNoValue();
   await checkSalePriceBelowCost();
 
-  // --- Summary ---
   console.log('');
   console.log('══════════════════════════════════════════');
   if (totalIssues === 0) {
@@ -505,9 +473,6 @@ async function main() {
   }
 
   console.log('');
-  console.log('📊 Cumulative: v1-v10(158) + v11(12) = 170 checks');
-  console.log('');
-
   await prisma.$disconnect();
 }
 

@@ -1,7 +1,9 @@
 "use server";
 
 import { requirePermission } from "@/lib/auth-guard";
+import { serialize } from "@/lib/utils";
 import { DashboardService } from "@/services";
+
 import { logger } from "@/lib/logger";
 import { isDynamicServerError } from "@/lib/next-utils";
 
@@ -16,12 +18,13 @@ export async function getDashboardStats() {
       DashboardService.getDashboardStats(ctx),
       DashboardService.getOperationalMetrics(ctx),
     ]);
-    return { ...stats, operational };
+    return serialize({ ...stats, operational });
   } catch (error) {
+
     if (!isDynamicServerError(error) && !(error instanceof Error && error.message.includes('NEXT_REDIRECT'))) {
       console.error('[Action: getDashboardStats] Failed:', error);
     }
-    
+
     // Return safe default shape for UI
     return {
       todaySales: { revenue: 0, salesRevenue: 0, incomeRevenue: 0, profit: 0, count: 0, incomeCount: 0 },
@@ -33,12 +36,12 @@ export async function getDashboardStats() {
       pendingShipments: 0,
       todayExpenses: { total: 0, count: 0 },
       stockValue: { total: 0, itemCount: 0 },
-      governanceHealth: { 
-        auditWriteFailures: 0, 
-        permissionDeniedCount: 0, 
-        rateLimitExceededCount: 0, 
-        lastIncidentAt: null, 
-        status: 'HEALTHY' 
+      governanceHealth: {
+        auditWriteFailures: 0,
+        permissionDeniedCount: 0,
+        rateLimitExceededCount: 0,
+        lastIncidentAt: null,
+        status: 'HEALTHY'
       },
       operational: {
         sme: { pendingSales: 0, pendingProcurement: 0, pendingShipments: 0, recentStockMoves: [] },
@@ -53,20 +56,22 @@ export async function getDashboardStats() {
  */
 export async function getMonthlyStats() {
   try {
-    const ctx = await requirePermission("SALE_VIEW");
-    return await DashboardService.getMonthlyStats(ctx);
+    const ctx = await requirePermission("SALE_VIEW" as any);
+    const result = await DashboardService.getMonthlyStats(ctx);
+    return serialize(result);
   } catch (error) {
+
     if (!isDynamicServerError(error) && !(error instanceof Error && error.message.includes('NEXT_REDIRECT'))) {
       console.error('[Action: getMonthlyStats] Failed:', error);
     }
-    
-    return { 
-      revenue: 0, 
-      salesRevenue: 0, 
-      incomeRevenue: 0, 
-      profit: 0, 
-      count: 0, 
-      incomeCount: 0 
+
+    return {
+      revenue: 0,
+      salesRevenue: 0,
+      incomeRevenue: 0,
+      profit: 0,
+      count: 0,
+      incomeCount: 0
     };
   }
 }
@@ -76,9 +81,11 @@ export async function getMonthlyStats() {
  */
 export async function getSalesChartData(days = 7) {
   try {
-    const ctx = await requirePermission("SALE_VIEW");
-    return await DashboardService.getSalesChartData(days, ctx);
+    const ctx = await requirePermission("SALE_VIEW" as any);
+    const result = await DashboardService.getSalesChartData(days, ctx);
+    return serialize(result);
   } catch (error) {
+
     if (!isDynamicServerError(error) && !(error instanceof Error && error.message.includes('NEXT_REDIRECT'))) {
       console.error('[Action: getSalesChartData] Failed:', error);
     }

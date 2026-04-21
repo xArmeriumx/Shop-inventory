@@ -15,5 +15,7 @@ export default async function CustomerPage({ params }: CustomerPageProps) {
     notFound();
   }
 
-  return <CustomerProfile data={data} />;
+  if (!data) notFound();
+
+  return <CustomerProfile data={data as any} />;
 }

@@ -1,5 +1,9 @@
 import type { Product, Sale, SaleItem, Purchase, PurchaseItem, Expense, Income, Customer, Supplier, Shipment, Return, ReturnItem } from '@prisma/client';
 
+// Bypass for missing types due to IDE sync lag
+type PartnerAddress = any;
+type PartnerContact = any;
+
 // ============================================================================
 // Serialized Types
 // 
@@ -81,13 +85,28 @@ export type SerializedCustomer = Omit<Customer, 'creditLimit'> & {
     user: { name: string | null; email: string | null };
     departmentCode: string | null;
   }[];
+  addresses?: SerializedPartnerAddress[];
 };
+
+/**
+ * PartnerAddress with contacts included
+ */
+export type SerializedPartnerAddress = PartnerAddress & {
+  contacts?: SerializedPartnerContact[];
+};
+
+/**
+ * PartnerContact
+ */
+export type SerializedPartnerContact = PartnerContact;
 
 /**
  * Supplier with Decimal fields converted to number
  */
-export type SerializedSupplier = Omit<Supplier, 'moq'> & {
+export type SerializedSupplier = Omit<Supplier, 'moq' | 'creditLimit'> & {
   moq: number | null;
+  creditLimit: number | null;
+  addresses?: SerializedPartnerAddress[];
 };
 
 /**

@@ -15,6 +15,11 @@ import { createSupplier, updateSupplier } from '@/actions/suppliers';
 import { supplierFormSchema, getSupplierFormDefaults } from '@/schemas/supplier-form';
 import type { SupplierFormValues } from '@/schemas/supplier-form';
 
+import { PartnerIdentitySection } from '../shared/partners/partner-identity-section';
+import { PartnerFinancialSection } from '../shared/partners/partner-financial-section';
+import { PartnerAddressSection } from '../shared/partners/partner-address-section';
+import { SafeBoundary } from '@/components/ui/safe-boundary';
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -49,24 +54,13 @@ export function SupplierForm({ supplier }: SupplierFormProps) {
     defaultValues: getSupplierFormDefaults(supplier),
   });
 
-  const { handleSubmit, setError, register } = methods;
+  const { handleSubmit, setError } = methods;
 
   function onSubmit(data: SupplierFormValues) {
-    const payload = {
-      ...data,
-      code: data.code || null,
-      contactName: data.contactName || null,
-      phone: data.phone || null,
-      email: data.email || null,
-      address: data.address || null,
-      taxId: data.taxId || null,
-      notes: data.notes || null,
-    };
-
     startTransition(async () => {
       const result = isEdit
-        ? await updateSupplier(supplier.id, payload)
-        : await createSupplier(payload);
+        ? await updateSupplier(supplier.id, data as any)
+        : await createSupplier(data as any);
 
       if (!result.success) {
         if (result.errors && typeof result.errors === 'object') {
@@ -90,75 +84,52 @@ export function SupplierForm({ supplier }: SupplierFormProps) {
 
   return (
     <FormProvider {...methods}>
-      <Card>
-        <CardContent className="pt-6">
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            {methods.formState.errors.root && (
-              <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-                {methods.formState.errors.root.message}
-              </div>
-            )}
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-8 pb-20">
+        {methods.formState.errors.root && (
+          <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+            {methods.formState.errors.root.message}
+          </div>
+        )}
 
-            {/* Identity Section */}
-            <div className="grid gap-4 sm:grid-cols-2">
-              <FormField name="name" label="ชื่อผู้จำหน่าย" required className="sm:col-span-2">
-                <Input id="name" {...register('name')} placeholder="ชื่อบริษัท หรือชื่อผู้จำหน่าย" maxLength={200} />
-              </FormField>
+        <div className="grid gap-8">
+          <Card>
+            <CardContent className="pt-6">
+              <SafeBoundary variant="compact" componentName="SupplierIdentity">
+                <PartnerIdentitySection type="SUPPLIER" />
+              </SafeBoundary>
+            </CardContent>
+          </Card>
 
-              <FormField name="code" label="รหัสผู้จำหน่าย" hint="เช่น SUP001">
-                <Input id="code" {...register('code')} placeholder="SUP001" maxLength={50} />
-              </FormField>
+          <Card>
+            <CardContent className="pt-6">
+              <SafeBoundary variant="compact" componentName="SupplierFinancial">
+                <PartnerFinancialSection type="SUPPLIER" />
+              </SafeBoundary>
+            </CardContent>
+          </Card>
 
-              <FormField name="contactName" label="ชื่อผู้ติดต่อ">
-                <Input id="contactName" {...register('contactName')} placeholder="ชื่อ-นามสกุล" maxLength={100} />
-              </FormField>
+          <SafeBoundary variant="compact" componentName="SupplierAddress">
+            <PartnerAddressSection />
+          </SafeBoundary>
+        </div>
 
-              <FormField name="phone" label="เบอร์โทร" hint="เช่น 0812345678">
-                <Input id="phone" {...register('phone')} placeholder="เช่น 0812345678" maxLength={10} inputMode="numeric" />
-              </FormField>
-
-              <FormField name="email" label="อีเมล">
-                <Input id="email" type="email" {...register('email')} placeholder="email@example.com" maxLength={254} />
-              </FormField>
-
-              <FormField name="address" label="ที่อยู่" className="sm:col-span-2">
-                <textarea
-                  id="address"
-                  {...register('address')}
-                  placeholder="ที่อยู่บริษัท"
-                  rows={2}
-                  maxLength={500}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                />
-              </FormField>
-
-              <FormField name="taxId" label="เลขประจำตัวผู้เสียภาษี" hint="เลข 13 หลัก">
-                <Input id="taxId" {...register('taxId')} placeholder="เลข 13 หลัก" maxLength={13} inputMode="numeric" />
-              </FormField>
-
-              <FormField name="notes" label="หมายเหตุ" className="sm:col-span-2">
-                <textarea
-                  id="notes"
-                  {...register('notes')}
-                  placeholder="บันทึกเพิ่มเติม"
-                  rows={2}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                />
-              </FormField>
-            </div>
-
-            {/* Action Bar */}
-            <div className="flex gap-2 pt-4 border-t">
-              <Button type="submit" disabled={isPending} className="px-8">
-                {isPending ? 'กำลังบันทึก...' : isEdit ? 'บันทึกการแก้ไข' : 'เพิ่มผู้จำหน่าย'}
-              </Button>
-              <Button type="button" variant="outline" onClick={() => router.back()}>
-                ยกเลิก
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
+        {/* Rule 7: Sticky Action Bar */}
+        <div className="fixed bottom-0 left-0 right-0 md:left-64 bg-background/80 backdrop-blur-md border-t p-4 flex items-center justify-end gap-3 z-50">
+          <div className="container max-w-5xl flex justify-end gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.back()}
+              disabled={isPending}
+            >
+              ยกเลิก
+            </Button>
+            <Button type="submit" disabled={isPending} className="px-8 shadow-lg shadow-primary/20">
+              {isPending ? 'กำลังบันทึก...' : isEdit ? 'บันทึกการแก้ไข' : 'เพิ่มผู้จำหน่าย'}
+            </Button>
+          </div>
+        </div>
+      </form>
     </FormProvider>
   );
 }

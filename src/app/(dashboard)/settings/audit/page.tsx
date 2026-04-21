@@ -7,7 +7,7 @@ import { BackPageHeader } from '@/components/ui/back-page-header';
 import Loading from '@/app/(dashboard)/loading';
 
 export default async function AuditSettingsPage() {
-  await requirePermission('TEAM_EDIT');
+  await requirePermission('SETTINGS_ROLES');
 
   return (
     <div className="space-y-6">

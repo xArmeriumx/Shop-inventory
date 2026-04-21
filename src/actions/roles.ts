@@ -8,12 +8,12 @@ export type { RoleInput } from '@/services';
 import { IamService, type RoleInput, ServiceError } from '@/services';
 
 export async function getRoles() {
-  const ctx = await requirePermission('TEAM_VIEW');
+  const ctx = await requirePermission('SETTINGS_ROLES');
   return IamService.getRoles(ctx);
 }
 
 export async function getRole(id: string) {
-  const ctx = await requirePermission('TEAM_VIEW');
+  const ctx = await requirePermission('SETTINGS_ROLES');
   try {
     return await IamService.getRole(id, ctx);
   } catch (error: unknown) {
@@ -23,7 +23,7 @@ export async function getRole(id: string) {
 }
 
 export async function createRole(input: RoleInput): Promise<ActionResponse<{ id: string }>> {
-  const ctx = await requirePermission('TEAM_EDIT');
+  const ctx = await requirePermission('SETTINGS_ROLES');
 
   try {
     const role = await IamService.createRole(input, ctx);
@@ -38,7 +38,7 @@ export async function createRole(input: RoleInput): Promise<ActionResponse<{ id:
 }
 
 export async function updateRole(id: string, input: RoleInput): Promise<ActionResponse> {
-  const ctx = await requirePermission('TEAM_EDIT');
+  const ctx = await requirePermission('SETTINGS_ROLES');
 
   try {
     await IamService.updateRole(id, input, ctx);
@@ -53,7 +53,7 @@ export async function updateRole(id: string, input: RoleInput): Promise<ActionRe
 }
 
 export async function deleteRole(id: string): Promise<ActionResponse> {
-  const ctx = await requirePermission('TEAM_EDIT');
+  const ctx = await requirePermission('SETTINGS_ROLES');
 
   try {
     await IamService.deleteRole(id, ctx);

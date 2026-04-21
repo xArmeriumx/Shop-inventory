@@ -44,7 +44,7 @@ export function InviteMemberDialog({ roles }: InviteMemberDialogProps) {
   const [error, setError] = useState('');
   const { hasPermission } = usePermissions();
   
-  const canInvite = hasPermission('TEAM_INVITE');
+  const canInvite = hasPermission('SETTINGS_ROLES');
 
   if (!canInvite) {
     return null;

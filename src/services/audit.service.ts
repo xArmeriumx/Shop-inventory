@@ -24,27 +24,26 @@ export const AUDIT_ACTIONS = {
   SALE_UPDATE: 'SALE_UPDATE',
   SALE_CANCEL: 'SALE_CANCEL',
   SALE_PAYMENT: 'SALE_PAYMENT',
-  
+
   // Inventory
   STOCK_ADJUST: 'STOCK_ADJUST',
   STOCK_TRANSFER: 'STOCK_TRANSFER',
   PRODUCT_UPDATE: 'PRODUCT_UPDATE',
-  
+
   // Logistics
   SHIPMENT_CREATE: 'SHIPMENT_CREATE',
   SHIPMENT_UPDATE: 'SHIPMENT_UPDATE',
   SHIPMENT_STATUS: 'SHIPMENT_STATUS',
   ROUTE_PROCESS: 'ROUTE_PROCESS',
-  
+
   // Shop & Settings
   SHOP_UPDATE: 'SHOP_UPDATE',
   SETTINGS_UPDATE: 'SETTINGS_UPDATE',
-  
+
   // Security & IAM
   PERMISSION_DENIED: 'PERMISSION_DENIED',
   IAM_REVOKE_SESSIONS: 'IAM_REVOKE_SESSIONS',
-  TEAM_INVITE: 'TEAM_INVITE',
-  TEAM_REMOVE: 'TEAM_REMOVE',
+  SETTINGS_ROLES: 'SETTINGS_ROLES',
   TEAM_ROLE_UPDATE: 'TEAM_ROLE_UPDATE',
   ROLE_CREATE: 'ROLE_CREATE',
   ROLE_UPDATE: 'ROLE_UPDATE',
@@ -56,7 +55,7 @@ export const AUDIT_ACTIONS = {
 // ============================================================================
 
 export interface AuditLogParams {
-  /** Action code e.g. "SALE_CREATE", "TEAM_INVITE", "PERMISSION_DENIED" */
+  /** Action code e.g. "SALE_CREATE", "SETTINGS_ROLES", "PERMISSION_DENIED" */
   action: string;
   /** SUCCESS (default) or DENIED or FAILED */
   status?: AuditStatus;
@@ -207,7 +206,7 @@ export const AuditService = {
    * Log a business action with before/after snapshots.
    * Must NEVER throw — always best-effort.
    */
-  async log(ctx: { userId: string; shopId?: string; userName?: string; userEmail?: string }, params: AuditLogParams): Promise<void> {
+  async log(ctx: { userId: string; shopId?: string; userName?: string; userEmail?: string }, params: AuditLogParams, tx?: any): Promise<void> {
     const {
       action,
       status = AUDIT_STATUS.SUCCESS,
@@ -228,7 +227,8 @@ export const AuditService = {
     const finalNote = note || details || null;
 
     try {
-      await db.auditLog.create({
+      const client = tx || db;
+      await client.auditLog.create({
         data: {
           shopId: ctx.shopId,
           actorUserId: ctx.userId ?? null,
@@ -250,7 +250,7 @@ export const AuditService = {
       if (status === AUDIT_STATUS.DENIED) {
         internalMetrics.permissionDeniedCount++;
         internalMetrics.lastIncidentAt = new Date();
-        
+
         // Trigger Proactive Alert (Phase 5)
         if (ctx.shopId) {
           NotificationService.create({
@@ -283,12 +283,13 @@ export const AuditService = {
   async runWithAudit<T>(
     ctx: RequestContext,
     config: RunWithAuditConfig<T>,
-    execute: () => Promise<T>
+    execute: () => Promise<T>,
+    tx?: any
   ): Promise<T> {
     const { action, targetType, category, allowlist, resolveTargetId, note, details, resourceId } = config;
     const beforeFn = config.beforeSnapshot || config.getBefore;
     const afterFn = config.afterSnapshot || config.getAfter;
-    
+
     let targetTypeVal = targetType || category || 'Unknown';
     let targetId = config.targetId || resourceId;
     let noteVal = note || details;
@@ -323,13 +324,13 @@ export const AuditService = {
           logger.warn('[AuditService] Failed to capture after snapshot', { action, err });
         }
       }
- else if (allowlist) {
+      else if (allowlist) {
         // Fallback: try to pick from the result directly if it's the entity
         afterSnapshot = pickAuditFields(result, allowlist);
       }
 
-      // 5. Best-effort Success Log
-      AuditService.log(ctx, {
+      // 5. Success Log (Await to ensure it stays in transaction if provided)
+      await AuditService.log(ctx, {
         action,
         status: AUDIT_STATUS.SUCCESS,
         targetType: targetTypeVal,
@@ -337,12 +338,12 @@ export const AuditService = {
         beforeSnapshot,
         afterSnapshot: sanitizeSnapshot(afterSnapshot) as any,
         note: noteVal,
-      }).catch(err => logger.error('[AuditService] Async success log failed', err));
+      }, tx).catch(err => logger.error('[AuditService] success log failed', err));
 
       return result;
     } catch (error: any) {
-      // 6. Best-effort Failure Log
-      AuditService.log(ctx, {
+      // 6. Failure Log
+      await AuditService.log(ctx, {
         action,
         status: AUDIT_STATUS.FAILED,
         targetType,
@@ -350,7 +351,7 @@ export const AuditService = {
         beforeSnapshot,
         reason: error.message || 'Unknown error',
         note,
-      }).catch(err => logger.error('[AuditService] Async failure log failed', err));
+      }, tx).catch(err => logger.error('[AuditService] failure log failed', err));
 
       // 7. Rethrow original error (Safety Rule)
       throw error;
@@ -477,8 +478,8 @@ export const AuditService = {
       // 3. Top actors by sensitive actions (last 30 days)
       db.auditLog.groupBy({
         by: ['actorUserId'],
-        where: { 
-          shopId, 
+        where: {
+          shopId,
           action: { in: ['ROLE_UPDATE', 'USER_INVITE', 'USER_REMOVE', 'IAM_REVOKE_ALL_SESSIONS', 'SETTINGS_SHOP_UPDATE'] },
           createdAt: { gte: thirtyDaysAgo }
         },

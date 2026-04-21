@@ -33,7 +33,7 @@ export const IamService: IIamService = {
   // --- QUERIES ---
   // ============================================================================
   async getRoles(ctx: RequestContext) {
-    Security.requirePermission(ctx, 'TEAM_VIEW');
+    Security.requirePermission(ctx, 'SETTINGS_ROLES');
     if (!ctx.shopId) return [];
 
     return db.role.findMany({
@@ -49,7 +49,7 @@ export const IamService: IIamService = {
   },
 
   async getRole(id: string, ctx: RequestContext): Promise<any> {
-    Security.requirePermission(ctx, 'TEAM_VIEW');
+    Security.requirePermission(ctx, 'SETTINGS_ROLES');
     const role = await db.role.findFirst({
       where: { id, shopId: ctx.shopId },
       include: {
@@ -71,7 +71,7 @@ export const IamService: IIamService = {
   // ============================================================================
 
   async createRole(input: RoleInput, ctx: RequestContext): Promise<{ id: string }> {
-    Security.requirePermission(ctx, 'TEAM_EDIT');
+    Security.requirePermission(ctx, 'SETTINGS_ROLES');
     if (!ctx.shopId) throw new ServiceError('ไม่พบข้อมูลร้านค้า');
 
     return AuditService.runWithAudit(
@@ -105,7 +105,7 @@ export const IamService: IIamService = {
   },
 
   async updateRole(id: string, input: RoleInput, ctx: RequestContext): Promise<void> {
-    Security.requirePermission(ctx, 'TEAM_EDIT');
+    Security.requirePermission(ctx, 'SETTINGS_ROLES');
     
     const existing = await db.role.findFirst({
       where: { id, shopId: ctx.shopId },
@@ -149,7 +149,7 @@ export const IamService: IIamService = {
   },
 
   async deleteRole(id: string, ctx: RequestContext): Promise<void> {
-    Security.requirePermission(ctx, 'TEAM_EDIT');
+    Security.requirePermission(ctx, 'SETTINGS_ROLES');
 
     const role = await db.role.findFirst({
       where: { id, shopId: ctx.shopId },
@@ -178,7 +178,7 @@ export const IamService: IIamService = {
   // TEAM
   // ============================================================================
   async getTeamMembers(ctx: RequestContext) {
-    Security.requirePermission(ctx, 'TEAM_VIEW');
+    Security.requirePermission(ctx, 'SETTINGS_ROLES');
     if (!ctx.shopId) return [];
 
     return db.shopMember.findMany({
@@ -208,7 +208,7 @@ export const IamService: IIamService = {
   },
 
   async updateMemberRole(memberId: string, roleId: string, ctx: RequestContext): Promise<void> {
-    Security.requirePermission(ctx, 'TEAM_EDIT');
+    Security.requirePermission(ctx, 'SETTINGS_ROLES');
     if (!ctx.shopId) throw new ServiceError('ไม่พบข้อมูลร้านค้า');
 
     const member = await db.shopMember.findFirst({
@@ -242,7 +242,7 @@ export const IamService: IIamService = {
   },
 
   async removeMember(memberId: string, ctx: RequestContext): Promise<void> {
-    Security.requirePermission(ctx, 'TEAM_REMOVE');
+    Security.requirePermission(ctx, 'SETTINGS_ROLES');
     if (!ctx.shopId) throw new ServiceError('ไม่พบข้อมูลร้านค้า');
 
     const member = await db.shopMember.findFirst({
@@ -267,7 +267,7 @@ export const IamService: IIamService = {
   },
 
   async inviteMember(input: InviteMemberInput, ctx: RequestContext): Promise<void> {
-    Security.requirePermission(ctx, 'TEAM_INVITE');
+    Security.requirePermission(ctx, 'SETTINGS_ROLES');
     if (!ctx.shopId) throw new ServiceError('ไม่พบข้อมูลร้านค้า');
 
     await AuditService.runWithAudit(
@@ -320,7 +320,7 @@ export const IamService: IIamService = {
     
     // Authorization check
     if (!isSelf) {
-      Security.requirePermission(ctx, 'TEAM_EDIT');
+      Security.requirePermission(ctx, 'SETTINGS_ROLES');
       const targetMember = await db.shopMember.findFirst({
         where: { userId: targetUserId, shopId: ctx.shopId },
       });

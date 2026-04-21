@@ -19,6 +19,7 @@ export * from './notification.service';
 export * from './ai.service';
 export * from './onboarding.service';
 export * from './system.service';
+export * from './payment.service';
 export type { OcrParcel, ParcelMatch } from './shipment.service';
 
 export { ServiceError } from '@/types/domain';

@@ -224,14 +224,14 @@ export function SettingsForm({ initialData, shopData, productCategories, expense
       <TabsList className="mb-4 flex-wrap h-auto gap-2">
         <TabsTrigger value="profile">ผู้ใช้</TabsTrigger>
         {hasPermission('SETTINGS_SHOP') && <TabsTrigger value="shop">ร้านค้า</TabsTrigger>}
-        {hasPermission('SETTINGS_LOOKUPS') && <TabsTrigger value="categories">หมวดหมู่</TabsTrigger>}
-        {hasPermission('TEAM_VIEW') && (
+        {hasPermission('SETTINGS_SHOP') && <TabsTrigger value="categories">หมวดหมู่</TabsTrigger>}
+        {hasPermission('SETTINGS_ROLES') && (
           <a href="/settings/team" className="inline-flex items-center justify-center rounded-sm px-3 py-1.5 text-sm font-medium hover:bg-background/50 text-muted-foreground">ทีมงาน</a>
         )}
-        {hasPermission('TEAM_VIEW') && (
+        {hasPermission('SETTINGS_ROLES') && (
           <a href="/settings/roles" className="inline-flex items-center justify-center rounded-sm px-3 py-1.5 text-sm font-medium hover:bg-background/50 text-muted-foreground">จัดการ Roles</a>
         )}
-        {(hasPermission('TEAM_EDIT') || hasPermission('SETTINGS_SHOP')) && (
+        {(hasPermission('SETTINGS_ROLES') || hasPermission('SETTINGS_SHOP')) && (
           <a href="/settings/audit" className="inline-flex items-center justify-center rounded-sm px-3 py-1.5 text-sm font-medium hover:bg-background/50 text-muted-foreground">Audit Logs</a>
         )}
       </TabsList>

@@ -1,34 +1,50 @@
-/**
- * Supplier Form Schema
- * 
- * Client-side validation for react-hook-form.
- * Normalization happens in the backend supplierSchema.
- */
 import { z } from 'zod';
+import { partnerAddressSchema } from './partner-form';
 
 export const supplierFormSchema = z.object({
-    name: z.string().min(1, 'กรุณากรอกชื่อผู้จำหน่าย').max(200, 'ชื่อต้องไม่เกิน 200 ตัวอักษร'),
-    code: z.string().max(50, 'รหัสต้องไม่เกิน 50 ตัวอักษร').optional().nullable(),
-    contactName: z.string().max(100, 'ชื่อผู้ติดต่อต้องไม่เกิน 100 ตัวอักษร').optional().nullable(),
-    phone: z.string().max(10, 'เบอร์โทรต้องไม่เกิน 10 หลัก').optional().nullable(),
-    email: z.string().email('รูปแบบอีเมลไม่ถูกต้อง').max(254).optional().nullable()
-        .or(z.literal('')).transform(v => v || null),
-    address: z.string().max(500, 'ที่อยู่ต้องไม่เกิน 500 ตัวอักษร').optional().nullable(),
-    taxId: z.string().max(13, 'เลขประจำตัวผู้เสียภาษีต้องไม่เกิน 13 หลัก').optional().nullable(),
-    notes: z.string().max(1000, 'หมายเหตุต้องไม่เกิน 1000 ตัวอักษร').optional().nullable(),
+    name: z.string().min(1, 'กรุณากรอกชื่อผู้จำหน่าย'),
+    code: z.string().optional().nullable(),
+    taxId: z.string().optional().nullable(),
+    phone: z.string().optional().nullable(),
+    email: z.string().email('รูปแบบอีเมลไม่ถูกต้อง').optional().or(z.literal('')).nullable(),
+    notes: z.string().optional().nullable(),
+    creditLimit: z.coerce.number().min(0).optional().default(0),
+    creditTerm: z.coerce.number().int().min(0).optional().default(0),
+    moq: z.coerce.number().min(0).optional().default(0),
+    paymentTerms: z.string().optional().nullable(),
+    addresses: z.array(partnerAddressSchema).optional().default([]),
 });
 
 export type SupplierFormValues = z.infer<typeof supplierFormSchema>;
 
-export function getSupplierFormDefaults(supplier?: any): SupplierFormValues {
+export function getSupplierFormDefaults(data?: any): SupplierFormValues {
     return {
-        name: supplier?.name ?? '',
-        code: supplier?.code ?? '',
-        contactName: supplier?.contactName ?? '',
-        phone: supplier?.phone ?? '',
-        email: supplier?.email ?? '',
-        address: supplier?.address ?? '',
-        taxId: supplier?.taxId ?? '',
-        notes: supplier?.notes ?? '',
+        name: data?.name || '',
+        code: data?.code || '',
+        taxId: data?.taxId || '',
+        phone: data?.phone || '',
+        email: data?.email || '',
+        notes: data?.notes || '',
+        creditLimit: data?.creditLimit ? Number(data.creditLimit) : 0,
+        creditTerm: data?.creditTerm || 0,
+        moq: data?.moq ? Number(data.moq) : 0,
+        paymentTerms: data?.paymentTerms || '',
+        addresses: data?.addresses?.map((addr: any) => ({
+            id: addr.id,
+            label: addr.label || '',
+            addressLine: addr.addressLine || '',
+            district: addr.district || '',
+            province: addr.province || '',
+            type: addr.type || 'BOTH',
+            isDefaultBilling: !!addr.isDefaultBilling,
+            isDefaultShipping: !!addr.isDefaultShipping,
+            contacts: addr.contacts?.map((c: any) => ({
+                id: c.id,
+                name: c.name || '',
+                phone: c.phone || '',
+                email: c.email || '',
+                isPrimary: !!c.isPrimary,
+            })) || [],
+        })) || [],
     };
 }
