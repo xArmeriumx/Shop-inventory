@@ -20,20 +20,10 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
   const search = searchParams.search || '';
   const view = searchParams.view || 'grid';
 
-  const result = await getCustomers({
+  const { data: customers, pagination } = (await getCustomers({
     page,
     search,
-  });
-
-  const customers = (result as any).items as Customer[];
-  const pagination = {
-    total: (result as any).totalCount || 0,
-    page: (result as any).currentPage || page,
-    limit: (result as any).pageSize || 30,
-    totalPages: (result as any).totalPages || 1,
-    hasNextPage: (result as any).currentPage < (result as any).totalPages,
-    hasPrevPage: (result as any).currentPage > 1,
-  };
+  })) as any;
 
   return (
     <div className="space-y-6">
