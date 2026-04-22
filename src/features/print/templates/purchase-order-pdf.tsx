@@ -12,7 +12,6 @@ export const PurchaseOrderPDF: React.FC<PurchaseOrderPDFProps> = ({ data }) => {
     return (
         <Document title={`PO-${data.docNumber}`}>
             <Page size="A4" style={s.page}>
-                {/* Header Segment */}
                 <View style={s.header}>
                     <View>
                         <Text style={s.title}>ใบสั่งซื้อสินค้า</Text>
@@ -24,14 +23,13 @@ export const PurchaseOrderPDF: React.FC<PurchaseOrderPDFProps> = ({ data }) => {
                     </View>
                 </View>
 
-                {/* Parties Segment */}
                 <View style={{ flexDirection: 'row', marginBottom: 20 }}>
                     <View style={{ flex: 1, marginRight: 10 }}>
                         <Text style={s.sectionTitle}>ผู้สั่งซื้อ (Requester)</Text>
                         <Text style={s.value}>{data.requester.name}</Text>
                         <Text style={s.label}>{data.requester.address}</Text>
                         <Text style={s.label}>โทร: {data.requester.phone}</Text>
-                        <Text style={s.label}>เลขประจำตัวผู้เสียภาษี: {data.supplier.taxId || '-'}</Text>
+                        <Text style={s.label}>เลขประจำตัวผู้เสียภาษี: {data.requester.taxId}</Text>
                     </View>
                     <View style={{ flex: 1, marginLeft: 10 }}>
                         <Text style={s.sectionTitle}>ผู้จำหน่าย (Supplier)</Text>
@@ -42,7 +40,6 @@ export const PurchaseOrderPDF: React.FC<PurchaseOrderPDFProps> = ({ data }) => {
                     </View>
                 </View>
 
-                {/* Items Table */}
                 <View style={s.table}>
                     <View style={s.tableHeader}>
                         <Text style={{ width: '5%', textAlign: 'center' }}>ลำดับ</Text>
@@ -56,7 +53,7 @@ export const PurchaseOrderPDF: React.FC<PurchaseOrderPDFProps> = ({ data }) => {
                             <Text style={{ width: '5%', textAlign: 'center' }}>{index + 1}</Text>
                             <View style={{ width: '50%' }}>
                                 <Text style={s.value}>{item.name}</Text>
-                                <Text style={{ fontSize: 8, color: '#666' }}>{item.sku}</Text>
+                                <Text style={{ fontSize: 8, color: '#666666' }}>{item.sku}</Text>
                             </View>
                             <Text style={{ width: '15%', textAlign: 'right' }}>{formatCurrency(item.unitPrice)}</Text>
                             <Text style={{ width: '10%', textAlign: 'center' }}>{item.quantity} {item.uom}</Text>
@@ -65,15 +62,14 @@ export const PurchaseOrderPDF: React.FC<PurchaseOrderPDFProps> = ({ data }) => {
                     ))}
                 </View>
 
-                {/* Financial Summary */}
                 <View style={{ flexDirection: 'row', marginTop: 20 }}>
                     <View style={{ flex: 1, paddingRight: 20 }}>
-                        {data.notes && (
-                            <>
+                        {data.notes ? (
+                            <View>
                                 <Text style={s.sectionTitle}>หมายเหตุ (Notes)</Text>
                                 <Text style={s.label}>{data.notes}</Text>
-                            </>
-                        )}
+                            </View>
+                        ) : null}
                         <View style={{ marginTop: 10, padding: 8, backgroundColor: '#F9FAFB' }}>
                             <Text style={{ fontSize: 9, fontWeight: 'medium' }}>ตัวอักษร: {data.financials.netText}</Text>
                         </View>
@@ -83,12 +79,12 @@ export const PurchaseOrderPDF: React.FC<PurchaseOrderPDFProps> = ({ data }) => {
                             <Text style={s.label}>รวมเงิน (Subtotal)</Text>
                             <Text style={s.value}>{formatCurrency(data.financials.subtotal)}</Text>
                         </View>
-                        {data.financials.discount > 0 && (
+                        {data.financials.discount > 0 ? (
                             <View style={s.summaryItem}>
                                 <Text style={s.label}>ส่วนลด (Discount)</Text>
                                 <Text style={s.value}>-{formatCurrency(data.financials.discount)}</Text>
                             </View>
-                        )}
+                        ) : null}
                         <View style={s.summaryItem}>
                             <Text style={s.label}>ภาษีมูลค่าเพิ่ม (VAT 7%)</Text>
                             <Text style={s.value}>{formatCurrency(data.financials.tax)}</Text>
@@ -100,7 +96,6 @@ export const PurchaseOrderPDF: React.FC<PurchaseOrderPDFProps> = ({ data }) => {
                     </View>
                 </View>
 
-                {/* Footer Signature */}
                 <View style={{ flexDirection: 'row', marginTop: 60 }}>
                     <View style={{ flex: 1, textAlign: 'center', borderTopWidth: 0.5, paddingTop: 10, marginRight: 20 }}>
                         <Text style={s.label}>ผู้เสนอซื้อ / จัดซื้อ</Text>
