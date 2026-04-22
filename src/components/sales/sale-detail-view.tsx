@@ -22,6 +22,8 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { createInvoiceFromSale } from '@/actions/invoices';
+import { PdfPrintTrigger } from '@/features/print/components/pdf-print-trigger';
+import { buildSalePrintDTO } from '@/features/print/builders/sale-print.builder';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -88,11 +90,14 @@ export function SaleDetailView({ sale, shop, payments = [] }: SaleDetailViewProp
                             </Button>
                         </Guard>
                     )}
-                    <Button variant="outline" asChild>
-                        <a href={`/sales/${sale.id}/tax-invoice`} target="_blank" rel="noopener noreferrer">
-                            พิมพ์ใบกำกับภาษี (A4)
-                        </a>
-                    </Button>
+                    <PdfPrintTrigger
+                        type="INVOICE"
+                        documentData={buildSalePrintDTO(sale, shop)}
+                        fileName={`Sale-${sale.invoiceNumber || sale.id.slice(0, 8)}.pdf`}
+                        label="ดาวน์โหลด PDF"
+                        variant="outline"
+                        className="border-primary text-primary hover:bg-primary/5"
+                    />
                     <PrintButton />
                 </div>
             </div>
