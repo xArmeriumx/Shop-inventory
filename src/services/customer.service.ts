@@ -33,7 +33,7 @@ export const CustomerService = {
     if (params.region) where.partnerAddresses = { some: { region: params.region, deletedAt: null } };
     if (params.groupCode) where.groupCode = params.groupCode;
 
-    return paginatedQuery(db.customer as any, {
+    const result = await paginatedQuery(db.customer as any, {
       where,
       orderBy: { name: 'asc' },
       include: {
@@ -41,10 +41,29 @@ export const CustomerService = {
           where: { isDefaultBilling: true, deletedAt: null },
           take: 1,
         },
+        sales: {
+          where: { status: { not: 'CANCELLED' } },
+          select: { netAmount: true },
+        },
+        _count: {
+          select: { sales: true },
+        },
       },
       page: params.page,
       limit: params.limit,
     });
+
+    // Calculate totalVolume and clean up sales relation
+    result.data = (result.data as any[]).map((c) => {
+      const totalVolume = c.sales?.reduce((sum: number, s: any) => sum + Number(s.netAmount || 0), 0) || 0;
+      const { sales, ...customer } = c;
+      return {
+        ...customer,
+        totalVolume,
+      };
+    });
+
+    return result;
   },
 
   async getForSelect(ctx: RequestContext) {
