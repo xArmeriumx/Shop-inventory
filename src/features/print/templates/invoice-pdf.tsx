@@ -41,22 +41,22 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({ data }) => {
 
                 <View style={s.table}>
                     <View style={s.tableHeader}>
-                        <Text style={{ width: '5%', textAlign: 'center' }}>ลำดับ</Text>
-                        <Text style={{ width: '45%' }}>รายการสินค้า (Description)</Text>
-                        <Text style={{ width: '15%', textAlign: 'right' }}>ราคา/หน่วย</Text>
-                        <Text style={{ width: '10%', textAlign: 'center' }}>จำนวน</Text>
-                        <Text style={{ width: '25%', textAlign: 'right' }}>จำนวนเงิน</Text>
+                        <View style={s.cellNo}><Text style={s.tableHeaderText}>ลำดับ</Text></View>
+                        <View style={s.cellDescription}><Text style={s.tableHeaderText}>รายการสินค้า (Description)</Text></View>
+                        <View style={s.cellPrice}><Text style={s.tableHeaderText}>ราคา/หน่วย </Text></View>
+                        <View style={s.cellQty}><Text style={s.tableHeaderText}>จำนวน </Text></View>
+                        <View style={s.cellAmount}><Text style={s.tableHeaderText}>จำนวนเงิน </Text></View>
                     </View>
                     {data.items.map((item, index) => (
-                        <View key={index} style={s.tableRow}>
-                            <Text style={{ width: '5%', textAlign: 'center' }}>{index + 1}</Text>
-                            <View style={{ width: '45%' }}>
-                                <Text style={s.value}>{item.name}</Text>
-                                <Text style={{ fontSize: 8, color: '#666666' }}>{item.sku}</Text>
+                        <View key={index} style={[s.tableRow, index === data.items.length - 1 ? s.tableRowLast : {}]}>
+                            <View style={s.cellNo}><Text style={s.cellText}>{index + 1}</Text></View>
+                            <View style={s.cellDescription}>
+                                <Text style={s.cellTextBold}>{item.name}</Text>
+                                <Text style={s.cellTextMuted}>{item.sku}</Text>
                             </View>
-                            <Text style={{ width: '15%', textAlign: 'right' }}>{formatCurrency(item.unitPrice)}</Text>
-                            <Text style={{ width: '10%', textAlign: 'center' }}>{item.quantity} {item.uom}</Text>
-                            <Text style={{ width: '25%', textAlign: 'right' }}>{formatCurrency(item.subtotal)}</Text>
+                            <View style={s.cellPrice}><Text style={s.cellText}>{formatCurrency(item.unitPrice)}</Text></View>
+                            <View style={s.cellQty}><Text style={s.cellText}>{item.quantity} {item.uom}</Text></View>
+                            <View style={s.cellAmount}><Text style={s.cellText}>{formatCurrency(item.subtotal)}</Text></View>
                         </View>
                     ))}
                 </View>

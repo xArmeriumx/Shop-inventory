@@ -1,7 +1,5 @@
 import { Font, StyleSheet } from '@react-pdf/renderer';
 
-// Register Sarabun Thai Font (Professional ERP Standard)
-// We use public Google Fonts URLs to avoid local asset complexity
 Font.register({
     family: 'Sarabun',
     fonts: [
@@ -13,130 +11,334 @@ Font.register({
 
 export const documentStyles = StyleSheet.create({
     page: {
-        padding: 30,
+        paddingTop: 32,
+        paddingRight: 30,
+        paddingBottom: 36,
+        paddingLeft: 30,
         fontFamily: 'Sarabun',
         fontSize: 10,
-        lineHeight: 1.6,
+        lineHeight: 1.8,
         color: '#1F2937',
         backgroundColor: '#FFFFFF',
     },
+
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         borderBottomWidth: 1,
-        borderBottomColor: '#E5E7EB',
-        paddingBottom: 15,
-        marginBottom: 20,
+        borderBottomColor: '#111827',
+        paddingBottom: 14,
+        marginBottom: 22,
     },
+
+    titleBlock: {
+        flexDirection: 'column',
+    },
+
     title: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        paddingTop: 4, // Clearance for Thai marks at the top
+        fontSize: 22,
+        fontWeight: 700,
+        lineHeight: 1.35,
+        paddingTop: 2,
+        paddingBottom: 2,
+        color: '#0F172A',
     },
+
+    titleSub: {
+        fontSize: 11,
+        fontWeight: 400,
+        lineHeight: 1.55,
+        color: '#334155',
+        marginTop: -2,
+    },
+
     docInfo: {
         textAlign: 'right',
+        justifyContent: 'flex-start',
     },
-    section: {
-        marginBottom: 15,
-    },
-    sectionTitle: {
+
+    docInfoLabel: {
         fontSize: 10,
-        fontWeight: 'bold',
-        color: '#374151',
-        marginBottom: 6,
-        lineHeight: 1.6,
-        backgroundColor: '#F9FAFB',
-        padding: '4 8',
+        color: '#475569',
+        lineHeight: 1.7,
     },
-    row: {
+
+    docInfoValue: {
+        fontSize: 11,
+        fontWeight: 700,
+        color: '#111827',
+        lineHeight: 1.7,
+    },
+
+    section: {
+        marginBottom: 16,
+    },
+
+    sectionRow: {
         flexDirection: 'row',
-        marginBottom: 5,
+        columnGap: 16,
     },
-    column: {
+
+    sectionCol: {
         flex: 1,
     },
+
+    sectionTitleBox: {
+        backgroundColor: '#F8FAFC',
+        paddingVertical: 4,
+        paddingHorizontal: 8,
+        marginBottom: 6,
+    },
+
+    sectionTitle: {
+        fontSize: 10,
+        fontWeight: 700,
+        color: '#374151',
+        lineHeight: 1.7,
+        paddingTop: 1,
+        paddingBottom: 1,
+    },
+
     label: {
         fontSize: 9,
         color: '#6B7280',
-        lineHeight: 1.6,
+        lineHeight: 1.75,
         paddingTop: 1,
+        paddingBottom: 1,
     },
+
     value: {
         fontSize: 10,
-        fontWeight: 'medium',
+        fontWeight: 500,
         color: '#111827',
-        lineHeight: 1.6,
+        lineHeight: 1.8,
         paddingTop: 1,
+        paddingBottom: 1,
     },
-    // Table Styles
+
+    valueBold: {
+        fontSize: 10,
+        fontWeight: 700,
+        color: '#111827',
+        lineHeight: 1.8,
+        paddingTop: 1,
+        paddingBottom: 1,
+    },
+
+    muted: {
+        fontSize: 9,
+        color: '#64748B',
+        lineHeight: 1.75,
+    },
+
     table: {
         width: '100%',
         marginTop: 10,
+        borderWidth: 0.5,
+        borderColor: '#D1D5DB',
     },
+
     tableHeader: {
         flexDirection: 'row',
-        borderBottomWidth: 1,
-        borderBottomColor: '#9CA3AF',
-        backgroundColor: '#F9FAFB',
-        paddingVertical: 6,
-        paddingHorizontal: 4,
-        fontWeight: 'bold',
+        backgroundColor: '#F8FAFC',
+        borderBottomWidth: 0.75,
+        borderBottomColor: '#D1D5DB',
+        paddingVertical: 8,
+        paddingHorizontal: 8,
+        alignItems: 'flex-start',
     },
+
+    tableHeaderText: {
+        fontSize: 10,
+        fontWeight: 700,
+        color: '#0F172A',
+        lineHeight: 1.7,
+        paddingTop: 1,
+        paddingBottom: 1,
+    },
+
     tableRow: {
         flexDirection: 'row',
         borderBottomWidth: 0.5,
         borderBottomColor: '#E5E7EB',
         paddingVertical: 8,
-        paddingHorizontal: 4,
-        alignItems: 'center',
+        paddingHorizontal: 8,
+        alignItems: 'flex-start',
     },
-    cell: {
-        flex: 1,
+
+    tableRowLast: {
+        borderBottomWidth: 0,
     },
-    cellRight: {
-        flex: 0.5,
+
+    cellNo: {
+        width: '6%',
+        paddingRight: 6,
+    },
+
+    cellDescription: {
+        width: '50%',
+        paddingRight: 8,
+    },
+
+    cellPrice: {
+        width: '16%',
+        textAlign: 'right',
+        paddingRight: 8,
+    },
+
+    cellQty: {
+        width: '12%',
+        textAlign: 'center',
+        paddingRight: 8,
+    },
+
+    cellAmount: {
+        width: '16%',
         textAlign: 'right',
     },
-    cellCenter: {
-        flex: 0.3,
-        textAlign: 'center',
+
+    cellText: {
+        fontSize: 10,
+        color: '#111827',
+        lineHeight: 1.8,
+        paddingTop: 1,
+        paddingBottom: 1,
     },
-    // Summary Styles
+
+    cellTextBold: {
+        fontSize: 10,
+        fontWeight: 700,
+        color: '#111827',
+        lineHeight: 1.8,
+        paddingTop: 1,
+        paddingBottom: 1,
+    },
+
+    cellTextMuted: {
+        fontSize: 9,
+        color: '#64748B',
+        lineHeight: 1.75,
+        marginTop: 2,
+    },
+
     summaryContainer: {
-        marginTop: 20,
+        marginTop: 18,
         flexDirection: 'row',
-        justifyContent: 'flex-end',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
     },
+
+    amountTextBox: {
+        width: '63%',
+        backgroundColor: '#F8FAFC',
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+    },
+
+    amountTextLabel: {
+        fontSize: 10,
+        fontWeight: 700,
+        lineHeight: 1.8,
+        color: '#111827',
+    },
+
     summaryBox: {
-        width: '40%',
+        width: '32%',
     },
+
     summaryItem: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        marginTop: 6,
-        lineHeight: 1.6,
+        alignItems: 'flex-start',
+        marginBottom: 6,
+        paddingTop: 1,
+        paddingBottom: 1,
     },
+
+    summaryLabel: {
+        fontSize: 10,
+        color: '#64748B',
+        lineHeight: 1.75,
+        width: '68%',
+    },
+
+    summaryValue: {
+        fontSize: 10,
+        color: '#111827',
+        fontWeight: 500,
+        lineHeight: 1.75,
+        width: '32%',
+        textAlign: 'right',
+    },
+
     totalRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        marginTop: 10,
+        alignItems: 'flex-start',
+        marginTop: 8,
         paddingTop: 10,
         borderTopWidth: 1,
-        borderTopColor: '#1F2937',
-        fontSize: 12,
-        fontWeight: 'bold',
-        lineHeight: 1.6,
+        borderTopColor: '#111827',
     },
+
+    totalLabel: {
+        fontSize: 12,
+        fontWeight: 700,
+        lineHeight: 1.7,
+        color: '#111827',
+    },
+
+    totalValue: {
+        fontSize: 12,
+        fontWeight: 700,
+        lineHeight: 1.7,
+        color: '#111827',
+        textAlign: 'right',
+    },
+
+    signatureSection: {
+        marginTop: 90,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+    },
+
+    signatureBox: {
+        width: '44%',
+        alignItems: 'center',
+    },
+
+    signatureLine: {
+        width: '100%',
+        borderTopWidth: 0.75,
+        borderTopColor: '#374151',
+        marginBottom: 10,
+    },
+
+    signatureText: {
+        fontSize: 10,
+        color: '#6B7280',
+        lineHeight: 1.75,
+        textAlign: 'center',
+    },
+
+    signatureNameLine: {
+        marginTop: 34,
+        fontSize: 10,
+        lineHeight: 1.75,
+        textAlign: 'center',
+    },
+
     footer: {
         position: 'absolute',
-        bottom: 30,
+        bottom: 18,
         left: 30,
         right: 30,
         textAlign: 'center',
         fontSize: 8,
-        color: '#9CA3AF',
+        color: '#94A3B8',
         borderTopWidth: 0.5,
         borderTopColor: '#E5E7EB',
-        paddingTop: 10,
-    }
+        paddingTop: 8,
+        lineHeight: 1.6,
+    },
 });
