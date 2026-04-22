@@ -13,9 +13,11 @@ Font.register({
 
 export const documentStyles = StyleSheet.create({
     page: {
+        padding: 30,
         fontFamily: 'Sarabun',
         fontSize: 10,
-        padding: 40,
+        lineHeight: 1.2,
+        color: '#1F2937',
         backgroundColor: '#FFFFFF',
     },
     header: {
@@ -37,11 +39,11 @@ export const documentStyles = StyleSheet.create({
         marginBottom: 15,
     },
     sectionTitle: {
-        fontSize: 12,
+        fontSize: 10,
         fontWeight: 'bold',
-        marginBottom: 5,
-        backgroundColor: '#F3F4F6',
-        padding: 4,
+        color: '#374151',
+        marginBottom: 6,
+        lineHeight: 1.4,
     },
     row: {
         flexDirection: 'row',
@@ -51,11 +53,16 @@ export const documentStyles = StyleSheet.create({
         flex: 1,
     },
     label: {
+        fontSize: 9,
         color: '#6B7280',
-        marginBottom: 2,
+        marginTop: 2,
+        lineHeight: 1.4,
     },
     value: {
+        fontSize: 10,
         fontWeight: 'medium',
+        color: '#111827',
+        lineHeight: 1.4,
     },
     // Table Styles
     table: {
@@ -100,7 +107,8 @@ export const documentStyles = StyleSheet.create({
     summaryItem: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        marginBottom: 4,
+        marginTop: 4,
+        lineHeight: 1.4,
     },
     totalRow: {
         flexDirection: 'row',

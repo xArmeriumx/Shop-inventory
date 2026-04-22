@@ -42,21 +42,21 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({ data }) => {
                 <View style={s.table}>
                     <View style={s.tableHeader}>
                         <Text style={{ width: '5%', textAlign: 'center' }}>ลำดับ</Text>
-                        <Text style={{ width: '50%' }}>รายการสินค้า (Description)</Text>
+                        <Text style={{ width: '45%' }}>รายการสินค้า (Description)</Text>
                         <Text style={{ width: '15%', textAlign: 'right' }}>ราคา/หน่วย</Text>
                         <Text style={{ width: '10%', textAlign: 'center' }}>จำนวน</Text>
-                        <Text style={{ width: '20%', textAlign: 'right' }}>จำนวนเงิน</Text>
+                        <Text style={{ width: '25%', textAlign: 'right' }}>จำนวนเงิน</Text>
                     </View>
                     {data.items.map((item, index) => (
                         <View key={index} style={s.tableRow}>
                             <Text style={{ width: '5%', textAlign: 'center' }}>{index + 1}</Text>
-                            <View style={{ width: '50%' }}>
+                            <View style={{ width: '45%' }}>
                                 <Text style={s.value}>{item.name}</Text>
                                 <Text style={{ fontSize: 8, color: '#666666' }}>{item.sku}</Text>
                             </View>
                             <Text style={{ width: '15%', textAlign: 'right' }}>{formatCurrency(item.unitPrice)}</Text>
                             <Text style={{ width: '10%', textAlign: 'center' }}>{item.quantity} {item.uom}</Text>
-                            <Text style={{ width: '20%', textAlign: 'right' }}>{formatCurrency(item.subtotal)}</Text>
+                            <Text style={{ width: '25%', textAlign: 'right' }}>{formatCurrency(item.subtotal)}</Text>
                         </View>
                     ))}
                 </View>
