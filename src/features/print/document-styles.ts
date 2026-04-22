@@ -5,9 +5,9 @@ import { Font, StyleSheet } from '@react-pdf/renderer';
 Font.register({
     family: 'Sarabun',
     fonts: [
-        { src: 'https://cdn.jsdelivr.net/gh/googlefonts/sarabun@main/fonts/ttf/Sarabun-Regular.ttf', fontWeight: 'normal' },
-        { src: 'https://cdn.jsdelivr.net/gh/googlefonts/sarabun@main/fonts/ttf/Sarabun-Medium.ttf', fontWeight: 'medium' },
-        { src: 'https://cdn.jsdelivr.net/gh/googlefonts/sarabun@main/fonts/ttf/Sarabun-Bold.ttf', fontWeight: 'bold' },
+        { src: '/fonts/Sarabun-Regular.ttf', fontWeight: 400 },
+        { src: '/fonts/Sarabun-Medium.ttf', fontWeight: 500 },
+        { src: '/fonts/Sarabun-Bold.ttf', fontWeight: 700 },
     ],
 });
 
