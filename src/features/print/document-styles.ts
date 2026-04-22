@@ -22,7 +22,8 @@ export const documentStyles = StyleSheet.create({
         marginBottom: 20,
         flexDirection: 'row',
         justifyContent: 'space-between',
-        borderBottom: '1pt solid #000',
+        borderBottomWidth: 1,
+        borderBottomColor: '#000000',
         paddingBottom: 10,
     },
     title: {
@@ -59,20 +60,20 @@ export const documentStyles = StyleSheet.create({
     // Table Styles
     table: {
         marginTop: 10,
-        borderWidth: '0.5pt',
+        borderWidth: 0.5,
         borderColor: '#E5E7EB',
     },
     tableHeader: {
         flexDirection: 'row',
         backgroundColor: '#F9FAFB',
-        borderBottomWidth: '0.5pt',
+        borderBottomWidth: 0.5,
         borderBottomColor: '#E5E7EB',
         fontWeight: 'bold',
         padding: 6,
     },
     tableRow: {
         flexDirection: 'row',
-        borderBottomWidth: '0.2pt',
+        borderBottomWidth: 0.2,
         borderBottomColor: '#F3F4F6',
         padding: 6,
     },
@@ -106,8 +107,8 @@ export const documentStyles = StyleSheet.create({
         justifyContent: 'space-between',
         marginTop: 6,
         paddingTop: 6,
-        borderTopWidth: '1pt',
-        borderTopColor: '#000',
+        borderTopWidth: 1,
+        borderTopColor: '#000000',
         fontWeight: 'bold',
         fontSize: 12,
     },
@@ -119,7 +120,7 @@ export const documentStyles = StyleSheet.create({
         textAlign: 'center',
         fontSize: 8,
         color: '#9CA3AF',
-        borderTopWidth: '0.5pt',
+        borderTopWidth: 0.5,
         borderTopColor: '#E5E7EB',
         paddingTop: 10,
     }
