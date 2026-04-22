@@ -25,15 +25,16 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({ data }) => {
                 </View>
 
                 {/* Parties Segment */}
-                <View style={{ flexDirection: 'row', gap: 20, marginBottom: 20 }}>
-                    <View style={{ flex: 1 }}>
+                {/* Parties Segment */}
+                <View style={{ flexDirection: 'row', marginBottom: 20 }}>
+                    <View style={{ flex: 1, marginRight: 10 }}>
                         <Text style={s.sectionTitle}>ผู้ขาย (Seller)</Text>
                         <Text style={s.value}>{data.seller.name}</Text>
                         <Text style={s.label}>{data.seller.address}</Text>
                         <Text style={s.label}>โทร: {data.seller.phone}</Text>
                         <Text style={s.label}>เลขประจำตัวผู้เสียภาษี: {data.seller.taxId}</Text>
                     </View>
-                    <View style={{ flex: 1 }}>
+                    <View style={{ flex: 1, marginLeft: 10 }}>
                         <Text style={s.sectionTitle}>ลูกค้า (Customer)</Text>
                         <Text style={s.value}>{data.buyer.name}</Text>
                         <Text style={s.label}>{data.buyer.address}</Text>
@@ -100,13 +101,13 @@ export const InvoicePDF: React.FC<InvoicePDFProps> = ({ data }) => {
                 </View>
 
                 {/* Footer Signature */}
-                <View style={{ flexDirection: 'row', marginTop: 60, gap: 40 }}>
-                    <View style={{ flex: 1, textAlign: 'center', borderTopWidth: 0.5, paddingTop: 10 }}>
+                <View style={{ flexDirection: 'row', marginTop: 60 }}>
+                    <View style={{ flex: 1, textAlign: 'center', borderTopWidth: 0.5, paddingTop: 10, marginRight: 20 }}>
                         <Text style={s.label}>ผู้รับสินค้า / บรรจุสินค้า</Text>
                         <Text style={{ marginTop: 20 }}>......................................................</Text>
                         <Text style={{ fontSize: 8, marginTop: 5 }}>วันที่ ........./........../..........</Text>
                     </View>
-                    <View style={{ flex: 1, textAlign: 'center', borderTopWidth: 0.5, paddingTop: 10 }}>
+                    <View style={{ flex: 1, textAlign: 'center', borderTopWidth: 0.5, paddingTop: 10, marginLeft: 20 }}>
                         <Text style={s.label}>ผู้ได้รับมอบอำนาจ / ผู้ส่งสินค้า</Text>
                         <Text style={{ marginTop: 20 }}>......................................................</Text>
                         <Text style={{ fontSize: 8, marginTop: 5 }}>วันที่ ........./........../..........</Text>

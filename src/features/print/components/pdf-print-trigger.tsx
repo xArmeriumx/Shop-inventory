@@ -34,6 +34,7 @@ export function PdfPrintTrigger({
     label
 }: PdfPrintTriggerProps) {
     const [isClient, setIsClient] = React.useState(false);
+    const [importError, setImportError] = React.useState<string | null>(null);
     const [templates, setTemplates] = React.useState<any>(null);
 
     React.useEffect(() => {
@@ -50,13 +51,24 @@ export function PdfPrintTrigger({
             });
         }).catch(err => {
             console.error('Failed to load PDF templates:', err);
+            setImportError('ไม่สามารถโหลด Template ได้');
         });
     }, []);
 
-    if (!isClient || !templates) {
+    if (!isClient) return null;
+
+    if (importError) {
+        return (
+            <Button variant="destructive" size="sm" className={className} disabled>
+                <FileText className="h-4 w-4 mr-2" /> {importError}
+            </Button>
+        );
+    }
+
+    if (!templates) {
         return (
             <Button variant={variant} className={className} disabled>
-                <FileText className="h-4 w-4 mr-2" /> {label || 'เตรียม PDF...'}
+                <Loader2 className="h-4 w-4 animate-spin mr-2" /> {label || 'เตรียม PDF...'}
             </Button>
         );
     }
@@ -74,16 +86,27 @@ export function PdfPrintTrigger({
             }
             fileName={fileName}
         >
-            {({ loading }: { loading: boolean }) => (
-                <Button variant={variant} className={className} disabled={loading}>
-                    {loading ? (
-                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    ) : (
-                        <Download className="h-4 w-4 mr-2" />
-                    )}
-                    {loading ? 'กำลังสร้าง...' : (label || 'ดาวน์โหลด PDF')}
-                </Button>
-            )}
+            {({ loading, error, blob, url }: any) => {
+                if (error) {
+                    console.error('PDF Generation Error:', error);
+                    return (
+                        <Button variant="destructive" size="sm" className={className}>
+                            <FileText className="h-4 w-4 mr-2" /> ดาวน์โหลดไม่สำเร็จ
+                        </Button>
+                    );
+                }
+
+                return (
+                    <Button variant={variant} className={className} disabled={loading}>
+                        {loading ? (
+                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        ) : (
+                            <Download className="h-4 w-4 mr-2" />
+                        )}
+                        {loading ? 'กำลังสร้าง...' : (label || 'ดาวน์โหลด PDF')}
+                    </Button>
+                );
+            }}
         </PDFDownloadLink>
     );
 }
