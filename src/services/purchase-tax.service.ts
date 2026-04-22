@@ -1,0 +1,233 @@
+import { db } from '@/lib/db';
+import { RequestContext, ServiceError } from '@/types/domain';
+import { Security } from './security';
+import { SequenceService } from './sequence.service';
+import { TaxCalculationService } from './tax-calculation.service';
+import { format } from 'date-fns';
+
+/**
+ * PurchaseTaxService — บริหารจัดการเอกสารภาษีซื้อ (Document Lifecycle)
+ * 
+ * หน้าที่:
+ * 1. สร้างเอกสารภาษีซื้อร่าง (Draft) จากใบสั่งซื้อ (PO)
+ * 2. snap ข้อมูลซัพพลายเออร์และรายการสินค้า ณ เวลาที่สร้าง
+ * 3. จัดการสถานะการลงบัญชี (Post) และการยกเลิก (Void)
+ * 4. บันทึกรายงานภาษีซื้อ (PurchaseTaxEntry) เมื่อมีการยืนยัน
+ */
+export const PurchaseTaxService = {
+    /**
+     * สร้างเอกสารภาษีซื้อจาก Purchase Order (PO)
+     * snap ข้อมูล ณ ปัจจุบันเพื่อทำ Audit Trail ที่สมบูรณ์
+     */
+    async registerFromPurchase(purchaseId: string, ctx: RequestContext) {
+        Security.requirePermission(ctx, 'TAX_REPORT_POST' as any);
+
+        // 1. Fetch Purchase order with items and supplier
+        const purchase = await db.purchase.findFirst({
+            where: { id: purchaseId, shopId: ctx.shopId },
+            include: {
+                supplier: true,
+                items: {
+                    include: { product: true }
+                }
+            }
+        }) as any;
+
+        if (!purchase) throw new ServiceError('ไม่พบข้อมูลใบสั่งซื้อ');
+        if (!purchase.supplier) throw new ServiceError('ข้อมูลซัพพลายเออร์ไม่ครบถ้วน');
+
+        // 2. Generate Internal Document Number (PTX-YYYYMM-XXXX)
+        // 3. Create Document with Snapshot Data
+        return await db.$transaction(async (tx) => {
+            const internalDocNo = await SequenceService.generate(ctx, 'PURCHASE_TAX' as any, tx);
+
+            const doc = await (tx as any).purchaseTaxDocument.create({
+                data: {
+                    shopId: ctx.shopId,
+                    internalDocNo,
+                    status: 'DRAFT',
+                    supplierId: purchase.supplierId,
+                    vendorNameSnapshot: purchase.supplier?.name || 'Unknown',
+                    vendorTaxIdSnapshot: purchase.supplier?.taxId,
+                    vendorAddressSnapshot: purchase.supplier?.address,
+                    taxRateSnapshot: 7, // Default Thai VAT
+                    taxableBaseAmount: purchase.taxableAmount || 0,
+                    taxAmount: purchase.taxAmount || 0,
+                    netAmount: purchase.totalAmount || 0,
+                    claimStatus: 'CLAIMABLE',
+                    createdByMemberId: ctx.memberId,
+                    // Link to source PO
+                    links: {
+                        create: {
+                            purchaseOrderId: purchase.id,
+                            allocatedAmount: purchase.totalAmount || 0,
+                            shopId: ctx.shopId
+                        }
+                    },
+                    // Snap all items
+                    items: {
+                        create: (purchase.items || []).map((item: any) => ({
+                            shopId: ctx.shopId,
+                            productId: item.productId,
+                            productNameSnapshot: item.product?.name || 'Unknown',
+                            skuSnapshot: item.product?.sku,
+                            quantity: item.quantity,
+                            unitPrice: item.unitPrice || 0,
+                            discountAmount: 0,
+                            taxableBaseAmount: item.taxableAmount || 0,
+                            taxAmount: item.taxAmount || 0,
+                            lineNetAmount: item.totalAmount || 0
+                        }))
+                    }
+                }
+            });
+
+            return doc;
+        });
+    },
+
+    /**
+     * ลงบัญชีเอกสาร: อัปเดตข้อมูลเลขที่ใบกำกับภาษี และยืนยันยอดเข้ารายงาน ภ.พ. 30
+     */
+    async post(id: string, input: { vendorDocNo: string; vendorDocDate: Date; claimStatus: string }, ctx: RequestContext) {
+        Security.requirePermission(ctx, 'TAX_REPORT_POST' as any);
+
+        const now = new Date();
+        const doc = await (db as any).purchaseTaxDocument.findUnique({
+            where: { id, shopId: ctx.shopId },
+        });
+
+        if (!doc) throw new ServiceError('ไม่พบเอกสาร');
+        if (doc.status !== 'DRAFT') throw new ServiceError('เอกสารไม่ได้อยู่ในสถานะร่าง');
+
+        return await db.$transaction(async (tx) => {
+            // 1. Update Document
+            const postedDoc = await (tx as any).purchaseTaxDocument.update({
+                where: { id },
+                data: {
+                    status: 'POSTED',
+                    postedAt: now,
+                    postedByMemberId: ctx.memberId,
+                    vendorDocNo: input.vendorDocNo,
+                    vendorDocDate: input.vendorDocDate,
+                    claimStatus: input.claimStatus,
+                },
+            });
+
+            // 2. Generate PurchaseTaxEntry ONLY if CLAIMABLE
+            if (input.claimStatus === 'CLAIMABLE') {
+                await (tx as any).purchaseTaxEntry.create({
+                    data: {
+                        shopId: ctx.shopId,
+                        sourceType: 'PURCHASE_TAX_DOC',
+                        sourceId: id,
+                        taxMonth: input.vendorDocDate.getMonth() + 1,
+                        taxYear: input.vendorDocDate.getFullYear(),
+                        vendorDocNo: input.vendorDocNo,
+                        vendorDocDate: input.vendorDocDate,
+                        partnerId: postedDoc.supplierId,
+                        partnerName: postedDoc.vendorNameSnapshot,
+                        taxCode: postedDoc.taxCodeSnapshot,
+                        taxRate: postedDoc.taxRateSnapshot,
+                        taxableBaseAmount: postedDoc.taxableBaseAmount,
+                        taxAmount: postedDoc.taxAmount,
+                        claimStatus: 'CLAIMABLE',
+                        postingStatus: 'POSTED',
+                        postedAt: now,
+                        postedBy: ctx.memberId,
+                    },
+                });
+            }
+
+            return postedDoc;
+        });
+    },
+
+    /**
+     * ยกเลิกเอกสารภาษี: Reverse สถานะและยกเลิกรายการในรายงานภาษี
+     */
+    async void(id: string, ctx: RequestContext) {
+        Security.requirePermission(ctx, 'TAX_REPORT_POST' as any);
+
+        const now = new Date();
+        const doc = await (db as any).purchaseTaxDocument.findUnique({ where: { id, shopId: ctx.shopId } });
+
+        if (!doc) throw new ServiceError('ไม่พบเอกสาร');
+        if (doc.status === 'VOIDED') throw new ServiceError('เอกสารถูกยกเลิกไปแล้ว');
+
+        return await db.$transaction(async (tx) => {
+            const voidedDoc = await (tx as any).purchaseTaxDocument.update({
+                where: { id },
+                data: { status: 'VOIDED' }
+            });
+
+            // Reverse Tax Entry
+            await (tx as any).purchaseTaxEntry.updateMany({
+                where: { shopId: ctx.shopId, sourceType: 'PURCHASE_TAX_DOC', sourceId: id },
+                data: {
+                    postingStatus: 'VOIDED',
+                    voidedAt: now
+                }
+            });
+
+            return voidedDoc;
+        });
+    },
+
+    /**
+     * ค้นหาและจัดการรายการภาษีซื้อ
+     */
+    async getList(params: any, ctx: RequestContext) {
+        Security.requirePermission(ctx, 'TAX_REPORT_VIEW' as any);
+
+        const { page = 1, limit = 20, search, status, claimStatus } = params;
+        const skip = (page - 1) * limit;
+
+        const where: any = {
+            shopId: ctx.shopId,
+            ...(status ? { status } : {}),
+            ...(claimStatus ? { claimStatus } : {}),
+            ...(search ? {
+                OR: [
+                    { internalDocNo: { contains: search, mode: 'insensitive' } },
+                    { vendorDocNo: { contains: search, mode: 'insensitive' } },
+                    { vendorNameSnapshot: { contains: search, mode: 'insensitive' } },
+                ]
+            } : {})
+        };
+
+        const [data, total] = await Promise.all([
+            (db as any).purchaseTaxDocument.findMany({
+                where,
+                include: {
+                    postedByMember: { select: { firstName: true, lastName: true } },
+                    supplier: { select: { name: true } }
+                },
+                orderBy: { createdAt: 'desc' },
+                skip,
+                take: limit
+            }),
+            (db as any).purchaseTaxDocument.count({ where })
+        ]);
+
+        return { data, total, page, limit };
+    },
+
+    /**
+     * ดึงรายละเอียดเอกสารพร้อม Items และ Links
+     */
+    async getById(id: string, ctx: RequestContext) {
+        Security.requirePermission(ctx, 'TAX_REPORT_VIEW' as any);
+
+        return await (db as any).purchaseTaxDocument.findUnique({
+            where: { id, shopId: ctx.shopId },
+            include: {
+                items: { orderBy: { createdAt: 'asc' } },
+                links: {
+                    include: { purchaseOrder: { select: { purchaseNumber: true } } }
+                },
+                postedByMember: { select: { firstName: true, lastName: true } }
+            }
+        });
+    }
+};

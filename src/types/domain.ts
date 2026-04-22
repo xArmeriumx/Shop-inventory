@@ -273,6 +273,10 @@ export const DocumentType = {
   BILLING: 'BIL',
   ORDER_REQUEST: 'OR',
   DELIVERY_ORDER: 'DO',
+  PURCHASE_TAX: 'PTX',
+  WHT_CERTIFICATE: 'WHT',
+  JOURNAL_VOUCHER: 'JV',
+  PAYMENT: 'RCP',
 } as const;
 
 export type DocumentType = (typeof DocumentType)[keyof typeof DocumentType];
@@ -452,6 +456,33 @@ export const BillingStatus = {
 } as const;
 
 export type BillingStatus = (typeof BillingStatus)[keyof typeof BillingStatus];
+
+// ============================================================================
+// TAX DOMAIN (Phase T3)
+// ============================================================================
+
+export const ClaimStatus = {
+  CLAIMABLE: 'CLAIMABLE',
+  WAITING_DOC: 'WAITING_DOC',
+  NON_CLAIMABLE: 'NON_CLAIMABLE',
+} as const;
+
+export type ClaimStatus = (typeof ClaimStatus)[keyof typeof ClaimStatus];
+
+export const PurchaseTaxStatus = {
+  DRAFT: 'DRAFT',
+  POSTED: 'POSTED',
+  VOIDED: 'VOIDED',
+} as const;
+
+export type PurchaseTaxStatus = (typeof PurchaseTaxStatus)[keyof typeof PurchaseTaxStatus];
+
+export const PurchaseTaxSourceType = {
+  PURCHASE_ORDER: 'PURCHASE_ORDER',
+  MANUAL_EXPENSE: 'MANUAL_EXPENSE',
+} as const;
+
+export type PurchaseTaxSourceType = (typeof PurchaseTaxSourceType)[keyof typeof PurchaseTaxSourceType];
 
 // ============================================================================
 // INVENTORY DOMAIN

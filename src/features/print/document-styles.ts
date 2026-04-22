@@ -152,7 +152,7 @@ export const documentStyles = StyleSheet.create({
         fontSize: 10,
         fontWeight: 700,
         color: '#0F172A',
-        lineHeight: 1.7,
+        lineHeight: 2.0,
         paddingTop: 1,
         paddingBottom: 1,
     },
@@ -171,12 +171,12 @@ export const documentStyles = StyleSheet.create({
     },
 
     cellNo: {
-        width: '6%',
-        paddingRight: 6,
+        width: '8%',
+        paddingRight: 4,
     },
 
     cellDescription: {
-        width: '50%',
+        width: '46%',
         paddingRight: 8,
     },
 
@@ -187,14 +187,15 @@ export const documentStyles = StyleSheet.create({
     },
 
     cellQty: {
-        width: '12%',
+        width: '14%',
         textAlign: 'center',
-        paddingRight: 8,
+        paddingRight: 4,
     },
 
     cellAmount: {
         width: '16%',
         textAlign: 'right',
+        paddingRight: 8,
     },
 
     cellText: {

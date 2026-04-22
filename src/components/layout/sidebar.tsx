@@ -136,6 +136,12 @@ const navItems = [
     permission: 'INCOME_VIEW' as Permission,
   },
   {
+    title: 'ผังบัญชี (CoA)',
+    href: '/settings/accounting',
+    icon: require('lucide-react').Library,
+    permission: 'SETTINGS_SHOP' as Permission,
+  },
+  {
     title: 'AI ผู้ช่วย',
     href: '/ai',
     icon: Sparkles,

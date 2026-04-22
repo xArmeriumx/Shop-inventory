@@ -157,6 +157,25 @@ model Shop {
   stockTakeSessions StockTakeSession[]
   partnerAddresses  PartnerAddress[]
   partnerContacts   PartnerContact[]
+  accountingPeriods AccountingPeriod[]
+
+  // TAX SYSTEM: Phase T1
+  taxCodes           TaxCode[]
+  companyTaxProfile  CompanyTaxProfile?
+  partnerTaxProfiles PartnerTaxProfile[]
+  productTaxProfiles ProductTaxProfile[]
+  salesTaxEntries    SalesTaxEntry[]
+  purchaseTaxEntries PurchaseTaxEntry[]
+  purchaseTaxDocuments PurchaseTaxDocument[]
+
+  // TAX SYSTEM: Phase T5 WHT
+  whtCodes           WhtCode[]
+  whtEntries         WhtEntry[]
+  whtCertificates    WhtCertificate[]
+
+  // ACCOUNTING SYSTEM: Phase A1
+  accounts           Account[]
+  journalEntries     JournalEntry[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -254,6 +273,12 @@ enum Permission {
   // Delivery Orders
   DELIVERY_VIEW
   DELIVERY_VALIDATE
+
+  // Tax System
+  TAX_SETTINGS_VIEW
+  TAX_SETTINGS_MANAGE
+  TAX_REPORT_VIEW
+  TAX_REPORT_POST
 }
 
 model Role {
@@ -322,12 +347,24 @@ model ShopMember {
   createdQuotations    Quotation[]     @relation("QuotationToMember")
   createdOrderRequests OrderRequest[]  @relation("OrderRequestToMember")
   payments             Payment[]
+  closedPeriods        AccountingPeriod[] @relation("ClosedByMember")
+  reopenedPeriods      AccountingPeriod[] @relation("ReopenedByMember")
 
   // Stock Take Audit
   createdStockTakes   StockTakeSession[] @relation("StockTakeCreator")
   submittedStockTakes StockTakeSession[] @relation("StockTakeSubmitter")
   completedStockTakes StockTakeSession[] @relation("StockTakeCompleter")
   cancelledStockTakes StockTakeSession[] @relation("StockTakeCanceller")
+
+  // Accounting Audit
+  journalEntries      JournalEntry[]
+  
+  purchaseTaxDocsCreated PurchaseTaxDocument[] @relation("PurchTaxCreator")
+  purchaseTaxDocsPosted  PurchaseTaxDocument[] @relation("PurchTaxPoster")
+  purchaseTaxDocsVoided  PurchaseTaxDocument[] @relation("PurchTaxVoider")
+
+  // TAX SYSTEM: Phase T5 WHT
+  whtEntries             WhtEntry[]
 
   @@index([userId])
 }
@@ -448,6 +485,8 @@ model Supplier {
   paymentTerms String?   @db.Text // เงื่อนไขการชำระเงินเพิ่มเติม
   deletedAt    DateTime?
 
+  purchaseTaxDocuments PurchaseTaxDocument[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -552,8 +591,15 @@ model Purchase {
   receivedAt   DateTime?
   receivedBy   String? // User ID who received the goods
 
+  // Financial Snapshots (Phase T5)
+  paidAmount     Decimal  @default(0) @db.Decimal(20, 4)
+  residualAmount Decimal  @default(0) @db.Decimal(20, 4)
+  paymentStatus  String   @default("UNPAID") // UNPAID | PARTIAL | PAID
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  payments Payment[]
 
   @@unique([shopId, purchaseNumber])
   @@index([userId])
@@ -565,6 +611,8 @@ model Purchase {
   // ✅ NEW: Compound indexes for optimized queries
   @@index([shopId, date, status]) // Purchases list with date range + status
   @@index([shopId, status]) // Purchases filtered by status
+
+  purchaseTaxLinks PurchaseTaxDocumentLink[]
 }
 
 model PurchaseItem {
@@ -737,8 +785,15 @@ model Expense {
   // Soft Delete
   deletedAt DateTime?
 
+  // Financial Snapshots (Phase T5)
+  paidAmount     Decimal @default(0) @db.Decimal(20, 4)
+  residualAmount Decimal @default(0) @db.Decimal(20, 4)
+  paymentStatus  String  @default("UNPAID") // UNPAID | PARTIAL | PAID
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  payments Payment[]
 
   @@index([userId])
   @@index([userId, deletedAt])
@@ -1473,12 +1528,25 @@ model Invoice {
   id        String @id @default(cuid())
   invoiceNo String // INV-00001
 
-  // Snapshots (ERP Rule: Document Integrity)
+  // ===== BUYER Snapshots =====
   customerNameSnapshot    String
   billingAddressSnapshot  String
   shippingAddressSnapshot String?
-  taxIdSnapshot           String?
+  taxIdSnapshot           String?   // เลขภาษีของผู้ซื้อ
+  customerBranchSnapshot  String?   // สาขาผู้ซื้อ
   paymentTermSnapshot     String?
+
+  // ===== SELLER Snapshots (Tax Invoice requirement) =====
+  sellerNameSnapshot    String    @default("")
+  sellerAddressSnapshot String    @default("")
+  sellerTaxIdSnapshot   String?   // เลขภาษี 13 หลักของผู้ขาย
+  sellerBranchSnapshot  String?   // "สำนักงานใหญ่" / "0000X"
+
+  // ===== TAX Snapshots (ล็อกทันทีที่สร้างเอกสาร) =====
+  taxCodeSnapshot           String?   // e.g., "VAT7_OUT"
+  taxRateSnapshot           Decimal   @default(0)   @db.Decimal(5, 2)  // 7.00
+  taxCalculationModeSnapshot String   @default("EXCLUSIVE") // EXCLUSIVE | INCLUSIVE
+  isTaxInvoice              Boolean   @default(false) // true = แสดงคำว่า "ใบกำกับภาษี"
 
   saleId String @unique // Single-invoice per sale policy
   sale   Sale   @relation(fields: [saleId], references: [id])
@@ -1494,18 +1562,25 @@ model Invoice {
 
   currencyCode String @default("THB")
 
-  // Financial Semantics (ERP Matrix)
-  subtotalAmount Decimal @default(0) @db.Decimal(10, 2)
-  discountAmount Decimal @default(0) @db.Decimal(10, 2)
-  taxAmount      Decimal @default(0) @db.Decimal(10, 2)
-  netAmount      Decimal @default(0) @db.Decimal(10, 2)
+  // ===== Financial Semantics (ERP Matrix) =====
+  subtotalAmount    Decimal @default(0) @db.Decimal(14, 2) // sum(lineSubtotal) ก่อนส่วนลด
+  discountAmount    Decimal @default(0) @db.Decimal(14, 2) // ส่วนลดรวม
+  taxableBaseAmount Decimal @default(0) @db.Decimal(14, 2) // ฐานภาษี = subtotal - discount
+  taxAmount         Decimal @default(0) @db.Decimal(14, 2) // VAT
+  netAmount         Decimal @default(0) @db.Decimal(14, 2) // taxableBase + tax
 
-  totalAmount Decimal @db.Decimal(10, 2) // Legacy/Alias for netAmount
+  totalAmount Decimal @db.Decimal(14, 2) // Legacy/Alias for netAmount
 
-  // AR/AP Core (Phase 4: Ledger Snapshots)
-  paidAmount     Decimal          @default(0) @db.Decimal(10, 2)
-  residualAmount Decimal          @default(0) @db.Decimal(10, 2)
+  // ===== AR/AP Core =====
+  paidAmount     Decimal          @default(0) @db.Decimal(14, 2)
+  residualAmount Decimal          @default(0) @db.Decimal(14, 2)
   paymentStatus  DocPaymentStatus @default(UNPAID)
+
+  // ===== Tax Posting =====
+  taxPostingStatus String?   // DRAFT | POSTED | VOIDED
+  taxReportMonth   Int?
+  taxReportYear    Int?
+  postedAt         DateTime?
 
   notes String? @db.Text
 
@@ -1528,6 +1603,7 @@ model Invoice {
   @@index([saleId])
   @@index([customerId])
   @@index([shopId, status])
+  @@index([shopId, taxReportYear, taxReportMonth])
 }
 
 model InvoiceLine {
@@ -1538,7 +1614,7 @@ model InvoiceLine {
   productId String
   product   Product @relation(fields: [productId], references: [id])
 
-  // Snapshots
+  // Product Snapshots
   skuSnapshot         String?
   productNameSnapshot String
   descriptionSnapshot String?
@@ -1546,16 +1622,18 @@ model InvoiceLine {
 
   description String? @db.Text // Legacy
   quantity    Int
-  unitPrice   Decimal @db.Decimal(10, 2)
+  unitPrice   Decimal @db.Decimal(14, 2)
 
-  lineSubtotalAmount Decimal @default(0) @db.Decimal(10, 2)
-  discountAmount     Decimal @default(0) @db.Decimal(10, 2)
-  taxRateSnapshot    Decimal @default(0) @db.Decimal(10, 2)
-  taxCodeSnapshot    String?
-  taxAmount          Decimal @default(0) @db.Decimal(10, 2)
-  lineNetAmount      Decimal @default(0) @db.Decimal(10, 2)
+  // ===== Line-level Financials (T2: Full Tax Snapshot) =====
+  lineSubtotalAmount Decimal @default(0) @db.Decimal(14, 2) // qty × unitPrice
+  discountAmount     Decimal @default(0) @db.Decimal(14, 2) // ส่วนลด line
+  taxableBaseAmount  Decimal @default(0) @db.Decimal(14, 2) // lineSubtotal - discount
+  taxCodeSnapshot    String?                                 // e.g., "VAT7_OUT"
+  taxRateSnapshot    Decimal @default(0) @db.Decimal(5, 2)  // 7.00
+  taxAmount          Decimal @default(0) @db.Decimal(14, 2) // VAT สำหรับ line นี้
+  lineNetAmount      Decimal @default(0) @db.Decimal(14, 2) // taxableBase + tax
 
-  subtotal Decimal @db.Decimal(10, 2) // Legacy/Alias
+  subtotal Decimal @db.Decimal(14, 2) // Legacy/Alias
 
   sortOrder Int @default(0)
 
@@ -1596,7 +1674,12 @@ model Payment {
   invoice   Invoice? @relation(fields: [invoiceId], references: [id])
   saleId    String?
   sale      Sale?    @relation(fields: [saleId], references: [id])
+  purchaseId String?
+  purchase   Purchase? @relation(fields: [purchaseId], references: [id])
+  expenseId String?
+  expense   Expense? @relation(fields: [expenseId], references: [id])
 
+  paymentNo String? // RCP-2604-00001
   type              PaymentType   @default(IN)
   amount            Decimal       @db.Decimal(10, 2)
   currency          String        @default("THB")
@@ -1605,14 +1688,18 @@ model Payment {
   referenceId       String? // Slip No., Transaction ID
   note              String?
   status            PaymentStatus @default(POSTED)
+  whtEntry          WhtEntry?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@unique([shopId, paymentNo])
   @@index([shopId])
   @@index([memberId])
   @@index([invoiceId])
   @@index([saleId])
+  @@index([purchaseId])
+  @@index([expenseId])
 }
 
 // --- Layer 2.2: Inventory Audit (Stock Take) ---
@@ -1686,4 +1773,619 @@ model StockTakeItem {
 
   @@index([sessionId])
   @@index([productId])
+}
+
+// ==================== TAX SYSTEM: Phase T1 Foundation ====================
+// Namfon ERP — Tax-capable, Snapshot-based, Single Source of Truth
+// VAT Law: พ.ร.บ.ภาษีมูลค่าเพิ่ม / ประกาศลด VAT ชั่วคราว 7% (ต่อ 30 ก.ย. 2569)
+
+enum TaxDirection {
+  OUTPUT // ภาษีขาย (ออกใบกำกับภาษี)
+  INPUT  // ภาษีซื้อ (รับใบกำกับภาษีจาก vendor)
+}
+
+enum TaxKind {
+  VAT        // ทั่วไป (7% ปัจจุบัน)
+  ZERO_RATED // 0% ต้อง report แยก bucket (เช่น ส่งออก)
+  EXEMPT     // ยกเว้นตามกฎหมาย (ไม่ report VAT)
+  NO_VAT     // ไม่อยู่ในระบบ VAT (สินค้า/บริการนอกขาย)
+}
+
+enum TaxCalculationMode {
+  EXCLUSIVE // VAT บวกเพิ่มจากราคา: net = base + tax
+  INCLUSIVE // VAT รวมในราคา: ต้อง back-calculate base
+}
+
+enum ProductTaxClass {
+  TAXABLE    // คิด VAT ปกติ
+  ZERO_RATED // 0% เช่น ส่งออก
+  EXEMPT     // ยกเว้น VAT ตามกฎหมาย
+  NO_VAT     // ไม่อยู่ในขอบ VAT
+}
+
+enum TaxPostingStatus {
+  DRAFT  // ยังไม่ post
+  POSTED // ลงรายงานแล้ว
+  VOIDED // ถูก void (เช่น ยกเลิก invoice)
+}
+
+enum ClaimStatus {
+  CLAIMABLE      // เคลมได้ (ภาษีซื้อปกติ)
+  WAITING_DOC    // รอเอกสารตัวจริง (Block Posting)
+  NON_CLAIMABLE  // เคลมไม่ได้ (ภาษีต้องห้าม / ไม่สร้าง PurchaseTaxEntry)
+}
+
+enum PurchaseTaxSourceType {
+  PURCHASE_ORDER
+  MANUAL_EXPENSE
+}
+
+// --- 1. TaxCode — แหล่งเดียวของ logic ภาษีทั้งหมด ---
+model TaxCode {
+  id          String @id @default(cuid())
+  shopId      String
+  shop        Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  code            String             // "VAT7_OUT", "VAT7_IN", "VAT0_OUT", "EXEMPT_OUT", "NOVAT"
+  name            String             // ชื่อ user อ่านได้: "VAT 7% (ขาย)"
+  description     String?            // คำอธิบาย
+
+  direction       TaxDirection
+  kind            TaxKind
+  rate            Decimal            @db.Decimal(5, 2) // 7.00, 0.00
+  calculationMode TaxCalculationMode @default(EXCLUSIVE)
+
+  isActive        Boolean            @default(true)
+  effectiveFrom   DateTime
+  effectiveTo     DateTime?          // null = ยังใช้งานได้
+
+  // สำหรับ tax report routing
+  reportBucket    String?            // "SALES_VAT" | "PURCHASE_VAT" | "EXEMPT" | null
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([shopId, code])
+  @@index([shopId, direction, isActive])
+  @@index([shopId, kind, isActive])
+}
+
+// --- 2. CompanyTaxProfile — ตัวตนภาษีระดับบริษัท ---
+model CompanyTaxProfile {
+  id     String @id @default(cuid())
+  shopId String @unique
+  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  // สถานะผู้ประกอบการ
+  isVatRegistered     Boolean   @default(false)
+  vatRegistrationDate DateTime?
+  vatThreshold        Decimal?  @db.Decimal(14, 2) // เกณฑ์ 1,800,000 บาท
+
+  // ข้อมูลนิติบุคคล (ใช้ snapshot บนเอกสาร)
+  legalName         String    // ชื่อนิติบุคคลทางกฎหมาย
+  taxPayerId        String?   // เลขภาษี 13 หลัก
+  branchCode        String?   // "00000" = สำนักงานใหญ่
+  registeredAddress String?   @db.Text
+
+  // Default Tax Codes (FK to TaxCode.code แบบ soft reference)
+  defaultSalesTaxCode    String? // e.g., "VAT7_OUT"
+  defaultPurchaseTaxCode String? // e.g., "VAT7_IN"
+
+  // Document Prefixes
+  taxInvoicePrefix String? // "IV" → IV-00001
+  creditNotePrefix String? // "CN" → CN-00001
+  debitNotePrefix  String? // "DN" → DN-00001
+
+  // Invoice Format
+  isTaxInvoiceFull Boolean @default(true) // true = เต็มรูป, false = แบบย่อ
+
+  // Signatory (Phase T5)
+  authorizedPerson   String? // ผู้ลงนามในใบกำกับ/ใบรับรอง
+  authorizedPosition String? // ตำแหน่งผู้ลงนาม
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// --- 3. PartnerTaxProfile — profile ภาษีของลูกค้า/เจ้าหนี้ ---
+model PartnerTaxProfile {
+  id     String @id @default(cuid())
+  shopId String
+  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  // Polymorphic reference (Customer OR Supplier)
+  customerId String? @unique
+  supplierId String? @unique
+
+  // ข้อมูลภาษีของคู่ค้า
+  taxId      String? // เลขประจำตัวผู้เสียภาษีของคู่ค้า
+  branchCode String? // "00000" = สำนักงานใหญ่
+  branchName String? // "สำนักงานใหญ่" / "สาขาบางกอก"
+
+  isVatRegistrant Boolean @default(false)
+
+  // Default treatment เมื่อสร้างเอกสาร
+  defaultSalesTaxCode    String? // FK soft → TaxCode.code
+  defaultPurchaseTaxCode String? // FK soft → TaxCode.code
+
+  // สำหรับ withholding tax (หัก ณ ที่จ่าย)
+  isSubjectToWht      Boolean      @default(false)
+  payeeType           WhtPayeeType @default(UNKNOWN)
+  defaultWhtCodeId    String?      // FK soft -> WhtCode.code
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([shopId])
+  @@index([shopId, customerId])
+  @@index([shopId, supplierId])
+}
+
+// --- 4. ProductTaxProfile — profile ภาษีของสินค้า/บริการ ---
+model ProductTaxProfile {
+  id     String @id @default(cuid())
+  shopId String
+  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  productId String @unique
+
+  taxClass            ProductTaxClass @default(TAXABLE)
+  salesTaxCode        String?         // FK soft → TaxCode.code
+  purchaseTaxCode     String?         // FK soft → TaxCode.code
+
+  // สำหรับสินค้าที่มี mixed tax (เช่น บางส่วนยกเว้น)
+  isAlwaysExempt   Boolean @default(false)
+  exemptReason     String? // เหตุผลยกเว้น (เช่น "สินค้าเกษตร")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([shopId, productId])
+  @@index([shopId, taxClass])
+}
+
+// --- 5. SalesTaxEntry — รายงานภาษีขาย (ใช้แทนการอ่าน Invoice ดิบ) ---
+model SalesTaxEntry {
+  id     String @id @default(cuid())
+  shopId String
+  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  sourceType String // "INVOICE" | "CREDIT_NOTE" | "DEBIT_NOTE"
+  sourceId   String @unique // FK to Invoice.id / CreditNote.id
+
+  taxMonth Int // 1-12
+  taxYear  Int // YYYY
+
+  partnerId   String? // FK to Customer.id
+  partnerName String? // snapshot ชื่อลูกค้า ณ เวลา post
+
+  taxCode           String?
+  taxRate           Decimal @db.Decimal(5, 2)
+  taxableBaseAmount Decimal @db.Decimal(14, 2)
+  taxAmount         Decimal @db.Decimal(14, 2)
+
+  postingStatus TaxPostingStatus @default(DRAFT)
+  postedAt      DateTime?
+  voidedAt      DateTime?
+
+  // Audit trail
+  postedBy String? // memberId
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([shopId, taxYear, taxMonth, postingStatus])
+  @@index([shopId, sourceType, sourceId])
+  @@index([shopId, partnerId])
+}
+
+// --- 6. PurchaseTaxEntry — รายงานภาษีซื้อ ---
+model PurchaseTaxEntry {
+  id     String @id @default(cuid())
+  shopId String
+  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  sourceType String // "PURCHASE_TAX_DOC" | "CREDIT_NOTE" | "DEBIT_NOTE"
+  sourceId   String @unique // FK to PurchaseTaxDocument.id
+  source     PurchaseTaxDocument @relation(fields: [sourceId], references: [id], map: "PurchaseTaxEntry_source_fkey")
+
+  taxMonth Int
+  taxYear  Int
+
+  vendorDocNo   String? // เลขที่ใบกำกับภาษีจาก vendor (critical สำหรับรายงาน ภ.พ.30)
+  vendorDocDate DateTime?
+  partnerId     String? // FK to Supplier.id
+  partnerName   String? // snapshot
+
+  taxCode           String?
+  taxRate           Decimal @db.Decimal(5, 2)
+  taxableBaseAmount Decimal @db.Decimal(14, 2)
+  taxAmount         Decimal @db.Decimal(14, 2)
+
+  claimStatus   ClaimStatus      @default(CLAIMABLE)
+  postingStatus TaxPostingStatus @default(DRAFT)
+  postedAt      DateTime?
+  voidedAt      DateTime?
+
+  postedBy String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([shopId, taxYear, taxMonth, postingStatus])
+  @@index([shopId, sourceType, sourceId])
+  @@index([shopId, claimStatus])
+  @@index([shopId, partnerId])
+}
+
+enum PurchaseTaxStatus {
+  DRAFT
+  POSTED
+  VOIDED
+}
+
+// --- 7. PurchaseTaxDocument — เอกสารภาษีซื้อ (T3 Snapshot) ---
+model PurchaseTaxDocument {
+  id              String        @id @default(cuid())
+  shopId          String
+  shop            Shop          @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  
+  // Actor & Audit
+  memberId        String        // ผู้สร้างเอกสาร
+  member          ShopMember    @relation("PurchTaxCreator", fields: [memberId], references: [id])
+  postedByMemberId String?
+  postedBy        ShopMember?   @relation("PurchTaxPoster", fields: [postedByMemberId], references: [id])
+  voidedByMemberId String?
+  voidedBy        ShopMember?   @relation("PurchTaxVoider", fields: [voidedByMemberId], references: [id])
+  
+  postedAt        DateTime?
+  voidedAt        DateTime?
+  
+  // Linkage
+  sourceType      PurchaseTaxSourceType @default(PURCHASE_ORDER)
+  links           PurchaseTaxDocumentLink[]
+  supplierId      String?
+  supplier        Supplier?      @relation(fields: [supplierId], references: [id])
+  
+  // Vendor Document Snapshot (integrity)
+  vendorNameSnapshot    String
+  vendorAddressSnapshot String?     @db.Text
+  vendorTaxIdSnapshot   String?
+  vendorBranchSnapshot  String?
+  vendorDocNo           String      // เลขที่ใบกำกับภาษีจาก Vendor
+  vendorDocDate         DateTime    // วันที่ในใบกำกับภาษีจาก Vendor
+
+  // Internal Doc Management
+  internalDocNo         String      // PTX-202401001
+  
+  // Tax Snapshot
+  isVatDocument         Boolean     @default(true)
+  taxCodeSnapshot       String?
+  taxRateSnapshot       Decimal     @db.Decimal(5, 2) @default(0)
+  taxCalculationMode    TaxCalculationMode @default(EXCLUSIVE)
+  
+  // Financial Snapshot
+  subtotalAmount        Decimal     @db.Decimal(14, 2)
+  discountAmount        Decimal     @db.Decimal(14, 2) @default(0)
+  taxableBaseAmount     Decimal     @db.Decimal(14, 2)
+  taxAmount             Decimal     @db.Decimal(14, 2)
+  netAmount             Decimal     @db.Decimal(14, 2)
+  
+  status                PurchaseTaxStatus @default(DRAFT)
+  claimStatus           ClaimStatus       @default(CLAIMABLE)
+  claimReason           String?           @db.Text
+  
+  notes                 String?           @db.Text
+  
+  items                 PurchaseTaxLine[]
+  taxEntry              PurchaseTaxEntry?
+  
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+
+  @@unique([shopId, internalDocNo])
+  @@index([shopId, supplierId, vendorDocNo]) // Hardened Duplicate Check
+  @@index([vendorDocDate])
+}
+
+model PurchaseTaxDocumentLink {
+  id                    String   @id @default(cuid())
+  purchaseTaxDocumentId String
+  document              PurchaseTaxDocument @relation(fields: [purchaseTaxDocumentId], references: [id], onDelete: Cascade)
+  purchaseOrderId       String
+  purchase              Purchase @relation(fields: [purchaseOrderId], references: [id])
+  allocatedAmount       Decimal? @db.Decimal(14, 2)
+  createdAt             DateTime @default(now())
+
+  @@unique([purchaseTaxDocumentId, purchaseOrderId])
+  @@index([purchaseOrderId])
+}
+
+model PurchaseTaxLine {
+  id              String   @id @default(cuid())
+  documentId      String
+  document        PurchaseTaxDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  
+  // Snapshot Hardening (consistent with InvoiceLine)
+  productNameSnapshot String
+  skuSnapshot         String?
+  uomSnapshot         String?
+  taxCodeSnapshot     String?
+  taxRateSnapshot     Decimal  @db.Decimal(5, 2)
+  
+  description     String?  // Additional detail
+  quantity        Decimal  @db.Decimal(14, 4)
+  unitPrice       Decimal  @db.Decimal(14, 2)
+  discountAmount  Decimal  @db.Decimal(14, 2) @default(0)
+  
+  taxableBaseAmount Decimal  @db.Decimal(14, 2)
+  taxAmount         Decimal  @db.Decimal(14, 2)
+  lineNetAmount     Decimal  @db.Decimal(14, 2)
+}
+
+// ==================== TAX SYSTEM: Phase T5 WHT ====================
+// Namfon ERP — Withholding Tax (หัก ณ ที่จ่าย)
+// Supporting P.N.D. 3 (Personal) and P.N.D. 53 (Corporate)
+
+enum WhtPayeeType {
+  INDIVIDUAL // บุคคลธรรมดา -> ภ.ง.ด. 3
+  CORPORATE  // นิติบุคคล -> ภ.ง.ด. 53
+  UNKNOWN    // ยังไม่ระบุ
+  ANY        // ใช้ได้ทั้งคู่ (สำหรับ Master)
+}
+
+enum WhtFormType {
+  PND3
+  PND53
+}
+
+// --- 8. WhtCode — รหัสภาษีหัก ณ ที่จ่าย ---
+model WhtCode {
+  id          String @id @default(cuid())
+  shopId      String
+  shop        Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  code            String             // "SERVICE_3", "RENT_5", "AD_2"
+  name            String             // "ค่าบริการ (3%)", "ค่าเช่า (5%)"
+  rate            Decimal            @db.Decimal(5, 2) // 3.00, 5.00
+  
+  formType        WhtFormType        // PND3 | PND53
+  payeeType       WhtPayeeType       @default(ANY) // INDIVIDUAL | CORPORATE | ANY
+  incomeCategory  String?            // "ค่าบริการ", "ค่าเช่า", "ค่าโฆษณา"
+
+  isActive        Boolean            @default(true)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([shopId, code])
+}
+
+// --- 9. WhtEntry — รายงานภาษีหัก ณ ที่จ่าย (Ledger) ---
+model WhtEntry {
+  id     String @id @default(cuid())
+  shopId String
+  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  // Actor & Audit
+  memberId String?
+  member   ShopMember? @relation(fields: [memberId], references: [id], onDelete: SetNull)
+
+  // Linkage
+  paymentId String?    @unique // Link To Payment.id
+  payment   Payment?   @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  partnerId String?    // Link To Supplier/Customer
+  
+  // Payee Snapshot (Audit Trail)
+  payeeNameSnapshot   String
+  payeeTaxIdSnapshot  String?
+  payeeBranchSnapshot String?
+  payeeTypeSnapshot   WhtPayeeType
+
+  // Tax Logic Snapshot
+  whtCodeId             String? // FK to WhtCode.code
+  formTypeSnapshot      WhtFormType
+  incomeCategorySnapshot String?
+  rateSnapshot          Decimal @db.Decimal(5, 2)
+
+  // Amount Semantics (Strict ERP standard)
+  grossPayableAmount Decimal @db.Decimal(14, 2) // ยอดก่อนหัก
+  whtBaseAmount      Decimal @db.Decimal(14, 2) // ฐานที่ใช้คำนวณ (ปกติ = grossPayable)
+  whtAmount          Decimal @db.Decimal(14, 2) // ภาษีที่หัก (base * rate)
+  netPaidAmount      Decimal @db.Decimal(14, 2) // ยอดจ่ายจริง (gross - wht)
+
+  // Temporal
+  paymentDate DateTime
+  taxMonth    Int
+  taxYear     Int
+
+  status TaxPostingStatus @default(DRAFT)
+  
+  certificate WhtCertificate?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([shopId, taxYear, taxMonth, status])
+  @@index([shopId, formTypeSnapshot, status])
+}
+
+// --- 10. WhtCertificate — หนังสือรับรองการหักภาษี ณ ที่จ่าย (50 ทวิ) ---
+model WhtCertificate {
+  id     String @id @default(cuid())
+  shopId String
+  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  whtEntryId String   @unique
+  whtEntry   WhtEntry @relation(fields: [whtEntryId], references: [id], onDelete: Cascade)
+
+  certificateNo String // เลขที่ใบรับรอง (e.g., WH-202401-001)
+  issueDate     DateTime
+
+  // Payer Snapshot (Company details at issue time)
+  payerNameSnapshot   String
+  payerTaxIdSnapshot  String?
+  payerBranchSnapshot String?
+  payerAddressSnapshot String?
+
+  // Payee Snapshot (Redundant but safe for re-printing)
+  payeeNameSnapshot   String
+  payeeTaxIdSnapshot  String?
+  payeeBranchSnapshot String?
+  payeeAddressSnapshot String?
+
+  status TaxPostingStatus @default(DRAFT)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([shopId, certificateNo])
+  @@index([whtEntryId])
+}
+// ==================== ACCOUNTING CORE: Phase A1 ====================
+// Namfon ERP — General Ledger & Chart of Accounts
+
+enum AccountCategory {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+enum NormalBalance {
+  DEBIT
+  CREDIT
+}
+
+enum JournalStatus {
+  DRAFT
+  POSTED
+  VOIDED
+}
+
+// --- 11. Account — ผังบัญชี (Chart of Accounts) ---
+model Account {
+  id     String @id @default(cuid())
+  shopId String
+  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  code           String             // รหัสผังบัญชี (e.g., 1101-00)
+  name           String             // ชื่อบัญชี (e.g., เงินสด)
+  category       AccountCategory    // ASSET | LIABILITY | ...
+  normalBalance  NormalBalance      // DEBIT | CREDIT
+  
+  parentId       String?
+  parent         Account?           @relation("AccountHierarchy", fields: [parentId], references: [id])
+  children       Account[]          @relation("AccountHierarchy")
+
+  isPostable     Boolean            @default(true) // บัญชีคุม (false) หรือบัญชีย่อยที่ลงรายการได้ (true)
+  isActive       Boolean            @default(true)
+  
+  journalLines   JournalLine[]
+
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@unique([shopId, code])
+  @@index([shopId, category])
+}
+
+// --- 12. JournalEntry — สมุดรายวัน (Ledger Header) ---
+model JournalEntry {
+  id     String @id @default(cuid())
+  shopId String
+  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  entryNo        String             // เลขที่ใบสำคัญ (e.g., JV-202401001)
+  journalDate    DateTime           // วันที่ลงบัญชี
+  description    String?            @db.Text
+  
+  status         JournalStatus      @default(DRAFT)
+  postedAt       DateTime?
+  
+  // Traceability (Rule 2)
+  sourceType     String?            // "INVOICE" | "PAYMENT" | "WHT" | "POS"
+  sourceId       String?            // FK to source document
+  sourceNo       String?            // Human-readable source number
+  postingPurpose String             @default("GENERAL") // INVOICE_POST | PAYMENT_POST | VOID_REVERSAL
+
+  lines          JournalLine[]
+
+  // Audit
+  memberId       String
+  member         ShopMember         @relation(fields: [memberId], references: [id])
+
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@unique([shopId, entryNo])
+  @@unique([shopId, sourceType, sourceId, postingPurpose])
+  @@index([shopId, journalDate, status])
+  @@index([sourceType, sourceId])
+}
+
+// --- 13. JournalLine — รายการสมุดรายวัน (Ledger Detail) ---
+model JournalLine {
+  id             String @id @default(cuid())
+  
+  journalEntryId String
+  journalEntry   JournalEntry       @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+
+  accountId      String
+  account        Account            @relation(fields: [accountId], references: [id])
+  
+  description    String?            @db.Text
+  
+  debitAmount    Decimal            @db.Decimal(14, 2) @default(0)
+  creditAmount   Decimal            @db.Decimal(14, 2) @default(0)
+
+  // Optional: Segment/Partner tracking
+  partnerId      String?
+  partnerType    String?            // "CUSTOMER" | "SUPPLIER"
+  
+  referenceType  String?
+  referenceId    String?
+
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@index([accountId])
+  @@index([journalEntryId])
+}
+
+// --- 14. AccountingPeriod — งวดบัญชี (Period Controls) ---
+enum PeriodStatus {
+  OPEN
+  CLOSED
+}
+
+model AccountingPeriod {
+  id                String       @id @default(cuid())
+  shopId            String
+  shop              Shop         @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  
+  periodName        String       // e.g. "April 2024"
+  startDate         DateTime
+  endDate           DateTime
+  status            PeriodStatus @default(OPEN)
+  
+  // Audit Fields
+  closedAt            DateTime?
+  closedByMemberId    String?
+  closedBy            ShopMember?   @relation("ClosedByMember", fields: [closedByMemberId], references: [id])
+  
+  reopenedAt          DateTime?
+  reopenedByMemberId  String?
+  reopenedBy          ShopMember?   @relation("ReopenedByMember", fields: [reopenedByMemberId], references: [id])
+  
+  reopenReason        String?
+  
+  history             Json?        // Full audit trail
+  
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  @@unique([shopId, startDate, endDate])
+  @@index([shopId, status])
 }

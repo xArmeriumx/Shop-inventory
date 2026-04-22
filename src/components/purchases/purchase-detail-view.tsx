@@ -10,6 +10,7 @@ import { ReceiptImage } from '@/components/receipts/receipt-image';
 import { BackPageHeader } from '@/components/ui/back-page-header';
 import { PdfPrintTrigger } from '@/features/print/components/pdf-print-trigger';
 import { buildPurchasePrintDTO } from '@/features/print/builders/purchase-order-print.builder';
+import { RegisterPurchaseTaxButton } from '@/components/tax/register-purchase-tax-button';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -31,12 +32,18 @@ export function PurchaseDetailView({ purchase, shop }: PurchaseDetailViewProps) 
         <div className="space-y-6">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between print:hidden">
                 <BackPageHeader backHref="/purchases" title="รายละเอียดการซื้อ" />
-                <PdfPrintTrigger
-                    type="PURCHASE"
-                    documentData={buildPurchasePrintDTO(purchase, shop)}
-                    fileName={`PO-${purchase.invoiceNumber || purchase.id.slice(0, 8)}.pdf`}
-                    label="พิมพ์ใบสั่งซื้อ (PDF)"
-                />
+                <div className="flex gap-2">
+                    <RegisterPurchaseTaxButton
+                        purchaseId={purchase.id}
+                        hasTaxDoc={purchase.purchaseTaxLinks?.length > 0}
+                    />
+                    <PdfPrintTrigger
+                        type="PURCHASE"
+                        documentData={buildPurchasePrintDTO(purchase, shop)}
+                        fileName={`PO-${purchase.invoiceNumber || purchase.id.slice(0, 8)}.pdf`}
+                        label="พิมพ์ใบสั่งซื้อ (PDF)"
+                    />
+                </div>
             </div>
 
             <Card className="print:shadow-none print:border-none">

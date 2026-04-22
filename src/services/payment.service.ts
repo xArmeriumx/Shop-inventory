@@ -4,6 +4,12 @@ import { AuditService } from './audit.service';
 import { toNumber } from '@/lib/money';
 import { Security } from './security';
 import { type Permission } from '@prisma/client';
+import { WhtService } from './wht.service';
+import { SequenceService } from './sequence.service';
+import { PostingService } from './posting-engine.service';
+import { JournalService } from './journal.service';
+import { DocumentType } from '@/types/domain';
+import { Decimal } from '@prisma/client/runtime/library';
 
 // Use type assertions for Prisma enums due to potential environment generator lag
 const PaymentStatus = { POSTED: 'POSTED', VOIDED: 'VOIDED' } as any;
@@ -12,11 +18,16 @@ const DocPaymentStatus = { UNPAID: 'UNPAID', PARTIAL: 'PARTIAL', PAID: 'PAID' } 
 export interface PaymentInput {
     invoiceId?: string;
     saleId?: string;
-    amount: number;
+    purchaseId?: string;
+    expenseId?: string;
+    amount: number; // This will be the GROSS amount (debt reduction)
     paymentMethodCode: string;
     paymentDate?: Date;
     referenceId?: string;
     note?: string;
+    // WHT Fields (Phase T5)
+    whtCodeId?: string;
+    isGrossUp?: boolean;
 }
 
 export const PaymentService = {
@@ -26,9 +37,11 @@ export const PaymentService = {
      */
     async recordPayment(data: PaymentInput, ctx: RequestContext) {
         Security.require(ctx, 'INVOICE_CREATE' as any); // Logic: recording payment is usually part of billing
-        // 1. Validation: Parent XOR Check
-        if ((data.invoiceId && data.saleId) || (!data.invoiceId && !data.saleId)) {
-            throw new ServiceError('รายการชำระต้องระบุเอกสารอ้างอิงเพียงอย่างเดียว (Invoice หรือ Sale)');
+
+        // 1. Validation: Parent XOR Check (exactly one parent)
+        const parents = [data.invoiceId, data.saleId, data.purchaseId, data.expenseId].filter(Boolean);
+        if (parents.length !== 1) {
+            throw new ServiceError('รายการชำระต้องระบุเอกสารอ้างอิงเพียงหนึ่งอย่าง (Invoice, Sale, Purchase หรือ Expense)');
         }
 
         // 2. Validation: Amount
@@ -51,6 +64,17 @@ export const PaymentService = {
                 });
                 if (!parent) throw new ServiceError('ไม่พบรายการขาย หรือไม่มีสิทธิ์เข้าถึง');
                 if (parent.status === 'CANCELLED') throw new ServiceError('ไม่สามารถรับชำระสำหรับรายการขายที่ถูกยกเลิกแล้ว');
+            } else if (data.purchaseId) {
+                parent = await (tx as any).purchase.findFirst({
+                    where: { id: data.purchaseId, shopId: ctx.shopId },
+                });
+                if (!parent) throw new ServiceError('ไม่พบรายการสั่งซื้อ หรือไม่มีสิทธิ์เข้าถึง');
+                if (parent.status === 'CANCELLED') throw new ServiceError('ไม่สามารถชำระเงินสำหรับรายการสั่งซื้อที่ถูกยกเลิกแล้ว');
+            } else if (data.expenseId) {
+                parent = await (tx as any).expense.findFirst({
+                    where: { id: data.expenseId, shopId: ctx.shopId },
+                });
+                if (!parent) throw new ServiceError('ไม่พบรายการค่าใช้จ่าย หรือไม่มีสิทธิ์เข้าถึง');
             }
 
             // 4. Overpayment Check (Anti-Overpay Rule)
@@ -59,13 +83,17 @@ export const PaymentService = {
                 throw new ServiceError(`ยอดชำระเกินจำนวนที่ค้างอยู่ (คงค้าง: ${currentResidual.toLocaleString()} THB)`);
             }
 
-            // 5. Create Ledger Entry
+            // 5. Generate Payment Number (Professional RCP-XXXX)
+            const paymentNo = await SequenceService.generate(ctx, DocumentType.PAYMENT, tx);
+
+            // 6. Create Ledger Entry
             const payment = await (tx as any).payment.create({
                 data: {
                     shopId: ctx.shopId,
                     memberId: ctx.memberId!,
                     invoiceId: data.invoiceId,
                     saleId: data.saleId,
+                    paymentNo, // Added professional sequence
                     type: 'IN', // Phase 4 focusing on Receipts
                     amount: data.amount,
                     paymentMethodCode: data.paymentMethodCode,
@@ -75,6 +103,63 @@ export const PaymentService = {
                     status: 'POSTED',
                 },
             });
+
+            // 7. Post to Accounting Ledger (Phase A1.3)
+            await PostingService.postPayment(ctx, payment, tx);
+
+            // 5.1 Handle WHT (Phase T5)
+            if (data.whtCodeId) {
+                const whtCode = await (tx as any).whtCode.findUnique({
+                    where: { id: data.whtCodeId }
+                });
+
+                if (!whtCode) throw new ServiceError('ไม่พบรหัสภาษีหัก ณ ที่จ่าย');
+
+                // Get Partner Tax Profile
+                const partnerId = parent.customerId || parent.supplierId;
+                if (!partnerId) throw new ServiceError('ไม่พบข้อมูลคู่ค้าสำหรับหัก ณ ที่จ่าย');
+
+                const partner = await (tx as any).partnerTaxProfile.findUnique({
+                    where: { partnerId }
+                });
+
+                if (!partner) throw new ServiceError('กรุณาตั้งค่าข้อมูลภาษีของคู่ค้าก่อนทำรายการหัก ณ ที่จ่าย');
+
+                const whtCalc = WhtService.calculate({
+                    amount: data.amount,
+                    rate: whtCode.rate,
+                    isGrossUp: data.isGrossUp
+                });
+
+                await (tx as any).whtEntry.create({
+                    data: {
+                        shopId: ctx.shopId,
+                        memberId: ctx.memberId!,
+                        paymentId: payment.id,
+                        partnerId: partnerId,
+
+                        payeeNameSnapshot: partner.registeredName,
+                        payeeTaxIdSnapshot: partner.taxId,
+                        payeeBranchSnapshot: partner.branchCode || '00000',
+                        payeeTypeSnapshot: partner.payeeType,
+
+                        whtCodeId: whtCode.id,
+                        formTypeSnapshot: whtCode.formType,
+                        incomeCategorySnapshot: whtCode.incomeCategory,
+                        rateSnapshot: whtCode.rate,
+
+                        grossPayableAmount: whtCalc.grossPayableAmount,
+                        whtBaseAmount: whtCalc.whtBaseAmount,
+                        whtAmount: whtCalc.whtAmount,
+                        netPaidAmount: whtCalc.netPaidAmount,
+
+                        paymentDate: payment.paymentDate,
+                        taxMonth: payment.paymentDate.getMonth() + 1,
+                        taxYear: payment.paymentDate.getFullYear(),
+                        status: 'POSTED'
+                    }
+                });
+            }
 
             // 6. Sync Snapshots (Recalculate from Ledger)
             await this.recalculateDocumentBalance(
@@ -87,7 +172,7 @@ export const PaymentService = {
                 action: 'PAYMENT_RECORD',
                 targetType: 'Payment',
                 targetId: payment.id,
-                note: `ชำระเงินจำนวน ${data.amount} THB สำหรับ ${data.invoiceId ? 'Invoice' : 'Sale'}`,
+                note: `ชำระเงินจำนวน ${data.amount} THB สำหรับ ${data.invoiceId ? 'Invoice' : 'Sale'}${data.whtCodeId ? ' (รวมหัก ณ ที่จ่าย)' : ''}`,
             }, async () => payment, tx);
 
             return payment;
@@ -112,6 +197,45 @@ export const PaymentService = {
                 where: { id: paymentId },
                 data: { status: 'VOIDED' },
             });
+
+            // 0. Find and reverse Accounting Journal (Phase A1.5)
+            const journal = await (tx as any).journalEntry.findFirst({
+                where: {
+                    shopId: ctx.shopId,
+                    sourceType: 'PAYMENT_RECEIPT',
+                    sourceId: paymentId,
+                    postingPurpose: 'PAYMENT_POST',
+                    status: 'POSTED'
+                }
+            });
+
+            if (journal) {
+                await JournalService.reverseEntry(ctx, journal.id, tx);
+            }
+
+            // 1. Void Linked WHT Entry & Certificate (Phase T5)
+            const whtEntry = await (tx as any).whtEntry.findUnique({
+                where: { paymentId }
+            });
+
+            if (whtEntry) {
+                await (tx as any).whtEntry.update({
+                    where: { id: whtEntry.id },
+                    data: { status: 'VOIDED' }
+                });
+
+                // Also void if a certificate was issued
+                const cert = await (tx as any).whtCertificate.findUnique({
+                    where: { whtEntryId: whtEntry.id }
+                });
+
+                if (cert) {
+                    await (tx as any).whtCertificate.update({
+                        where: { id: cert.id },
+                        data: { status: 'VOIDED' }
+                    });
+                }
+            }
 
             // Sync Snapshots
             await this.recalculateDocumentBalance(
@@ -155,10 +279,18 @@ export const PaymentService = {
             parent = await (tx as any).invoice.findUnique({ where: { id: target.invoiceId } });
             updateModel = (tx as any).invoice;
             parentId = target.invoiceId;
-        } else {
+        } else if (target.saleId) {
             parent = await (tx as any).sale.findUnique({ where: { id: target.saleId } });
             updateModel = (tx as any).sale;
-            parentId = target.saleId!;
+            parentId = target.saleId;
+        } else if ((target as any).purchaseId) {
+            parent = await (tx as any).purchase.findUnique({ where: { id: (target as any).purchaseId } });
+            updateModel = (tx as any).purchase;
+            parentId = (target as any).purchaseId;
+        } else if ((target as any).expenseId) {
+            parent = await (tx as any).expense.findUnique({ where: { id: (target as any).expenseId } });
+            updateModel = (tx as any).expense;
+            parentId = (target as any).expenseId;
         }
 
         const totalAmount = toNumber(parent.totalAmount);

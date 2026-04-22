@@ -16,6 +16,8 @@ import { Button } from '@/components/ui/button';
 import { FormField } from '@/components/ui/form-field';
 import { PAYMENT_METHODS } from '@/constants/finance';
 import { recordPaymentAction } from '@/actions/payments';
+import { getPaymentPostingPreviewAction } from '@/actions/journal';
+import { PostingPreview } from '@/components/accounting/posting-preview';
 import { Loader2, CheckCircle2, ArrowRight } from 'lucide-react';
 import { formatCurrency } from '@/lib/formatters';
 import { paymentSchema, PaymentFormValues, getDefaultPaymentValues } from '@/schemas/payment-form';
@@ -38,6 +40,7 @@ export function PaymentModal({
     parentTitle
 }: PaymentModalProps) {
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [previewData, setPreviewData] = useState<any>(null);
 
     const methods = useForm<PaymentFormValues>({
         resolver: zodResolver(paymentSchema),
@@ -48,12 +51,31 @@ export function PaymentModal({
     useEffect(() => {
         if (isOpen) {
             methods.reset(getDefaultPaymentValues(residualAmount));
+            setPreviewData(null);
         }
     }, [isOpen, residualAmount, methods]);
 
     // Watch amount for Impact Preview
     const currentAmount = useWatch({ control: methods.control, name: 'amount' }) || 0;
     const nextResidual = Math.max(0, residualAmount - currentAmount);
+
+    // Reactive Preview Fetching
+    useEffect(() => {
+        const fetchPreview = async () => {
+            if (!isOpen || currentAmount <= 0) {
+                setPreviewData(null);
+                return;
+            }
+            const res = await getPaymentPostingPreviewAction({
+                amount: currentAmount,
+                paymentNo: 'NEW-PYM'
+            });
+            if (res.success) setPreviewData(res.data);
+        };
+
+        const timer = setTimeout(fetchPreview, 300);
+        return () => clearTimeout(timer);
+    }, [currentAmount, isOpen]);
 
     const onSubmit = async (values: PaymentFormValues) => {
         if (values.amount > residualAmount) {
@@ -90,7 +112,7 @@ export function PaymentModal({
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="sm:max-w-[450px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle className="text-xl font-bold flex items-center gap-2">
                         <CheckCircle2 className="h-5 w-5 text-green-600" />
@@ -101,7 +123,7 @@ export function PaymentModal({
                     </DialogDescription>
                 </DialogHeader>
 
-                {/* Financial Summary & Impact Preview */}
+                {/* Financial Summary */}
                 <div className="grid grid-cols-2 gap-4 my-4">
                     <div className="bg-muted p-3 rounded-lg border text-center">
                         <p className="text-[10px] text-muted-foreground uppercase font-bold mb-1">ยอดค้างปัจจุบัน</p>
@@ -160,6 +182,13 @@ export function PaymentModal({
                             </select>
                         </FormField>
 
+                        {/* Impact Preview */}
+                        {previewData && (
+                            <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                                <PostingPreview preview={previewData} title="พรีวิวกระทบยอดบัญชี (Payment Impact)" />
+                            </div>
+                        )}
+
                         <div className="grid grid-cols-2 gap-4">
                             <FormField
                                 name="paymentDate"
@@ -182,17 +211,6 @@ export function PaymentModal({
                                 />
                             </FormField>
                         </div>
-
-                        <FormField
-                            name="note"
-                            label="หมายเหตุ"
-                        >
-                            <textarea
-                                {...methods.register('note')}
-                                className="flex min-h-[60px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                                placeholder="รายละเอียดเพิ่มเติม..."
-                            />
-                        </FormField>
 
                         <DialogFooter className="pt-2">
                             <Button type="button" variant="ghost" onClick={onClose} disabled={isSubmitting}>

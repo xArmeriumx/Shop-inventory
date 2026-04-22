@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BackPageHeader } from '@/components/ui/back-page-header';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Printer, FileText, Wallet, PlusCircle, CheckCircle2 } from 'lucide-react';
+import { Printer, FileText, Wallet, PlusCircle, CheckCircle2, Receipt, ShieldCheck, ExternalLink } from 'lucide-react';
 import { InvoiceActions } from '@/components/invoices/invoice-actions';
 import { formatCurrency } from '@/lib/formatters';
 import { Badge } from '@/components/ui/badge';
@@ -19,10 +19,14 @@ import { PdfPrintTrigger } from '@/features/print/components/pdf-print-trigger';
 import { buildInvoicePrintDTO } from '@/features/print/builders/invoice-print.builder';
 import Link from 'next/link';
 
+import { PostingPreview } from '@/components/accounting/posting-preview';
+
 interface InvoiceDetailViewProps {
     invoice: any;
     shop: any;
     payments?: any[];
+    postingPreview?: any;
+    journalEntry?: any;
 }
 
 const INVOICE_STATUS_CONFIG: Record<string, StatusConfig> = {
@@ -32,13 +36,21 @@ const INVOICE_STATUS_CONFIG: Record<string, StatusConfig> = {
     CANCELLED: { label: 'ยกเลิกแล้ว', variant: 'destructive' },
 };
 
-export function InvoiceDetailView({ invoice, shop, payments = [] }: InvoiceDetailViewProps) {
+export function InvoiceDetailView({ invoice, shop, payments = [], postingPreview, journalEntry }: InvoiceDetailViewProps) {
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
     const totalAmount = Number(invoice.totalAmount);
     const residualAmount = Number(invoice.residualAmount);
     const paidAmount = Number(invoice.paidAmount || (totalAmount - residualAmount));
     const isFullyPaid = residualAmount <= 0;
+
+    // T2 Tax Snapshots
+    const taxableBaseAmount = Number(invoice.taxableBaseAmount || 0);
+    const taxAmount = Number(invoice.taxAmount || 0);
+    const taxRate = Number(invoice.taxRateSnapshot || 0);
+    const taxCode = invoice.taxCodeSnapshot as string | null;
+    const isTaxInvoice = invoice.isTaxInvoice as boolean;
+    const hasTax = taxAmount > 0;
 
     // Prepare print data using the builder (Deterministic)
     const printData = buildInvoicePrintDTO(invoice, shop);
@@ -48,7 +60,7 @@ export function InvoiceDetailView({ invoice, shop, payments = [] }: InvoiceDetai
             <BackPageHeader
                 backHref="/invoices"
                 title={`ใบแจ้งหนี้ ${invoice.invoiceNo}`}
-                description={`ลูกค้า: ${invoice.customerNameSnapshot ?? invoice.customer?.name ?? '-'}`}
+                description={`ลูกค้า: ${invoice.customerNameSnapshot ?? invoice.customer?.name ?? '-'}${isTaxInvoice ? ' · ใบกำกับภาษีเต็มรูป' : ''}`}
                 action={
                     <div className="flex gap-2 items-center">
                         {invoice.sale && (
@@ -71,6 +83,36 @@ export function InvoiceDetailView({ invoice, shop, payments = [] }: InvoiceDetai
 
             <div className="grid gap-6 md:grid-cols-3">
                 <div className="md:col-span-2 space-y-6">
+                    {/* Safe Post Indicator for Confirmed Invoices */}
+                    {journalEntry && (
+                        <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 flex items-center justify-between mb-6 shadow-sm animate-in zoom-in-95 duration-500">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-emerald-100 rounded-full">
+                                    <ShieldCheck className="h-5 w-5 text-emerald-600" />
+                                </div>
+                                <div>
+                                    <p className="font-bold text-emerald-800 text-sm">Safe Post: บันทึกข้อมูลบัญชีสำเร็จ (Verified GL Impact)</p>
+                                    <p className="text-xs text-emerald-600">
+                                        รายการนี้ถูกบันทึกลงสมุดรายวันทั่วไปเลขที่ <span className="font-mono font-bold underline cursor-help">{journalEntry.journalNo}</span> อย่างสมบูรณ์และไม่สามารถแก้ไขได้
+                                    </p>
+                                </div>
+                            </div>
+                            <Button variant="ghost" size="sm" className="text-emerald-700 hover:bg-emerald-100 border-emerald-200" asChild>
+                                <Link href="/settings/accounting">
+                                    <ExternalLink className="w-4 h-4 mr-2" /> ดูรายการในแยกประเภท
+                                </Link>
+                            </Button>
+                        </div>
+                    )}
+
+                    {/* Posting Preview for Draft Invoices */}
+                    {invoice.status === 'DRAFT' && postingPreview && (
+                        <PostingPreview
+                            preview={postingPreview}
+                            title="พรีวิวการลงบัญชีอัตโนมัติ (Automated Posting Preview)"
+                        />
+                    )}
+
                     {/* Snapshot Banner */}
                     <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 text-sm text-blue-800 flex items-start gap-3">
                         <FileText className="h-5 w-5 text-blue-500 mt-0.5" />
@@ -117,6 +159,8 @@ export function InvoiceDetailView({ invoice, shop, payments = [] }: InvoiceDetai
                                         <TableHead className="text-right">จำนวน</TableHead>
                                         <TableHead className="text-right">ราคา/หน่วย</TableHead>
                                         <TableHead className="text-right">ส่วนลด</TableHead>
+                                        <TableHead className="text-right">ฐานภาษี</TableHead>
+                                        <TableHead className="text-right">VAT</TableHead>
                                         <TableHead className="text-right">รวม</TableHead>
                                     </TableRow>
                                 </TableHeader>
@@ -125,12 +169,28 @@ export function InvoiceDetailView({ invoice, shop, payments = [] }: InvoiceDetai
                                         <TableRow key={item.id}>
                                             <TableCell>
                                                 <div className="font-medium">{item.productNameSnapshot || item.description || item.product?.name}</div>
-                                                <div className="text-xs text-muted-foreground">{item.skuSnapshot || item.product?.sku}</div>
+                                                <div className="text-xs text-muted-foreground flex items-center gap-1">
+                                                    {item.skuSnapshot || item.product?.sku}
+                                                    {item.taxCodeSnapshot && (
+                                                        <Badge variant="outline" className="text-[10px] py-0 h-4">
+                                                            {item.taxCodeSnapshot}
+                                                        </Badge>
+                                                    )}
+                                                </div>
                                             </TableCell>
                                             <TableCell className="text-right">{item.quantity} {item.uomSnapshot}</TableCell>
                                             <TableCell className="text-right">{formatCurrency(Number(item.unitPrice))}</TableCell>
                                             <TableCell className="text-right text-red-500">
                                                 {Number(item.discountAmount) > 0 ? `-${formatCurrency(Number(item.discountAmount))}` : '-'}
+                                            </TableCell>
+                                            <TableCell className="text-right text-muted-foreground">
+                                                {formatCurrency(Number(item.taxableBaseAmount ?? item.lineSubtotalAmount))}
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                {Number(item.taxAmount) > 0
+                                                    ? <span className="text-amber-600 font-medium">{formatCurrency(Number(item.taxAmount))}</span>
+                                                    : <span className="text-muted-foreground text-xs">-</span>
+                                                }
                                             </TableCell>
                                             <TableCell className="text-right font-semibold">{formatCurrency(Number(item.lineNetAmount))}</TableCell>
                                         </TableRow>
@@ -193,37 +253,81 @@ export function InvoiceDetailView({ invoice, shop, payments = [] }: InvoiceDetai
                         </CardContent>
                     </Card>
 
+                    {/* T2 Tax Summary Card */}
+                    <Card className="border-amber-200 bg-amber-50/30">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-sm flex items-center gap-2">
+                                <Receipt className="h-4 w-4 text-amber-600" />
+                                สรุปภาษี (Tax Snapshot)
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-2 text-sm">
+                            <div className="flex justify-between">
+                                <span className="text-muted-foreground">Tax Code</span>
+                                <Badge variant="outline" className="text-xs font-mono">
+                                    {taxCode || 'NOVAT'}
+                                </Badge>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-muted-foreground">อัตรา VAT</span>
+                                <span className="font-medium">{taxRate}%</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="text-muted-foreground">ฐานภาษี</span>
+                                <span className="font-medium">{formatCurrency(taxableBaseAmount)}</span>
+                            </div>
+                            {hasTax && (
+                                <div className="flex justify-between text-amber-700">
+                                    <span>VAT {taxRate}%</span>
+                                    <span className="font-semibold">{formatCurrency(taxAmount)}</span>
+                                </div>
+                            )}
+                            <div className="flex justify-between items-center text-xs text-muted-foreground border-t pt-2">
+                                <span>ประเภทเอกสาร</span>
+                                <span>{isTaxInvoice ? '✅ ใบกำกับภาษีเต็มรูป' : '📄 ใบแจ้งหนี้'}</span>
+                            </div>
+                        </CardContent>
+                    </Card>
+
                     <Card className="bg-muted/10 border-primary/20">
                         <CardHeader>
                             <CardTitle>สรุปยอดเงิน</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-3 text-sm">
                             <div className="flex justify-between">
-                                <span className="text-muted-foreground">ยอดรวมสินค้า (Gross)</span>
+                                <span className="text-muted-foreground">ยอดรวม (Gross)</span>
                                 <span className="font-medium">{formatCurrency(Number(invoice.subtotalAmount))}</span>
                             </div>
-                            <div className="flex justify-between text-red-500">
-                                <span>ส่วนลดทั้งหมด</span>
-                                <span className="font-medium">-{formatCurrency(Number(invoice.discountAmount))}</span>
+                            {Number(invoice.discountAmount) > 0 && (
+                                <div className="flex justify-between text-red-500">
+                                    <span>ส่วนลดทั้งหมด</span>
+                                    <span className="font-medium">-{formatCurrency(Number(invoice.discountAmount))}</span>
+                                </div>
+                            )}
+                            <div className="flex justify-between text-muted-foreground">
+                                <span>ฐานภาษี</span>
+                                <span>{formatCurrency(taxableBaseAmount)}</span>
                             </div>
-                            <div className="flex justify-between">
-                                <span>ภาษีมูลค่าเพิ่ม (0%)</span>
-                                <span className="font-medium">{formatCurrency(Number(invoice.taxAmount))}</span>
-                            </div>
+                            {hasTax && (
+                                <div className="flex justify-between text-amber-700">
+                                    <span>VAT {taxRate}%</span>
+                                    <span className="font-medium">{formatCurrency(taxAmount)}</span>
+                                </div>
+                            )}
                             <Separator />
                             <div className="flex justify-between items-center">
-                                <span className="font-bold text-base">ยอดสุทธิที่ต้องชำระ</span>
+                                <span className="font-bold text-base">ยอดสุทธิ</span>
                                 <span className="text-xl font-black text-primary">
                                     {formatCurrency(totalAmount)}
                                 </span>
                             </div>
                             <Separator />
                             <div className="flex justify-between text-green-600 italic">
-                                <span>ชำระแลัว</span>
+                                <span>ชำระแล้ว</span>
                                 <span className="font-medium">{formatCurrency(paidAmount)}</span>
                             </div>
                             <div className="flex justify-between items-center bg-primary/5 p-2 rounded">
-                                <span className="font-bold">ยอดเงินคงเหลือ</span>
+                                <span className="font-bold">ยอดค้างชำระ</span>
                                 <span className={`text-xl font-black ${isFullyPaid ? 'text-green-600' : 'text-red-600'}`}>
                                     {formatCurrency(residualAmount)}
                                 </span>

@@ -20,16 +20,16 @@ export const ProductIntelligenceService = {
         if (!product) throw new ServiceError('ไม่พบข้อมูลสินค้า');
 
         // Get latest purchase cost (Rule 3)
-        const latestPurchaseItem = await (db as any).purchaseItem.findFirst({
+        const latestPurchaseItem = await db.purchaseItem.findFirst({
             where: {
                 productId,
                 purchase: { shopId: ctx.shopId, status: { not: 'CANCELLED' } }
             },
-            orderBy: { createdAt: 'desc' },
-            select: { price: true }
+            orderBy: { purchase: { date: 'desc' } },
+            select: { costPrice: true }
         });
 
-        const latestCost = latestPurchaseItem ? Number(latestPurchaseItem.price) : 0;
+        const latestCost = latestPurchaseItem ? Number(latestPurchaseItem.costPrice) : 0;
 
         return {
             productId: product.id,
@@ -53,17 +53,21 @@ export const ProductIntelligenceService = {
         };
 
         const [logs, total] = await Promise.all([
-            (db as any).stockLog.findMany({
+            db.stockLog.findMany({
                 where,
                 orderBy: { createdAt: 'desc' },
                 include: {
                     product: { select: { name: true, sku: true } },
-                    member: { select: { name: true } },
+                    member: {
+                        include: {
+                            user: { select: { name: true } }
+                        }
+                    },
                 } as any,
                 skip,
                 take: limit,
             }),
-            (db as any).stockLog.count({ where })
+            db.stockLog.count({ where })
         ]);
 
         const data: StockMovementDTO[] = (logs as any[]).map(log => {
@@ -76,7 +80,7 @@ export const ProductIntelligenceService = {
                 note: log.note,
                 referenceType: log.saleId ? 'SALE' : log.purchaseId ? 'PURCHASE' : log.deliveryOrderId ? 'DELIVERY' : 'UNKNOWN',
                 referenceId: log.saleId || log.purchaseId || log.deliveryOrderId || undefined,
-                actorName: log.member?.name || 'Unknown',
+                actorName: log.member?.user?.name || 'System',
             };
         });
 
@@ -97,7 +101,7 @@ export const ProductIntelligenceService = {
         Security.requirePermission(ctx, 'PRODUCT_VIEW');
 
         // Get all suppliers who provided this product
-        const items = await (db as any).purchaseItem.findMany({
+        const items = await db.purchaseItem.findMany({
             where: {
                 productId,
                 purchase: { shopId: ctx.shopId }
@@ -106,8 +110,8 @@ export const ProductIntelligenceService = {
                 purchase: {
                     include: { supplier: true }
                 }
-            },
-            orderBy: { createdAt: 'desc' }
+            } as any,
+            orderBy: { purchase: { date: 'desc' } } as any
         });
 
         const suppliersMap = new Map<string, SupplierIntelligenceDTO>();
@@ -120,8 +124,8 @@ export const ProductIntelligenceService = {
                     id: supplier.id, // Logic identifier
                     supplierId: supplier.id,
                     supplierName: supplier.name,
-                    lastPurchasePrice: Number(item.price),
-                    lastPurchasedDate: (item as any).purchase?.createdAt,
+                    lastPurchasePrice: Number(item.costPrice),
+                    lastPurchasedDate: (item as any).purchase?.date,
                 });
             }
         }

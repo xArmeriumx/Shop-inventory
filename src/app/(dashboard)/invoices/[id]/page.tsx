@@ -5,11 +5,12 @@ import { SettingsService } from '@/services/settings.service';
 import { notFound } from 'next/navigation';
 import { InvoiceDetailView } from '@/components/invoices/invoice-detail-view';
 import { getPaymentHistoryAction } from '@/actions/payments';
+import { getInvoicePostingPreviewAction, getJournalEntryBySourceAction } from '@/actions/journal';
 
 export const metadata: Metadata = { title: 'รายละเอียดใบแจ้งหนี้ | ERP System' };
 
 export default async function InvoiceDetailPage({ params }: { params: { id: string } }) {
-    const ctx = await requirePermission('SALE_VIEW' as any); // Use SALE_VIEW for invoices too
+    const ctx = await requirePermission('SALE_VIEW' as any);
 
     const [invoice, shop] = await Promise.all([
         InvoiceService.getById(ctx, params.id).catch(() => null),
@@ -20,14 +21,27 @@ export default async function InvoiceDetailPage({ params }: { params: { id: stri
         return notFound();
     }
 
-    const paymentsRes = await getPaymentHistoryAction({ invoiceId: params.id });
+    const [paymentsRes, previewRes] = await Promise.all([
+        getPaymentHistoryAction({ invoiceId: params.id }),
+        getInvoicePostingPreviewAction(params.id),
+    ]);
+
     const payments = paymentsRes.success ? paymentsRes.data : [];
+    const postingPreview = previewRes.success ? previewRes.data : null;
+
+    let journalEntry = null;
+    if (invoice.status === 'POSTED' || invoice.status === 'PAID') {
+        const journalRes = await getJournalEntryBySourceAction('SALE_INVOICE', params.id);
+        if (journalRes.success) journalEntry = journalRes.data;
+    }
 
     return (
         <InvoiceDetailView
             invoice={invoice}
             shop={shop}
             payments={payments}
+            postingPreview={postingPreview}
+            journalEntry={journalEntry}
         />
     );
 }

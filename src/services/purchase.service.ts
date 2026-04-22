@@ -87,6 +87,7 @@ export const PurchaseService: IPurchaseService = {
       include: {
         items: { include: { product: { select: { id: true, name: true, sku: true } } } },
         supplier: true,
+        purchaseTaxLinks: true,
       },
     });
 
@@ -94,20 +95,22 @@ export const PurchaseService: IPurchaseService = {
       throw new ServiceError('ไม่พบข้อมูลการซื้อ');
     }
 
-    const supplierMoq = purchase.supplier?.moq ? Number(purchase.supplier.moq) : null;
-    const serialized = serializePurchase(purchase) as SerializedPurchaseWithItems;
+    const supplierMoq = (purchase as any).supplier?.moq ? Number((purchase as any).supplier.moq) : null;
+    const serialized = serializePurchase(purchase) as SerializedPurchaseWithItems & { purchaseTaxLinks: any[] };
 
     serialized.items = (purchase as any).items.map((i: any) => ({
       ...serializePurchaseItem(i),
       moq: supplierMoq,
     }));
 
-    serialized.supplier = purchase.supplier ? {
-      name: purchase.supplier.name,
-      phone: purchase.supplier.phone,
-      address: purchase.supplier.address,
-      taxId: purchase.supplier.taxId,
+    serialized.supplier = (purchase as any).supplier ? {
+      name: (purchase as any).supplier.name,
+      phone: (purchase as any).supplier.phone,
+      address: (purchase as any).supplier.address,
+      taxId: (purchase as any).supplier.taxId,
     } : null;
+
+    serialized.purchaseTaxLinks = (purchase as any).purchaseTaxLinks || [];
 
     return serialized;
   },

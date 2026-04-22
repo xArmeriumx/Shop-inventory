@@ -4,6 +4,11 @@ import { Security } from './security';
 import { WorkflowService } from './workflow.service';
 import { DocumentType, ServiceError, type RequestContext } from '@/types/domain';
 import { Permission } from '@prisma/client';
+import { TaxResolutionService } from './tax-resolution.service';
+import { TaxCalculationService } from './tax-calculation.service';
+import { TaxSettingsService } from './tax-settings.service';
+import { PostingService } from './posting-engine.service';
+import { JournalService } from './journal.service';
 
 export interface GetInvoicesParams {
     page?: number;
@@ -18,6 +23,13 @@ export interface GetInvoicesParams {
  * InvoiceService — จัดการใบแจ้งหนี้ / Invoice (Billing Module)
  *
  * Flow: Sale (SO Confirmed) → createFromSale → Draft → post → Posted → markPaid → Paid
+ *
+ * T2 Tax Rules:
+ * - ทุก line ต้องผ่าน TaxResolutionService เพื่อเลือก tax code
+ * - ทุก line ต้องผ่าน TaxCalculationService เพื่อคิดเลข
+ * - header snapshot ทั้งหมดล็อกทันทีที่สร้าง
+ * - tax snapshot ห้ามแก้หลัง POSTED
+ * - payment อัปเดตได้แค่ paidAmount / residualAmount / paymentStatus
  */
 export const InvoiceService = {
 
@@ -52,7 +64,6 @@ export const InvoiceService = {
             (db as any).invoice.count({ where }),
         ]);
 
-
         return {
             data,
             pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
@@ -78,8 +89,14 @@ export const InvoiceService = {
     },
 
     /**
-     * CreateFromSale — สร้าง Invoice จาก SO พร้อม Full Financial Snapshot
-     * กติกา ERP: เป็นเอกสารนิ่ง (Immutable Snapshot) และล็อกรายการขายต้นทาง
+     * CreateFromSale — สร้าง Invoice จาก Sale พร้อม Full Tax Snapshot (Phase T2)
+     *
+     * กติกา ERP:
+     * 1. ทุก line ผ่าน TaxResolutionService เพื่อเลือก tax code ตาม priority chain
+     * 2. ทุก line ผ่าน TaxCalculationService เพื่อคิด taxableBase / taxAmount
+     * 3. seller/buyer/tax fields ทั้งหมด snapshot ณ เวลาสร้าง — ห้ามแก้หลัง POSTED
+     * 4. payment ห้ามแตะ taxAmount / taxableBase
+     * 5. หลัง POSTED → สร้าง SalesTaxEntry
      */
     async createFromSale(ctx: RequestContext, saleId: string) {
         Security.require(ctx, 'INVOICE_CREATE' as Permission);
@@ -112,11 +129,7 @@ export const InvoiceService = {
                 throw new ServiceError('ไม่สามารถสร้างใบแจ้งหนี้จากรายการที่ยกเลิกแล้วได้');
             }
 
-            // check unique saleId for one-to-one policy
-            const existing = await (tx as any).invoice.findUnique({
-                where: { saleId }
-            });
-
+            const existing = await (tx as any).invoice.findUnique({ where: { saleId } });
             if (existing) {
                 throw new ServiceError('รายการขายนี้มีใบแจ้งหนี้แล้ว', undefined, {
                     label: 'ดูใบแจ้งหนี้',
@@ -131,47 +144,114 @@ export const InvoiceService = {
             // 2. Generate Document Number
             const invoiceNo = await SequenceService.generate(ctx, DocumentType.SALE_INVOICE, tx);
 
-            // 3. Prepare Header Snapshot
-            const customerNameSnapshot = sale.customer?.name || sale.customerName || 'ลูกค้าทั่วไป';
-            const billingAddressSnapshot = (sale.customer as any)?.billingAddress || '-';
-            const taxIdSnapshot = (sale.customer as any)?.taxId || null;
+            // 3. Load Company Tax Profile (สำหรับ Seller Snapshot)
+            const companyTaxProfile = await (tx as any).companyTaxProfile.findUnique({
+                where: { shopId: ctx.shopId },
+            });
 
-            // 4. Calculate Financials from Snapshot
-            // We RECALCULATE for the invoice to ensure absolute integrity
-            let subtotalAmount = 0;
-            let totalLineDiscount = 0;
-            const invoiceLinesData = sale.items.map((item: any, i: number) => {
+            // 4. Resolve Tax per Line — TaxResolutionService
+            const billDiscount = Number(sale.discountAmount || 0);
+            const linesToProcess = sale.items;
+
+            const taxResolutions = await Promise.all(
+                linesToProcess.map((item: any) =>
+                    TaxResolutionService.resolve({
+                        shopId: ctx.shopId,
+                        direction: 'OUTPUT',
+                        productId: item.productId,
+                        customerId: sale.customerId ?? undefined,
+                    })
+                )
+            );
+
+            // 5. Calculate each line — TaxCalculationService
+            const lineRawCalcs = linesToProcess.map((item: any, i: number) => {
+                const resolution = taxResolutions[i];
                 const qty = Number(item.quantity);
                 const unitPrice = Number(item.salePrice);
                 const lineDiscount = Number(item.discountAmount || 0) * qty;
 
-                const lineSubtotal = qty * unitPrice;
-                const lineNet = lineSubtotal - lineDiscount; // For now without tax
-
-                subtotalAmount += lineSubtotal;
-                totalLineDiscount += lineDiscount;
-
                 return {
-                    productId: item.productId,
-                    skuSnapshot: item.product?.sku || null,
-                    productNameSnapshot: item.product?.name || 'สินค้าลบแล้ว',
-                    descriptionSnapshot: item.description || null,
-                    uomSnapshot: null, // Future: Add UOM from product
-                    quantity: qty,
-                    unitPrice: unitPrice,
-                    lineSubtotalAmount: lineSubtotal,
-                    discountAmount: lineDiscount,
-                    lineNetAmount: lineNet,
-                    subtotal: lineNet, // Legacy alias
-                    sortOrder: i,
+                    item,
+                    resolution,
+                    calc: TaxCalculationService.calculateLine({
+                        qty,
+                        unitPrice,
+                        lineDiscount,
+                        taxRate: resolution.rate,
+                        calculationMode: resolution.calculationMode as any,
+                        taxKind: resolution.kind as any,
+                    }),
                 };
             });
 
-            // Bill-level discount (from Sale)
-            const billDiscountAmount = Number(sale.discountAmount || 0);
-            const netAmount = subtotalAmount - totalLineDiscount - billDiscountAmount;
+            // Bill-level discount allocation
+            const billDiscountAllocations = TaxCalculationService.allocateBillDiscount(
+                lineRawCalcs.map(({ calc }) => ({ lineSubtotal: calc.lineSubtotal })),
+                billDiscount
+            );
 
-            // 5. Create Invoice + Lines
+            // Re-calculate with bill discount allocated
+            const lineCalcs = lineRawCalcs.map(({ item, resolution, calc }, i) => {
+                const withBill = TaxCalculationService.calculateLine({
+                    qty: Number(item.quantity),
+                    unitPrice: Number(item.salePrice),
+                    lineDiscount: Number(item.discountAmount || 0) * Number(item.quantity),
+                    billDiscountAllocation: billDiscountAllocations[i],
+                    taxRate: resolution.rate,
+                    calculationMode: resolution.calculationMode as any,
+                    taxKind: resolution.kind as any,
+                });
+                return { item, resolution, calc: withBill };
+            });
+
+            const header = TaxCalculationService.aggregateHeader(
+                lineCalcs.map(({ calc }) => calc)
+            );
+
+            // 6. Detect primary tax code for header snapshot
+            const primaryResolution = taxResolutions.find(r => r.resolvedFrom !== 'NONE') ?? taxResolutions[0];
+
+            // 7. Prepare Buyer Snapshot
+            const customerNameSnapshot = sale.customer?.name || (sale as any).customerName || 'ลูกค้าทั่วไป';
+            const billingAddressSnapshot = (sale.customer as any)?.billingAddress || '-';
+            const taxIdSnapshot = (sale.customer as any)?.taxId || null;
+
+            // Load buyer's PartnerTaxProfile for branch info
+            const buyerTaxProfile = sale.customerId
+                ? await (tx as any).partnerTaxProfile.findUnique({
+                    where: { customerId: sale.customerId },
+                })
+                : null;
+
+            // Load shop info for Seller Snapshot
+            const shop = await tx.shop.findUnique({
+                where: { id: ctx.shopId },
+                select: { name: true, address: true, taxId: true },
+            });
+
+            // 8. Build InvoiceLine data
+            const invoiceLinesData = lineCalcs.map(({ item, resolution, calc }, i) => ({
+                productId: item.productId,
+                skuSnapshot: item.product?.sku || null,
+                productNameSnapshot: item.product?.name || 'สินค้าลบแล้ว',
+                descriptionSnapshot: item.description || null,
+                uomSnapshot: null,
+                quantity: Number(item.quantity),
+                unitPrice: Number(item.salePrice),
+                lineSubtotalAmount: calc.lineSubtotal,
+                discountAmount: calc.discountAmount,
+                taxableBaseAmount: calc.taxableBase,
+                taxCodeSnapshot: resolution.code,
+                taxRateSnapshot: resolution.rate,
+                taxAmount: calc.taxAmount,
+                lineNetAmount: calc.lineNet,
+                subtotal: calc.lineNet, // Legacy alias
+                sortOrder: i,
+            }));
+
+            // 9. Create Invoice + Lines in transaction
+            const isTaxInvoice = companyTaxProfile?.isVatRegistered ?? false;
             const invoice = await (tx as any).invoice.create({
                 data: {
                     shopId: ctx.shopId,
@@ -182,19 +262,40 @@ export const InvoiceService = {
                     status: 'DRAFT',
                     date: new Date(),
 
-                    // Header Snapshot
+                    // BUYER Snapshots
                     customerNameSnapshot,
                     billingAddressSnapshot,
                     taxIdSnapshot,
+                    customerBranchSnapshot: buyerTaxProfile?.branchName || null,
+
+                    // SELLER Snapshots (Tax Invoice compliance)
+                    sellerNameSnapshot: companyTaxProfile?.legalName || shop?.name || '-',
+                    sellerAddressSnapshot: companyTaxProfile?.registeredAddress || shop?.address || '-',
+                    sellerTaxIdSnapshot: companyTaxProfile?.taxPayerId || shop?.taxId || null,
+                    sellerBranchSnapshot: companyTaxProfile?.branchCode
+                        ? (companyTaxProfile.branchCode === '00000' ? 'สำนักงานใหญ่' : `สาขา ${companyTaxProfile.branchCode}`)
+                        : null,
+
+                    // TAX Snapshots
+                    taxCodeSnapshot: primaryResolution?.code || null,
+                    taxRateSnapshot: primaryResolution?.rate ?? 0,
+                    taxCalculationModeSnapshot: primaryResolution?.calculationMode || 'EXCLUSIVE',
+                    isTaxInvoice,
 
                     currencyCode: 'THB',
-                    subtotalAmount,
-                    discountAmount: billDiscountAmount + totalLineDiscount, // Total savings
-                    taxAmount: 0, // Future: Add tax engine
-                    netAmount,
-                    totalAmount: netAmount, // Legacy alias
-                    residualAmount: netAmount,
+
+                    // Financials (from Tax Engine)
+                    subtotalAmount: header.subtotalAmount,
+                    discountAmount: header.discountAmount,
+                    taxableBaseAmount: header.taxableBaseAmount,
+                    taxAmount: header.taxAmount,
+                    netAmount: header.netAmount,
+                    totalAmount: header.netAmount, // Legacy alias
+                    residualAmount: header.netAmount,
                     paymentStatus: 'UNPAID',
+
+                    // Tax Posting (จะ post เมื่อ invoice status → POSTED)
+                    taxPostingStatus: 'DRAFT',
 
                     items: {
                         create: invoiceLinesData,
@@ -203,14 +304,14 @@ export const InvoiceService = {
                 include: { items: true, customer: true },
             });
 
-            // 6. Sync Sale & Lock
+            // 10. Lock Sale
             await tx.sale.update({
                 where: { id: saleId },
                 data: {
                     billingStatus: 'BILLED',
                     editLockStatus: 'BILLED' as any,
                     lockReason: `เอกสารถูกล็อกเนื่องจากมีการออกใบแจ้งหนี้เลขที่ ${invoiceNo} แล้ว`,
-                    isLocked: true, // Legacy support
+                    isLocked: true,
                 },
             });
 
@@ -218,21 +319,73 @@ export const InvoiceService = {
         });
     },
 
+    /**
+     * post — เปลี่ยน status เป็น POSTED และสร้าง SalesTaxEntry
+     * Rule: ห้ามแก้ tax snapshot หลัง POSTED
+     */
     async post(ctx: RequestContext, id: string) {
         Security.require(ctx, 'INVOICE_POST' as Permission);
-        const invoice = await (db as any).invoice.findUnique({ where: { id } });
-        if (!invoice || invoice.shopId !== ctx.shopId) throw new ServiceError('ไม่พบใบแจ้งหนี้');
 
-        WorkflowService.canInvoiceAction(invoice as any, 'POST');
+        return await db.$transaction(async (tx) => {
+            const invoice = await (tx as any).invoice.findUnique({
+                where: { id },
+                include: { items: true }
+            });
 
-        return (db as any).invoice.update({ where: { id }, data: { status: 'POSTED' } });
+            if (!invoice || invoice.shopId !== ctx.shopId) {
+                throw new ServiceError('ไม่พบใบแจ้งหนี้');
+            }
+
+            WorkflowService.canInvoiceAction(invoice as any, 'POST');
+
+            const now = new Date();
+
+            // 1. Post to Accounting Ledger (Phase A1.3)
+            await PostingService.postInvoice(ctx, invoice, tx);
+
+            // 2. Create SalesTaxEntry for tax report
+            if (invoice.taxAmount > 0 || invoice.taxableBaseAmount > 0) {
+                await TaxSettingsService.postSalesTaxEntry({
+                    sourceType: 'INVOICE',
+                    sourceId: invoice.id,
+                    partnerId: invoice.customerId || undefined,
+                    partnerName: invoice.customerNameSnapshot,
+                    taxCode: invoice.taxCodeSnapshot || undefined,
+                    taxRate: Number(invoice.taxRateSnapshot),
+                    taxableBaseAmount: Number(invoice.taxableBaseAmount),
+                    taxAmount: Number(invoice.taxAmount),
+                    postedBy: ctx.memberId || 'system',
+                }, ctx, tx);
+            }
+
+            // 3. Update Invoice status
+            return await (tx as any).invoice.update({
+                where: { id },
+                data: {
+                    status: 'POSTED',
+                    taxPostingStatus: 'POSTED',
+                    taxReportMonth: now.getMonth() + 1,
+                    taxReportYear: now.getFullYear(),
+                    postedAt: now,
+                },
+            });
+        });
     },
 
     async markPaid(ctx: RequestContext, id: string) {
         const invoice = await (db as any).invoice.findUnique({ where: { id } });
         if (!invoice || invoice.shopId !== ctx.shopId) throw new ServiceError('ไม่พบใบแจ้งหนี้');
         if (invoice.status !== 'POSTED') throw new ServiceError('ชำระเฉพาะ Invoice ที่ Post แล้วเท่านั้น');
-        return (db as any).invoice.update({ where: { id }, data: { status: 'PAID', residualAmount: 0 } });
+        // Rule: payment ห้ามแตะ taxAmount / taxableBase / taxCodeSnapshot
+        return (db as any).invoice.update({
+            where: { id },
+            data: {
+                status: 'PAID',
+                residualAmount: 0,
+                paidAmount: Number(invoice.netAmount),
+                paymentStatus: 'PAID',
+            },
+        });
     },
 
     async cancel(ctx: RequestContext, id: string) {
@@ -242,6 +395,34 @@ export const InvoiceService = {
 
         WorkflowService.canInvoiceAction(invoice as any, 'CANCEL');
 
-        return (db as any).invoice.update({ where: { id }, data: { status: 'CANCELLED' } });
+        // Void tax entries
+        if (invoice.taxPostingStatus === 'POSTED') {
+            await TaxSettingsService.voidTaxEntries('INVOICE', invoice.id, ctx);
+        }
+
+        return (db as any).$transaction(async (tx: any) => {
+            // Find and reverse Accounting Journal (Phase A1.5)
+            const journal = await (tx as any).journalEntry.findFirst({
+                where: {
+                    shopId: ctx.shopId,
+                    sourceType: 'SALE_INVOICE',
+                    sourceId: id,
+                    postingPurpose: 'INVOICE_POST',
+                    status: 'POSTED'
+                }
+            });
+
+            if (journal) {
+                await JournalService.reverseEntry(ctx, journal.id, tx);
+            }
+
+            return (tx as any).invoice.update({
+                where: { id },
+                data: {
+                    status: 'CANCELLED',
+                    taxPostingStatus: invoice.taxPostingStatus === 'POSTED' ? 'VOIDED' : invoice.taxPostingStatus,
+                },
+            });
+        });
     },
 };
