@@ -109,12 +109,12 @@ export function SaleDetailView({ sale, shop, payments = [] }: SaleDetailViewProp
                         <CheckCircle2 className="h-4 w-4 text-amber-600" />
                     </div>
                     <div className="flex-1">
-                        <p className="font-bold flex items-center gap-2">
+                        <div className="font-bold flex items-center gap-2">
                             เอกสารนี้ถูกล็อก (Locked)
                             <Badge variant="outline" className="bg-amber-100 border-amber-300 text-amber-700 ml-2">
                                 {sale.editLockStatus}
                             </Badge>
-                        </p>
+                        </div>
                         <p className="mt-0.5 opacity-90">{sale.lockReason || 'เอกสารนี้ไม่สามารถแก้ไขได้เนื่องจากเข้าสู่กระบวนการถัดไปแล้ว'}</p>
                     </div>
                     {existingInvoice && (
