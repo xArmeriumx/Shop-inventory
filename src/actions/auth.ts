@@ -2,6 +2,7 @@
 
 import { getSessionContext } from '@/lib/auth-guard';
 import { logger } from '@/lib/logger';
+import { QueryMetrics } from '@/lib/performance';
 export type { PermissionData } from '@/services';
 import { IamService, type PermissionData } from '@/services';
 import { isDynamicServerError } from '@/lib/next-utils';
@@ -17,11 +18,13 @@ export async function getPermissionVersion(): Promise<PermissionVersionResponse>
       return { ok: false, kind: 'AUTH_FAILURE', message: 'Unauthenticated' };
     }
 
-    const versionData = await IamService.getPermissionVersion(ctx.userId);
+    const versionData = await QueryMetrics.measure('db:getPermissionVersion', () =>
+      IamService.getPermissionVersion(ctx.userId)
+    );
     return { ok: true, version: versionData?.version ?? 0 };
   } catch (error) {
     if (isDynamicServerError(error)) throw error;
-    
+
     console.error('[Action: getPermissionVersion] Failed:', error);
     return { ok: false, kind: 'TRANSIENT_ERROR', message: error instanceof Error ? error.message : 'Unknown error' };
   }
@@ -59,7 +62,7 @@ export type PermissionVersionResponse = {
 export async function getMyPermissions(): Promise<AuthPermissionsResponse> {
   try {
     const ctx = await getSessionContext();
-    
+
     // Level 1: Source Contract hardening - Never return null for UI reads
     if (!ctx) {
       return {
@@ -68,8 +71,10 @@ export async function getMyPermissions(): Promise<AuthPermissionsResponse> {
       };
     }
 
-    const data = await IamService.getMyPermissions(ctx.userId);
-    
+    const data = await QueryMetrics.measure('db:getMyPermissions', () =>
+      IamService.getMyPermissions(ctx.userId)
+    );
+
     if (!data) {
       // If user exists but no data record (rare case), return empty permissions but still authenticated
       return {
@@ -101,9 +106,9 @@ export async function getMyPermissions(): Promise<AuthPermissionsResponse> {
     console.error('[Action: getMyPermissions] Failed:', error);
     return {
       ok: false,
-      error: { 
-        kind: 'TRANSIENT_ERROR', 
-        message: error instanceof Error ? error.message : 'Internal Server Error' 
+      error: {
+        kind: 'TRANSIENT_ERROR',
+        message: error instanceof Error ? error.message : 'Internal Server Error'
       }
     };
   }
@@ -125,10 +130,10 @@ export async function registerUser(data: {
   password: string;
 }): Promise<{ error?: string; success?: boolean }> {
   const bcrypt = await import('bcryptjs');
-  
+
   try {
     const hashedPassword = await bcrypt.hash(data.password, 12);
-    
+
     await IamService.registerUser({
       name: data.name,
       email: data.email,

@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/auth-guard';
 import { deliveryOrderSchema, type DeliveryOrderInput } from '@/schemas/delivery';
-import { DeliveryOrderService } from '@/services/delivery-order.service';
+import { DeliveryOrderService } from '@/services/inventory/delivery-order.service';
 import { ServiceError } from '@/types/domain';
 import type { ActionResponse } from '@/types/domain';
 

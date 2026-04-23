@@ -40,28 +40,30 @@ export function DashboardLayoutClient({ children, user }: ClientLayoutProps) {
         {isMobileOpen && (
           <div className="fixed inset-0 z-50 flex lg:hidden">
             {/* Backdrop */}
-            <div 
-              className="fixed inset-0 bg-black/50 transition-opacity" 
+            <div
+              className="fixed inset-0 bg-black/50 transition-opacity"
               onClick={() => setIsMobileOpen(false)}
             />
-            
+
             {/* Drawer */}
-            <div className="relative flex h-full w-64 flex-col bg-background shadow-xl border-r transition-transform animate-in slide-in-from-left duration-300">
+            <div className="relative flex h-full w-72 flex-col bg-background shadow-xl border-r transition-transform animate-in slide-in-from-left duration-300">
               <SafeBoundary variant="compact" componentName="Sidebar:Mobile">
-                <Sidebar />
+                <Sidebar onClose={() => setIsMobileOpen(false)} />
               </SafeBoundary>
             </div>
           </div>
         )}
 
         {/* Main Content */}
-        <div className="flex flex-1 flex-col overflow-hidden min-w-0">
-          <Header 
-            user={user} 
-            onMenuClick={() => setIsMobileOpen(true)} 
+        <div className="flex flex-1 flex-col overflow-hidden min-w-0 relative max-w-full">
+          <Header
+            user={user}
+            onMenuClick={() => setIsMobileOpen(true)}
           />
-          <main className="flex-1 overflow-y-auto bg-muted/30 p-4 lg:p-6 pb-20 lg:pb-6">
-            {children}
+          <main className="flex-1 overflow-x-hidden overflow-y-auto bg-muted/30 p-3 lg:p-6 pb-24 lg:pb-6 relative w-full">
+            <div className="mx-auto w-full max-w-7xl">
+              {children}
+            </div>
           </main>
         </div>
 

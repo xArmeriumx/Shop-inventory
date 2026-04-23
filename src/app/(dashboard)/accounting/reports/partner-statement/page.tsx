@@ -58,7 +58,7 @@ export default function PartnerStatementPage() {
                 if (res.success) {
                     setData(res.data);
                 } else {
-                    toast.error(res.error);
+                    toast.error(res.message);
                 }
             } finally {
                 setIsLoading(false);

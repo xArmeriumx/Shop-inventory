@@ -278,6 +278,7 @@ export interface IStockService {
    * ดึงประวัติการเคลื่อนไหวสต็อกของสินค้า (Stock Logs) แบบแบ่งหน้า
    */
   getProductHistory(
+    ctx: RequestContext,
     productId: string,
     page?: number,
     limit?: number,

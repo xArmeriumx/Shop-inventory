@@ -1,8 +1,9 @@
 'use server';
 
 import { requireAuth } from '@/lib/auth-guard';
-import { AuditService } from '@/services/audit.service';
-import { Security } from '@/services/security';
+import { AuditService } from '@/services/core/audit.service';
+import { db } from '@/lib/db';
+import { Security } from '@/services/core/security.service';
 import { ServiceError } from '@/types/domain';
 
 export type SecurityDashboardResult = {
@@ -18,20 +19,20 @@ export async function getSecurityDashboardData(): Promise<SecurityDashboardResul
       throw new ServiceError('กรุณาเลือกร้านค้าเพื่อดูข้อมูล');
     }
     const ctx = sessionCtx as any;
-    
+
     // Only Owners or Admins (with SETTINGS_ROLES or SETTINGS_SHOP) should see full security dashboard
     Security.requireAnyPermission(ctx, ['SETTINGS_ROLES', 'SETTINGS_SHOP']);
 
     const metrics = await AuditService.getSecurityDashboardMetrics(ctx.shopId);
-    
+
     return {
       success: true,
       data: metrics,
     };
   } catch (error: any) {
-    return { 
-        success: false, 
-        message: error instanceof ServiceError ? error.message : 'เกิดข้อผิดพลาดในการดึงข้อมูล Security Dashboard' 
+    return {
+      success: false,
+      message: error instanceof ServiceError ? error.message : 'เกิดข้อผิดพลาดในการดึงข้อมูล Security Dashboard'
     };
   }
 }

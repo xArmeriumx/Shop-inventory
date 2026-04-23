@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { RequestContext, ServiceError } from '@/types/domain';
-import { Security } from './security';
+import { Security } from '@/services/core/security.service';
 import { ProductIntelligenceSummary, StockMovementDTO, SupplierIntelligenceDTO } from '@/types/intelligence';
 
 export const ProductIntelligenceService = {

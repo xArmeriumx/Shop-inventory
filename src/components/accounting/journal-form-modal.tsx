@@ -111,7 +111,7 @@ export function JournalFormModal({ isOpen, onClose, accounts }: JournalFormModal
                 ]);
                 setDescription('');
             } else {
-                toast.error(res.error || 'เกิดข้อผิดพลาดในการบันทึก');
+                toast.error(res.message || 'เกิดข้อผิดพลาดในการบันทึก');
             }
         } catch (err) {
             toast.error('Error submitting journal');

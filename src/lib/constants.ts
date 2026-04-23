@@ -1,7 +1,19 @@
 export const APP_NAME = 'Shop Inventory';
 
-export const ITEMS_PER_PAGE = 20;
-export const MAX_ITEMS_PER_PAGE = 100;
+export const DB_TIMEOUTS = {
+  DEFAULT: 5000,
+  EXTENDED: 30000,
+  LONG: 60000,
+} as const;
+
+export const PAGINATION_CONFIG = {
+  DEFAULT_LIMIT: 20,
+  MAX_LIMIT: 100,
+} as const;
+
+// Legacy aliases for compatibility
+export const ITEMS_PER_PAGE = PAGINATION_CONFIG.DEFAULT_LIMIT;
+export const MAX_ITEMS_PER_PAGE = PAGINATION_CONFIG.MAX_LIMIT;
 
 export const PAYMENT_METHODS = [
   { value: 'CASH', label: 'เงินสด' },

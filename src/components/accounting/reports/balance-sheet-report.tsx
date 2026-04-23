@@ -4,7 +4,10 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { money } from '@/lib/money';
 import { formatDate } from '@/lib/formatters';
-import { Wallet, Landmark, Users, CheckCircle2, AlertCircle, ReceiptText } from 'lucide-react';
+import { Wallet, Landmark, Users, CheckCircle2, AlertCircle, ReceiptText, FileDown } from 'lucide-react';
+import { ExportButton } from '../shared/export-button';
+import { exportBalanceSheetAction } from '@/actions/accounting';
+import { format } from 'date-fns';
 
 interface BalanceSheetReportProps {
     data: {
@@ -29,9 +32,20 @@ export const BalanceSheetReport: React.FC<BalanceSheetReportProps> = ({ data, on
                         <p className="text-sm opacity-80">ณ วันที่ {formatDate(data.asOfDate)}</p>
                     </div>
                 </div>
-                <div className="text-right">
-                    <p className="text-xs uppercase opacity-70">Total Assets / รวมสินทรัพย์</p>
-                    <p className="text-xl font-mono font-bold">{money.format(data.assets.total)}</p>
+                <div className="flex items-center gap-4">
+                    <div className="text-right">
+                        <p className="text-xs uppercase opacity-70">Total Assets / รวมสินทรัพย์</p>
+                        <p className="text-xl font-mono font-bold">{money.format(data.assets.total)}</p>
+                    </div>
+                    <ExportButton
+                        filename={`BalanceSheet_${format(new Date(data.asOfDate), 'yyyy-MM-dd')}`}
+                        action={() => exportBalanceSheetAction({
+                            asOfDate: new Date(data.asOfDate).toISOString()
+                        })}
+                        label="Export B/S"
+                        variant="secondary"
+                        className="bg-white/80"
+                    />
                 </div>
             </div>
 

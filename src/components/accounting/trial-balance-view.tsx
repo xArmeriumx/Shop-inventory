@@ -21,7 +21,7 @@ export function TrialBalanceView({ mode, onDrillDown }: TrialBalanceViewProps) {
         async function load() {
             setLoading(true);
             const res = await getTrialBalanceAction();
-            if (res.success) setData(res.data);
+            if (res.success) setData(res.data as any[]);
             setLoading(false);
         }
         load();

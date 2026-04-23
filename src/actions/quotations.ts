@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/auth-guard';
 import { logger } from '@/lib/logger';
 import { quotationSchema, type QuotationInput } from '@/schemas/quotation';
-import { QuotationService } from '@/services/quotation.service';
+import { QuotationService } from '@/services/sales/quotation.service';
 import { ServiceError } from '@/types/domain';
 import type { ActionResponse } from '@/types/domain';
 import { serialize } from '@/lib/utils';

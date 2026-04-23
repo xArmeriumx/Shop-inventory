@@ -25,14 +25,18 @@ export interface SectionHeaderProps {
  */
 export function SectionHeader({ title, description, action, className }: SectionHeaderProps) {
     return (
-        <div className={`flex items-start justify-between gap-4 ${className ?? ''}`}>
-            <div>
-                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{title}</h1>
+        <div className={`flex flex-col sm:flex-row sm:items-start justify-between gap-4 ${className ?? ''}`}>
+            <div className="min-w-0">
+                <h1 className="text-2xl sm:text-3xl font-bold tracking-tight break-words">{title}</h1>
                 {description && (
-                    <p className="text-sm sm:text-base text-muted-foreground mt-1">{description}</p>
+                    <p className="text-sm sm:text-base text-muted-foreground mt-1 max-w-2xl">{description}</p>
                 )}
             </div>
-            {action && <div className="shrink-0">{action}</div>}
+            {action && (
+                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto shrink-0 sm:justify-end">
+                    {action}
+                </div>
+            )}
         </div>
     );
 }

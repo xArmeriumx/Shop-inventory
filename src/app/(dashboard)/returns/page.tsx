@@ -50,7 +50,7 @@ export default function ReturnsPage(props: ReturnsPageProps) {
         title="คืนสินค้า"
         description="จัดการรายการคืนสินค้าและคืนเงิน"
         action={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <ReturnsExportButton />
             <Guard permission="RETURN_CREATE">
               <Button asChild>

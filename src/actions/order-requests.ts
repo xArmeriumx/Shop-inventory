@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/auth-guard';
 import { logger } from '@/lib/logger';
 import { orderRequestSchema, type OrderRequestInput } from '@/schemas/order-request';
-import { OrderRequestService } from '@/services/order-request.service';
+import { OrderRequestService } from '@/services/sales/order-request.service';
 import { ServiceError } from '@/types/domain';
 import type { ActionResponse } from '@/types/domain';
 import { serialize } from '@/lib/utils';

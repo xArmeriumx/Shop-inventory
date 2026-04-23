@@ -1,5 +1,5 @@
 import { Metadata } from 'next';
-import { DeliveryOrderService } from '@/services/delivery-order.service';
+import { DeliveryOrderService } from '@/services/inventory/delivery-order.service';
 import { requirePermission } from '@/lib/auth-guard';
 import { TableView, Column } from '@/components/ui/table-view';
 import { StatusBadge, StatusConfig } from '@/components/ui/status-badge';

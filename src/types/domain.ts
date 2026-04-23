@@ -277,6 +277,7 @@ export const DocumentType = {
   WHT_CERTIFICATE: 'WHT',
   JOURNAL_VOUCHER: 'JV',
   PAYMENT: 'RCP',
+  STOCK_TRANSFER: 'ST',
 } as const;
 
 export type DocumentType = (typeof DocumentType)[keyof typeof DocumentType];

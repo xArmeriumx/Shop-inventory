@@ -17,12 +17,12 @@ export function ProductImportButton() {
   return (
     <>
       <Guard permission="PRODUCT_CREATE">
-        <Button variant="outline" onClick={() => setShowImport(true)}>
+        <Button variant="outline" size="sm" onClick={() => setShowImport(true)}>
           <Upload className="mr-2 h-4 w-4" />
           นำเข้า CSV
         </Button>
       </Guard>
-      
+
       {showImport && (
         <CSVImportDialog
           open={showImport}

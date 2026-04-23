@@ -1,92 +1,169 @@
 'use server';
 
 import { db } from '@/lib/db';
-import { requireShop, requirePermission } from '@/lib/auth-guard';
-import { ProductService } from '@/services/product.service';
-import { PurchaseService } from '@/services/purchase.service';
 import { revalidatePath } from 'next/cache';
-import { ServiceError } from '@/types/domain';
+import { WarehouseService } from '@/services/inventory/warehouse.service';
+import { warehouseSchema } from '@/schemas/warehouse-form';
+import { requireShop, requirePermission } from '@/lib/auth-guard';
+import { ActionResponse } from '@/types/domain';
+
+export async function createWarehouseAction(data: any): Promise<ActionResponse> {
+  try {
+    const context = await requireShop();
+    await requirePermission('PRODUCT_UPDATE');
+
+    const validatedData = warehouseSchema.parse(data);
+
+    await WarehouseService.createWarehouse(context as any, validatedData);
+
+    revalidatePath('/inventory/warehouses');
+    return { success: true, message: 'สร้างคลังสินค้าสำเร็จ' };
+  } catch (error: any) {
+    return { success: false, errors: { root: [error.message] } };
+  }
+}
+
+export async function getWarehousesAction() {
+  try {
+    const context = await requireShop();
+    const warehouses = await WarehouseService.getWarehouses(context as any);
+    return { success: true, data: warehouses };
+  } catch (error: any) {
+    return { success: false, errors: { root: [error.message] } };
+  }
+}
 
 /**
- * ค้นหาสินค้าดีแบบด่วน (เน้น SKU/Barcode) สำหรับมือถือ
+ * Mobile Lookup: Search product by SKU or Name
  */
 export async function quickSearchProduct(query: string) {
   const ctx = await requireShop();
 
-  // ค้นหาแบบเป๊ะๆ ด้วย SKU ก่อน (โหมดเครื่องยิง Barcode)
-  const exactMatch = await db.product.findFirst({
+  const product = await db.product.findFirst({
     where: {
       shopId: ctx.shopId,
-      sku: query,
-      isActive: true,
-      deletedAt: null
+      deletedAt: null,
+      OR: [
+        { sku: { equals: query, mode: 'insensitive' } },
+        { name: { contains: query, mode: 'insensitive' } },
+      ]
     },
-    include: { categoryRef: true }
+    include: {
+      categoryRef: true,
+      warehouseStocks: { include: { warehouse: true } }
+    }
   });
 
-  if (exactMatch) {
-    return {
-      ...exactMatch,
-      costPrice: Number(exactMatch.costPrice),
-      salePrice: Number(exactMatch.salePrice),
-    };
-  }
+  if (!product) return null;
 
-  // ถ้าไม่เจอ ให้ค้นหาด้วยชื่อ (เปรียบเทียบคำ)
-  const results = await ProductService.getList({ search: query, limit: 5 }, ctx);
-  return results.data[0] || null; // คืนค่าตัวแรกที่ใกล้เคียงที่สุด
+  // Calculate reserved stock from Sales that are CONFIRMED but not shipped
+  // Optimized for mobile quick view
+  const reserved = await db.saleItem.aggregate({
+    where: {
+      productId: product.id,
+      sale: { status: 'CONFIRMED', shopId: ctx.shopId }
+    },
+    _sum: { quantity: true }
+  });
+
+  return {
+    ...product,
+    category: (product as any).categoryRef?.name || product.category,
+    reservedStock: reserved._sum.quantity || 0,
+    isLowStock: product.stock <= (product.minStock || 0)
+  };
 }
 
 /**
- * ปรับปรุงสต็อกแบบด่วนจากมือถือ
+ * Mobile Adjust: Quick stock adjustment
  */
-export async function quickAdjustStock(productId: string, type: 'ADD' | 'REMOVE' | 'SET', quantity: number, note: string) {
-  const ctx = await requirePermission('STOCK_ADJUST');
-  const result = await ProductService.adjustStockManual(productId, { type, quantity, description: note }, ctx);
-  revalidatePath('/warehouse');
-  revalidatePath('/dashboard');
-  return result;
+export async function quickAdjustStock(
+  productId: string,
+  type: 'ADD' | 'REMOVE' | 'SET',
+  quantity: number,
+  note: string
+) {
+  const ctx = await requireShop();
+  await requirePermission('PRODUCT_UPDATE');
+
+  const defaultWh = await WarehouseService.getDefaultWarehouse(ctx as any);
+  if (!defaultWh) throw new Error('ไม่พบคลังสินค้าหลัก');
+
+  const product = await db.product.findUnique({ where: { id: productId } });
+  if (!product) throw new Error('ไม่พบสินค้า');
+
+  let delta = quantity;
+  if (type === 'REMOVE') delta = -quantity;
+  if (type === 'SET') delta = quantity - product.stock;
+
+  await db.$transaction(async (tx) => {
+    await WarehouseService.adjustWarehouseStock(ctx as any, {
+      warehouseId: defaultWh.id,
+      productId,
+      delta
+    }, tx);
+
+    // Track in Inventory Log if needed (Audit handled by WarehouseService if implemented)
+  });
+
+  revalidatePath('/inventory');
+  return { success: true };
 }
 
 /**
- * ดึงรายการสั่งซื้อที่รอรับของ (ORDERED)
+ * Mobile Receive: List pending Purchase Orders
  */
 export async function getPendingDeliveries() {
   const ctx = await requireShop();
-  const purchases = await db.purchase.findMany({
+
+  return await db.purchase.findMany({
     where: {
       shopId: ctx.shopId,
-      status: 'ORDERED',
-      docType: 'ORDER'
+      status: 'ORDERED'
     },
     include: {
-      supplier: { select: { name: true } },
-      items: {
-        include: { product: { select: { name: true, sku: true } } }
-      }
+      supplier: true,
+      items: { include: { product: true } }
     },
     orderBy: { date: 'desc' }
   });
-
-  return purchases.map(p => ({
-    ...p,
-    totalCost: Number(p.totalCost),
-    items: p.items.map(item => ({
-      ...item,
-      costPrice: Number(item.costPrice),
-      subtotal: Number(item.subtotal),
-    }))
-  }));
 }
 
 /**
- * ยืนยันการรับสินค้าเข้าคลัง
+ * Mobile Receive: Confirm PO Receipt
  */
 export async function confirmReceipt(purchaseId: string) {
-  const ctx = await requirePermission('APPROVAL_ACTION');
-  const result = await PurchaseService.receivePurchase(purchaseId, ctx);
-  revalidatePath('/warehouse');
-  revalidatePath('/purchases');
-  revalidatePath('/dashboard');
-  return result;
+  const ctx = await requireShop();
+  await requirePermission('PRODUCT_UPDATE');
+
+  const po = await db.purchase.findUnique({
+    where: { id: purchaseId, shopId: ctx.shopId },
+    include: { items: true }
+  });
+
+  if (!po) throw new Error('ไม่พบใบสั่งซื้อ');
+  if (po.status !== 'ORDERED') throw new Error('ใบสั่งซื้อไม่ได้อยู่ในสถานะรอรับของ');
+
+  const defaultWh = await WarehouseService.getDefaultWarehouse(ctx as any);
+  if (!defaultWh) throw new Error('ไม่พบคลังสินค้าหลัก');
+
+  await db.$transaction(async (tx) => {
+    // 1. Update PO Status
+    await tx.purchase.update({
+      where: { id: purchaseId },
+      data: { status: 'RECEIVED' }
+    });
+
+    // 2. Add stock for each item
+    for (const item of po.items) {
+      await WarehouseService.adjustWarehouseStock(ctx as any, {
+        warehouseId: defaultWh.id,
+        productId: item.productId,
+        delta: item.quantity
+      }, tx);
+    }
+  });
+
+  revalidatePath('/inventory/purchases');
+  return { success: true };
 }

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/auth-guard';
-import { InvoiceService } from '@/services/invoice.service';
+import { InvoiceService } from '@/services/sales/invoice.service';
 import { ServiceError, type ActionResponse } from '@/types/domain';
 import { serialize } from '@/lib/utils';
 
@@ -71,4 +71,9 @@ export async function cancelInvoice(id: string): Promise<ActionResponse> {
         if (error instanceof ServiceError) return { success: false, message: error.message };
         return { success: false, message: 'เกิดข้อผิดพลาด' };
     }
+}
+export async function getInvoiceStats() {
+    const ctx = await requirePermission('SALE_VIEW');
+    const stats = await InvoiceService.getStats(ctx);
+    return serialize(stats);
 }

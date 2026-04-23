@@ -1,0 +1,47 @@
+
+> shop-inventory@0.5.0 build
+> next build
+
+  ▲ Next.js 14.2.35
+  - Environments: .env
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Linting and checking validity of types ...
+
+./src/app/(dashboard)/accounting/reports/aging/page.tsx
+38:8  Warning: React Hook useEffect has a missing dependency: 'fetchData'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/app/(dashboard)/accounting/reports/page.tsx
+53:8  Warning: React Hook useEffect has a missing dependency: 'fetchData'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/accounting/reconcile/reconcile-workspace.tsx
+76:8  Warning: React Hook useEffect has a missing dependency: 'fetchData'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/shared/intelligence/product-history-tab.tsx
+70:8  Warning: React Hook useEffect has missing dependencies: 'fetchSummary' and 'fetchVendors'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+74:8  Warning: React Hook useEffect has a missing dependency: 'fetchHistory'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/tax/vat-report-dashboard.tsx
+55:8  Warning: React Hook useEffect has a missing dependency: 'fetchReport'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/tax/wht-ledger.tsx
+55:8  Warning: React Hook useEffect has a missing dependency: 'fetchEntries'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+./src/components/tax/wht-report.tsx
+78:8  Warning: React Hook useEffect has a missing dependency: 'fetchReport'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+
+info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/basic-features/eslint#disabling-rules
+Failed to compile.
+
+./src/components/purchases/purchase-detail-view.tsx:57:27
+Type error: Object literal may only specify known properties, and 'id' does not exist in type 'WorkflowStep'.
+
+[0m [90m 55 |[39m                     title[33m=[39m[32m"ตัวช่วยลำดับงาน (Purchase Workflow)"[39m[0m
+[0m [90m 56 |[39m                     steps[33m=[39m{[[0m
+[0m[31m[1m>[22m[39m[90m 57 |[39m                         { id[33m:[39m [32m'ordered'[39m[33m,[39m label[33m:[39m [32m'สร้างใบสั่งซื้อ'[39m[33m,[39m status[33m:[39m [32m'COMPLETE'[39m }[33m,[39m[0m
+[0m [90m    |[39m                           [31m[1m^[22m[39m[0m
+[0m [90m 58 |[39m                         { id[33m:[39m [32m'received'[39m[33m,[39m label[33m:[39m [32m'รับสินค้าเข้าสต็อก'[39m[33m,[39m status[33m:[39m purchase[33m.[39mstatus [33m===[39m [32m'RECEIVED'[39m [33m?[39m [32m'COMPLETE'[39m [33m:[39m [32m'CURRENT'[39m }[33m,[39m[0m
+[0m [90m 59 |[39m                         { id[33m:[39m [32m'paid'[39m[33m,[39m label[33m:[39m [32m'ชำระเงินเจ้าหนี้'[39m[33m,[39m status[33m:[39m purchase[33m.[39mstatus [33m===[39m [32m'RECEIVED'[39m [33m?[39m (purchase[33m.[39mresidualAmount [33m<=[39m [35m0[39m [33m?[39m [32m'COMPLETE'[39m [33m:[39m [32m'CURRENT'[39m) [33m:[39m [32m'PENDING'[39m }[0m
+[0m [90m 60 |[39m                     ]}[0m
+Next.js build worker exited with code: 1 and signal: null

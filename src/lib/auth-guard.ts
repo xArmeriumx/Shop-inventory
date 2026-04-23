@@ -32,6 +32,7 @@ export interface ShopSessionContext extends SessionContext {
 
 /**
  * Cached session context fetcher - memoized per request.
+ * Target: 1 Request = 1 Authentication Resolution.
  */
 export const getSessionContext = cache(async (): Promise<SessionContext | null> => {
   const session = await auth();
@@ -44,7 +45,10 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
   const userId = session.user.id;
   const sessionVersion = (session.user as any).sessionVersion || 1;
 
-  // Single Source of Truth: Fetch User and their latest Membership
+  /**
+   * PERFORMANCE: Using focused select instead of generic lookup
+   * Reduces Prisma query complexity and transfer size.
+   */
   const user = await db.user.findUnique({
     where: { id: userId },
     select: {
@@ -52,14 +56,13 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
       name: true,
       email: true,
       memberships: {
-        take: 1, // Currently assuming 1 active shop per user
+        take: 1,
         select: {
-          id: true, // The ShopMember ID
+          id: true,
           shopId: true,
           roleId: true,
           isOwner: true,
           departmentCode: true,
-
           role: {
             select: {
               permissions: true
@@ -76,14 +79,14 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
 
   // GLOBAL REVOCATION CHECK
   if (user.sessionVersion > sessionVersion) {
-    return null; // This will violently log the user out everywhere
+    return null;
   }
 
   const userName = user.name || user.email || "Unknown User";
   const userEmail = user.email;
   const membership = user.memberships[0];
 
-  if (!membership) {
+  if (!membership || !membership.shopId) {
     return {
       userId,
       userName,
@@ -108,7 +111,6 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
     employeeDepartment: membership.departmentCode ?? undefined,
     sessionVersion: user.sessionVersion,
   };
-
 });
 
 /**

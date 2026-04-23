@@ -58,32 +58,35 @@ export function DataExportPanel({
   };
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       {requireDateRange && (
-        <>
+        <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1.5">
-            <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+            <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
             <input
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="h-9 rounded-md border border-input bg-background px-2 py-1 text-sm"
+              className="h-9 w-full sm:w-[130px] rounded-md border border-input bg-background px-2 py-1 text-sm focus:ring-1 focus:ring-primary outline-none"
             />
           </div>
-          <span className="text-muted-foreground text-sm">ถึง</span>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="h-9 rounded-md border border-input bg-background px-2 py-1 text-sm"
-          />
-        </>
+          <span className="text-muted-foreground text-sm shrink-0">ถึง</span>
+          <div className="flex items-center gap-1.5">
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="h-9 w-full sm:w-[130px] rounded-md border border-input bg-background px-2 py-1 text-sm focus:ring-1 focus:ring-primary outline-none"
+            />
+          </div>
+        </div>
       )}
       <Button
         variant="outline"
         size="sm"
         onClick={handleExport}
         disabled={isPending}
+        className="w-full sm:w-auto mt-1 sm:mt-0"
       >
         {isPending ? (
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />

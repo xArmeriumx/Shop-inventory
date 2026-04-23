@@ -3,7 +3,7 @@
 import { signOut } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { requireAuth, requirePermission } from '@/lib/auth-guard';
-import { IamService } from '@/services/iam.service';
+import { IamService } from '@/services/core/iam.service';
 import { ServiceError } from '@/types/domain';
 import type { ActionResponse } from '@/types/domain';
 

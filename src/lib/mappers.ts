@@ -48,12 +48,19 @@ export function serializeExpense(expense: Expense): SerializedExpense {
 /**
  * Proper mapping for Product (removes 'as any')
  */
-export function serializeProduct(product: Product): SerializedProduct {
+export function serializeProduct(product: any): SerializedProduct {
     return {
         ...product,
         costPrice: toNumber(product.costPrice),
         salePrice: toNumber(product.salePrice),
         packagingQty: product.packagingQty || 1,
+        warehouseStocks: product.warehouseStocks?.map((ws: any) => ({
+            ...ws,
+            warehouse: ws.warehouse ? {
+                name: ws.warehouse.name,
+                code: ws.warehouse.code,
+            } : undefined
+        }))
     };
 }
 
@@ -69,6 +76,8 @@ export function serializeSale(sale: Sale): SerializedSale {
         discountAmount: toNumber(sale.discountAmount),
         discountValue: sale.discountValue ? toNumber(sale.discountValue) : null,
         netAmount: toNumber(sale.netAmount),
+        paidAmount: toNumber(sale.paidAmount),
+        residualAmount: toNumber(sale.residualAmount),
     };
 }
 
@@ -93,6 +102,8 @@ export function serializePurchase(purchase: Purchase): SerializedPurchase {
     return {
         ...purchase,
         totalCost: toNumber(purchase.totalCost),
+        paidAmount: toNumber(purchase.paidAmount),
+        residualAmount: toNumber(purchase.residualAmount),
     };
 }
 

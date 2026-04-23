@@ -33,6 +33,7 @@ model User {
   expenses       Expense[]
   incomes        Income[]
   suppliers      Supplier[]
+  bankAccounts   BankAccount[]
   customers      Customer[]
   lookupValues   LookupValue[]
   stockLogs      StockLog[]
@@ -140,6 +141,11 @@ model Shop {
   expenses          Expense[]
   incomes           Income[]
   stockLogs         StockLog[]
+
+  // BANK & RECONCILIATION
+  bankAccounts      BankAccount[]
+  bankStatements    BankStatement[]
+  bankLines         BankLine[]
   lookupValues      LookupValue[]
   shipments         Shipment[]
   returns           Return[]
@@ -158,6 +164,10 @@ model Shop {
   partnerAddresses  PartnerAddress[]
   partnerContacts   PartnerContact[]
   accountingPeriods AccountingPeriod[]
+  warehouses        Warehouse[]      // ERP Phase C
+  warehouseStocks   WarehouseStock[] // ERP Phase C
+  stockTransfers    StockTransfer[]  // ERP Phase C
+  paymentAllocations PaymentAllocation[] // ERP Phase B1
 
   // TAX SYSTEM: Phase T1
   taxCodes           TaxCode[]
@@ -358,6 +368,9 @@ model ShopMember {
 
   // Accounting Audit
   journalEntries      JournalEntry[]
+  bankStatements       BankStatement[]
+  bankLines            BankLine[]
+  stockTransfers       StockTransfer[] // ERP Phase C
   
   purchaseTaxDocsCreated PurchaseTaxDocument[] @relation("PurchTaxCreator")
   purchaseTaxDocsPosted  PurchaseTaxDocument[] @relation("PurchTaxPoster")
@@ -432,6 +445,9 @@ model Product {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  warehouseStocks WarehouseStock[] // ERP C1: Multi-Warehouse
+  transferLines  StockTransferLine[] // ERP C3: Transfers
+
   @@unique([shopId, sku])
   @@index([userId])
   @@index([userId, deletedAt])
@@ -440,7 +456,108 @@ model Product {
   @@index([category])
   @@index([categoryId])
   @@index([name])
-  @@index([isActive])
+}
+
+// ==================== Inventory Modules (Phase C) ====================
+
+model Warehouse {
+  id        String   @id @default(cuid())
+  name      String   // e.g. "Main Warehouse", "Front Shop"
+  code      String   // e.g. "WH001"
+  address   String?
+  isDefault Boolean  @default(false)
+  isActive  Boolean  @default(true)
+
+  shopId    String
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  stocks    WarehouseStock[]
+  outgoingTransfers StockTransfer[] @relation("FromWarehouse")
+  incomingTransfers StockTransfer[] @relation("ToWarehouse")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([shopId, code])
+  @@index([shopId])
+}
+
+model WarehouseStock {
+  id          String   @id @default(cuid())
+  productId   String
+  warehouseId String
+  shopId      String   // ERP C1: Tenant Isolation
+  
+  quantity    Int      @default(0) // Physical stock in this warehouse
+  minStock    Int?     // Reorder point for this specific warehouse
+  binLocation String?  // Specific location in this warehouse (e.g. A1-01)
+
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
+  shop      Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([productId, warehouseId])
+  @@index([warehouseId])
+  @@index([productId])
+  @@index([shopId])
+}
+
+enum TransferStatus {
+  DRAFT
+  IN_TRANSIT
+  COMPLETED
+  CANCELLED
+}
+
+model StockTransfer {
+  id              String         @id @default(cuid())
+  transferNo      String         // e.g. TR-2024001
+  status          TransferStatus @default(DRAFT)
+  transferDate    DateTime       @default(now())
+  
+  fromWarehouseId String
+  fromWarehouse   Warehouse      @relation("FromWarehouse", fields: [fromWarehouseId], references: [id])
+  
+  toWarehouseId   String
+  toWarehouse     Warehouse      @relation("ToWarehouse", fields: [toWarehouseId], references: [id])
+
+  notes           String?
+  
+  shopId          String
+  shop            Shop           @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  
+  memberId        String
+  member          ShopMember     @relation(fields: [memberId], references: [id])
+
+  lines           StockTransferLine[]
+
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@unique([shopId, transferNo])
+  @@index([shopId])
+  @@index([fromWarehouseId])
+  @@index([toWarehouseId])
+}
+
+model StockTransferLine {
+  id              String        @id @default(cuid())
+  transferId      String
+  transfer        StockTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  
+  productId       String
+  product         Product       @relation(fields: [productId], references: [id])
+  
+  quantity        Int           // Amount to move
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([transferId])
+  @@index([productId])
 }
 
 model Supplier {
@@ -599,7 +716,8 @@ model Purchase {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  payments Payment[]
+  allocations PaymentAllocation[]
+  payments    Payment[]
 
   @@unique([shopId, purchaseNumber])
   @@index([userId])
@@ -789,11 +907,12 @@ model Expense {
   paidAmount     Decimal @default(0) @db.Decimal(20, 4)
   residualAmount Decimal @default(0) @db.Decimal(20, 4)
   paymentStatus  String  @default("UNPAID") // UNPAID | PARTIAL | PAID
+  
+  allocations    PaymentAllocation[]
+  payments       Payment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  payments Payment[]
 
   @@index([userId])
   @@index([userId, deletedAt])
@@ -958,7 +1077,7 @@ model Return {
   @@unique([shopId, returnNumber])
   @@index([shopId])
   @@index([saleId])
-  @@index([shopId, createdAt])
+  @@index([shopId, status, createdAt])
 }
 
 model ReturnItem {
@@ -1594,7 +1713,8 @@ model Invoice {
   items InvoiceLine[]
 
   // ERP: Payments (Ledger)
-  payments Payment[]
+  allocations PaymentAllocation[]
+  payments    Payment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1602,7 +1722,7 @@ model Invoice {
   @@unique([shopId, invoiceNo])
   @@index([saleId])
   @@index([customerId])
-  @@index([shopId, status])
+  @@index([shopId, status, date])
   @@index([shopId, taxReportYear, taxReportMonth])
 }
 
@@ -1693,11 +1813,43 @@ model Payment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  allocations PaymentAllocation[]
+
   @@unique([shopId, paymentNo])
-  @@index([shopId])
+  @@index([shopId, status, paymentDate])
   @@index([memberId])
   @@index([invoiceId])
   @@index([saleId])
+  @@index([purchaseId])
+  @@index([expenseId])
+}
+
+// --- Layer 2.2: Payment Allocation (N:N Mapping) ---
+model PaymentAllocation {
+  id        String  @id @default(cuid())
+  shopId    String
+  shop      Shop    @relation(fields: [shopId], references: [id])
+
+  paymentId String
+  payment   Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  // Target Document (one of these must be set)
+  invoiceId  String?
+  invoice    Invoice?   @relation(fields: [invoiceId], references: [id])
+  purchaseId String?
+  purchase   Purchase?  @relation(fields: [purchaseId], references: [id])
+  expenseId  String?
+  expense    Expense?   @relation(fields: [expenseId], references: [id])
+
+  amount    Decimal  @db.Decimal(14, 2)
+  notes     String?  @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([shopId])
+  @@index([paymentId])
+  @@index([invoiceId])
   @@index([purchaseId])
   @@index([expenseId])
 }
@@ -2283,6 +2435,7 @@ model Account {
   isActive       Boolean            @default(true)
   
   journalLines   JournalLine[]
+  bankAccounts   BankAccount[]
 
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
@@ -2344,8 +2497,15 @@ model JournalLine {
   partnerId      String?
   partnerType    String?            // "CUSTOMER" | "SUPPLIER"
   
+  referenceNo    String?            // Human-readable reference
   referenceType  String?
   referenceId    String?
+
+  // BANK RECONCILIATION
+  reconciledAt    DateTime?
+  reconcileStatus String    @default("UNRECONCILED") // UNRECONCILED | RECONCILED
+  bankLineId      String?
+  bankLine        BankLine? @relation(fields: [bankLineId], references: [id])
 
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
@@ -2388,4 +2548,109 @@ model AccountingPeriod {
 
   @@unique([shopId, startDate, endDate])
   @@index([shopId, status])
+}
+
+// ==================== BANK & RECONCILIATION ====================
+
+model BankAccount {
+  id        String   @id @default(cuid())
+  name      String   // Friendly name (e.g., "K-Bank Main")
+  bankName  String   // Actual bank (e.g., "KASIKORNBANK")
+  accountNo String   // 000-0-00000-0
+  currency  String   @default("THB")
+  isActive  Boolean  @default(true)
+
+  // Link to CoA (Accounting Truth)
+  glAccountId String
+  glAccount   Account @relation(fields: [glAccountId], references: [id])
+
+  shopId String
+  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  statements BankStatement[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([shopId, accountNo])
+  @@index([shopId])
+}
+
+model BankStatement {
+  id             String   @id @default(cuid())
+  bankAccountId  String
+  bankAccount    BankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+
+  // Period or specific date this statement represents
+  statementDate  DateTime @default(now())
+  periodStart    DateTime?
+  periodEnd      DateTime?
+
+  openingBalance Decimal  @db.Decimal(18, 2) @default(0)
+  closingBalance Decimal  @db.Decimal(18, 2) @default(0)
+
+  importSource   String   @default("MANUAL") // MANUAL | CSV | API
+  status         String   @default("DRAFT")  // DRAFT | IMPORTED | RECONCILED
+
+  shopId String
+  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  memberId String?
+  member   ShopMember? @relation(fields: [memberId], references: [id], onDelete: SetNull)
+
+  lines BankLine[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([shopId])
+  @@index([bankAccountId])
+}
+
+enum BankLineMatchStatus {
+  UNMATCHED
+  SUGGESTED
+  MATCHED
+  IGNORED
+  ADJUSTED
+}
+
+model BankLine {
+  id              String   @id @default(cuid())
+  statementId     String
+  statement       BankStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
+
+  bookingDate     DateTime
+  valueDate       DateTime?
+  description     String?
+  referenceNo     String?
+  
+  debitAmount     Decimal  @db.Decimal(18, 2) @default(0)
+  creditAmount    Decimal  @db.Decimal(18, 2) @default(0)
+  netAmount       Decimal  @db.Decimal(18, 2) // credit - debit
+  balanceAfter    Decimal? @db.Decimal(18, 2)
+
+  matchStatus     BankLineMatchStatus @default(UNMATCHED)
+  matchedAt       DateTime?
+  matchedByMemberId String?
+  matchedByMember   ShopMember? @relation(fields: [matchedByMemberId], references: [id], onDelete: SetNull)
+
+  // Deduplication Guard
+  dedupeHash      String?  // Hash of (date + amount + ref + description)
+
+  shopId String
+  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  // Link to Ledger (Matched candidates)
+  journalLines    JournalLine[]
+
+  createdAt DateTime @default(now())
+
+  @@index([shopId])
+  @@index([statementId])
+  @@index([bookingDate])
+  @@index([dedupeHash])
 }

@@ -1,4 +1,4 @@
-import { auth } from '@/lib/auth';
+import { getSessionContext } from '@/lib/auth-guard';
 import { DashboardLayoutClient } from '@/components/layout/dashboard-layout-client';
 
 export default async function DashboardLayout({
@@ -6,10 +6,10 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await auth();
+  const ctx = await getSessionContext();
 
   return (
-    <DashboardLayoutClient user={session?.user}>
+    <DashboardLayoutClient user={ctx ? { name: ctx.userName, email: ctx.userEmail } : undefined}>
       {children}
     </DashboardLayoutClient>
   );

@@ -98,7 +98,7 @@ export default async function RootLayout({
 
   return (
     <html lang="th" suppressHydrationWarning>
-      <body className={`${inter.variable} ${ibmPlexSansThai.variable} font-sans antialiased text-[15px]`}>
+      <body className={`${inter.variable} ${ibmPlexSansThai.variable} font-sans antialiased text-[15px] overflow-x-hidden`}>
         <Providers session={session}>
           {children}
           <Toaster richColors closeButton position="top-center" />

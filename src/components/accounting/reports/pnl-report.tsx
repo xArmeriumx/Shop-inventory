@@ -4,7 +4,10 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { money } from '@/lib/money';
 import { formatDate } from '@/lib/formatters';
-import { ArrowUpRight, ArrowDownRight, TrendingUp, ReceiptText } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, TrendingUp, ReceiptText, FileDown } from 'lucide-react';
+import { ExportButton } from '../shared/export-button';
+import { exportProfitAndLossAction } from '@/actions/accounting';
+import { format } from 'date-fns';
 
 interface PnLReportProps {
     data: {
@@ -40,8 +43,20 @@ export const PnLReport: React.FC<PnLReportProps> = ({ data, onDrillDown }) => {
                                 งวดวันที่ {formatDate(data.startDate)} ถึง {formatDate(data.endDate)}
                             </p>
                         </div>
-                        <div className={`p-4 rounded-full ${isProfit ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>
-                            {isProfit ? <TrendingUp size={40} /> : <ArrowDownRight size={40} />}
+                        <div className="flex flex-col items-end gap-4">
+                            <div className={`p-4 rounded-full ${isProfit ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>
+                                {isProfit ? <TrendingUp size={40} /> : <ArrowDownRight size={40} />}
+                            </div>
+                            <ExportButton
+                                filename={`PnL_${format(new Date(data.startDate), 'yyyy-MM-dd')}_to_${format(new Date(data.endDate), 'yyyy-MM-dd')}`}
+                                action={() => exportProfitAndLossAction({
+                                    startDate: new Date(data.startDate).toISOString(),
+                                    endDate: new Date(data.endDate).toISOString()
+                                })}
+                                label="Export P&L"
+                                variant="outline"
+                                className="bg-white/50"
+                            />
                         </div>
                     </div>
                 </CardContent>

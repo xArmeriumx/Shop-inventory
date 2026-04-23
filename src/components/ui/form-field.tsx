@@ -33,8 +33,8 @@ export function FormField({ name, label, required, hint, className, children }: 
     const errorMessage = error?.message as string | undefined;
 
     return (
-        <div className={cn('space-y-1.5', className)}>
-            <Label htmlFor={name} className="text-sm font-medium">
+        <div className={cn('space-y-1 md:space-y-1.5', className)}>
+            <Label htmlFor={name} className="text-[13px] md:text-sm font-medium">
                 {label}
                 {required && <span className="text-destructive ml-0.5">*</span>}
             </Label>

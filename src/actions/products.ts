@@ -173,9 +173,9 @@ export async function batchCreateProducts(inputs: BatchProductInput[]): Promise<
 }
 // Get Stock Movement History (ประวัติการเคลื่อนไหวของสต็อก)
 export async function getProductHistory(productId: string, page: number = 1, limit: number = 20) {
-  await requirePermission('PRODUCT_VIEW');
+  const ctx = await requirePermission('PRODUCT_VIEW');
   const { StockService } = await import('@/services');
-  const result = await StockService.getProductHistory(productId, page, limit);
+  const result = await StockService.getProductHistory(ctx, productId, page, limit);
   return serialize(result);
 }
 

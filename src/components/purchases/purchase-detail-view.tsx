@@ -11,6 +11,8 @@ import { BackPageHeader } from '@/components/ui/back-page-header';
 import { PdfPrintTrigger } from '@/features/print/components/pdf-print-trigger';
 import { buildPurchasePrintDTO } from '@/features/print/builders/purchase-order-print.builder';
 import { RegisterPurchaseTaxButton } from '@/components/tax/register-purchase-tax-button';
+import { WorkflowAssistant } from '@/components/ui/workflow-assistant';
+import { Truck, Wallet, FileText, CheckCircle2 } from 'lucide-react';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -30,9 +32,9 @@ export function PurchaseDetailView({ purchase, shop }: PurchaseDetailViewProps) 
 
     return (
         <div className="space-y-6">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between print:hidden">
-                <BackPageHeader backHref="/purchases" title="รายละเอียดการซื้อ" />
-                <div className="flex gap-2">
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between print:hidden">
+                <BackPageHeader backHref="/purchases" title="รายละเอียดการซื้อ" className="flex-1 min-w-0" />
+                <div className="flex flex-wrap gap-2 sm:justify-end">
                     <RegisterPurchaseTaxButton
                         purchaseId={purchase.id}
                         hasTaxDoc={purchase.purchaseTaxLinks?.length > 0}
@@ -42,8 +44,47 @@ export function PurchaseDetailView({ purchase, shop }: PurchaseDetailViewProps) 
                         documentData={buildPurchasePrintDTO(purchase, shop)}
                         fileName={`PO-${purchase.invoiceNumber || purchase.id.slice(0, 8)}.pdf`}
                         label="พิมพ์ใบสั่งซื้อ (PDF)"
+                        size="sm"
                     />
                 </div>
+            </div>
+
+            {/* Workflow Assistant - Guided UX */}
+            <div className="print:hidden">
+                <WorkflowAssistant
+                    type="purchase"
+                    status={purchase.status === 'RECEIVED' ? 'รับสินค้าแล้ว' : 'รอรับสินค้า'}
+                    steps={[
+                        ...(purchase.status !== 'RECEIVED' ? [{
+                            label: 'ขั้นตอนถัดไป: บันทึกการรับสินค้า',
+                            action: 'บันทึกรับของ',
+                            description: 'สินค้ายังไม่ถูกรับเข้าสต็อก กรุณาตรวจสอบจำนวนและบันทึกการรับสินค้าเพื่ออัปเดตยอดคงเหลือ',
+                            isPrimary: true,
+                            onClick: () => {
+                                // Logic for receiving would go here
+                                alert('บันทึกรับของ (Simulation)');
+                            }
+                        }] : []),
+                        ...(purchase.status === 'RECEIVED' && purchase.residualAmount > 0 ? [{
+                            label: 'ขั้นตอนถัดไป: ชำระเงินเจ้าหนี้',
+                            action: 'บันทึกจ่ายเงิน',
+                            description: `ได้รับสินค้าแล้ว แต่ยังมียอดค้างชำระ ${formatCurrency(purchase.residualAmount)} กรุณาบันทึกการจ่ายเงินเพื่อปิดยอด`,
+                            isPrimary: true,
+                            onClick: () => {
+                                window.location.href = `/accounting/payments/new?partnerId=${purchase.supplierId}&purchaseId=${purchase.id}`;
+                            }
+                        }] : []),
+                        // Secondary action: Register Tax if not already done
+                        ...(purchase.purchaseTaxLinks?.length === 0 ? [{
+                            label: 'บันทึกใบรับรองภาษี',
+                            action: 'ปักหมุดภาษีซื้อ',
+                            description: 'ยังไม่มีการผูกใบกำกับภาษีซื้อกับรายการนี้',
+                            onClick: () => {
+                                // Scroll to tax button or trigger modal
+                            }
+                        }] : [])
+                    ]}
+                />
             </div>
 
             <Card className="print:shadow-none print:border-none">
@@ -92,37 +133,43 @@ export function PurchaseDetailView({ purchase, shop }: PurchaseDetailViewProps) 
                     </div>
 
                     {/* Items Table */}
-                    <div className="rounded-md border mb-8 print:border-gray-200">
-                        <table className="w-full text-sm">
-                            <thead className="bg-muted/50 border-b print:bg-gray-100">
-                                <tr className="text-left">
-                                    <th className="p-3 font-medium">ลำดับ</th>
-                                    <th className="p-3 font-medium">รายการ</th>
-                                    <th className="p-3 font-medium">SKU</th>
-                                    <th className="p-3 font-medium text-right">ราคาต่อหน่วย</th>
-                                    <th className="p-3 font-medium text-right">จำนวน (Unit)</th>
-                                    <th className="p-3 font-medium text-right">บรรจุภัณฑ์ (Pack)</th>
-                                    <th className="p-3 font-medium text-right">จำนวนกล่อง (CTN)</th>
-                                    <th className="p-3 font-medium text-right">รวม</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {purchase.items.map((item: any, index: number) => (
-                                    <tr key={item.id} className="border-b last:border-0 hover:bg-muted/50">
-                                        <td className="p-3">{index + 1}</td>
-                                        <td className="p-3">{item.product.name}</td>
-                                        <td className="p-3 text-muted-foreground">{item.product.sku || '-'}</td>
-                                        <td className="p-3 text-right">{formatCurrency(Number(item.costPrice))}</td>
-                                        <td className="p-3 text-right font-medium">{item.quantity}</td>
-                                        <td className="p-3 text-right text-muted-foreground">{item.packagingQty || 1}</td>
-                                        <td className="p-3 text-right font-bold text-primary">
-                                            {calculateCtn(item.quantity, item.packagingQty || 1)}
-                                        </td>
-                                        <td className="p-3 text-right">{formatCurrency(Number(item.subtotal))}</td>
+                    <div className="rounded-md border mb-8 print:border-gray-200 overflow-hidden">
+                        <div className="overflow-x-auto scrollbar-hide">
+                            <table className="w-full text-sm min-w-[600px] lg:min-w-full">
+                                <thead className="bg-muted/50 border-b print:bg-gray-100">
+                                    <tr className="text-left">
+                                        <th className="p-3 font-medium">ลำดับ</th>
+                                        <th className="p-3 font-medium">รายการ</th>
+                                        <th className="p-3 font-medium">SKU</th>
+                                        <th className="p-3 font-medium text-right">ราคาต่อหน่วย</th>
+                                        <th className="p-3 font-medium text-right">จำนวน (Unit)</th>
+                                        <th className="p-3 font-medium text-right">บรรจุภัณฑ์ (Pack)</th>
+                                        <th className="p-3 font-medium text-right">จำนวนกล่อง (CTN)</th>
+                                        <th className="p-3 font-medium text-right">รวม</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    {purchase.items.map((item: any, index: number) => (
+                                        <tr key={item.id} className="border-b last:border-0 hover:bg-muted/50">
+                                            <td className="p-3">{index + 1}</td>
+                                            <td className="p-3">
+                                                <div className="max-w-[200px] sm:max-w-none">
+                                                    {item.product.name}
+                                                </div>
+                                            </td>
+                                            <td className="p-3 text-muted-foreground">{item.product.sku || '-'}</td>
+                                            <td className="p-3 text-right">{formatCurrency(Number(item.costPrice))}</td>
+                                            <td className="p-3 text-right font-medium">{item.quantity}</td>
+                                            <td className="p-3 text-right text-muted-foreground">{item.packagingQty || 1}</td>
+                                            <td className="p-3 text-right font-bold text-primary">
+                                                {calculateCtn(item.quantity, item.packagingQty || 1)}
+                                            </td>
+                                            <td className="p-3 text-right">{formatCurrency(Number(item.subtotal))}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
 
                     {/* Totals */}

@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input';
 import { getProfitAndLossAction, getBalanceSheetAction } from '@/actions/accounting';
 import { PnLReport } from '@/components/accounting/reports/pnl-report';
 import { BalanceSheetReport } from '@/components/accounting/reports/balance-sheet-report';
-import { Calendar, Download, RefreshCw, FileText, BarChart3, PieChart } from 'lucide-react';
+import { Calendar, RefreshCw, FileText, BarChart3, PieChart, Package } from 'lucide-react';
+import { AuditPackModal } from '@/components/accounting/reports/audit-pack-modal';
 import { useRouter } from 'next/navigation';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
@@ -34,11 +35,11 @@ export default function ReportingDashboardPage() {
             if (activeTab === 'pnl') {
                 const res = await getProfitAndLossAction({ startDate, endDate });
                 if (res.success) setPnlData(res.data);
-                else toast.error(res.error);
+                else toast.error(res.message);
             } else {
                 const res = await getBalanceSheetAction({ asOfDate });
                 if (res.success) setBsData(res.data);
-                else toast.error(res.error);
+                else toast.error(res.message);
             }
         } catch (error) {
             toast.error('Failed to load report data');
@@ -68,10 +69,7 @@ export default function ReportingDashboardPage() {
                         <RefreshCw size={16} className={isLoading ? 'animate-spin' : ''} />
                         รีเฟรช
                     </Button>
-                    <Button variant="default" className="gap-2 bg-slate-900">
-                        <Download size={16} />
-                        Export PDF/XL
-                    </Button>
+                    <AuditPackModal />
                 </div>
             </div>
 

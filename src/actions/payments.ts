@@ -1,6 +1,6 @@
 'use server';
 
-import { PaymentService, PaymentInput } from '@/services/payment.service';
+import { PaymentService, PaymentInput } from '@/services/accounting/payment.service';
 import { requireShop, requirePermission } from '@/lib/auth-guard';
 import { revalidatePath } from 'next/cache';
 import { Permission } from '@prisma/client';

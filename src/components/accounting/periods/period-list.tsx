@@ -36,7 +36,7 @@ export const PeriodList: React.FC<PeriodListProps> = ({ periods }) => {
             if (res.success) {
                 toast.success(`ปิดงวดบัญชี ${name} สำเร็จ`);
             } else {
-                toast.error(res.error);
+                toast.error(res.message);
             }
         } finally {
             setIsLoading(false);
@@ -57,7 +57,7 @@ export const PeriodList: React.FC<PeriodListProps> = ({ periods }) => {
                 setSelectedPeriod(null);
                 setReopenReason('');
             } else {
-                toast.error(res.error);
+                toast.error(res.message);
             }
         } finally {
             setIsLoading(false);

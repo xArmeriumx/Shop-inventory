@@ -2,10 +2,12 @@
 
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
-import { Security } from '@/services/security';
+import { Security } from '@/services/core/security.service';
 import { getSessionContext } from '@/lib/auth-guard';
 import { whtCodeSchema, WhtCodeFormValues } from '@/schemas/wht-form';
-import { WhtService } from '@/services/wht.service';
+import { WhtService } from '@/services/tax/wht.service';
+import { ExportService } from '@/services/export.service';
+import { ActionResponse } from '@/types/domain';
 
 /**
  * Helper to ensure context or throw
@@ -134,6 +136,24 @@ export async function voidWhtCertificateAction(certId: string) {
         await WhtService.voidCertificate(ctx as any, certId);
         revalidatePath('/settings/tax');
         return { success: true };
+    } catch (error: any) {
+        return { success: false, message: error.message };
+    }
+}
+
+/**
+ * Export WHT entries to CSV
+ */
+export async function exportWhtEntriesAction(params: { year: number; month: number; formType?: string }): Promise<ActionResponse> {
+    try {
+        const ctx = await getRequiredContext();
+        Security.requirePermission(ctx as any, 'TAX_REPORT_VIEW' as any);
+
+        const result = await WhtService.getReportData(ctx as any, params as any);
+        const rows = ExportService.adaptWhtReportToRows(result.data);
+        const csv = ExportService.toCSV(rows);
+
+        return { success: true, data: csv };
     } catch (error: any) {
         return { success: false, message: error.message };
     }

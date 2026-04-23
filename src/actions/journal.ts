@@ -1,10 +1,10 @@
 'use server';
 
-import { JournalService } from '@/services/journal.service';
+import { JournalService } from '@/services/accounting/journal.service';
 import { requireShop } from '@/lib/auth-guard';
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
-import { PostingService } from '@/services/posting-engine.service';
+import { PostingService } from '@/services/accounting/posting-engine.service';
 import { getPaymentHistoryAction } from './payments';
 import { ActionResponse } from '@/types/domain';
 
@@ -27,7 +27,7 @@ export async function getJournalsAction(params: {
         });
         return { success: true, data };
     } catch (error: any) {
-        return { success: false, error: error.message };
+        return { success: false, message: error.message };
     }
 }
 
@@ -44,7 +44,7 @@ export async function createJournalAction(data: any) {
         revalidatePath('/settings/accounting');
         return { success: true, data: result };
     } catch (error: any) {
-        return { success: false, error: error.message };
+        return { success: false, message: error.message };
     }
 }
 
@@ -58,7 +58,7 @@ export async function postJournalAction(id: string) {
         revalidatePath('/settings/accounting');
         return { success: true, data: result };
     } catch (error: any) {
-        return { success: false, error: error.message };
+        return { success: false, message: error.message };
     }
 }
 
@@ -72,7 +72,7 @@ export async function voidJournalAction(id: string) {
         revalidatePath('/settings/accounting');
         return { success: true, data: result };
     } catch (error: any) {
-        return { success: false, error: error.message };
+        return { success: false, message: error.message };
     }
 }
 
@@ -86,12 +86,12 @@ export async function getInvoicePostingPreviewAction(invoiceId: string) {
             where: { id: invoiceId, shopId: ctx.shopId },
         });
 
-        if (!invoice) return { success: false, error: 'Invoice not found' };
+        if (!invoice) return { success: false, message: 'Invoice not found' };
 
         const preview = await PostingService.previewInvoice(ctx, invoice);
         return { success: true, data: preview };
     } catch (err: any) {
-        return { success: false, error: err.message };
+        return { success: false, message: err.message };
     }
 }
 
@@ -104,7 +104,7 @@ export async function getPaymentPostingPreviewAction(paymentData: any) {
         const preview = await PostingService.previewPayment(ctx, paymentData);
         return { success: true, data: preview };
     } catch (err: any) {
-        return { success: false, error: err.message };
+        return { success: false, message: err.message };
     }
 }
 

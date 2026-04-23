@@ -1,6 +1,6 @@
 import { Metadata } from 'next';
 import { requirePermission } from '@/lib/auth-guard';
-import { InvoiceService } from '@/services/invoice.service';
+import { InvoiceService } from '@/services/sales/invoice.service';
 import { SettingsService } from '@/services/settings.service';
 import { notFound } from 'next/navigation';
 import { InvoiceDetailView } from '@/components/invoices/invoice-detail-view';

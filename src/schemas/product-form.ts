@@ -66,6 +66,7 @@ export const productFormSchema = z.object({
         .default(1),
     isActive: z.boolean().default(true),
     isSaleable: z.boolean().default(true),
+    reservedStock: z.coerce.number().int().default(0),
 
     // -- Media --
     images: z.array(z.string()).default([]),
@@ -76,7 +77,9 @@ export const productFormSchema = z.object({
         width: z.coerce.number().min(0).optional().default(0),
         height: z.coerce.number().min(0).optional().default(0),
         length: z.coerce.number().min(0).optional().default(0),
+        binLocation: z.string().trim().optional().default(''),
     }).default({}),
+    warehouseStocks: z.array(z.any()).optional().default([]),
 });
 
 export type ProductFormValues = z.infer<typeof productFormSchema>;
@@ -101,11 +104,14 @@ export function getProductFormDefaults(product?: any): ProductFormValues {
         isActive: product?.isActive ?? true,
         isSaleable: product?.isSaleable ?? true,
         images: product?.images ?? [],
+        reservedStock: product?.reservedStock ?? 0,
         metadata: {
             weight: metadata.weight ?? 0,
             width: metadata.width ?? 0,
             height: metadata.height ?? 0,
             length: metadata.length ?? 0,
+            binLocation: metadata.binLocation ?? '',
         },
+        warehouseStocks: product?.warehouseStocks ?? [],
     };
 }

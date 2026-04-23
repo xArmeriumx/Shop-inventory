@@ -1,4 +1,5 @@
 import { PrismaClient, Prisma } from '@prisma/client';
+import { DB_TIMEOUTS } from './constants';
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
@@ -20,7 +21,7 @@ if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db;
 export async function runInTransaction<T>(
   tx: Prisma.TransactionClient | undefined,
   op: (prisma: Prisma.TransactionClient) => Promise<T>,
-  options: { timeout?: number; maxWait?: number } = { timeout: 30000 }
+  options: { timeout?: number; maxWait?: number } = { timeout: DB_TIMEOUTS.EXTENDED }
 ): Promise<T> {
   if (tx) return op(tx);
   return db.$transaction(op, options);

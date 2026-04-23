@@ -1,67 +1,86 @@
-export * from './product.service';
-export * from './stock.service';
-export * from './sale.service';
-export * from './purchase.service';
-export * from './return.service';
-export * from './shipment.service';
-export * from './sequence.service';
-export * as ReportService from './report.service';
-export type { ReportData } from './report.service';
-export * from './customer.service';
-export * from './supplier.service';
-export * from './finance.service';
-export * from './tax-resolution.service';
-export * from './tax-settings.service';
-export * from './wht.service';
+/**
+ * ============================================================================
+ * ERP Service Layer - Unified Entry Point
+ * ============================================================================
+ * All services must be exported from here to maintain a clean public API
+ * for the Action and UI layers.
+ */
 
-// TODO: WhtCertificateService (T5.2)
-export * from './purchase-tax.service';
-export * from './workflow.service';
-export * from './export.service';
-export * from './lookup.service';
-export * from './notification.service';
+// --- CORE ---
+export * from './core/audit.service';
+export * from './core/iam.service';
+export * from './core/lookup.service';
+export * from './core/notification.service';
+export * from './core/onboarding.service';
+export * from './core/security.service';
+export * from './core/sequence.service';
+export * from './core/system.service';
+export * from './core/workflow.service';
+
+// --- TAX ---
+export * from './tax/purchase-tax.service';
+export * from './tax/tax-calculation.service';
+export * from './tax/tax-resolution.service';
+export * from './tax/tax-settings.service';
+export * from './tax/wht.service';
+
+// --- ACCOUNTING ---
+export * from './accounting/accounting-report.service';
+export * from './accounting/accounting.service';
+export * from './accounting/bank.service';
+export * from './accounting/finance.service';
+export * from './accounting/journal.service';
+export * from './accounting/posting-engine.service';
+export * from './accounting/payment.service';
+export * from './accounting/voucher.service';
+
+// --- SALES ---
+export * from './sales/invoice.service';
+export * from './sales/order-request.service';
+export * from './sales/quotation.service';
+export * from './sales/sale.service';
+export * from './sales/customer.service';
+export * from './sales/return.service';
+
+// --- INVENTORY ---
+export * from './inventory/delivery-order.service';
+export * from './inventory/product.service';
+export * from './inventory/purchase.service';
+export * from './inventory/shipment.service';
+export * from './inventory/stock-take.service';
+export * from './inventory/stock-transfer.service';
+export * from './inventory/stock.service';
+export * from './inventory/supplier.service';
+export * from './inventory/warehouse.service';
+
+// --- SHARED / OTHER ---
 export * from './ai.service';
-export * from './onboarding.service';
-export * from './system.service';
-export * from './payment.service';
-export * from './iam.service';
-export * from './invoice.service';
 export * from './approval.service';
 export * from './dashboard.service';
-export * from './delivery-order.service';
-export * from './order-request.service';
-export * from './quotation.service';
-export * from './stock-take.service';
+export * from './export.service';
 export * from './product-intelligence.service';
-export * from './audit.service';
 export * from './settings.service';
-export type { OcrParcel, ParcelMatch } from './shipment.service';
 
-// TAX SYSTEM: Phase T1
-export { TaxCalculationService } from './tax-calculation.service';
-export type { LineCalcInput, LineCalcResult, HeaderTotals, TaxKind, TaxCalculationMode } from './tax-calculation.service';
-export { TaxResolutionService } from './tax-resolution.service';
-export type { TaxResolutionInput, ResolvedTaxCode, TaxDirection } from './tax-resolution.service';
-export { TaxSettingsService } from './tax-settings.service';
-export type {
-  UpsertCompanyTaxProfileInput,
-  CreateTaxCodeInput,
-  UpsertPartnerTaxProfileInput,
-  UpsertProductTaxProfileInput,
-} from './tax-settings.service';
+// --- SPECIAL NAMESPACES ---
+import * as ReportService from './report.service';
+export { ReportService };
+export type { ReportData } from './report.service';
 
+// --- TYPES & CONTRACTS ---
 export { ServiceError } from '@/types/domain';
 export type {
   RequestContext,
+  ActionResponse,
+  PaginatedResult,
+  BaseQueryParams,
   GetCustomersParams,
   GetProductsParams,
   GetSalesParams,
   GetPurchasesParams,
   BatchProductInput,
   BatchCreateResult,
-  PaginatedResult,
   SerializedProduct,
   SerializedSale,
   SerializedPurchase,
-  SerializedSaleWithItems
+  SerializedSaleWithItems,
 } from '@/types/domain';

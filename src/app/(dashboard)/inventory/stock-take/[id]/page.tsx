@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
-import { StockTakeService } from '@/services/stock-take.service';
+import { StockTakeService } from '@/services/inventory/stock-take.service';
 import { requireShop } from '@/lib/auth-guard';
 import { BackPageHeader } from '@/components/ui/back-page-header';
 import { StockTakeCountingForm } from '@/components/inventory/stock-take-counting-form';

@@ -1,7 +1,8 @@
 'use server';
 
-import { PurchaseTaxService } from '@/services/purchase-tax.service';
-import { TaxSettingsService } from '@/services/tax-settings.service';
+import { PurchaseTaxService } from '@/services/tax/purchase-tax.service';
+import { TaxSettingsService } from '@/services/tax/tax-settings.service';
+import { ExportService } from '@/services/export.service';
 import { requirePermission } from '@/lib/auth-guard';
 import { ActionResponse } from '@/types/domain';
 import { revalidatePath } from 'next/cache';
@@ -211,6 +212,33 @@ export async function getVatReport(month: number, year: number): Promise<ActionR
                 purchaseEntries: purchaseReport.entries,
             }
         };
+    } catch (error: any) {
+        return { success: false, message: error.message };
+    }
+}
+
+/**
+ * Export VAT Report (Sales + Purchases) to CSV
+ */
+export async function exportVatReportAction(params: { month: number, year: number }): Promise<ActionResponse> {
+    try {
+        const ctx = await requirePermission('TAX_REPORT_VIEW' as any);
+        const salesReport = await TaxSettingsService.getSalesTaxReport(params.month, params.year, ctx);
+        const purchaseReport = await TaxSettingsService.getPurchaseTaxReport(params.month, params.year, ctx);
+
+        const salesRows = ExportService.adaptVatReportToRows(salesReport.entries);
+        const purchaseRows = ExportService.adaptVatReportToRows(purchaseReport.entries);
+
+        const rows = [
+            { Date: 'SALES TAX REPORT' },
+            ...salesRows,
+            {},
+            { Date: 'PURCHASE TAX REPORT' },
+            ...purchaseRows
+        ];
+
+        const csv = ExportService.toCSV(rows);
+        return { success: true, data: csv };
     } catch (error: any) {
         return { success: false, message: error.message };
     }

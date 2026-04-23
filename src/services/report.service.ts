@@ -23,7 +23,7 @@ export interface ReportData {
     incomes: number;    // Added
     profit: number;
   }[];
-  sales: any[]; 
+  sales: any[];
   expenses: any[];
   incomes: any[];  // Added
 }
@@ -31,12 +31,12 @@ export interface ReportData {
 // ฟังก์ชันหลักดึงรายงาน (ระบุช่วงวันที่ได้)
 export async function getReportData(startDate: string | undefined = undefined, endDate: string | undefined = undefined, ctx: RequestContext): Promise<ReportData> {
   try {
-    
+
     // ตั้งค่าช่วงเวลา (ถ้าไม่ส่งมา ให้ใช้เดือนปัจจุบัน)
     const now = new Date();
     const start = startDate ? new Date(startDate) : new Date(now.getFullYear(), now.getMonth(), 1);
     const end = endDate ? new Date(endDate) : new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-    
+
     // บังคับเวลาเริ่มเป็น 00:00:00 และจบที่ 23:59:59
     start.setHours(0, 0, 0, 0);
     end.setHours(23, 59, 59, 999);
@@ -45,7 +45,7 @@ export async function getReportData(startDate: string | undefined = undefined, e
     // เริ่มยิง Database พร้อมกัน 6 Query (เพิ่ม Income Query)
     // =========================================================
     const [salesData, expensesData, incomesData, salesAggregate, expensesAggregate, incomesAggregate] = await Promise.all([
-      
+
       // Query 1: ดึงรายการขายทั้งหมดในช่วงเวลา
       db.sale.findMany({
         where: {
@@ -138,7 +138,7 @@ export async function getReportData(startDate: string | undefined = undefined, e
     const totalCost = toNumber(salesAggregate._sum.totalCost);
     const totalExpenses = toNumber(expensesAggregate._sum.amount);
     const totalIncomes = toNumber(incomesAggregate._sum.amount);
-    
+
     // คำนวณกำไร
     const grossProfit = calcProfit(totalSales, totalCost);  // กำไรขั้นต้น
     const netProfit = money.add(calcProfit(grossProfit, totalExpenses), totalIncomes);  // กำไรสุทธิ (รวมรายได้อื่นๆ)
@@ -208,8 +208,8 @@ export async function getReportData(startDate: string | undefined = undefined, e
         profit: toNumber(s.profit),
       })),
       expenses: expensesData.map(e => ({
-          ...e,
-          amount: toNumber(e.amount),
+        ...e,
+        amount: toNumber(e.amount),
       })),
       incomes: incomesData.map((inc: any) => ({
         ...inc,
@@ -217,10 +217,10 @@ export async function getReportData(startDate: string | undefined = undefined, e
       }))
     };
   } catch (error: any) {
-    await logger.error('Failed to generate report data', error, { 
-      path: 'getReportData', 
-      startDate, 
-      endDate 
+    await logger.error('Failed to generate report data', error, {
+      path: 'getReportData',
+      startDate,
+      endDate
     });
     throw new Error('ไม่สามารถดึงข้อมูลรายงานได้ กรุณาลองใหม่อีกครั้ง');
   }
@@ -249,7 +249,7 @@ export async function getPurchaseReport(purchaseId: string, exchangeRate: number
     const costCNY = toNumber(item.costPrice);
     // UC 14: Convert to USD
     const costUSD = costCNY / exchangeRate;
-    
+
     return {
       ...item,
       packagingQty: item.packagingQty || 1,
@@ -264,7 +264,7 @@ export async function getPurchaseReport(purchaseId: string, exchangeRate: number
   // UC 16: Example of Charge Allocation
   // Allocation logic: distribute fixed costs (like freight) across items by value
   const totalValue = items.reduce((sum, i) => sum + i.subtotalCNY, 0);
-  
+
   return {
     id: purchase.id,
     purchaseNumber: purchase.purchaseNumber,
@@ -324,7 +324,7 @@ export async function getTopProducts(startDate: string | undefined, endDate: str
   // Fetch product names (no longer need costPrice)
   const productIds = productStats.map(p => p.productId);
   const products = await db.product.findMany({
-    where: { id: { in: productIds } },
+    where: { id: { in: productIds }, shopId: ctx.shopId },
     select: { id: true, name: true, sku: true },
   });
 
@@ -556,19 +556,19 @@ export async function getStockValueReport(ctx: RequestContext) {
   const productIdsWithSales = lastSaleByProduct.map(s => s.productId);
   const lastSaleDates = productIdsWithSales.length > 0
     ? await db.saleItem.findMany({
-        where: {
-          productId: { in: productIdsWithSales },
-          sale: {
-            shopId: ctx.shopId,
-            status: { not: 'CANCELLED' },
-          },
+      where: {
+        productId: { in: productIdsWithSales },
+        sale: {
+          shopId: ctx.shopId,
+          status: { not: 'CANCELLED' },
         },
-        select: {
-          productId: true,
-          sale: { select: { date: true } },
-        },
-        orderBy: { sale: { date: 'desc' } },
-      })
+      },
+      select: {
+        productId: true,
+        sale: { select: { date: true } },
+      },
+      orderBy: { sale: { date: 'desc' } },
+    })
     : [];
 
   // Build a map of productId -> last sale date  
@@ -1259,7 +1259,7 @@ export async function getInventoryIntelligence(
     const qtySold = stats?._sum.quantity || 0;
     const revenue = toNumber(stats?._sum.subtotal || 0);
     const avgDailySales = qtySold / windowDays;
-    
+
     return {
       ...p,
       qtySold,
@@ -1314,11 +1314,11 @@ export async function getProcurementAging(limit: number = 20, ctx: RequestContex
   // Calculate aging per purchase
   const items = await Promise.all(purchases.map(async (po) => {
     let prDate = po.createdAt; // Default to PO creation
-    
+
     // Attempt to find linked PR
     if (po.linkedPRId) {
       const pr = await db.purchase.findUnique({
-        where: { id: po.linkedPRId },
+        where: { id: po.linkedPRId, shopId: ctx.shopId },
         select: { createdAt: true },
       });
       if (pr) prDate = pr.createdAt;
@@ -1496,24 +1496,24 @@ export async function getReorderSuggestions(ctx: RequestContext) {
     const stats = statsMap.get(p.id);
     const qtySold = (stats as any)?._sum?.quantity || 0;
     const avgDailySales = qtySold / windowDays;
-    
+
     // Effective lead time: Product Master > Supplier History > System Default (7)
     const histLeadTime = p.supplier ? supplierLeadTimeMap.get(p.supplier.name) : undefined;
     const effectiveLeadTime = Number(p.avgLeadTime || histLeadTime || 7);
     const reorderThresholdDays = effectiveLeadTime + safetyBufferDays;
 
     const daysRemaining = avgDailySales > 0 ? (p.stock / avgDailySales) : Infinity;
-    
+
     // Suggest if stock is low vs minStock OR stock will run out within lead time
     const isUrgent = p.stock <= p.minStock || (daysRemaining !== Infinity && daysRemaining <= reorderThresholdDays);
-    
+
     // Only suggest if there is demand OR stock is below minStock
     if (!isUrgent && p.stock > p.minStock) return null;
 
     // Calculate Suggested Qty (Target: 30 days cover)
     const needed = (avgDailySales * targetCoverageDays) - p.stock;
     const minNeeded = Math.max(needed, p.moq || 0, 1);
-    
+
     // Round to nearest packaging count (Rule 14.4)
     const packSize = p.packagingQty || 1;
     const suggestedUnits = Math.ceil(minNeeded / packSize) * packSize;

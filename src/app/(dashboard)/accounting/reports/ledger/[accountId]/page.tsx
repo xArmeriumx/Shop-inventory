@@ -36,7 +36,7 @@ export default function AccountLedgerPage({ params }: { params: { accountId: str
                 if (res.success) {
                     setData(res.data);
                 } else {
-                    toast.error(res.error);
+                    toast.error(res.message);
                 }
             } finally {
                 setIsLoading(false);

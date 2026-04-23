@@ -1,7 +1,9 @@
 import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
-import { AuditService } from '@/services/audit.service';
-import type { RequestContext } from '@/types/domain';
+import { db } from '@/lib/db';
+import { AuditService } from '@/services/core/audit.service';
+import { Security } from '@/services/core/security.service';
+import { ServiceError } from '@/types/domain';
 
 const upstashUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
 const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
@@ -9,15 +11,15 @@ const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST
 const isUpstashConfigured = !!upstashUrl && !!upstashToken;
 const isProd = process.env.NODE_ENV === 'production';
 
-const redis = isUpstashConfigured 
+const redis = isUpstashConfigured
   ? new Redis({
-      url: upstashUrl!,
-      token: upstashToken!,
-    })
+    url: upstashUrl!,
+    token: upstashToken!,
+  })
   : ({
-      sadd: async () => 1,
-      eval: async () => [1, 1],
-    } as any);
+    sadd: async () => 1,
+    eval: async () => [1, 1],
+  } as any);
 
 /**
  * Universal Rate Limiter for ERP application.
@@ -90,7 +92,7 @@ export type RateLimitPolicy = keyof typeof rateLimiters | 'none';
  * Also logs abuse attempts to AuditService.
  */
 export async function checkRateLimit(
-  limiter: Ratelimit, 
+  limiter: Ratelimit,
   identifier: string,
   ctx?: { userId: string; shopId?: string; userName?: string; userEmail?: string },
   actionContextName?: string
@@ -109,7 +111,7 @@ export async function checkRateLimit(
   console.log(`[RateLimit Executing] ENV Found: true, Checking identifier: ${identifier}`);
   const result = await limiter.limit(identifier);
   console.log(`[RateLimit Result] success: ${result.success}, remaining: ${result.remaining}`);
-  
+
   if (!result.success && ctx) {
     // Log hit to Audit API asynchronously (best-effort)
     AuditService.log(ctx, {

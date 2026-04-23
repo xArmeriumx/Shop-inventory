@@ -1,7 +1,7 @@
 import { db } from '@/lib/db';
 import { RequestContext, ServiceError } from '@/types/domain';
-import { Security } from './security';
-import { AuditService, AUDIT_ACTIONS } from './audit.service';
+import { Security } from '@/services/core/security.service';
+import { AuditService, AUDIT_ACTIONS } from '@/services/core/audit.service';
 
 export const SettingsService = {
   // ============================================================================

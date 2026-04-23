@@ -61,15 +61,15 @@ export default async function ProductsPage(props: ProductsPageProps) {
         title="สินค้า"
         description="จัดการข้อมูลสินค้าและสต็อก"
         action={
-          <div className="flex items-center gap-2">
-            <Button asChild variant="outline" className="text-orange-600 border-orange-200 hover:bg-orange-50 hover:text-orange-700">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button asChild variant="outline" size="sm" className="text-orange-600 border-orange-200 hover:bg-orange-50 hover:text-orange-700">
               <Link href="/products/low-stock">
                 <AlertTriangle className="mr-2 h-4 w-4" />สินค้าใกล้หมด
               </Link>
             </Button>
             <ProductImportButton />
             <Guard permission="PRODUCT_CREATE">
-              <Button asChild>
+              <Button asChild size="sm">
                 <Link href="/products/new">
                   <Plus className="mr-2 h-4 w-4" />เพิ่มสินค้า
                 </Link>

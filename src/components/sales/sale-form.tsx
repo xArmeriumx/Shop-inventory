@@ -7,6 +7,8 @@ import { useForm, FormProvider, useFormContext, useFieldArray } from 'react-hook
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 
+import { cn } from '@/lib/utils';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -192,10 +194,25 @@ function SalesItemsSection({
           const discountAmount = watch(`items.${index}.discountAmount`);
           const lineTotal = (Number(quantity) || 0) * ((Number(salePrice) || 0) - (Number(discountAmount) || 0));
 
+          const isStockInsufficient = product ? (Number(quantity) || 0) > (product.stock - (product.reservedStock || 0)) : false;
+
           return (
-            <div key={field.id} className="grid grid-cols-1 md:grid-cols-12 gap-4 rounded-lg border p-4 items-start">
+            <div key={field.id} className={cn(
+              "grid grid-cols-1 md:grid-cols-12 gap-4 rounded-lg border p-4 items-start transition-colors",
+              isStockInsufficient ? "border-red-200 bg-red-50/30" : "bg-card"
+            )}>
               <div className="md:col-span-4 space-y-2">
-                <Label>สินค้า *</Label>
+                <div className="flex items-center justify-between">
+                  <Label>สินค้า *</Label>
+                  {product && (
+                    <span className={cn(
+                      "text-[10px] font-bold px-1.5 py-0.5 rounded",
+                      isStockInsufficient ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"
+                    )}>
+                      {isStockInsufficient ? 'สต็อกไม่พอ' : 'มีสินค้า'}
+                    </span>
+                  )}
+                </div>
                 <select
                   {...register(`items.${index}.productId` as const)}
                   className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm"
@@ -213,7 +230,15 @@ function SalesItemsSection({
               </div>
               <div className="md:col-span-2 space-y-2">
                 <Label>จำนวน *</Label>
-                <Input type="number" {...register(`items.${index}.quantity` as const)} min="1" />
+                <Input
+                  type="number"
+                  {...register(`items.${index}.quantity` as const)}
+                  min="1"
+                  className={cn(isStockInsufficient && "border-red-500 focus-visible:ring-red-500")}
+                />
+                {isStockInsufficient && product && (
+                  <p className="text-[10px] text-red-600 font-bold animate-pulse">สั่งซื้อได้สูงสุด: {product.stock - (product.reservedStock || 0)}</p>
+                )}
               </div>
               <div className="md:col-span-2 space-y-2">
                 <Label>ราคา/หน่วย *</Label>
@@ -332,6 +357,20 @@ export function SaleForm() {
       discountType: (data.showDiscount && (Number(data.discountValue) || 0) > 0) ? (data.discountType as any) : null,
       discountValue: data.showDiscount ? (Number(data.discountValue) || 0) : null,
     };
+
+    // --- Stock Validation (Task 0.3) ---
+    const insufficientItems = data.items.filter(item => {
+      const p = products.find(prod => prod.id === item.productId);
+      if (!p) return false;
+      const available = p.stock - (p.reservedStock || 0);
+      return (Number(item.quantity) || 0) > available;
+    });
+
+    if (insufficientItems.length > 0) {
+      toast.error('ไม่สามารถบันทึกได้เนื่องจากสินค้าบางรายการมีสต็อกไม่พอ');
+      return;
+    }
+    // ---------------------------------
 
     startTransition(async () => {
       const result = await createSale(payload);

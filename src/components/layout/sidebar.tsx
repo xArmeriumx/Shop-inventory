@@ -25,6 +25,8 @@ import {
   CheckCircle2,
   PackageCheck,
   ClipboardCheck,
+  ArrowRightLeft,
+  X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -86,10 +88,16 @@ const navItems = [
     permission: 'PRODUCT_VIEW' as Permission,
   },
   {
-    title: 'คลังสินค้า (Mobile)',
-    href: '/warehouse',
+    title: 'คลังสินค้า',
+    href: '/inventory/warehouses',
     icon: Truck,
-    permission: 'STOCK_VIEW' as Permission,
+    permission: 'WAREHOUSE_MANAGE' as Permission,
+  },
+  {
+    title: 'ใบโอนสินค้า',
+    href: '/inventory/transfers',
+    icon: ArrowRightLeft as any, // Need to import or use cast
+    permission: 'PRODUCT_UPDATE' as Permission,
   },
   {
     title: 'ตรวจนับสต็อก',
@@ -142,6 +150,18 @@ const navItems = [
     permission: 'SETTINGS_SHOP' as Permission,
   },
   {
+    title: 'บัญชีธนาคาร',
+    href: '/accounting/banks',
+    icon: Wallet,
+    permission: 'SETTINGS_SHOP' as Permission,
+  },
+  {
+    title: 'Bank Reconcile',
+    href: '/accounting/reconcile',
+    icon: CheckCircle2,
+    permission: 'SETTINGS_SHOP' as Permission,
+  },
+  {
     title: 'AI ผู้ช่วย',
     href: '/ai',
     icon: Sparkles,
@@ -160,6 +180,11 @@ const secondaryNavItems = [
     href: '/reports',
     icon: BarChart3,
     permission: 'REPORT_VIEW_SALES' as Permission,
+  },
+  {
+    title: 'แจ้งเตือนระบบ',
+    href: '/system/notifications',
+    icon: require('lucide-react').Bell,
   },
   {
     title: 'ตั้งค่า',
@@ -188,10 +213,11 @@ const secondaryNavItems = [
 interface SidebarProps {
   isCollapsed?: boolean;
   onToggle?: () => void;
-  className?: string; // Added className to SidebarProps
+  onClose?: () => void; // Close for mobile
+  className?: string;
 }
 
-export function Sidebar({ isCollapsed = false, onToggle, className }: SidebarProps) {
+export function Sidebar({ isCollapsed = false, onToggle, onClose, className }: SidebarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const { hasPermission } = usePermissions();
@@ -200,25 +226,28 @@ export function Sidebar({ isCollapsed = false, onToggle, className }: SidebarPro
     <aside
       className={cn(
         'flex h-full flex-col border-r bg-background transition-all duration-300',
-        isCollapsed ? 'w-16' : 'w-64'
+        isCollapsed ? 'w-16' : 'w-64',
+        className
       )}
     >
-      {/* Logo */}
-      <div className="flex h-14 items-center border-b px-4">
-        {!isCollapsed && (
-          <Link href="/dashboard" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground text-sm font-bold">
-              S
-            </div>
-            <span className="font-semibold">Shop Inventory</span>
-          </Link>
-        )}
-        {isCollapsed && (
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground text-sm font-bold mx-auto">
+      {/* Logo & Close Button (Mobile Only) */}
+      <div className="flex h-14 items-center justify-between border-b px-4">
+        <Link href="/dashboard" className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground text-sm font-bold">
             S
           </div>
+          {(!isCollapsed || className?.includes('lg:hidden')) && (
+            <span className="font-semibold">Shop Inventory</span>
+          )}
+        </Link>
+
+        {onClose && (
+          <Button variant="ghost" size="icon" className="lg:hidden" onClick={onClose}>
+            <X className="h-5 w-5" />
+          </Button>
         )}
-        <UserActivityTracker />
+
+        {!onClose && <UserActivityTracker />}
       </div>
 
       {/* Navigation — scrollable when many items */}

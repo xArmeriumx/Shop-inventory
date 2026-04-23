@@ -15,6 +15,7 @@ import { IdentitySection } from './identity-section';
 import { PricingSection } from './pricing-section';
 import { LogisticsSection } from './logistics-section';
 import { ErpSettingsSection } from './erp-settings-section';
+import { StockSection } from './stock-section';
 
 import type { SerializedProduct } from '@/services';
 
@@ -90,13 +91,7 @@ export function ProductForm({ product, categories }: ProductFormProps) {
                                             <LogisticsSection />
                                         </SafeBoundary>
                                         <div className="space-y-4">
-                                            <div className="text-sm font-medium text-muted-foreground border-b pb-1 mb-4">
-                                                ข้อมูลสต็อก (Inventory Control)
-                                            </div>
-                                            <p className="text-xs text-muted-foreground bg-muted/30 p-4 rounded-lg border border-dashed text-center">
-                                                ส่วนนี้จะขยายผลในโมดูล **Multi-Warehouse** (Layer 3)
-                                                เพื่อจัดการจุดเก็บสินค้าและจุดสั่งซื้อซ้ำอัตโนมัติ
-                                            </p>
+                                            <StockSection />
                                         </div>
                                     </div>
                                 </TabsContent>

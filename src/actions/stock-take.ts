@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { StockTakeService } from '@/services/stock-take.service';
+import { StockTakeService } from '@/services/inventory/stock-take.service';
 import { requireShop, requirePermission } from '@/lib/auth-guard';
 
 export async function createStockTakeAction(productIds: string[], notes?: string) {

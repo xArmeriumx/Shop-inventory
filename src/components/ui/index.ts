@@ -38,6 +38,7 @@ export { FileUpload } from './file-upload';
 export { FormField } from './form-field';
 export { GuidedErrorAlert } from './guided-error-alert';
 export { ImageModal } from './image-modal';
+export { Modal } from './modal';
 export { MetricCard } from './metric-card';
 export { PaginationControl } from './pagination-control';
 export { SafeBoundary } from './safe-boundary';

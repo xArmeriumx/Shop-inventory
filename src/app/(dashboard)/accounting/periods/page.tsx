@@ -19,9 +19,9 @@ export default function AccountingPeriodsPage() {
         try {
             const res = await getAccountingPeriodsAction();
             if (res.success) {
-                setPeriods(res.data);
+                setPeriods(res.data as any[]);
             } else {
-                toast.error(res.error);
+                toast.error(res.message);
             }
         } finally {
             setIsLoading(false);

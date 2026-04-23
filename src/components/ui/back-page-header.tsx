@@ -30,21 +30,25 @@ export interface BackPageHeaderProps {
  */
 export function BackPageHeader({ backHref, title, description, action, className }: BackPageHeaderProps) {
     return (
-        <div className={`flex items-start justify-between gap-4 ${className ?? ''}`}>
-            <div className="flex items-center gap-3">
-                <Button variant="ghost" size="icon" asChild className="shrink-0">
+        <div className={`flex flex-col sm:flex-row sm:items-start justify-between gap-4 ${className ?? ''}`}>
+            <div className="flex items-start gap-3 min-w-0">
+                <Button variant="ghost" size="icon" asChild className="shrink-0 mt-1">
                     <Link href={backHref}>
                         <ArrowLeft className="h-4 w-4" />
                     </Link>
                 </Button>
-                <div>
-                    <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+                <div className="min-w-0">
+                    <h1 className="text-xl sm:text-2xl font-bold tracking-tight break-words">{title}</h1>
                     {description && (
-                        <p className="text-sm text-muted-foreground mt-0.5">{description}</p>
+                        <p className="text-sm text-muted-foreground mt-0.5 line-clamp-2 sm:line-clamp-none">{description}</p>
                     )}
                 </div>
             </div>
-            {action && <div className="shrink-0">{action}</div>}
+            {action && (
+                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto shrink-0 px-1 sm:px-0 sm:justify-end">
+                    {action}
+                </div>
+            )}
         </div>
     );
 }

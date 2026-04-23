@@ -19,12 +19,19 @@ export type SerializedProduct = Omit<Product, 'costPrice' | 'salePrice'> & {
   costPrice: number;
   salePrice: number;
   packagingQty: number; // Ensure it exists for Rule 6.3/14.4
+  warehouseStocks?: {
+    id: string;
+    warehouseId: string;
+    warehouse: { name: string; code: string };
+    quantity: number;
+    binLocation: string | null;
+  }[];
 };
 
 /**
  * Sale with Decimal fields converted to number
  */
-export type SerializedSale = Omit<Sale, 'totalAmount' | 'totalCost' | 'profit' | 'discountAmount' | 'discountValue' | 'netAmount'> & {
+export type SerializedSale = Omit<Sale, 'totalAmount' | 'totalCost' | 'profit' | 'discountAmount' | 'discountValue' | 'netAmount' | 'paidAmount' | 'residualAmount'> & {
   totalAmount: number;
   totalCost: number;
   profit: number;
@@ -32,6 +39,8 @@ export type SerializedSale = Omit<Sale, 'totalAmount' | 'totalCost' | 'profit' |
   discountAmount: number;
   discountValue: number | null;
   netAmount: number;
+  paidAmount: number;
+  residualAmount: number;
 };
 
 /**
@@ -48,8 +57,10 @@ export type SerializedSaleItem = Omit<SaleItem, 'salePrice' | 'costPrice' | 'sub
 /**
  * Purchase with Decimal fields converted to number
  */
-export type SerializedPurchase = Omit<Purchase, 'totalCost'> & {
+export type SerializedPurchase = Omit<Purchase, 'totalCost' | 'paidAmount' | 'residualAmount'> & {
   totalCost: number;
+  paidAmount: number;
+  residualAmount: number;
 };
 
 /**

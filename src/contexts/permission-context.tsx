@@ -94,12 +94,12 @@ const PermissionContext = createContext<PermissionContextValue | null>(null);
  * Mount this provider ONCE at the dashboard layout level.
  */
 const EMPTY_DATA = {
-    shopId: undefined,
-    roleId: undefined,
-    permissions: [],
-    roles: [],
-    isOwner: false,
-    version: 0,
+  shopId: undefined,
+  roleId: undefined,
+  permissions: [],
+  roles: [],
+  isOwner: false,
+  version: 0,
 };
 
 export function PermissionProvider({ children }: PermissionProviderProps) {
@@ -112,7 +112,7 @@ export function PermissionProvider({ children }: PermissionProviderProps) {
   const isMountedRef = useRef(true);
   const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isPollingActiveRef = useRef(false);
-  
+
   // Transition memory for Logout Guardian (Phase 1)
   const prevStatusRef = useRef<PermissionStatus>('loading');
   const isRedirectingRef = useRef(false);
@@ -135,10 +135,10 @@ export function PermissionProvider({ children }: PermissionProviderProps) {
     // Initial normalization from session
     if (!session?.user) return EMPTY_DATA;
 
-    const permissions = Array.isArray(session?.user?.permissions) 
-      ? (session.user.permissions as Permission[]) 
+    const permissions = Array.isArray(session?.user?.permissions)
+      ? (session.user.permissions as Permission[])
       : [];
-    
+
     return {
       shopId: session?.user?.shopId as string | undefined,
       roleId: session?.user?.roleId,
@@ -179,7 +179,7 @@ export function PermissionProvider({ children }: PermissionProviderProps) {
 
       cachedVersionRef.current = data.version;
       setPermissionStatus('authenticated');
-      
+
       const normalizedData = {
         shopId: data.shopId,
         roleId: data.roles[0],
@@ -221,7 +221,7 @@ export function PermissionProvider({ children }: PermissionProviderProps) {
       if (response && response.ok && response.version !== cachedVersionRef.current) {
         console.log('[PermissionContext] Version changed, refreshing permissions...');
         // Release lock before calling fetch which has its own lock
-        isRefreshingRef.current = false; 
+        isRefreshingRef.current = false;
         await fetchFullPermissions();
       }
     } catch (error) {
@@ -264,7 +264,7 @@ export function PermissionProvider({ children }: PermissionProviderProps) {
    */
   const startPolling = useCallback(() => {
     if (isPollingActiveRef.current) return; // Already polling
-    
+
     isPollingActiveRef.current = true;
     console.log('[PermissionContext] Polling started');
     scheduleNextPoll();
@@ -276,12 +276,12 @@ export function PermissionProvider({ children }: PermissionProviderProps) {
    */
   const stopPolling = useCallback(() => {
     isPollingActiveRef.current = false;
-    
+
     if (pollingTimeoutRef.current) {
       clearTimeout(pollingTimeoutRef.current);
       pollingTimeoutRef.current = null;
     }
-    
+
     console.log('[PermissionContext] Polling stopped');
   }, []);
 
@@ -321,7 +321,7 @@ export function PermissionProvider({ children }: PermissionProviderProps) {
   useEffect(() => {
     const currentStatus = permissionStatus;
     const prevStatus = prevStatusRef.current;
-    
+
     // Update "History of Auth" to prevent hydration false-positives
     if (currentStatus === 'authenticated' && status === 'authenticated') {
       hasBeenAuthenticatedRef.current = true;
@@ -330,14 +330,14 @@ export function PermissionProvider({ children }: PermissionProviderProps) {
     // Trigger if (Previously Authenticated) AND (Now Unauthenticated)
     // This looks at both truth sources: NextAuth status or permissionStatus (revocation)
     const isRevoked = hasBeenAuthenticatedRef.current && (currentStatus === 'unauthenticated' || status === 'unauthenticated');
-    
+
     if (isRevoked && !isRedirectingRef.current && status !== 'loading') {
       const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
       const isPublicRoute = PUBLIC_ROUTES.some(route => pathname.startsWith(route) || pathname === route);
-      
+
       if (!isPublicRoute) {
         isRedirectingRef.current = true;
-        
+
         // One-shot telemetry before redirect
         logger.trackEvent(SystemEventType.AUTH_TRANSITION_RECOVERY, {
           source: 'PermissionProvider',
@@ -381,7 +381,7 @@ export function PermissionProvider({ children }: PermissionProviderProps) {
     // Initialize from session if we don't have data yet
     if (permissionData === EMPTY_DATA && session?.user) {
       const sessionPermissions = (session.user.permissions ?? []) as Permission[];
-      
+
       setPermissionData({
         shopId: session.user.shopId as string,
         roleId: session.user.roleId,
@@ -410,7 +410,8 @@ export function PermissionProvider({ children }: PermissionProviderProps) {
       clearTimeout(initialPollTimer);
       stopPolling();
     };
-  }, [status, session, startPolling, stopPolling, permissionData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, session, startPolling, stopPolling]);
 
   // -------------------------------------------------------------------------
   // Memoized Permission Helpers

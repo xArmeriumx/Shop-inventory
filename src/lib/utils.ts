@@ -14,6 +14,15 @@ export function formatCurrency(amount: number, currency = 'THB', locale = 'th-TH
   }).format(amount);
 }
 
+export function formatDate(date: Date | string | number) {
+  if (!date) return '-';
+  return new Intl.DateTimeFormat('th-TH', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  }).format(new Date(date));
+}
+
 /**
  * Deeply serializes data to be safe for Client Components.
  * Converts Prisma Decimal, BigInt, and ensures plain objects.

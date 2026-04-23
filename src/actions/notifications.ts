@@ -1,23 +1,79 @@
 'use server';
 
-import { NotificationService } from '@/services/notification.service';
+import { db } from '@/lib/db';
+import { getTrustedShopId } from '@/lib/auth-guard';
+import { NotificationService } from '@/services/core/notification.service';
+import { QueryMetrics } from '@/lib/performance';
 import { requireShop, requirePermission } from '@/lib/auth-guard';
 import { revalidatePath } from 'next/cache';
 
 /**
  * ดึงรายการแจ้งเตือนล่าสุด
  */
-export async function getNotifications(limit = 20) {
-  const ctx = await requireShop();
-  return NotificationService.getNotifications(ctx.shopId, ctx.userId, limit);
+export interface NotificationSummary {
+  unreadCount: number;
+  recentNotifications: any[];
+  serverTime: string;
 }
 
-/**
- * ดึงจำนวนแจ้งเตือนที่ยังไม่ได้อ่าน
- */
+export async function getNotificationSummary(limit = 15): Promise<NotificationSummary> {
+  const shopId = await getTrustedShopId();
+
+  // Using Promise.all for parallel database execution under the same request context
+  const [unreadCount, recentNotifications] = await QueryMetrics.measure('db:notificationSummary', () =>
+    Promise.all([
+      db.notification.count({
+        where: { shopId, isRead: false }
+      }),
+      db.notification.findMany({
+        where: { shopId },
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          type: true,
+          severity: true,
+          title: true,
+          message: true,
+          link: true,
+          isRead: true,
+          createdAt: true
+        }
+      })
+    ])
+  );
+
+  return {
+    unreadCount,
+    recentNotifications,
+    serverTime: new Date().toISOString()
+  };
+}
+
+export async function getNotifications(limit = 20) {
+  const shopId = await getTrustedShopId();
+  return db.notification.findMany({
+    where: { shopId },
+    take: limit,
+    orderBy: { createdAt: 'desc' },
+    select: {
+      id: true,
+      type: true,
+      severity: true,
+      title: true,
+      message: true,
+      link: true,
+      isRead: true,
+      createdAt: true
+    }
+  });
+}
+
 export async function getUnreadNotificationCount() {
-  const ctx = await requireShop();
-  return NotificationService.getUnreadCount(ctx.shopId, ctx.userId);
+  const shopId = await getTrustedShopId();
+  return db.notification.count({
+    where: { shopId, isRead: false }
+  });
 }
 
 /**

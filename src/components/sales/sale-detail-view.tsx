@@ -24,6 +24,8 @@ import { toast } from 'sonner';
 import { createInvoiceFromSale } from '@/actions/invoices';
 import { PdfPrintTrigger } from '@/features/print/components/pdf-print-trigger';
 import { buildSalePrintDTO } from '@/features/print/builders/sale-print.builder';
+import { WorkflowAssistant } from '@/components/ui/workflow-assistant';
+import { StatusBadgeGlass } from '@/components/ui/status-badge-glass';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -68,11 +70,11 @@ export function SaleDetailView({ sale, shop, payments = [] }: SaleDetailViewProp
     return (
         <div className="space-y-6">
             {/* Page Header */}
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between print:hidden">
-                <BackPageHeader backHref="/sales" title="รายละเอียดการขาย" />
-                <div className="flex gap-2">
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between print:hidden">
+                <BackPageHeader backHref="/sales" title="รายละเอียดการขาย" className="flex-1 min-w-0" />
+                <div className="flex flex-wrap gap-2 sm:justify-end">
                     {existingInvoice ? (
-                        <Button variant="outline" className="border-blue-500 text-blue-600 hover:bg-blue-50" asChild>
+                        <Button variant="outline" size="sm" className="border-blue-500 text-blue-600 hover:bg-blue-50" asChild>
                             <Link href={`/invoices/${existingInvoice.id}`}>
                                 <ExternalLink className="mr-2 h-4 w-4" /> ดูใบแจ้งหนี้
                             </Link>
@@ -81,6 +83,7 @@ export function SaleDetailView({ sale, shop, payments = [] }: SaleDetailViewProp
                         <Guard permission={'SALE_CREATE' as any}>
                             <Button
                                 variant="outline"
+                                size="sm"
                                 className="border-primary text-primary hover:bg-primary/5"
                                 onClick={handleCreateInvoice}
                                 disabled={isPending || sale.status === 'CANCELLED' || sale.billingStatus === 'BILLED'}
@@ -96,11 +99,52 @@ export function SaleDetailView({ sale, shop, payments = [] }: SaleDetailViewProp
                         fileName={`Sale-${sale.invoiceNumber || sale.id.slice(0, 8)}.pdf`}
                         label="ดาวน์โหลด PDF"
                         variant="outline"
+                        size="sm"
                         className="border-primary text-primary hover:bg-primary/5"
                     />
                     <PrintButton />
                 </div>
             </div>
+
+            {/* Workflow Assistant - Premium Guided UX */}
+            <WorkflowAssistant
+                type="sale"
+                status={sale.status}
+                steps={[
+                    ...(!activeShipment && sale.status !== 'CANCELLED' ? [{
+                        label: 'เตรียมสินค้าเพื่อจัดส่ง',
+                        action: 'สร้างใบส่งของ (DO)',
+                        description: 'รายการขายนี้พร้อมสำหรับการจัดส่งแล้ว กรุณาสร้างรายการจัดส่งเพื่อตัดสต็อกจริงและติดตามพัสดุ',
+                        isPrimary: true,
+                        onClick: () => router.push(`/shipments/create?saleId=${sale.id}`)
+                    }] : !existingInvoice && sale.status !== 'CANCELLED' ? [{
+                        label: 'สินค้าเตรียมส่ง/ส่งแล้ว',
+                        action: 'ออกใบแจ้งหนี้',
+                        description: 'เมื่อสินค้าพร้อมส่ง คุณควรออกใบแจ้งหนี้ (Invoice) เพื่อบันทึกยอดตั้งหนี้ลูกค้าและลงบัญชี',
+                        isPrimary: true,
+                        onClick: handleCreateInvoice
+                    }] : !isFullyPaid && sale.status !== 'CANCELLED' ? [{
+                        label: 'รอชำระยอดค้างจ่าย',
+                        action: 'รับชำระเงิน',
+                        description: `มียอดค้างชำระ ${formatCurrency(residualAmount)} กรุณาบันทึกรับเงินเพื่อปิดบิลให้สมบูรณ์`,
+                        isPrimary: true,
+                        onClick: () => setIsPaymentModalOpen(true)
+                    }] : sale.status === 'CANCELLED' ? [{
+                        label: 'รายการนี้ถูกยกเลิกแล้ว',
+                        action: 'กลับไปหน้าหลัก',
+                        description: 'รายการขายนี้ถูกยกเลิก ระบบได้คืนสต็อกและล้างยอดบัญชีให้แล้ว',
+                        onClick: () => router.push('/sales')
+                    }] : [{
+                        label: 'เสร็จสิ้นกระบวนการขาย',
+                        action: 'ดูรายการจัดส่ง',
+                        description: 'กระบวนการขาย จัดส่ง และรับชำระเงินเสร็จสิ้นสมบูรณ์แล้ว',
+                        onClick: () => {
+                            const el = document.getElementById('shipment-section');
+                            el?.scrollIntoView({ behavior: 'smooth' });
+                        }
+                    }])
+                ]}
+            />
 
             {/* Lock Banner */}
             {sale.editLockStatus !== 'NONE' && (
@@ -138,7 +182,21 @@ export function SaleDetailView({ sale, shop, payments = [] }: SaleDetailViewProp
                     <Separator className="my-4" />
                     <div className="flex justify-between items-start">
                         <div>
-                            <CardTitle className="text-xl">ใบเสร็จรับเงิน / Receipt</CardTitle>
+                            <div className="flex items-center gap-3">
+                                <CardTitle className="text-xl">ใบเสร็จรับเงิน / Receipt</CardTitle>
+                                <StatusBadgeGlass
+                                    status={
+                                        sale.status === 'COMPLETED' ? 'เสร็จสมบูรณ์' :
+                                            sale.status === 'CANCELLED' ? 'ยกเลิกแล้ว' :
+                                                sale.status === 'CONFIRMED' ? 'จองสต็อกแล้ว' : 'ฉบับร่าง'
+                                    }
+                                    variant={
+                                        sale.status === 'COMPLETED' ? 'success' :
+                                            sale.status === 'CANCELLED' ? 'destructive' :
+                                                sale.status === 'CONFIRMED' ? 'info' : 'default'
+                                    }
+                                />
+                            </div>
                             <p className="text-muted-foreground text-sm mt-1">เลขที่: {sale.invoiceNumber}</p>
                         </div>
                         <div className="text-right">
@@ -233,42 +291,46 @@ export function SaleDetailView({ sale, shop, payments = [] }: SaleDetailViewProp
                     />
 
                     {/* Items Table */}
-                    <div className="rounded-md border mb-8 print:border-gray-200">
-                        <table className="w-full text-sm">
-                            <thead className="bg-muted/50 border-b print:bg-gray-100">
-                                <tr className="text-left">
-                                    <th className="p-3 font-medium">ลำดับ</th>
-                                    <th className="p-3 font-medium">รายการ</th>
-                                    <th className="p-3 font-medium text-right">ราคาต่อหน่วย</th>
-                                    <th className="p-3 font-medium text-right">จำนวน (Unit)</th>
-                                    <th className="p-3 font-medium text-right">บรรจุภัณฑ์ (Pack)</th>
-                                    <th className="p-3 font-medium text-right">จำนวนกล่อง (CTN)</th>
-                                    <th className="p-3 font-medium text-right">รวม</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {sale.items.map((item: any, index: number) => (
-                                    <tr key={item.id} className="border-b last:border-0 hover:bg-muted/50">
-                                        <td className="p-3">{index + 1}</td>
-                                        <td className="p-3">
-                                            {item.product.name}
-                                            {Number(item.discountAmount) > 0 && (
-                                                <span className="text-xs text-orange-600 ml-1">
-                                                    (ลด {formatCurrency(Number(item.discountAmount))}/ชิ้น)
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td className="p-3 text-right">{formatCurrency(Number(item.salePrice))}</td>
-                                        <td className="p-3 text-right font-medium">{item.quantity}</td>
-                                        <td className="p-3 text-right text-muted-foreground">{item.packagingQty || 1}</td>
-                                        <td className="p-3 text-right font-bold text-primary">
-                                            {calculateCtn(item.quantity, item.packagingQty || 1)}
-                                        </td>
-                                        <td className="p-3 text-right">{formatCurrency(Number(item.subtotal))}</td>
+                    <div className="rounded-md border mb-8 print:border-gray-200 overflow-hidden">
+                        <div className="overflow-x-auto scrollbar-hide">
+                            <table className="w-full text-sm min-w-[600px] lg:min-w-full">
+                                <thead className="bg-muted/50 border-b print:bg-gray-100">
+                                    <tr className="text-left">
+                                        <th className="p-3 font-medium">ลำดับ</th>
+                                        <th className="p-3 font-medium">รายการ</th>
+                                        <th className="p-3 font-medium text-right">ราคาต่อหน่วย</th>
+                                        <th className="p-3 font-medium text-right">จำนวน (Unit)</th>
+                                        <th className="p-3 font-medium text-right">บรรจุภัณฑ์ (Pack)</th>
+                                        <th className="p-3 font-medium text-right">จำนวนกล่อง (CTN)</th>
+                                        <th className="p-3 font-medium text-right">รวม</th>
                                     </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    {sale.items.map((item: any, index: number) => (
+                                        <tr key={item.id} className="border-b last:border-0 hover:bg-muted/50">
+                                            <td className="p-3">{index + 1}</td>
+                                            <td className="p-3">
+                                                <div className="max-w-[200px] sm:max-w-none">
+                                                    {item.product.name}
+                                                    {Number(item.discountAmount) > 0 && (
+                                                        <span className="text-xs text-orange-600 ml-1">
+                                                            (ลด {formatCurrency(Number(item.discountAmount))}/ชิ้น)
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td className="p-3 text-right">{formatCurrency(Number(item.salePrice))}</td>
+                                            <td className="p-3 text-right font-medium">{item.quantity}</td>
+                                            <td className="p-3 text-right text-muted-foreground">{item.packagingQty || 1}</td>
+                                            <td className="p-3 text-right font-bold text-primary">
+                                                {calculateCtn(item.quantity, item.packagingQty || 1)}
+                                            </td>
+                                            <td className="p-3 text-right">{formatCurrency(Number(item.subtotal))}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
 
                     {/* Totals Section */}
@@ -305,7 +367,7 @@ export function SaleDetailView({ sale, shop, payments = [] }: SaleDetailViewProp
 
                     {/* Shipment Info */}
                     {activeShipment ? (
-                        <div className="mt-8 border-t pt-4 print:hidden">
+                        <div className="mt-8 border-t pt-4 print:hidden" id="shipment-section">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
                                     <Truck className="h-4 w-4" />

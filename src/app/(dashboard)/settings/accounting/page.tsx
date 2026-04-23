@@ -14,8 +14,8 @@ export default async function AccountingSettingsPage() {
         getJournalsAction({ limit: 50 })
     ]);
 
-    const accounts = accRes.success ? accRes.data : [];
-    const journals = journalRes.success ? journalRes.data : [];
+    const accounts = accRes.success ? (accRes.data as any[]) : [];
+    const journals = journalRes.success ? (journalRes.data as any[]) : [];
 
     return (
         <div className="flex-1 p-8 max-w-7xl mx-auto">

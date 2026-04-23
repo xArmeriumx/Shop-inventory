@@ -1,8 +1,8 @@
 'use server';
 
 import { requireAuth } from '@/lib/auth-guard';
-import { AuditService, type AuditQueryOptions, type AuditStatus } from '@/services/audit.service';
-import { Security } from '@/services/security';
+import { AuditService, type AuditQueryOptions, type AuditStatus } from '@/services/core/audit.service';
+import { Security } from '@/services/core/security.service';
 import { ExportService } from '@/services/export.service';
 import { ServiceError } from '@/types/domain';
 

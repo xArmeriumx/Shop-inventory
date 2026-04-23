@@ -17,6 +17,7 @@ interface PdfPrintTriggerProps {
     documentData: any;
     fileName?: string;
     variant?: 'default' | 'outline' | 'ghost' | 'link' | 'secondary' | 'destructive';
+    size?: 'default' | 'sm' | 'lg' | 'icon';
     className?: string;
     label?: string;
 }
@@ -30,6 +31,7 @@ export function PdfPrintTrigger({
     documentData,
     fileName = 'document.pdf',
     variant = 'outline',
+    size = 'sm',
     className,
     label
 }: PdfPrintTriggerProps) {
@@ -101,7 +103,7 @@ export function PdfPrintTrigger({
                 }
 
                 return (
-                    <Button variant={variant} className={className} disabled={loading}>
+                    <Button variant={variant} size={size} className={className} disabled={loading}>
                         {loading ? (
                             <Loader2 className="h-4 w-4 animate-spin mr-2" />
                         ) : (

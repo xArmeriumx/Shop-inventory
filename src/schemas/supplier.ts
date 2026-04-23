@@ -77,7 +77,7 @@ export const supplierSchema = z.object({
     .nullable(),
 
   // Rule 6: Nested addresses for CRUD
-  addresses: z.array(z.any()).optional().default([]),
+  partnerAddresses: z.array(z.any()).optional().default([]),
 });
 
 export type SupplierInput = z.input<typeof supplierSchema>;

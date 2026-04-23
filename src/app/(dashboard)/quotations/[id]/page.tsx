@@ -1,6 +1,6 @@
 import { Metadata } from 'next';
 import { getQuotations } from '@/actions/quotations';
-import { QuotationService } from '@/services/quotation.service';
+import { QuotationService } from '@/services/sales/quotation.service';
 import { requirePermission } from '@/lib/auth-guard';
 import { StatusBadge, StatusConfig } from '@/components/ui/status-badge';
 import { ClientDate } from '@/components/ui/client-date';

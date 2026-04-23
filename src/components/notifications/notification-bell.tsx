@@ -1,22 +1,24 @@
 'use client';
 
-import React, { useEffect, useState, useTransition } from 'react';
+import React, { useEffect, useState, useTransition, useRef, useCallback } from 'react';
+import { useSession } from 'next-auth/react';
 import { Bell, Check, ExternalLink, Info, AlertTriangle, ShieldAlert, Package, ShoppingCart, RotateCcw, CreditCard } from 'lucide-react';
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuLabel, 
-  DropdownMenuSeparator, 
-  DropdownMenuTrigger 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { 
-  getNotifications, 
-  getUnreadNotificationCount, 
-  markNotificationAsRead, 
-  markAllNotificationsAsRead 
+import {
+  getNotifications,
+  getUnreadNotificationCount,
+  getNotificationSummary,
+  markNotificationAsRead,
+  markAllNotificationsAsRead
 } from '@/actions/notifications';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -28,27 +30,51 @@ export function NotificationBell() {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isPending, startTransition] = useTransition();
+  const { data: session } = useSession();
 
-  const fetchNotifications = async () => {
+  // Backoff and Visibility State
+  const [pollInterval, setPollInterval] = useState(60000); // Start with 60s
+  const lastCountRef = useRef<number>(-1);
+  const consecutiveSameRef = useRef(0);
+
+  const fetchNotifications = useCallback(async () => {
+    // 1. Auth Awareness: Don't poll if not authenticated
+    if (!session?.user) return;
+
+    // 2. Visibility Awareness: Don't poll if tab is hidden
+    if (typeof document !== 'undefined' && document.hidden) return;
+
     try {
-      const [list, count] = await Promise.all([
-        getNotifications(15),
-        getUnreadNotificationCount()
-      ]);
-      setNotifications(Array.isArray(list) ? list : []);
-      setUnreadCount(typeof count === 'number' ? count : 0);
+      const summary = await getNotificationSummary(15);
+
+      setNotifications(summary.recentNotifications);
+      setUnreadCount(summary.unreadCount);
+
+      // 3. Simple Backoff: If no changes for 3 cycles, slow down polling
+      if (summary.unreadCount === lastCountRef.current) {
+        consecutiveSameRef.current += 1;
+        if (consecutiveSameRef.current >= 3 && pollInterval < 300000) {
+          setPollInterval(prev => Math.min(prev * 1.5, 300000)); // Max 5 mins
+          consecutiveSameRef.current = 0;
+        }
+      } else {
+        // Reset interval on change
+        setPollInterval(60000);
+        consecutiveSameRef.current = 0;
+      }
+
+      lastCountRef.current = summary.unreadCount;
     } catch (error) {
       console.error('Failed to fetch notifications', error);
     }
-  };
+  }, [session, pollInterval]);
 
   useEffect(() => {
     fetchNotifications();
-    
-    // Polling every 60 seconds as a simple heartbeat
-    const interval = setInterval(fetchNotifications, 60000);
+
+    const interval = setInterval(fetchNotifications, pollInterval);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchNotifications, pollInterval]);
 
   const handleMarkRead = async (id: string, e: React.MouseEvent) => {
     e.preventDefault();
@@ -75,14 +101,14 @@ export function NotificationBell() {
 
   const getIcon = (type: string, severity: string) => {
     switch (type) {
-      case 'LOW_STOCK':      return <Package className="h-4 w-4 text-orange-500" />;
-      case 'NEW_SALE':       return <ShoppingCart className="h-4 w-4 text-green-500" />;
+      case 'LOW_STOCK': return <Package className="h-4 w-4 text-orange-500" />;
+      case 'NEW_SALE': return <ShoppingCart className="h-4 w-4 text-green-500" />;
       case 'RETURN_CREATED': return <RotateCcw className="h-4 w-4 text-red-500" />;
-      case 'PAYMENT_PENDING':return <CreditCard className="h-4 w-4 text-yellow-500" />;
+      case 'PAYMENT_PENDING': return <CreditCard className="h-4 w-4 text-yellow-500" />;
       case 'GOVERNANCE_INCIDENT': return <ShieldAlert className="h-4 w-4 text-red-600" />;
-      case 'STALE_DOCS':     return <AlertTriangle className="h-4 w-4 text-amber-500" />;
-      case 'SHIPMENT_GAP':   return <Info className="h-4 w-4 text-blue-500" />;
-      default:               return <Bell className="h-4 w-4 text-muted-foreground" />;
+      case 'STALE_DOCS': return <AlertTriangle className="h-4 w-4 text-amber-500" />;
+      case 'SHIPMENT_GAP': return <Info className="h-4 w-4 text-blue-500" />;
+      default: return <Bell className="h-4 w-4 text-muted-foreground" />;
     }
   };
 
@@ -92,7 +118,7 @@ export function NotificationBell() {
         <Button variant="ghost" size="icon" className="relative h-10 w-10">
           <Bell className={cn("h-5 w-5", unreadCount > 0 && "animate-pulse")} />
           {unreadCount > 0 && (
-            <Badge 
+            <Badge
               className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-red-600 text-[10px] text-white border-0"
             >
               {unreadCount > 9 ? '9+' : unreadCount}
@@ -106,10 +132,10 @@ export function NotificationBell() {
             <span className="font-bold text-lg">รายการแจ้งเตือน</span>
             {unreadCount > 0 && <Badge variant="secondary" className="bg-primary/10 text-primary hover:bg-primary/20 border-0">{unreadCount} ใหม่</Badge>}
           </div>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="text-xs h-8 text-primary hover:text-primary/80 hover:bg-primary/5" 
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs h-8 text-primary hover:text-primary/80 hover:bg-primary/5"
             onClick={handleMarkAllRead}
             disabled={unreadCount === 0 || isPending}
           >
@@ -149,7 +175,7 @@ export function NotificationBell() {
                       {notif.message}
                     </p>
                     {notif.link && (
-                      <Link 
+                      <Link
                         href={notif.link}
                         className="inline-flex items-center gap-1 text-xs text-primary font-medium hover:underline mt-2"
                       >
@@ -158,7 +184,7 @@ export function NotificationBell() {
                     )}
                   </div>
                 </div>
-                
+
                 {!notif.isRead && (
                   <Button
                     variant="ghost"

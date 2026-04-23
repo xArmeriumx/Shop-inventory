@@ -1,7 +1,7 @@
 import { db } from '@/lib/db';
 import { RequestContext, ServiceError } from '@/types/domain';
 import { money, toNumber } from '@/lib/money';
-import { AuditService } from './audit.service';
+import { AuditService } from '@/services/core/audit.service';
 
 export const DashboardService = {
   async getDashboardStats(ctx: RequestContext) {

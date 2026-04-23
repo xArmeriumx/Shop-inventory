@@ -1,5 +1,5 @@
 import { Metadata } from 'next';
-import { OrderRequestService } from '@/services/order-request.service';
+import { OrderRequestService } from '@/services/sales/order-request.service';
 import { requirePermission } from '@/lib/auth-guard';
 import { StatusBadge, StatusConfig } from '@/components/ui/status-badge';
 import { ClientDate } from '@/components/ui/client-date';

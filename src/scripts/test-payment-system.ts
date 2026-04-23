@@ -1,4 +1,4 @@
-import { PaymentService } from '../services/payment.service';
+import { PaymentService } from '@/services/accounting/payment.service';
 import { PrismaClient } from '@prisma/client';
 import { RequestContext } from '../types/domain';
 
