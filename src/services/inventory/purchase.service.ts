@@ -580,6 +580,10 @@ export const PurchaseService: IPurchaseService = {
             include: { items: true }
           });
 
+          // ERP: Automated Inventory Receipt Posting (Industrial Phase 5)
+          const { PostingService } = await import('@/services/accounting/posting-engine.service');
+          await PostingService.postPurchaseInventory(ctx, updated, prisma);
+
           return updated;
         });
       }

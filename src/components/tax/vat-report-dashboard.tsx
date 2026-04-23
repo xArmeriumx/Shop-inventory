@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, useEffect } from 'react';
+import React, { useState, useTransition, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -39,7 +39,7 @@ export function VatReportDashboard() {
     const [month, setMonth] = useState(new Date().getMonth() + 1);
     const [year, setYear] = useState(new Date().getFullYear());
 
-    const fetchReport = () => {
+    const fetchReport = useCallback(() => {
         startTransition(async () => {
             const res = await getVatReport(month, year);
             if (res.success) {
@@ -48,11 +48,11 @@ export function VatReportDashboard() {
                 toast.error(res.message);
             }
         });
-    };
+    }, [month, year]);
 
     useEffect(() => {
         fetchReport();
-    }, [month, year]);
+    }, [fetchReport]);
 
     const summary = report?.summary;
 

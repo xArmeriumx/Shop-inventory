@@ -38,6 +38,10 @@ export const ACCOUNTING_CONFIG = {
         PURCHASE_AP: '2101-00',          // เจ้าหนี้การค้า
         PURCHASE_STOCK: '1105-00',       // สต็อกสินค้า
         PURCHASE_VAT: '1130-00',         // ภาษีซื้อ
+        COGS_EXPENSE: '5101-00',         // ต้นทุนขาย (COGS)
+        INVENTORY_ASSET: '1105-00',      // สินทรัพย์สินค้าคงเหลือ
+        STOCK_ADJUST_EXPENSE: '5201-00', // ส่วนปรับปรุงมูลค่าสต็อก (Variance)
+        SALES_RETURN: '4101-01',         // รับคืนสินค้า (Revenue Contra)
     }
 };
 

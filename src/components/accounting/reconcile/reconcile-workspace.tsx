@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useTransition } from 'react';
+import React, { useState, useEffect, useTransition, useCallback } from 'react';
 import {
     Card,
     CardContent
@@ -49,7 +49,7 @@ export function ReconcileWorkspace({ bankAccounts, initialBankId }: ReconcileWor
     const [ledgerLines, setLedgerLines] = useState<any[]>([]);
     const [isLoadingData, setIsLoadingData] = useState(false);
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         if (!selectedBankId) return;
         setIsLoadingData(true);
         try {
@@ -69,11 +69,11 @@ export function ReconcileWorkspace({ bankAccounts, initialBankId }: ReconcileWor
         } finally {
             setIsLoadingData(false);
         }
-    };
+    }, [selectedBankId]);
 
     useEffect(() => {
         fetchData();
-    }, [selectedBankId]);
+    }, [fetchData]);
 
     const handleSelectBankLine = async (line: any) => {
         setSelectedBankLine(line);

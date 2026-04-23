@@ -107,7 +107,7 @@ export const PaymentService = {
             // 7. Post to Accounting Ledger (Phase A1.3)
             await PostingService.postPayment(ctx, payment, tx);
 
-            // 5.1 Handle WHT (Phase T5)
+            // 5.1 Handle WHT (Phase T5) - Refactored for SSOT
             if (data.whtCodeId) {
                 const whtCode = await (tx as any).whtCode.findUnique({
                     where: { id: data.whtCodeId }
@@ -131,34 +131,20 @@ export const PaymentService = {
                     isGrossUp: data.isGrossUp
                 });
 
-                await (tx as any).whtEntry.create({
-                    data: {
-                        shopId: ctx.shopId,
-                        memberId: ctx.memberId!,
-                        paymentId: payment.id,
-                        partnerId: partnerId,
-
-                        payeeNameSnapshot: partner.registeredName,
-                        payeeTaxIdSnapshot: partner.taxId,
-                        payeeBranchSnapshot: partner.branchCode || '00000',
-                        payeeTypeSnapshot: partner.payeeType,
-
-                        whtCodeId: whtCode.id,
-                        formTypeSnapshot: whtCode.formType,
-                        incomeCategorySnapshot: whtCode.incomeCategory,
-                        rateSnapshot: whtCode.rate,
-
-                        grossPayableAmount: whtCalc.grossPayableAmount,
-                        whtBaseAmount: whtCalc.whtBaseAmount,
-                        whtAmount: whtCalc.whtAmount,
-                        netPaidAmount: whtCalc.netPaidAmount,
-
-                        paymentDate: payment.paymentDate,
-                        taxMonth: payment.paymentDate.getMonth() + 1,
-                        taxYear: payment.paymentDate.getFullYear(),
-                        status: 'POSTED'
-                    }
-                });
+                await WhtService.createEntry(ctx, {
+                    paymentId: payment.id,
+                    partnerId: partnerId,
+                    payeeNameSnapshot: partner.registeredName,
+                    payeeTaxIdSnapshot: partner.taxId,
+                    payeeBranchSnapshot: partner.branchCode,
+                    payeeTypeSnapshot: partner.payeeType,
+                    whtCodeId: whtCode.id,
+                    formTypeSnapshot: whtCode.formType,
+                    incomeCategorySnapshot: whtCode.incomeCategory,
+                    rateSnapshot: whtCode.rate,
+                    ...whtCalc,
+                    paymentDate: payment.paymentDate
+                }, tx);
             }
 
             // 6. Sync Snapshots (Recalculate from Ledger)

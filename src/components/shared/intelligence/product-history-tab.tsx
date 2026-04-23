@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useTransition } from 'react';
+import React, { useState, useEffect, useTransition, useCallback } from 'react';
 import { ProductIntelligenceSummary, StockMovementDTO, PaginatedIntelligence, SupplierIntelligenceDTO } from '@/types/intelligence';
 import { getProductIntelligenceSummary, getProductMovementHistory, getProductSupplierIntelligence } from '@/actions/intelligence';
 import { IntelligenceSummaryCards } from './intelligence-summary-cards';
@@ -28,15 +28,15 @@ export function ProductHistoryTab({ productId }: ProductHistoryTabProps) {
     const [startDate, setStartDate] = useState<string>('');
     const [endDate, setEndDate] = useState<string>('');
 
-    const fetchSummary = () => {
+    const fetchSummary = React.useCallback(() => {
         getProductIntelligenceSummary(productId).then(res => {
             setSummary(res);
         }).catch(err => {
             console.error('Failed to fetch intelligence summary', err);
         });
-    };
+    }, [productId]);
 
-    const fetchHistory = () => {
+    const fetchHistory = React.useCallback(() => {
         startTransition(async () => {
             try {
                 const params: any = { page, limit: 20 };
@@ -51,9 +51,9 @@ export function ProductHistoryTab({ productId }: ProductHistoryTabProps) {
                 console.error(err);
             }
         });
-    };
+    }, [productId, page, type, startDate, endDate]);
 
-    const fetchVendors = () => {
+    const fetchVendors = React.useCallback(() => {
         setIsVendorsLoading(true);
         getProductSupplierIntelligence(productId).then(res => {
             setVendors(res);
@@ -62,16 +62,16 @@ export function ProductHistoryTab({ productId }: ProductHistoryTabProps) {
             console.error('Failed to fetch vendor intelligence', err);
             setIsVendorsLoading(false);
         });
-    };
+    }, [productId]);
 
     useEffect(() => {
         fetchSummary();
         fetchVendors();
-    }, [productId]);
+    }, [fetchSummary, fetchVendors]);
 
     useEffect(() => {
         fetchHistory();
-    }, [productId, page, type, startDate, endDate]);
+    }, [fetchHistory]);
 
     return (
         <div className="space-y-8 pb-10">

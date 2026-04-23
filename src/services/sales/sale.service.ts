@@ -619,13 +619,17 @@ export const SaleService: ISaleService = {
             include: { items: true }
           });
 
+          // ERP: Automated COGS Posting (Industrial Phase 5)
+          const { PostingService } = await import('@/services/accounting/posting-engine.service');
+          await PostingService.postCOGS(ctx, updated, prisma);
+
           return updated;
         });
       }
     );
   },
 
-  async getLockedFields(saleId, ctx) {
+  async getLockedFields(saleId: string, ctx: RequestContext) {
     const sale = await db.sale.findFirst({
       where: { id: saleId, shopId: ctx.shopId },
       select: { status: true, isLocked: true },

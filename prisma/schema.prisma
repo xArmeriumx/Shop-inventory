@@ -25,21 +25,22 @@ model User {
   sessionVersion Int      @default(1) // Revocation check version
 
   // Relations
-  shop           Shop?
-  memberships    ShopMember[] // RBAC: User can be member of multiple shops
-  products       Product[]
-  purchases      Purchase[]
-  sales          Sale[]
-  expenses       Expense[]
-  incomes        Income[]
-  suppliers      Supplier[]
-  bankAccounts   BankAccount[]
-  customers      Customer[]
-  lookupValues   LookupValue[]
-  stockLogs      StockLog[]
-  shipments      Shipment[]
-  returns        Return[] // G3: Returns
-  deliveryOrders DeliveryOrder[] @relation("UserToDeliveryOrders")
+  shop            Shop?
+  memberships     ShopMember[] // RBAC: User can be member of multiple shops
+  products        Product[]
+  purchases       Purchase[]
+  sales           Sale[]
+  expenses        Expense[]
+  incomes         Income[]
+  suppliers       Supplier[]
+  bankAccounts    BankAccount[]
+  customers       Customer[]
+  lookupValues    LookupValue[]
+  stockLogs       StockLog[]
+  shipments       Shipment[]
+  returns         Return[] // G3: Returns
+  deliveryOrders  DeliveryOrder[]  @relation("UserToDeliveryOrders")
+  purchaseReturns PurchaseReturn[]
 }
 
 // ==================== Lookup System (Custom Dropdowns) ====================
@@ -133,23 +134,23 @@ model Shop {
   roles   Role[]
 
   // Data ownership relations
-  products          Product[]
-  suppliers         Supplier[]
-  customers         Customer[]
-  purchases         Purchase[]
-  sales             Sale[]
-  expenses          Expense[]
-  incomes           Income[]
-  stockLogs         StockLog[]
+  products  Product[]
+  suppliers Supplier[]
+  customers Customer[]
+  purchases Purchase[]
+  sales     Sale[]
+  expenses  Expense[]
+  incomes   Income[]
+  stockLogs StockLog[]
 
   // BANK & RECONCILIATION
-  bankAccounts      BankAccount[]
-  bankStatements    BankStatement[]
-  bankLines         BankLine[]
-  lookupValues      LookupValue[]
-  shipments         Shipment[]
-  returns           Return[]
-  notifications     Notification[]
+  bankAccounts   BankAccount[]
+  bankStatements BankStatement[]
+  bankLines      BankLine[]
+  lookupValues   LookupValue[]
+  shipments      Shipment[]
+  returns        Return[]
+  notifications  Notification[]
 
   // ERP: Core Data
   quotations    Quotation[]
@@ -157,38 +158,39 @@ model Shop {
   invoices      Invoice[]
 
   // ERP: New Relations for Shop
-  approvalInstances ApprovalInstance[]
-  deliveryOrders    DeliveryOrder[]
-  payments          Payment[]
-  stockTakeSessions StockTakeSession[]
-  partnerAddresses  PartnerAddress[]
-  partnerContacts   PartnerContact[]
-  accountingPeriods AccountingPeriod[]
-  warehouses        Warehouse[]      // ERP Phase C
-  warehouseStocks   WarehouseStock[] // ERP Phase C
-  stockTransfers    StockTransfer[]  // ERP Phase C
+  approvalInstances  ApprovalInstance[]
+  deliveryOrders     DeliveryOrder[]
+  payments           Payment[]
+  stockTakeSessions  StockTakeSession[]
+  partnerAddresses   PartnerAddress[]
+  partnerContacts    PartnerContact[]
+  accountingPeriods  AccountingPeriod[]
+  warehouses         Warehouse[] // ERP Phase C
+  warehouseStocks    WarehouseStock[] // ERP Phase C
+  stockTransfers     StockTransfer[] // ERP Phase C
   paymentAllocations PaymentAllocation[] // ERP Phase B1
 
   // TAX SYSTEM: Phase T1
-  taxCodes           TaxCode[]
-  companyTaxProfile  CompanyTaxProfile?
-  partnerTaxProfiles PartnerTaxProfile[]
-  productTaxProfiles ProductTaxProfile[]
-  salesTaxEntries    SalesTaxEntry[]
-  purchaseTaxEntries PurchaseTaxEntry[]
+  taxCodes             TaxCode[]
+  companyTaxProfile    CompanyTaxProfile?
+  partnerTaxProfiles   PartnerTaxProfile[]
+  productTaxProfiles   ProductTaxProfile[]
+  salesTaxEntries      SalesTaxEntry[]
+  purchaseTaxEntries   PurchaseTaxEntry[]
   purchaseTaxDocuments PurchaseTaxDocument[]
 
   // TAX SYSTEM: Phase T5 WHT
-  whtCodes           WhtCode[]
-  whtEntries         WhtEntry[]
-  whtCertificates    WhtCertificate[]
+  whtCodes        WhtCode[]
+  whtEntries      WhtEntry[]
+  whtCertificates WhtCertificate[]
 
   // ACCOUNTING SYSTEM: Phase A1
-  accounts           Account[]
-  journalEntries     JournalEntry[]
+  accounts       Account[]
+  journalEntries JournalEntry[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  purchaseReturns PurchaseReturn[]
 }
 
 // ==================== RBAC (Role-Based Access Control) ====================
@@ -344,18 +346,18 @@ model ShopMember {
   orderRequests OrderRequest[]
 
   // ERP Migration: Reverse Relations
-  createdSales         Sale[]          @relation("SaleToMember")
-  createdPurchases     Purchase[]      @relation("PurchaseToMember")
-  createdProducts      Product[]       @relation("ProductToMember")
-  createdExpenses      Expense[]       @relation("ExpenseToMember")
-  createdIncomes       Income[]        @relation("IncomeToMember")
-  createdDOs           DeliveryOrder[] @relation("DOToMember")
-  createdInvoices      Invoice[]       @relation("InvoiceToMember")
-  createdStockLogs     StockLog[]      @relation("StockLogToMember")
-  createdShipments     Shipment[]      @relation("ShipmentToMember")
-  createdReturns       Return[]        @relation("ReturnToMember")
-  createdQuotations    Quotation[]     @relation("QuotationToMember")
-  createdOrderRequests OrderRequest[]  @relation("OrderRequestToMember")
+  createdSales         Sale[]             @relation("SaleToMember")
+  createdPurchases     Purchase[]         @relation("PurchaseToMember")
+  createdProducts      Product[]          @relation("ProductToMember")
+  createdExpenses      Expense[]          @relation("ExpenseToMember")
+  createdIncomes       Income[]           @relation("IncomeToMember")
+  createdDOs           DeliveryOrder[]    @relation("DOToMember")
+  createdInvoices      Invoice[]          @relation("InvoiceToMember")
+  createdStockLogs     StockLog[]         @relation("StockLogToMember")
+  createdShipments     Shipment[]         @relation("ShipmentToMember")
+  createdReturns       Return[]           @relation("ReturnToMember")
+  createdQuotations    Quotation[]        @relation("QuotationToMember")
+  createdOrderRequests OrderRequest[]     @relation("OrderRequestToMember")
   payments             Payment[]
   closedPeriods        AccountingPeriod[] @relation("ClosedByMember")
   reopenedPeriods      AccountingPeriod[] @relation("ReopenedByMember")
@@ -367,17 +369,18 @@ model ShopMember {
   cancelledStockTakes StockTakeSession[] @relation("StockTakeCanceller")
 
   // Accounting Audit
-  journalEntries      JournalEntry[]
-  bankStatements       BankStatement[]
-  bankLines            BankLine[]
-  stockTransfers       StockTransfer[] // ERP Phase C
-  
+  journalEntries JournalEntry[]
+  bankStatements BankStatement[]
+  bankLines      BankLine[]
+  stockTransfers StockTransfer[] // ERP Phase C
+
   purchaseTaxDocsCreated PurchaseTaxDocument[] @relation("PurchTaxCreator")
   purchaseTaxDocsPosted  PurchaseTaxDocument[] @relation("PurchTaxPoster")
   purchaseTaxDocsVoided  PurchaseTaxDocument[] @relation("PurchTaxVoider")
 
   // TAX SYSTEM: Phase T5 WHT
   whtEntries             WhtEntry[]
+  createdPurchaseReturns PurchaseReturn[] @relation("PurchaseReturnToMember")
 
   @@index([userId])
 }
@@ -426,7 +429,9 @@ model Product {
 
   categoryRef LookupValue? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
-  purchaseItems    PurchaseItem[]
+  purchaseItems       PurchaseItem[]
+  purchaseReturnItems PurchaseReturnItem[]
+
   saleItems        SaleItem[]
   stockLogs        StockLog[]
   returnItems      ReturnItem[] // G3: Returns
@@ -446,7 +451,7 @@ model Product {
   updatedAt DateTime @updatedAt
 
   warehouseStocks WarehouseStock[] // ERP C1: Multi-Warehouse
-  transferLines  StockTransferLine[] // ERP C3: Transfers
+  transferLines   StockTransferLine[] // ERP C3: Transfers
 
   @@unique([shopId, sku])
   @@index([userId])
@@ -461,19 +466,19 @@ model Product {
 // ==================== Inventory Modules (Phase C) ====================
 
 model Warehouse {
-  id        String   @id @default(cuid())
-  name      String   // e.g. "Main Warehouse", "Front Shop"
-  code      String   // e.g. "WH001"
+  id        String  @id @default(cuid())
+  name      String // e.g. "Main Warehouse", "Front Shop"
+  code      String // e.g. "WH001"
   address   String?
-  isDefault Boolean  @default(false)
-  isActive  Boolean  @default(true)
+  isDefault Boolean @default(false)
+  isActive  Boolean @default(true)
 
-  shopId    String
-  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shopId String
+  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
-  stocks    WarehouseStock[]
-  outgoingTransfers StockTransfer[] @relation("FromWarehouse")
-  incomingTransfers StockTransfer[] @relation("ToWarehouse")
+  stocks            WarehouseStock[]
+  outgoingTransfers StockTransfer[]  @relation("FromWarehouse")
+  incomingTransfers StockTransfer[]  @relation("ToWarehouse")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -483,14 +488,14 @@ model Warehouse {
 }
 
 model WarehouseStock {
-  id          String   @id @default(cuid())
+  id          String @id @default(cuid())
   productId   String
   warehouseId String
-  shopId      String   // ERP C1: Tenant Isolation
-  
-  quantity    Int      @default(0) // Physical stock in this warehouse
-  minStock    Int?     // Reorder point for this specific warehouse
-  binLocation String?  // Specific location in this warehouse (e.g. A1-01)
+  shopId      String // ERP C1: Tenant Isolation
+
+  quantity    Int     @default(0) // Physical stock in this warehouse
+  minStock    Int? // Reorder point for this specific warehouse
+  binLocation String? // Specific location in this warehouse (e.g. A1-01)
 
   product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
   warehouse Warehouse @relation(fields: [warehouseId], references: [id], onDelete: Cascade)
@@ -513,29 +518,29 @@ enum TransferStatus {
 }
 
 model StockTransfer {
-  id              String         @id @default(cuid())
-  transferNo      String         // e.g. TR-2024001
-  status          TransferStatus @default(DRAFT)
-  transferDate    DateTime       @default(now())
-  
+  id           String         @id @default(cuid())
+  transferNo   String // e.g. TR-2024001
+  status       TransferStatus @default(DRAFT)
+  transferDate DateTime       @default(now())
+
   fromWarehouseId String
-  fromWarehouse   Warehouse      @relation("FromWarehouse", fields: [fromWarehouseId], references: [id])
-  
-  toWarehouseId   String
-  toWarehouse     Warehouse      @relation("ToWarehouse", fields: [toWarehouseId], references: [id])
+  fromWarehouse   Warehouse @relation("FromWarehouse", fields: [fromWarehouseId], references: [id])
 
-  notes           String?
-  
-  shopId          String
-  shop            Shop           @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  
-  memberId        String
-  member          ShopMember     @relation(fields: [memberId], references: [id])
+  toWarehouseId String
+  toWarehouse   Warehouse @relation("ToWarehouse", fields: [toWarehouseId], references: [id])
 
-  lines           StockTransferLine[]
+  notes String?
 
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  shopId String
+  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  memberId String
+  member   ShopMember @relation(fields: [memberId], references: [id])
+
+  lines StockTransferLine[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([shopId, transferNo])
   @@index([shopId])
@@ -544,17 +549,17 @@ model StockTransfer {
 }
 
 model StockTransferLine {
-  id              String        @id @default(cuid())
-  transferId      String
-  transfer        StockTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
-  
-  productId       String
-  product         Product       @relation(fields: [productId], references: [id])
-  
-  quantity        Int           // Amount to move
-  
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  id         String        @id @default(cuid())
+  transferId String
+  transfer   StockTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  quantity Int // Amount to move
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([transferId])
   @@index([productId])
@@ -639,7 +644,7 @@ model Customer {
   shopId String // Required for tenant isolation
   shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
-  sales           Sale[]
+  sales            Sale[]
   partnerAddresses PartnerAddress[]
 
   // CRM: Salespersons assigned to this customer
@@ -709,15 +714,19 @@ model Purchase {
   receivedBy   String? // User ID who received the goods
 
   // Financial Snapshots (Phase T5)
-  paidAmount     Decimal  @default(0) @db.Decimal(20, 4)
-  residualAmount Decimal  @default(0) @db.Decimal(20, 4)
-  paymentStatus  String   @default("UNPAID") // UNPAID | PARTIAL | PAID
+  paidAmount     Decimal @default(0) @db.Decimal(20, 4)
+  residualAmount Decimal @default(0) @db.Decimal(20, 4)
+  paymentStatus  String  @default("UNPAID") // UNPAID | PARTIAL | PAID
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   allocations PaymentAllocation[]
   payments    Payment[]
+
+  purchaseTaxLinks PurchaseTaxDocumentLink[]
+  whtEntries       WhtEntry[]
+  purchaseReturns  PurchaseReturn[]
 
   @@unique([shopId, purchaseNumber])
   @@index([userId])
@@ -729,8 +738,6 @@ model Purchase {
   // ✅ NEW: Compound indexes for optimized queries
   @@index([shopId, date, status]) // Purchases list with date range + status
   @@index([shopId, status]) // Purchases filtered by status
-
-  purchaseTaxLinks PurchaseTaxDocumentLink[]
 }
 
 model PurchaseItem {
@@ -742,10 +749,11 @@ model PurchaseItem {
   productId String
   product   Product @relation(fields: [productId], references: [id])
 
-  quantity     Int
-  packagingQty Int     @default(1) // ★ NEW: Snapshot packaging at time of purchase
-  costPrice    Decimal @db.Decimal(10, 2)
-  subtotal     Decimal @db.Decimal(10, 2)
+  quantity            Int
+  packagingQty        Int                  @default(1) // ★ NEW: Snapshot packaging at time of purchase
+  costPrice           Decimal              @db.Decimal(10, 2)
+  subtotal            Decimal              @db.Decimal(10, 2)
+  purchaseReturnItems PurchaseReturnItem[]
 
   @@index([purchaseId])
   @@index([productId])
@@ -791,6 +799,12 @@ model Sale {
   paymentVerifiedBy  String? // UserId who verified
   paymentNote        String? // หมายเหตุ (เหตุผล reject, etc.)
 
+  // ERP: Traceability
+  quotationId    String?
+  quotation      Quotation?    @relation("QuotationToSale", fields: [quotationId], references: [id])
+  orderRequestId String?
+  orderRequest   OrderRequest? @relation(fields: [orderRequestId], references: [id])
+
   // AR/AP Core (Phase 4: Ledger Snapshots)
   paidAmount     Decimal          @default(0) @db.Decimal(10, 2)
   residualAmount Decimal          @default(0) @db.Decimal(10, 2)
@@ -819,9 +833,6 @@ model Sale {
 
   // ERP: Approvals
   approvals ApprovalInstance[]
-
-  // ERP: Quotations
-  quotations Quotation[]
 
   // ERP: Invoices
   invoices Invoice[]
@@ -907,9 +918,9 @@ model Expense {
   paidAmount     Decimal @default(0) @db.Decimal(20, 4)
   residualAmount Decimal @default(0) @db.Decimal(20, 4)
   paymentStatus  String  @default("UNPAID") // UNPAID | PARTIAL | PAID
-  
-  allocations    PaymentAllocation[]
-  payments       Payment[]
+
+  allocations PaymentAllocation[]
+  payments    Payment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1029,7 +1040,9 @@ model StockLog {
   shopId String // Required for tenant isolation
   shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
-  createdAt DateTime @default(now()) // Actual record creation
+  createdAt        DateTime        @default(now()) // Actual record creation
+  purchaseReturn   PurchaseReturn? @relation(fields: [purchaseReturnId], references: [id])
+  purchaseReturnId String?
 
   @@index([productId, date])
   @@index([userId, date])
@@ -1101,6 +1114,63 @@ model ReturnItem {
   @@index([productId])
 }
 
+// ==================== Purchase Returns (Debit Note: ใบลดหนี้ฝั่งซื้อ) ====================
+
+model PurchaseReturn {
+  id           String @id @default(cuid())
+  returnNumber String // DBN-00001 (Debit Note)
+
+  purchaseId String
+  purchase   Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+
+  reason         String
+  recoveryAmount Decimal @db.Decimal(10, 2) // ยอดลดหนี้รวม
+  recoveryMethod String // CASH | TRANSFER | CREDIT
+
+  status String @default("COMPLETED") // COMPLETED | CANCELLED
+
+  // Ownership
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shopId String
+  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  items     PurchaseReturnItem[]
+  stockLogs StockLog[]
+
+  memberId String? // ERP Actor
+  member   ShopMember? @relation("PurchaseReturnToMember", fields: [memberId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([shopId, returnNumber])
+  @@index([shopId])
+  @@index([purchaseId])
+  @@index([shopId, status, createdAt])
+}
+
+model PurchaseReturnItem {
+  id String @id @default(cuid())
+
+  purchaseReturnId String
+  purchaseReturn   PurchaseReturn @relation(fields: [purchaseReturnId], references: [id], onDelete: Cascade)
+
+  purchaseItemId String
+  purchaseItem   PurchaseItem @relation(fields: [purchaseItemId], references: [id])
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  quantity        Int
+  recoveryPerUnit Decimal @db.Decimal(10, 2)
+  recoveryAmount  Decimal @db.Decimal(10, 2)
+
+  @@index([purchaseReturnId])
+  @@index([purchaseItemId])
+  @@index([productId])
+}
+
 // ==================== Shipments ====================
 
 enum ShipmentStatus {
@@ -1126,7 +1196,6 @@ model Shipment {
   shippingAddress String  @db.Text
 
   // Saved address (optional link)
-
 
   partnerAddressId String?
   partnerAddress   PartnerAddress? @relation(fields: [partnerAddressId], references: [id])
@@ -1240,7 +1309,6 @@ model PartnerContact {
 }
 
 // Deprecated: Migrating to PartnerAddress
-
 
 // ==================== System Monitoring ====================
 
@@ -1520,8 +1588,7 @@ model Quotation {
   salespersonId String?
   salesperson   ShopMember? @relation(fields: [salespersonId], references: [id], onDelete: SetNull)
 
-  saleId String?
-  sale   Sale?   @relation(fields: [saleId], references: [id])
+  notes String? @db.Text
 
   status     QuotationStatus @default(DRAFT)
   date       DateTime        @default(now())
@@ -1530,7 +1597,9 @@ model Quotation {
   currencyCode String  @default("THB")
   totalAmount  Decimal @db.Decimal(10, 2)
 
-  notes String? @db.Text
+  // ERP Traceability
+  orderRequests OrderRequest[] @relation("QuotationToOrderRequest")
+  sales         Sale[]         @relation("QuotationToSale")
 
   // Ownership
   shopId String
@@ -1589,6 +1658,9 @@ model OrderRequest {
   requesterId String
   requester   ShopMember @relation(fields: [requesterId], references: [id])
 
+  quotationId String? // Link back to supplier quote (if any)
+  quotation   Quotation? @relation("QuotationToOrderRequest", fields: [quotationId], references: [id])
+
   status OrderRequestStatus @default(DRAFT)
   date   DateTime           @default(now())
 
@@ -1608,6 +1680,8 @@ model OrderRequest {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  sales Sale[]
 
   @@unique([shopId, requestNo])
   @@index([requesterId])
@@ -1651,21 +1725,21 @@ model Invoice {
   customerNameSnapshot    String
   billingAddressSnapshot  String
   shippingAddressSnapshot String?
-  taxIdSnapshot           String?   // เลขภาษีของผู้ซื้อ
-  customerBranchSnapshot  String?   // สาขาผู้ซื้อ
+  taxIdSnapshot           String? // เลขภาษีของผู้ซื้อ
+  customerBranchSnapshot  String? // สาขาผู้ซื้อ
   paymentTermSnapshot     String?
 
   // ===== SELLER Snapshots (Tax Invoice requirement) =====
-  sellerNameSnapshot    String    @default("")
-  sellerAddressSnapshot String    @default("")
-  sellerTaxIdSnapshot   String?   // เลขภาษี 13 หลักของผู้ขาย
-  sellerBranchSnapshot  String?   // "สำนักงานใหญ่" / "0000X"
+  sellerNameSnapshot    String  @default("")
+  sellerAddressSnapshot String  @default("")
+  sellerTaxIdSnapshot   String? // เลขภาษี 13 หลักของผู้ขาย
+  sellerBranchSnapshot  String? // "สำนักงานใหญ่" / "0000X"
 
   // ===== TAX Snapshots (ล็อกทันทีที่สร้างเอกสาร) =====
-  taxCodeSnapshot           String?   // e.g., "VAT7_OUT"
-  taxRateSnapshot           Decimal   @default(0)   @db.Decimal(5, 2)  // 7.00
-  taxCalculationModeSnapshot String   @default("EXCLUSIVE") // EXCLUSIVE | INCLUSIVE
-  isTaxInvoice              Boolean   @default(false) // true = แสดงคำว่า "ใบกำกับภาษี"
+  taxCodeSnapshot            String? // e.g., "VAT7_OUT"
+  taxRateSnapshot            Decimal @default(0) @db.Decimal(5, 2) // 7.00
+  taxCalculationModeSnapshot String  @default("EXCLUSIVE") // EXCLUSIVE | INCLUSIVE
+  isTaxInvoice               Boolean @default(false) // true = แสดงคำว่า "ใบกำกับภาษี"
 
   saleId String @unique // Single-invoice per sale policy
   sale   Sale   @relation(fields: [saleId], references: [id])
@@ -1696,7 +1770,7 @@ model Invoice {
   paymentStatus  DocPaymentStatus @default(UNPAID)
 
   // ===== Tax Posting =====
-  taxPostingStatus String?   // DRAFT | POSTED | VOIDED
+  taxPostingStatus String? // DRAFT | POSTED | VOIDED
   taxReportMonth   Int?
   taxReportYear    Int?
   postedAt         DateTime?
@@ -1748,8 +1822,8 @@ model InvoiceLine {
   lineSubtotalAmount Decimal @default(0) @db.Decimal(14, 2) // qty × unitPrice
   discountAmount     Decimal @default(0) @db.Decimal(14, 2) // ส่วนลด line
   taxableBaseAmount  Decimal @default(0) @db.Decimal(14, 2) // lineSubtotal - discount
-  taxCodeSnapshot    String?                                 // e.g., "VAT7_OUT"
-  taxRateSnapshot    Decimal @default(0) @db.Decimal(5, 2)  // 7.00
+  taxCodeSnapshot    String? // e.g., "VAT7_OUT"
+  taxRateSnapshot    Decimal @default(0) @db.Decimal(5, 2) // 7.00
   taxAmount          Decimal @default(0) @db.Decimal(14, 2) // VAT สำหรับ line นี้
   lineNetAmount      Decimal @default(0) @db.Decimal(14, 2) // taxableBase + tax
 
@@ -1790,16 +1864,16 @@ model Payment {
   member   ShopMember @relation(fields: [memberId], references: [id])
 
   // Single Parent Principle (one XOR the other)
-  invoiceId String?
-  invoice   Invoice? @relation(fields: [invoiceId], references: [id])
-  saleId    String?
-  sale      Sale?    @relation(fields: [saleId], references: [id])
+  invoiceId  String?
+  invoice    Invoice?  @relation(fields: [invoiceId], references: [id])
+  saleId     String?
+  sale       Sale?     @relation(fields: [saleId], references: [id])
   purchaseId String?
   purchase   Purchase? @relation(fields: [purchaseId], references: [id])
-  expenseId String?
-  expense   Expense? @relation(fields: [expenseId], references: [id])
+  expenseId  String?
+  expense    Expense?  @relation(fields: [expenseId], references: [id])
 
-  paymentNo String? // RCP-2604-00001
+  paymentNo         String? // RCP-2604-00001
   type              PaymentType   @default(IN)
   amount            Decimal       @db.Decimal(10, 2)
   currency          String        @default("THB")
@@ -1826,23 +1900,23 @@ model Payment {
 
 // --- Layer 2.2: Payment Allocation (N:N Mapping) ---
 model PaymentAllocation {
-  id        String  @id @default(cuid())
-  shopId    String
-  shop      Shop    @relation(fields: [shopId], references: [id])
+  id     String @id @default(cuid())
+  shopId String
+  shop   Shop   @relation(fields: [shopId], references: [id])
 
   paymentId String
   payment   Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
 
   // Target Document (one of these must be set)
   invoiceId  String?
-  invoice    Invoice?   @relation(fields: [invoiceId], references: [id])
+  invoice    Invoice?  @relation(fields: [invoiceId], references: [id])
   purchaseId String?
-  purchase   Purchase?  @relation(fields: [purchaseId], references: [id])
+  purchase   Purchase? @relation(fields: [purchaseId], references: [id])
   expenseId  String?
-  expense    Expense?   @relation(fields: [expenseId], references: [id])
+  expense    Expense?  @relation(fields: [expenseId], references: [id])
 
-  amount    Decimal  @db.Decimal(14, 2)
-  notes     String?  @db.Text
+  amount Decimal @db.Decimal(14, 2)
+  notes  String? @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1933,14 +2007,14 @@ model StockTakeItem {
 
 enum TaxDirection {
   OUTPUT // ภาษีขาย (ออกใบกำกับภาษี)
-  INPUT  // ภาษีซื้อ (รับใบกำกับภาษีจาก vendor)
+  INPUT // ภาษีซื้อ (รับใบกำกับภาษีจาก vendor)
 }
 
 enum TaxKind {
-  VAT        // ทั่วไป (7% ปัจจุบัน)
+  VAT // ทั่วไป (7% ปัจจุบัน)
   ZERO_RATED // 0% ต้อง report แยก bucket (เช่น ส่งออก)
-  EXEMPT     // ยกเว้นตามกฎหมาย (ไม่ report VAT)
-  NO_VAT     // ไม่อยู่ในระบบ VAT (สินค้า/บริการนอกขาย)
+  EXEMPT // ยกเว้นตามกฎหมาย (ไม่ report VAT)
+  NO_VAT // ไม่อยู่ในระบบ VAT (สินค้า/บริการนอกขาย)
 }
 
 enum TaxCalculationMode {
@@ -1949,22 +2023,22 @@ enum TaxCalculationMode {
 }
 
 enum ProductTaxClass {
-  TAXABLE    // คิด VAT ปกติ
+  TAXABLE // คิด VAT ปกติ
   ZERO_RATED // 0% เช่น ส่งออก
-  EXEMPT     // ยกเว้น VAT ตามกฎหมาย
-  NO_VAT     // ไม่อยู่ในขอบ VAT
+  EXEMPT // ยกเว้น VAT ตามกฎหมาย
+  NO_VAT // ไม่อยู่ในขอบ VAT
 }
 
 enum TaxPostingStatus {
-  DRAFT  // ยังไม่ post
+  DRAFT // ยังไม่ post
   POSTED // ลงรายงานแล้ว
   VOIDED // ถูก void (เช่น ยกเลิก invoice)
 }
 
 enum ClaimStatus {
-  CLAIMABLE      // เคลมได้ (ภาษีซื้อปกติ)
-  WAITING_DOC    // รอเอกสารตัวจริง (Block Posting)
-  NON_CLAIMABLE  // เคลมไม่ได้ (ภาษีต้องห้าม / ไม่สร้าง PurchaseTaxEntry)
+  CLAIMABLE // เคลมได้ (ภาษีซื้อปกติ)
+  WAITING_DOC // รอเอกสารตัวจริง (Block Posting)
+  NON_CLAIMABLE // เคลมไม่ได้ (ภาษีต้องห้าม / ไม่สร้าง PurchaseTaxEntry)
 }
 
 enum PurchaseTaxSourceType {
@@ -1974,25 +2048,25 @@ enum PurchaseTaxSourceType {
 
 // --- 1. TaxCode — แหล่งเดียวของ logic ภาษีทั้งหมด ---
 model TaxCode {
-  id          String @id @default(cuid())
-  shopId      String
-  shop        Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  shopId String
+  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
-  code            String             // "VAT7_OUT", "VAT7_IN", "VAT0_OUT", "EXEMPT_OUT", "NOVAT"
-  name            String             // ชื่อ user อ่านได้: "VAT 7% (ขาย)"
-  description     String?            // คำอธิบาย
+  code        String // "VAT7_OUT", "VAT7_IN", "VAT0_OUT", "EXEMPT_OUT", "NOVAT"
+  name        String // ชื่อ user อ่านได้: "VAT 7% (ขาย)"
+  description String? // คำอธิบาย
 
   direction       TaxDirection
   kind            TaxKind
   rate            Decimal            @db.Decimal(5, 2) // 7.00, 0.00
   calculationMode TaxCalculationMode @default(EXCLUSIVE)
 
-  isActive        Boolean            @default(true)
-  effectiveFrom   DateTime
-  effectiveTo     DateTime?          // null = ยังใช้งานได้
+  isActive      Boolean   @default(true)
+  effectiveFrom DateTime
+  effectiveTo   DateTime? // null = ยังใช้งานได้
 
   // สำหรับ tax report routing
-  reportBucket    String?            // "SALES_VAT" | "PURCHASE_VAT" | "EXEMPT" | null
+  reportBucket String? // "SALES_VAT" | "PURCHASE_VAT" | "EXEMPT" | null
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2014,10 +2088,10 @@ model CompanyTaxProfile {
   vatThreshold        Decimal?  @db.Decimal(14, 2) // เกณฑ์ 1,800,000 บาท
 
   // ข้อมูลนิติบุคคล (ใช้ snapshot บนเอกสาร)
-  legalName         String    // ชื่อนิติบุคคลทางกฎหมาย
-  taxPayerId        String?   // เลขภาษี 13 หลัก
-  branchCode        String?   // "00000" = สำนักงานใหญ่
-  registeredAddress String?   @db.Text
+  legalName         String // ชื่อนิติบุคคลทางกฎหมาย
+  taxPayerId        String? // เลขภาษี 13 หลัก
+  branchCode        String? // "00000" = สำนักงานใหญ่
+  registeredAddress String? @db.Text
 
   // Default Tax Codes (FK to TaxCode.code แบบ soft reference)
   defaultSalesTaxCode    String? // e.g., "VAT7_OUT"
@@ -2061,9 +2135,9 @@ model PartnerTaxProfile {
   defaultPurchaseTaxCode String? // FK soft → TaxCode.code
 
   // สำหรับ withholding tax (หัก ณ ที่จ่าย)
-  isSubjectToWht      Boolean      @default(false)
-  payeeType           WhtPayeeType @default(UNKNOWN)
-  defaultWhtCodeId    String?      // FK soft -> WhtCode.code
+  isSubjectToWht   Boolean      @default(false)
+  payeeType        WhtPayeeType @default(UNKNOWN)
+  defaultWhtCodeId String? // FK soft -> WhtCode.code
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2081,13 +2155,13 @@ model ProductTaxProfile {
 
   productId String @unique
 
-  taxClass            ProductTaxClass @default(TAXABLE)
-  salesTaxCode        String?         // FK soft → TaxCode.code
-  purchaseTaxCode     String?         // FK soft → TaxCode.code
+  taxClass        ProductTaxClass @default(TAXABLE)
+  salesTaxCode    String? // FK soft → TaxCode.code
+  purchaseTaxCode String? // FK soft → TaxCode.code
 
   // สำหรับสินค้าที่มี mixed tax (เช่น บางส่วนยกเว้น)
-  isAlwaysExempt   Boolean @default(false)
-  exemptReason     String? // เหตุผลยกเว้น (เช่น "สินค้าเกษตร")
+  isAlwaysExempt Boolean @default(false)
+  exemptReason   String? // เหตุผลยกเว้น (เช่น "สินค้าเกษตร")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2138,7 +2212,7 @@ model PurchaseTaxEntry {
   shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
   sourceType String // "PURCHASE_TAX_DOC" | "CREDIT_NOTE" | "DEBIT_NOTE"
-  sourceId   String @unique // FK to PurchaseTaxDocument.id
+  sourceId   String              @unique // FK to PurchaseTaxDocument.id
   source     PurchaseTaxDocument @relation(fields: [sourceId], references: [id], map: "PurchaseTaxEntry_source_fkey")
 
   taxMonth Int
@@ -2178,62 +2252,62 @@ enum PurchaseTaxStatus {
 
 // --- 7. PurchaseTaxDocument — เอกสารภาษีซื้อ (T3 Snapshot) ---
 model PurchaseTaxDocument {
-  id              String        @id @default(cuid())
-  shopId          String
-  shop            Shop          @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  
+  id     String @id @default(cuid())
+  shopId String
+  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
   // Actor & Audit
-  memberId        String        // ผู้สร้างเอกสาร
-  member          ShopMember    @relation("PurchTaxCreator", fields: [memberId], references: [id])
+  memberId         String // ผู้สร้างเอกสาร
+  member           ShopMember  @relation("PurchTaxCreator", fields: [memberId], references: [id])
   postedByMemberId String?
-  postedBy        ShopMember?   @relation("PurchTaxPoster", fields: [postedByMemberId], references: [id])
+  postedBy         ShopMember? @relation("PurchTaxPoster", fields: [postedByMemberId], references: [id])
   voidedByMemberId String?
-  voidedBy        ShopMember?   @relation("PurchTaxVoider", fields: [voidedByMemberId], references: [id])
-  
-  postedAt        DateTime?
-  voidedAt        DateTime?
-  
+  voidedBy         ShopMember? @relation("PurchTaxVoider", fields: [voidedByMemberId], references: [id])
+
+  postedAt DateTime?
+  voidedAt DateTime?
+
   // Linkage
-  sourceType      PurchaseTaxSourceType @default(PURCHASE_ORDER)
-  links           PurchaseTaxDocumentLink[]
-  supplierId      String?
-  supplier        Supplier?      @relation(fields: [supplierId], references: [id])
-  
+  sourceType PurchaseTaxSourceType     @default(PURCHASE_ORDER)
+  links      PurchaseTaxDocumentLink[]
+  supplierId String?
+  supplier   Supplier?                 @relation(fields: [supplierId], references: [id])
+
   // Vendor Document Snapshot (integrity)
   vendorNameSnapshot    String
-  vendorAddressSnapshot String?     @db.Text
+  vendorAddressSnapshot String?  @db.Text
   vendorTaxIdSnapshot   String?
   vendorBranchSnapshot  String?
-  vendorDocNo           String      // เลขที่ใบกำกับภาษีจาก Vendor
-  vendorDocDate         DateTime    // วันที่ในใบกำกับภาษีจาก Vendor
+  vendorDocNo           String // เลขที่ใบกำกับภาษีจาก Vendor
+  vendorDocDate         DateTime // วันที่ในใบกำกับภาษีจาก Vendor
 
   // Internal Doc Management
-  internalDocNo         String      // PTX-202401001
-  
+  internalDocNo String // PTX-202401001
+
   // Tax Snapshot
-  isVatDocument         Boolean     @default(true)
-  taxCodeSnapshot       String?
-  taxRateSnapshot       Decimal     @db.Decimal(5, 2) @default(0)
-  taxCalculationMode    TaxCalculationMode @default(EXCLUSIVE)
-  
+  isVatDocument      Boolean            @default(true)
+  taxCodeSnapshot    String?
+  taxRateSnapshot    Decimal            @default(0) @db.Decimal(5, 2)
+  taxCalculationMode TaxCalculationMode @default(EXCLUSIVE)
+
   // Financial Snapshot
-  subtotalAmount        Decimal     @db.Decimal(14, 2)
-  discountAmount        Decimal     @db.Decimal(14, 2) @default(0)
-  taxableBaseAmount     Decimal     @db.Decimal(14, 2)
-  taxAmount             Decimal     @db.Decimal(14, 2)
-  netAmount             Decimal     @db.Decimal(14, 2)
-  
-  status                PurchaseTaxStatus @default(DRAFT)
-  claimStatus           ClaimStatus       @default(CLAIMABLE)
-  claimReason           String?           @db.Text
-  
-  notes                 String?           @db.Text
-  
-  items                 PurchaseTaxLine[]
-  taxEntry              PurchaseTaxEntry?
-  
-  createdAt             DateTime    @default(now())
-  updatedAt             DateTime    @updatedAt
+  subtotalAmount    Decimal @db.Decimal(14, 2)
+  discountAmount    Decimal @default(0) @db.Decimal(14, 2)
+  taxableBaseAmount Decimal @db.Decimal(14, 2)
+  taxAmount         Decimal @db.Decimal(14, 2)
+  netAmount         Decimal @db.Decimal(14, 2)
+
+  status      PurchaseTaxStatus @default(DRAFT)
+  claimStatus ClaimStatus       @default(CLAIMABLE)
+  claimReason String?           @db.Text
+
+  notes String? @db.Text
+
+  items    PurchaseTaxLine[]
+  taxEntry PurchaseTaxEntry?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([shopId, internalDocNo])
   @@index([shopId, supplierId, vendorDocNo]) // Hardened Duplicate Check
@@ -2241,38 +2315,38 @@ model PurchaseTaxDocument {
 }
 
 model PurchaseTaxDocumentLink {
-  id                    String   @id @default(cuid())
+  id                    String              @id @default(cuid())
   purchaseTaxDocumentId String
   document              PurchaseTaxDocument @relation(fields: [purchaseTaxDocumentId], references: [id], onDelete: Cascade)
   purchaseOrderId       String
-  purchase              Purchase @relation(fields: [purchaseOrderId], references: [id])
-  allocatedAmount       Decimal? @db.Decimal(14, 2)
-  createdAt             DateTime @default(now())
+  purchase              Purchase            @relation(fields: [purchaseOrderId], references: [id])
+  allocatedAmount       Decimal?            @db.Decimal(14, 2)
+  createdAt             DateTime            @default(now())
 
   @@unique([purchaseTaxDocumentId, purchaseOrderId])
   @@index([purchaseOrderId])
 }
 
 model PurchaseTaxLine {
-  id              String   @id @default(cuid())
-  documentId      String
-  document        PurchaseTaxDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  
+  id         String              @id @default(cuid())
+  documentId String
+  document   PurchaseTaxDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
   // Snapshot Hardening (consistent with InvoiceLine)
   productNameSnapshot String
   skuSnapshot         String?
   uomSnapshot         String?
   taxCodeSnapshot     String?
-  taxRateSnapshot     Decimal  @db.Decimal(5, 2)
-  
-  description     String?  // Additional detail
-  quantity        Decimal  @db.Decimal(14, 4)
-  unitPrice       Decimal  @db.Decimal(14, 2)
-  discountAmount  Decimal  @db.Decimal(14, 2) @default(0)
-  
-  taxableBaseAmount Decimal  @db.Decimal(14, 2)
-  taxAmount         Decimal  @db.Decimal(14, 2)
-  lineNetAmount     Decimal  @db.Decimal(14, 2)
+  taxRateSnapshot     Decimal @db.Decimal(5, 2)
+
+  description    String? // Additional detail
+  quantity       Decimal @db.Decimal(14, 4)
+  unitPrice      Decimal @db.Decimal(14, 2)
+  discountAmount Decimal @default(0) @db.Decimal(14, 2)
+
+  taxableBaseAmount Decimal @db.Decimal(14, 2)
+  taxAmount         Decimal @db.Decimal(14, 2)
+  lineNetAmount     Decimal @db.Decimal(14, 2)
 }
 
 // ==================== TAX SYSTEM: Phase T5 WHT ====================
@@ -2281,9 +2355,9 @@ model PurchaseTaxLine {
 
 enum WhtPayeeType {
   INDIVIDUAL // บุคคลธรรมดา -> ภ.ง.ด. 3
-  CORPORATE  // นิติบุคคล -> ภ.ง.ด. 53
-  UNKNOWN    // ยังไม่ระบุ
-  ANY        // ใช้ได้ทั้งคู่ (สำหรับ Master)
+  CORPORATE // นิติบุคคล -> ภ.ง.ด. 53
+  UNKNOWN // ยังไม่ระบุ
+  ANY // ใช้ได้ทั้งคู่ (สำหรับ Master)
 }
 
 enum WhtFormType {
@@ -2293,20 +2367,20 @@ enum WhtFormType {
 
 // --- 8. WhtCode — รหัสภาษีหัก ณ ที่จ่าย ---
 model WhtCode {
-  id          String @id @default(cuid())
-  shopId      String
-  shop        Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  shopId String
+  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
-  code            String             // "SERVICE_3", "RENT_5", "AD_2"
-  name            String             // "ค่าบริการ (3%)", "ค่าเช่า (5%)"
-  rate            Decimal            @db.Decimal(5, 2) // 3.00, 5.00
-  
-  formType        WhtFormType        // PND3 | PND53
-  payeeType       WhtPayeeType       @default(ANY) // INDIVIDUAL | CORPORATE | ANY
-  incomeCategory  String?            // "ค่าบริการ", "ค่าเช่า", "ค่าโฆษณา"
+  code String // "SERVICE_3", "RENT_5", "AD_2"
+  name String // "ค่าบริการ (3%)", "ค่าเช่า (5%)"
+  rate Decimal @db.Decimal(5, 2) // 3.00, 5.00
 
-  isActive        Boolean            @default(true)
-  
+  formType       WhtFormType // PND3 | PND53
+  payeeType      WhtPayeeType @default(ANY) // INDIVIDUAL | CORPORATE | ANY
+  incomeCategory String? // "ค่าบริการ", "ค่าเช่า", "ค่าโฆษณา"
+
+  isActive Boolean @default(true)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -2324,10 +2398,10 @@ model WhtEntry {
   member   ShopMember? @relation(fields: [memberId], references: [id], onDelete: SetNull)
 
   // Linkage
-  paymentId String?    @unique // Link To Payment.id
-  payment   Payment?   @relation(fields: [paymentId], references: [id], onDelete: SetNull)
-  partnerId String?    // Link To Supplier/Customer
-  
+  paymentId String?  @unique // Link To Payment.id
+  payment   Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  partnerId String? // Link To Supplier/Customer
+
   // Payee Snapshot (Audit Trail)
   payeeNameSnapshot   String
   payeeTaxIdSnapshot  String?
@@ -2335,10 +2409,10 @@ model WhtEntry {
   payeeTypeSnapshot   WhtPayeeType
 
   // Tax Logic Snapshot
-  whtCodeId             String? // FK to WhtCode.code
-  formTypeSnapshot      WhtFormType
+  whtCodeId              String? // FK to WhtCode.code
+  formTypeSnapshot       WhtFormType
   incomeCategorySnapshot String?
-  rateSnapshot          Decimal @db.Decimal(5, 2)
+  rateSnapshot           Decimal     @db.Decimal(5, 2)
 
   // Amount Semantics (Strict ERP standard)
   grossPayableAmount Decimal @db.Decimal(14, 2) // ยอดก่อนหัก
@@ -2352,11 +2426,13 @@ model WhtEntry {
   taxYear     Int
 
   status TaxPostingStatus @default(DRAFT)
-  
+
   certificate WhtCertificate?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  purchase   Purchase? @relation(fields: [purchaseId], references: [id])
+  purchaseId String?
 
   @@index([shopId, taxYear, taxMonth, status])
   @@index([shopId, formTypeSnapshot, status])
@@ -2375,15 +2451,15 @@ model WhtCertificate {
   issueDate     DateTime
 
   // Payer Snapshot (Company details at issue time)
-  payerNameSnapshot   String
-  payerTaxIdSnapshot  String?
-  payerBranchSnapshot String?
+  payerNameSnapshot    String
+  payerTaxIdSnapshot   String?
+  payerBranchSnapshot  String?
   payerAddressSnapshot String?
 
   // Payee Snapshot (Redundant but safe for re-printing)
-  payeeNameSnapshot   String
-  payeeTaxIdSnapshot  String?
-  payeeBranchSnapshot String?
+  payeeNameSnapshot    String
+  payeeTaxIdSnapshot   String?
+  payeeBranchSnapshot  String?
   payeeAddressSnapshot String?
 
   status TaxPostingStatus @default(DRAFT)
@@ -2394,6 +2470,7 @@ model WhtCertificate {
   @@unique([shopId, certificateNo])
   @@index([whtEntryId])
 }
+
 // ==================== ACCOUNTING CORE: Phase A1 ====================
 // Namfon ERP — General Ledger & Chart of Accounts
 
@@ -2422,23 +2499,23 @@ model Account {
   shopId String
   shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
-  code           String             // รหัสผังบัญชี (e.g., 1101-00)
-  name           String             // ชื่อบัญชี (e.g., เงินสด)
-  category       AccountCategory    // ASSET | LIABILITY | ...
-  normalBalance  NormalBalance      // DEBIT | CREDIT
-  
-  parentId       String?
-  parent         Account?           @relation("AccountHierarchy", fields: [parentId], references: [id])
-  children       Account[]          @relation("AccountHierarchy")
+  code          String // รหัสผังบัญชี (e.g., 1101-00)
+  name          String // ชื่อบัญชี (e.g., เงินสด)
+  category      AccountCategory // ASSET | LIABILITY | ...
+  normalBalance NormalBalance // DEBIT | CREDIT
 
-  isPostable     Boolean            @default(true) // บัญชีคุม (false) หรือบัญชีย่อยที่ลงรายการได้ (true)
-  isActive       Boolean            @default(true)
-  
-  journalLines   JournalLine[]
-  bankAccounts   BankAccount[]
+  parentId String?
+  parent   Account?  @relation("AccountHierarchy", fields: [parentId], references: [id])
+  children Account[] @relation("AccountHierarchy")
 
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
+  isPostable Boolean @default(true) // บัญชีคุม (false) หรือบัญชีย่อยที่ลงรายการได้ (true)
+  isActive   Boolean @default(true)
+
+  journalLines JournalLine[]
+  bankAccounts BankAccount[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([shopId, code])
   @@index([shopId, category])
@@ -2450,27 +2527,27 @@ model JournalEntry {
   shopId String
   shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
-  entryNo        String             // เลขที่ใบสำคัญ (e.g., JV-202401001)
-  journalDate    DateTime           // วันที่ลงบัญชี
-  description    String?            @db.Text
-  
-  status         JournalStatus      @default(DRAFT)
-  postedAt       DateTime?
-  
-  // Traceability (Rule 2)
-  sourceType     String?            // "INVOICE" | "PAYMENT" | "WHT" | "POS"
-  sourceId       String?            // FK to source document
-  sourceNo       String?            // Human-readable source number
-  postingPurpose String             @default("GENERAL") // INVOICE_POST | PAYMENT_POST | VOID_REVERSAL
+  entryNo     String // เลขที่ใบสำคัญ (e.g., JV-202401001)
+  journalDate DateTime // วันที่ลงบัญชี
+  description String?  @db.Text
 
-  lines          JournalLine[]
+  status   JournalStatus @default(DRAFT)
+  postedAt DateTime?
+
+  // Traceability (Rule 2)
+  sourceType     String? // "INVOICE" | "PAYMENT" | "WHT" | "POS"
+  sourceId       String? // FK to source document
+  sourceNo       String? // Human-readable source number
+  postingPurpose String  @default("GENERAL") // INVOICE_POST | PAYMENT_POST | VOID_REVERSAL
+
+  lines JournalLine[]
 
   // Audit
-  memberId       String
-  member         ShopMember         @relation(fields: [memberId], references: [id])
+  memberId String
+  member   ShopMember @relation(fields: [memberId], references: [id])
 
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([shopId, entryNo])
   @@unique([shopId, sourceType, sourceId, postingPurpose])
@@ -2480,26 +2557,26 @@ model JournalEntry {
 
 // --- 13. JournalLine — รายการสมุดรายวัน (Ledger Detail) ---
 model JournalLine {
-  id             String @id @default(cuid())
-  
-  journalEntryId String
-  journalEntry   JournalEntry       @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  id String @id @default(cuid())
 
-  accountId      String
-  account        Account            @relation(fields: [accountId], references: [id])
-  
-  description    String?            @db.Text
-  
-  debitAmount    Decimal            @db.Decimal(14, 2) @default(0)
-  creditAmount   Decimal            @db.Decimal(14, 2) @default(0)
+  journalEntryId String
+  journalEntry   JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+
+  accountId String
+  account   Account @relation(fields: [accountId], references: [id])
+
+  description String? @db.Text
+
+  debitAmount  Decimal @default(0) @db.Decimal(14, 2)
+  creditAmount Decimal @default(0) @db.Decimal(14, 2)
 
   // Optional: Segment/Partner tracking
-  partnerId      String?
-  partnerType    String?            // "CUSTOMER" | "SUPPLIER"
-  
-  referenceNo    String?            // Human-readable reference
-  referenceType  String?
-  referenceId    String?
+  partnerId   String?
+  partnerType String? // "CUSTOMER" | "SUPPLIER"
+
+  referenceNo   String? // Human-readable reference
+  referenceType String?
+  referenceId   String?
 
   // BANK RECONCILIATION
   reconciledAt    DateTime?
@@ -2507,8 +2584,8 @@ model JournalLine {
   bankLineId      String?
   bankLine        BankLine? @relation(fields: [bankLineId], references: [id])
 
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([accountId])
   @@index([journalEntryId])
@@ -2521,30 +2598,30 @@ enum PeriodStatus {
 }
 
 model AccountingPeriod {
-  id                String       @id @default(cuid())
-  shopId            String
-  shop              Shop         @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  
-  periodName        String       // e.g. "April 2024"
-  startDate         DateTime
-  endDate           DateTime
-  status            PeriodStatus @default(OPEN)
-  
+  id     String @id @default(cuid())
+  shopId String
+  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  periodName String // e.g. "April 2024"
+  startDate  DateTime
+  endDate    DateTime
+  status     PeriodStatus @default(OPEN)
+
   // Audit Fields
-  closedAt            DateTime?
-  closedByMemberId    String?
-  closedBy            ShopMember?   @relation("ClosedByMember", fields: [closedByMemberId], references: [id])
-  
-  reopenedAt          DateTime?
-  reopenedByMemberId  String?
-  reopenedBy          ShopMember?   @relation("ReopenedByMember", fields: [reopenedByMemberId], references: [id])
-  
-  reopenReason        String?
-  
-  history             Json?        // Full audit trail
-  
-  createdAt           DateTime     @default(now())
-  updatedAt           DateTime     @updatedAt
+  closedAt         DateTime?
+  closedByMemberId String?
+  closedBy         ShopMember? @relation("ClosedByMember", fields: [closedByMemberId], references: [id])
+
+  reopenedAt         DateTime?
+  reopenedByMemberId String?
+  reopenedBy         ShopMember? @relation("ReopenedByMember", fields: [reopenedByMemberId], references: [id])
+
+  reopenReason String?
+
+  history Json? // Full audit trail
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([shopId, startDate, endDate])
   @@index([shopId, status])
@@ -2553,12 +2630,12 @@ model AccountingPeriod {
 // ==================== BANK & RECONCILIATION ====================
 
 model BankAccount {
-  id        String   @id @default(cuid())
-  name      String   // Friendly name (e.g., "K-Bank Main")
-  bankName  String   // Actual bank (e.g., "KASIKORNBANK")
-  accountNo String   // 000-0-00000-0
-  currency  String   @default("THB")
-  isActive  Boolean  @default(true)
+  id        String  @id @default(cuid())
+  name      String // Friendly name (e.g., "K-Bank Main")
+  bankName  String // Actual bank (e.g., "KASIKORNBANK")
+  accountNo String // 000-0-00000-0
+  currency  String  @default("THB")
+  isActive  Boolean @default(true)
 
   // Link to CoA (Accounting Truth)
   glAccountId String
@@ -2571,7 +2648,7 @@ model BankAccount {
   user   User   @relation(fields: [userId], references: [id])
 
   statements BankStatement[]
-  
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -2580,20 +2657,20 @@ model BankAccount {
 }
 
 model BankStatement {
-  id             String   @id @default(cuid())
-  bankAccountId  String
-  bankAccount    BankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  id            String      @id @default(cuid())
+  bankAccountId String
+  bankAccount   BankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
 
   // Period or specific date this statement represents
-  statementDate  DateTime @default(now())
-  periodStart    DateTime?
-  periodEnd      DateTime?
+  statementDate DateTime  @default(now())
+  periodStart   DateTime?
+  periodEnd     DateTime?
 
-  openingBalance Decimal  @db.Decimal(18, 2) @default(0)
-  closingBalance Decimal  @db.Decimal(18, 2) @default(0)
+  openingBalance Decimal @default(0) @db.Decimal(18, 2)
+  closingBalance Decimal @default(0) @db.Decimal(18, 2)
 
-  importSource   String   @default("MANUAL") // MANUAL | CSV | API
-  status         String   @default("DRAFT")  // DRAFT | IMPORTED | RECONCILED
+  importSource String @default("MANUAL") // MANUAL | CSV | API
+  status       String @default("DRAFT") // DRAFT | IMPORTED | RECONCILED
 
   shopId String
   shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
@@ -2619,33 +2696,33 @@ enum BankLineMatchStatus {
 }
 
 model BankLine {
-  id              String   @id @default(cuid())
-  statementId     String
-  statement       BankStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
+  id          String        @id @default(cuid())
+  statementId String
+  statement   BankStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
 
-  bookingDate     DateTime
-  valueDate       DateTime?
-  description     String?
-  referenceNo     String?
-  
-  debitAmount     Decimal  @db.Decimal(18, 2) @default(0)
-  creditAmount    Decimal  @db.Decimal(18, 2) @default(0)
-  netAmount       Decimal  @db.Decimal(18, 2) // credit - debit
-  balanceAfter    Decimal? @db.Decimal(18, 2)
+  bookingDate DateTime
+  valueDate   DateTime?
+  description String?
+  referenceNo String?
 
-  matchStatus     BankLineMatchStatus @default(UNMATCHED)
-  matchedAt       DateTime?
+  debitAmount  Decimal  @default(0) @db.Decimal(18, 2)
+  creditAmount Decimal  @default(0) @db.Decimal(18, 2)
+  netAmount    Decimal  @db.Decimal(18, 2) // credit - debit
+  balanceAfter Decimal? @db.Decimal(18, 2)
+
+  matchStatus       BankLineMatchStatus @default(UNMATCHED)
+  matchedAt         DateTime?
   matchedByMemberId String?
-  matchedByMember   ShopMember? @relation(fields: [matchedByMemberId], references: [id], onDelete: SetNull)
+  matchedByMember   ShopMember?         @relation(fields: [matchedByMemberId], references: [id], onDelete: SetNull)
 
   // Deduplication Guard
-  dedupeHash      String?  // Hash of (date + amount + ref + description)
+  dedupeHash String? // Hash of (date + amount + ref + description)
 
   shopId String
   shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
 
   // Link to Ledger (Matched candidates)
-  journalLines    JournalLine[]
+  journalLines JournalLine[]
 
   createdAt DateTime @default(now())
 

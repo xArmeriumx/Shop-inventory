@@ -195,15 +195,9 @@ export const ReturnService = {
             },
           });
 
-          // Notification (Async)
-          NotificationService.create({
-            shopId: ctx.shopId,
-            type: 'RETURN_CREATED',
-            severity: 'WARNING',
-            title: `คืนสินค้า ${returnRecord.returnNumber}`,
-            message: `คืนเงิน ${totalRefund} บาท`,
-            link: `/returns/${returnRecord.id}`,
-          }).catch(() => { });
+          // ERP: Automated Financial Posting (Phase 6)
+          const { PostingService } = await import('@/services/accounting/posting-engine.service');
+          await PostingService.postSalesReturn(ctx, returnRecord, totalReturnCost, prisma);
 
           return serializeReturn(returnRecord);
         });

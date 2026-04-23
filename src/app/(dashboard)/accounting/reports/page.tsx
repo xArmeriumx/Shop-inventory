@@ -29,7 +29,7 @@ export default function ReportingDashboardPage() {
     const [pnlData, setPnlData] = useState<any>(null);
     const [bsData, setBsData] = useState<any>(null);
 
-    const fetchData = async () => {
+    const fetchData = React.useCallback(async () => {
         setIsLoading(true);
         try {
             if (activeTab === 'pnl') {
@@ -46,11 +46,11 @@ export default function ReportingDashboardPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [activeTab, startDate, endDate, asOfDate]);
 
     useEffect(() => {
         fetchData();
-    }, [activeTab]);
+    }, [fetchData]);
 
     const handleDrillDown = (accountId: string) => {
         // Navigate to the Account Ledger page with the current date range

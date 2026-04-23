@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useTransition } from 'react';
+import React, { useState, useEffect, useTransition, useCallback } from 'react';
 import {
     Table,
     TableBody,
@@ -36,7 +36,7 @@ export function WhtLedger({ initialData, shop }: WhtLedgerProps) {
     const [loading, setLoading] = useState(false);
     const [isPending, startTransition] = useTransition();
 
-    const fetchEntries = async () => {
+    const fetchEntries = useCallback(async () => {
         setLoading(true);
         try {
             const result = await getWhtEntriesAction({ year, month });
@@ -48,11 +48,11 @@ export function WhtLedger({ initialData, shop }: WhtLedgerProps) {
         } finally {
             setLoading(false);
         }
-    };
+    }, [year, month]);
 
     useEffect(() => {
         fetchEntries();
-    }, [month, year]);
+    }, [fetchEntries]);
 
     const handleIssue = async (entryId: string) => {
         startTransition(async () => {

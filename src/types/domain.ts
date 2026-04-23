@@ -278,6 +278,7 @@ export const DocumentType = {
   JOURNAL_VOUCHER: 'JV',
   PAYMENT: 'RCP',
   STOCK_TRANSFER: 'ST',
+  PURCHASE_RETURN: 'DBN',
 } as const;
 
 export type DocumentType = (typeof DocumentType)[keyof typeof DocumentType];

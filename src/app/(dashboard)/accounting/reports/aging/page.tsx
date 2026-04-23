@@ -19,7 +19,7 @@ export default function AgingReportPage() {
     const [asOfDate, setAsOfDate] = useState(new Date().toISOString().split('T')[0]);
     const router = useRouter();
 
-    const fetchData = async () => {
+    const fetchData = React.useCallback(async () => {
         setIsLoading(true);
         try {
             const res = await getAgingReportAction({ type, asOfDate });
@@ -31,11 +31,11 @@ export default function AgingReportPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [type, asOfDate]);
 
     useEffect(() => {
         fetchData();
-    }, [type, asOfDate]);
+    }, [fetchData]);
 
     return (
         <div className="container mx-auto p-6 space-y-6">

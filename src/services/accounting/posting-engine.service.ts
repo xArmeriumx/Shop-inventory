@@ -168,6 +168,143 @@ export class PostingService {
     }
 
     /**
+     * บันทึกรายการต้นทุนขาย (COGS) เมื่อมีการตัดสต็อกจริง
+     * Dr. ต้นทุนขาย (COGS) / Cr. สินค้าคงเหลือ (Asset)
+     */
+    static async postCOGS(ctx: RequestContext, sale: any, tx: any = db) {
+        const existing = await this.checkExistingEntry(ctx, 'SALE_INVOICE', sale.id, 'COGS_POST', tx);
+        if (existing) return; // Silent guard for COGS
+
+        const [cogsAcc, invAcc] = await Promise.all([
+            AccountingService.findAccountByCode(ctx, ACCOUNT_MAPPING.COGS_EXPENSE),
+            AccountingService.findAccountByCode(ctx, ACCOUNT_MAPPING.INVENTORY_ASSET),
+        ]);
+
+        if (!cogsAcc || !invAcc) {
+            console.warn('Skipping COGS posting: Missing account mapping for COGS/Inventory');
+            return;
+        }
+
+        const totalCost = Number(sale.totalCost || 0);
+        if (totalCost <= 0) return;
+
+        return await JournalService.createEntry(ctx, {
+            journalDate: sale.date || new Date(),
+            description: `บันทึกต้นทุนขายสำหรับใบแจ้งหนี้ ${sale.invoiceNumber}`,
+            sourceType: 'SALE_INVOICE',
+            sourceId: sale.id,
+            sourceNo: sale.invoiceNumber,
+            postingPurpose: 'COGS_POST',
+            status: 'POSTED',
+            lines: [
+                { accountId: cogsAcc.id, description: 'ต้นทุนขาย (COGS)', debitAmount: totalCost, creditAmount: 0 },
+                { accountId: invAcc.id, description: 'สินค้าคงเหลือ (ตัดสต็อก)', debitAmount: 0, creditAmount: totalCost }
+            ]
+        }, tx);
+    }
+
+    /**
+     * บันทึกรายการรับสินค้าเข้าสต็อก (Purchase Inventory Receipt)
+     * Dr. สินค้าคงเหลือ / Cr. พักรายการซื้อ (หรือ AP)
+     */
+    static async postPurchaseInventory(ctx: RequestContext, purchase: any, tx: any = db) {
+        const existing = await this.checkExistingEntry(ctx, 'PURCHASE_ORDER', purchase.id, 'INVENTORY_RECEIVE_POST', tx);
+        if (existing) return;
+
+        const [invAcc, apAcc] = await Promise.all([
+            AccountingService.findAccountByCode(ctx, ACCOUNT_MAPPING.INVENTORY_ASSET),
+            AccountingService.findAccountByCode(ctx, ACCOUNT_MAPPING.PURCHASE_AP),
+        ]);
+
+        if (!invAcc || !apAcc) return;
+
+        const totalCost = Number(purchase.totalCost || 0);
+        if (totalCost <= 0) return;
+
+        return await JournalService.createEntry(ctx, {
+            journalDate: new Date(),
+            description: `รับสินค้าเข้าสต็อกตามใบสั่งซื้อ ${purchase.purchaseNo || purchase.id.slice(0, 8)}`,
+            sourceType: 'PURCHASE_ORDER',
+            sourceId: purchase.id,
+            sourceNo: purchase.purchaseNo || purchase.id.slice(0, 8),
+            postingPurpose: 'INVENTORY_RECEIVE_POST',
+            status: 'POSTED',
+            lines: [
+                { accountId: invAcc.id, description: 'สินค้าคงเหลือ (รับของ)', debitAmount: totalCost, creditAmount: 0 },
+                { accountId: apAcc.id, description: 'เจ้าหนี้การค้า (พักยอด)', debitAmount: 0, creditAmount: totalCost }
+            ]
+        }, tx);
+    }
+
+    /**
+     * บันทึกรายการลดหนี้จากการรับคืนสินค้า (Sales Return / Credit Note)
+     */
+    static async postSalesReturn(ctx: RequestContext, returnRecord: any, totalCost: number, tx: any = db) {
+        const existing = await this.checkExistingEntry(ctx, 'SALE_RETURN', returnRecord.id, 'RETURN_POST', tx);
+        if (existing) return;
+
+        const [retAcc, arAcc, invAcc, cogsAcc] = await Promise.all([
+            AccountingService.findAccountByCode(ctx, ACCOUNT_MAPPING.SALES_RETURN),
+            AccountingService.findAccountByCode(ctx, ACCOUNT_MAPPING.INVOICE_AR),
+            AccountingService.findAccountByCode(ctx, ACCOUNT_MAPPING.INVENTORY_ASSET),
+            AccountingService.findAccountByCode(ctx, ACCOUNT_MAPPING.COGS_EXPENSE),
+        ]);
+
+        if (!retAcc || !arAcc || !invAcc || !cogsAcc) return;
+
+        const refundAmount = Number(returnRecord.refundAmount || 0);
+
+        return await JournalService.createEntry(ctx, {
+            journalDate: returnRecord.createdAt || new Date(),
+            description: `บันทึกรับคืนสินค้าตามใบรับคืน ${returnRecord.returnNumber}`,
+            sourceType: 'SALE_RETURN',
+            sourceId: returnRecord.id,
+            sourceNo: returnRecord.returnNumber,
+            postingPurpose: 'RETURN_POST',
+            status: 'POSTED',
+            lines: [
+                // 1. Reversal of Revenue/AR
+                { accountId: retAcc.id, description: 'รับคืนสินค้า (ลดรายได้)', debitAmount: refundAmount, creditAmount: 0 },
+                { accountId: arAcc.id, description: 'ลูกหนี้การค้า (ลดหนี้)', debitAmount: 0, creditAmount: refundAmount },
+                // 2. Reversal of COGS/Inventory
+                { accountId: invAcc.id, description: 'สินค้าคงเหลือ (รับกลับ)', debitAmount: totalCost, creditAmount: 0 },
+                { accountId: cogsAcc.id, description: 'ต้นทุนขาย (ลดต้นทุน)', debitAmount: 0, creditAmount: totalCost }
+            ]
+        }, tx);
+    }
+
+    /**
+     * บันทึกรายการส่งคืนสินค้าให้ Supplier (Purchase Return / Debit Note)
+     */
+    static async postPurchaseReturn(ctx: RequestContext, pReturn: any, tx: any = db) {
+        const existing = await this.checkExistingEntry(ctx, 'PURCHASE_RETURN', pReturn.id, 'DEBIT_NOTE_POST', tx);
+        if (existing) return;
+
+        const [apAcc, invAcc] = await Promise.all([
+            AccountingService.findAccountByCode(ctx, ACCOUNT_MAPPING.PURCHASE_AP),
+            AccountingService.findAccountByCode(ctx, ACCOUNT_MAPPING.INVENTORY_ASSET),
+        ]);
+
+        if (!apAcc || !invAcc) return;
+
+        const recoveryAmount = Number(pReturn.recoveryAmount || 0);
+
+        return await JournalService.createEntry(ctx, {
+            journalDate: pReturn.createdAt || new Date(),
+            description: `ส่งคืนสินค้าตามใบส่งคืน ${pReturn.returnNumber}`,
+            sourceType: 'PURCHASE_RETURN',
+            sourceId: pReturn.id,
+            sourceNo: pReturn.returnNumber,
+            postingPurpose: 'DEBIT_NOTE_POST',
+            status: 'POSTED',
+            lines: [
+                { accountId: apAcc.id, description: 'เจ้าหนี้การค้า (ลดหนี้)', debitAmount: recoveryAmount, creditAmount: 0 },
+                { accountId: invAcc.id, description: 'สินค้าคงเหลือ (ส่งคืน)', debitAmount: 0, creditAmount: recoveryAmount }
+            ]
+        }, tx);
+    }
+
+    /**
      * ตรวจสอบว่ามีการลงบัญชีสำหรับวัตถุประสงค์นี้ไปแล้วหรือยัง
      */
     private static async checkExistingEntry(

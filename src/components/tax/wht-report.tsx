@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     Card,
     CardContent,
@@ -37,7 +37,7 @@ export function WhtReport() {
     const [reportData, setReportData] = useState<any>(null);
     const [loading, setLoading] = useState(false);
 
-    const fetchReport = async () => {
+    const fetchReport = useCallback(async () => {
         setLoading(true);
         try {
             const result = await getWhtEntriesAction({ year, month, formType });
@@ -71,11 +71,11 @@ export function WhtReport() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [year, month, formType]);
 
     useEffect(() => {
         fetchReport();
-    }, [month, year, formType]);
+    }, [fetchReport]);
 
     const handleExport = () => {
         toast.info('ระบบกำลังเตรียมไฟล์ CSV สำหรับนำส่งกรมสรรพากร (RD Smart Tax)');

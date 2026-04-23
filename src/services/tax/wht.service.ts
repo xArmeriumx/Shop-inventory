@@ -59,7 +59,7 @@ export const WhtService = {
      * สร้างรายการหัก ณ ที่จ่าย (Ledger Entry)
      * ต้องเรียกเมื่อมีการชำระเงิน (Payment event)
      */
-    async createEntry(ctx: RequestContext, params: any) {
+    async createEntry(ctx: RequestContext, params: any, tx: any = db) {
         Security.requirePermission(ctx, 'TAX_REPORT_POST' as any);
 
         return await db.$transaction(async (tx) => {
