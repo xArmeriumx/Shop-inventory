@@ -32,12 +32,15 @@ export function serialize<T>(data: T): T {
 
   return JSON.parse(JSON.stringify(data, (key, value) => {
     // Handle Decimal objects from Prisma
-    if (value && typeof value === 'object' && (value.d || value.constructor?.name === 'Decimal')) {
-      return Number(value);
+    if (value && typeof value === 'object') {
+      if (value.d || value.constructor?.name === 'Decimal' || value.constructor?.name === 'Number' || typeof value.toString === 'function' && value.constructor?.name === undefined) {
+        return Number(value.toString());
+      }
+      // Handle Date serialization if necessary (though stringify usually handles it)
     }
     // Handle BigInt
     if (typeof value === 'bigint') {
-      return Number(value);
+      return value.toString(); // safer to return string for BigInt
     }
     return value;
   }));

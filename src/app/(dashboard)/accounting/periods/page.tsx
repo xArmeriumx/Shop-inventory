@@ -19,6 +19,7 @@ export default function AccountingPeriodsPage() {
         try {
             const res = await getAccountingPeriodsAction();
             if (res.success) {
+                // Properly extract data from ActionResponse wrapper
                 setPeriods(res.data as any[]);
             } else {
                 toast.error(res.message);

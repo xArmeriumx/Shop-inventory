@@ -20,10 +20,20 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
   const search = searchParams.search || '';
   const view = searchParams.view || 'grid';
 
-  const { data: customers, pagination } = (await getCustomers({
+  const res = await getCustomers({
     page,
     search,
-  })) as any;
+  });
+
+  if (!res.success) {
+    return (
+      <div className="p-8 text-center text-destructive">
+        <p>เกิดข้อผิดพลาด: {res.message}</p>
+      </div>
+    );
+  }
+
+  const { data: customers, pagination } = res.data;
 
   return (
     <div className="space-y-6">
@@ -38,10 +48,10 @@ export default async function CustomersPage({ searchParams }: CustomersPageProps
         <Suspense fallback={<Skeleton className="w-full h-96 rounded-3xl" />}>
           {view === 'table' ? (
             <div className="bg-card rounded-3xl border shadow-sm overflow-hidden">
-              <CustomersTable customers={customers} pagination={pagination as any} />
+              <CustomersTable customers={customers} pagination={pagination} />
             </div>
           ) : (
-            <CustomerGrid customers={customers as any} pagination={pagination as any} />
+            <CustomerGrid customers={customers} pagination={pagination} />
           )}
         </Suspense>
       </div>

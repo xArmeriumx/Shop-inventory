@@ -181,21 +181,6 @@ export function Sidebar({ isCollapsed = false, onToggle, onClose, className }: S
         </div>
       </nav>
 
-      {/* Footer */}
-      <div className="border-t p-2">
-        <Button
-          variant="ghost"
-          className={cn(
-            'w-full justify-start gap-3 text-muted-foreground hover:text-foreground',
-            isCollapsed && 'justify-center px-2'
-          )}
-          onClick={() => import('next-auth/react').then(({ signOut }) => signOut())}
-        >
-          <LogOut className="h-5 w-5 shrink-0" />
-          {!isCollapsed && <span>ออกจากระบบ</span>}
-        </Button>
-      </div>
-
       {/* Collapse Toggle */}
       {onToggle && (
         <button
