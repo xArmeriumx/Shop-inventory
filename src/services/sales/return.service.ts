@@ -247,9 +247,9 @@ export const ReturnService = {
     return {
       data: data.map(r => ({
         ...serializeReturn(r),
-        items: (r as any).items.map((ri: any) => serializeReturnItem(ri)),
-        sale: (r as any).sale,
-        user: (r as any).user
+        items: ((r as any).items || []).map((ri: any) => serializeReturnItem(ri)),
+        sale: (r as any).sale || null,
+        user: (r as any).user || null
       })),
       pagination: {
         total,
@@ -290,9 +290,9 @@ export const ReturnService = {
 
     return {
       ...serializeReturn(returnRecord),
-      items: (returnRecord as any).items.map((ri: any) => serializeReturnItem(ri)),
-      sale: (returnRecord as any).sale,
-      user: (returnRecord as any).user
+      items: ((returnRecord as any).items || []).map((ri: any) => serializeReturnItem(ri)),
+      sale: (returnRecord as any).sale || null,
+      user: (returnRecord as any).user || null
     };
   }
 };

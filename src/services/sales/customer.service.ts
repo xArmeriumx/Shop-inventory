@@ -95,7 +95,9 @@ export const CustomerService = {
     return {
       customer: customer as any,
       sales: [],
-      stats: { totalSpend: 0, orderCount: 0, avgOrderValue: 0, lastSaleDate: null },
+      addresses: (customer as any).partnerAddresses || [],
+      shipments: [],
+      stats: { totalSpent: 0, totalOrders: 0, totalProfit: 0, totalShipments: 0, deliveryRate: 0, totalShippingCost: 0, providerBreakdown: {}, firstOrderDate: null },
       topProducts: [],
     };
   },
@@ -239,22 +241,47 @@ export const CustomerService = {
     );
   },
 
-  async delete(id: string, ctx: RequestContext): Promise<ActionResponse<null>> {
-    const existing = await this.getById(id, ctx);
-    if (!existing) return { success: false, message: 'ไม่พบข้อมูลลูกค้า' };
+  async getDeletionImpact(id: string, ctx: RequestContext) {
+    const counts = await db.$transaction([
+      db.sale.count({ where: { customerId: id, shopId: ctx.shopId, status: { not: 'CANCELLED' } } }),
+      db.invoice.count({ where: { customerId: id, shopId: ctx.shopId, status: { not: 'CANCELLED' } } }),
+      db.quotation.count({ where: { customerId: id, shopId: ctx.shopId, status: { not: 'CANCELLED' } } }),
+    ]);
 
-    await AuditService.runWithAudit(
+    const totalTransactions = counts.reduce((a, b) => a + b, 0);
+    return {
+      canHardDelete: totalTransactions === 0,
+      transactionCount: totalTransactions,
+      impacts: [
+        { label: 'บิลขาย', count: counts[0] },
+        { label: 'ใบกำกับภาษี', count: counts[1] },
+        { label: 'ใบเสนอราคา', count: counts[2] },
+      ].filter(i => i.count > 0),
+    };
+  },
+
+  async delete(id: string, ctx: RequestContext): Promise<{ success: boolean; message: string; type: 'delete' | 'archive' }> {
+    const existing = await this.getById(id, ctx);
+    if (!existing) throw new ServiceError('ไม่พบข้อมูลลูกค้า');
+
+    const impact = await this.getDeletionImpact(id, ctx);
+
+    return AuditService.runWithAudit(
       ctx,
       CUSTOMER_AUDIT_POLICIES.DELETE(id, existing.name),
       async () => {
-        await db.customer.update({
-          where: { id },
-          data: { deletedAt: new Date() },
-        });
+        if (impact.canHardDelete) {
+          await db.customer.delete({ where: { id } });
+          return { success: true, message: 'ลบข้อมูลลูกค้าถาวรสำเร็จ', type: 'delete' as const };
+        } else {
+          await db.customer.update({
+            where: { id },
+            data: { deletedAt: new Date() },
+          });
+          return { success: true, message: 'ปิดใช้งานลูกค้าสำเร็จ (เนื่องจากมีรายการธุรการค้างอยู่)', type: 'archive' as const };
+        }
       }
     );
-
-    return { success: true, message: 'ลบข้อมูลลูกค้าสำเร็จ', data: null };
   },
 
   async checkCreditLimit(customerId: string, amount: number, ctx: RequestContext, tx?: any) {

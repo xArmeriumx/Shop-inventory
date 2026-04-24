@@ -99,7 +99,7 @@ export const PurchaseService: IPurchaseService = {
     const supplierMoq = (purchase as any).supplier?.moq ? Number((purchase as any).supplier.moq) : null;
     const serialized = serializePurchase(purchase) as SerializedPurchaseWithItems & { purchaseTaxLinks: any[] };
 
-    serialized.items = (purchase as any).items.map((i: any) => ({
+    serialized.items = ((purchase as any).items || []).map((i: any) => ({
       ...serializePurchaseItem(i),
       moq: supplierMoq,
     }));

@@ -13,4 +13,5 @@ export default async function CustomerPage({ params }: CustomerPageProps) {
     notFound();
   }
 
+  return <CustomerProfile data={res.data as any} />;
 }

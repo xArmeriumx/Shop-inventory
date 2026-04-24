@@ -7,6 +7,14 @@ import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { PaginationControl } from '@/components/ui/pagination-control';
+import { deleteSupplier, getSupplierDeletionImpact } from '@/actions/purchases/suppliers.actions';
+import { useState, useTransition } from 'react';
+import { PermissionGuard } from '@/components/core/auth/permission-guard';
+import { DeleteEntityDialog } from '@/components/ui/delete-entity-dialog';
+import { toast } from 'sonner';
+import { Permission } from '@prisma/client';
+import { useRouter } from 'next/navigation';
+import { Trash2 } from 'lucide-react';
 
 interface Supplier {
     id: string;
@@ -34,7 +42,13 @@ interface SupplierGridProps {
     };
 }
 
-function SupplierCard({ supplier }: { supplier: Supplier }) {
+function SupplierCard({
+    supplier,
+    onDelete
+}: {
+    supplier: Supplier;
+    onDelete: (id: string, name: string) => void;
+}) {
     // Extract province from address if possible (Thai pattern)
     const province = supplier.address?.split(' จ.')[1]?.split(' ')[0] ||
         supplier.address?.split('จังหวัด')[1]?.split(' ')[0] ||
@@ -80,8 +94,11 @@ function SupplierCard({ supplier }: { supplier: Supplier }) {
                                 <DropdownMenuItem asChild className="rounded-lg">
                                     <Link href={`/suppliers/${supplier.id}`}>ดูรายละเอียด</Link>
                                 </DropdownMenuItem>
-                                <DropdownMenuItem asChild className="rounded-lg">
-                                    <Link href={`/suppliers/${supplier.id}/edit`}>แก้ไขข้อมูล</Link>
+                                <DropdownMenuItem asChild className="rounded-lg text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer" onClick={() => onDelete(supplier.id, supplier.name)}>
+                                    <div className="flex items-center gap-2">
+                                        <Trash2 className="h-4 w-4" />
+                                        <span>ลบข้อมูล</span>
+                                    </div>
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
@@ -148,6 +165,48 @@ function SupplierCard({ supplier }: { supplier: Supplier }) {
 }
 
 export function SupplierGrid({ suppliers, pagination }: SupplierGridProps) {
+    const router = useRouter();
+    const [isPending, startTransition] = useTransition();
+    const [isImpactLoading, setIsImpactLoading] = useState(false);
+    const [impactData, setImpactData] = useState<any>(null);
+    const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+    const [targetEntity, setTargetEntity] = useState<{ id: string; name: string } | null>(null);
+
+    const openDeleteDialog = async (id: string, name: string) => {
+        setTargetEntity({ id, name });
+        setShowDeleteDialog(true);
+        setIsImpactLoading(true);
+        try {
+            const result = await getSupplierDeletionImpact(id);
+            if (result.success) {
+                setImpactData(result.data);
+            }
+        } catch (err) {
+            console.error('Failed to get impact:', err);
+        } finally {
+            setIsImpactLoading(false);
+        }
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!targetEntity) return;
+
+        startTransition(async () => {
+            try {
+                const result = await deleteSupplier(targetEntity.id);
+                if (result.success) {
+                    toast.success(result.message);
+                    setShowDeleteDialog(false);
+                    router.refresh();
+                } else {
+                    toast.error(result.message);
+                }
+            } catch (err) {
+                toast.error('เกิดข้อผิดพลาดในการลบข้อมูล');
+            }
+        });
+    };
+
     if (suppliers.length === 0) {
         return (
             <EmptyState
@@ -162,11 +221,28 @@ export function SupplierGrid({ suppliers, pagination }: SupplierGridProps) {
         <div className="space-y-8">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {suppliers.map((supplier) => (
-                    <SupplierCard key={supplier.id} supplier={supplier} />
+                    <SupplierCard
+                        key={supplier.id}
+                        supplier={supplier}
+                        onDelete={openDeleteDialog}
+                    />
                 ))}
             </div>
 
             <PaginationControl pagination={pagination} className="mt-8" />
+
+            <DeleteEntityDialog
+                isOpen={showDeleteDialog}
+                onClose={() => {
+                    setShowDeleteDialog(false);
+                    setImpactData(null);
+                }}
+                onConfirm={handleConfirmDelete}
+                title="ลบข้อมูลผู้จำหน่าย"
+                entityName={targetEntity?.name || ''}
+                impact={impactData}
+                isLoading={isPending}
+            />
         </div>
     );
 }

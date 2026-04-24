@@ -1,5 +1,14 @@
+'use client';
+
 import Link from 'next/link';
-import { Plus, Package } from 'lucide-react';
+import { Edit, Trash2, Plus, Package } from 'lucide-react';
+import { deleteSupplier, getSupplierDeletionImpact } from '@/actions/purchases/suppliers.actions';
+import { useState, useTransition } from 'react';
+import { PermissionGuard } from '@/components/core/auth/permission-guard';
+import { DeleteEntityDialog } from '@/components/ui/delete-entity-dialog';
+import { toast } from 'sonner';
+import { Permission } from '@prisma/client';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -26,7 +35,49 @@ interface SuppliersTableProps {
     search?: string;
 }
 
-export function SuppliersTable({ suppliers, pagination, search = '' }: SuppliersTableProps) {
+export function SuppliersTable({ suppliers, pagination }: SuppliersTableProps) {
+    const router = useRouter();
+    const [isPending, startTransition] = useTransition();
+    const [isImpactLoading, setIsImpactLoading] = useState(false);
+    const [impactData, setImpactData] = useState<any>(null);
+    const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+    const [targetEntity, setTargetEntity] = useState<{ id: string; name: string } | null>(null);
+
+    const openDeleteDialog = async (id: string, name: string) => {
+        setTargetEntity({ id, name });
+        setShowDeleteDialog(true);
+        setIsImpactLoading(true);
+        try {
+            const result = await getSupplierDeletionImpact(id);
+            if (result.success) {
+                setImpactData(result.data);
+            }
+        } catch (err) {
+            console.error('Failed to get impact:', err);
+        } finally {
+            setIsImpactLoading(false);
+        }
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!targetEntity) return;
+
+        startTransition(async () => {
+            try {
+                const result = await deleteSupplier(targetEntity.id);
+                if (result.success) {
+                    toast.success(result.message);
+                    setShowDeleteDialog(false);
+                    router.refresh();
+                } else {
+                    toast.error(result.message);
+                }
+            } catch (err) {
+                toast.error('เกิดข้อผิดพลาดในการลบข้อมูล');
+            }
+        });
+    };
+
     return (
         <Card className="rounded-2xl overflow-hidden border-border/40 shadow-xl shadow-primary/5">
             <CardHeader className="bg-muted/50 border-b border-border/40">
@@ -65,9 +116,32 @@ export function SuppliersTable({ suppliers, pagination, search = '' }: Suppliers
                                         {supplier.email && <span className="flex items-center gap-1.5">✉️ {supplier.email}</span>}
                                     </div>
                                 </div>
-                                <Button variant="outline" size="sm" asChild className="rounded-xl border-border/50 text-xs font-bold">
-                                    <Link href={`/suppliers/${supplier.id}`}>ดูรายละเอียด</Link>
-                                </Button>
+                                <div className="flex items-center justify-end gap-1">
+                                    <PermissionGuard permission={(Permission as any).SUPPLIER_UPDATE}>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-primary/10 hover:text-primary transition-colors" asChild title="แก้ไข">
+                                            <Link href={`/suppliers/${supplier.id}/edit`}>
+                                                <Edit className="h-4 w-4" />
+                                            </Link>
+                                        </Button>
+                                    </PermissionGuard>
+
+                                    <Button variant="ghost" size="sm" asChild className="text-xs h-8 px-3 font-bold hover:bg-primary/10 hover:text-primary transition-colors">
+                                        <Link href={`/suppliers/${supplier.id}`}>รายละเอียด</Link>
+                                    </Button>
+
+                                    <PermissionGuard permission={(Permission as any).SUPPLIER_DELETE}>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive transition-colors"
+                                            onClick={() => openDeleteDialog(supplier.id, supplier.name)}
+                                            disabled={isPending}
+                                            title="ลบ"
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </PermissionGuard>
+                                </div>
                             </div>
                         ))}
 
@@ -77,6 +151,18 @@ export function SuppliersTable({ suppliers, pagination, search = '' }: Suppliers
                     </div>
                 )}
             </CardContent>
+            <DeleteEntityDialog
+                isOpen={showDeleteDialog}
+                onClose={() => {
+                    setShowDeleteDialog(false);
+                    setImpactData(null);
+                }}
+                onConfirm={handleConfirmDelete}
+                title="ลบข้อมูลผู้จำหน่าย"
+                entityName={targetEntity?.name || ''}
+                impact={impactData}
+                isLoading={isPending}
+            />
         </Card>
     );
 }

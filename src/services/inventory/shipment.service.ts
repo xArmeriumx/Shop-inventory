@@ -148,12 +148,12 @@ export const ShipmentService: IShippingService = {
       allowedTransitions: getAllowedTransitions(shipment.status as ShipmentStatus),
       sale: (shipment as any).sale ? {
         ...serializeSale((shipment as any).sale),
-        items: (shipment as any).sale.items.map((item: any) => ({
+        items: (((shipment as any).sale?.items) || []).map((item: any) => ({
           ...item,
-          salePrice: Number(item.salePrice),
-          costPrice: Number(item.costPrice),
-          subtotal: Number(item.subtotal),
-          profit: Number(item.profit),
+          salePrice: Number(item.salePrice || 0),
+          costPrice: Number(item.costPrice || 0),
+          subtotal: Number(item.subtotal || 0),
+          profit: Number(item.profit || 0),
         }))
       } : null,
     };

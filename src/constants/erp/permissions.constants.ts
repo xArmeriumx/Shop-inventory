@@ -1,4 +1,4 @@
-export type PermissionModule = 'PRODUCT' | 'STOCK' | 'SALE' | 'INVOICE' | 'FINANCE' | 'PURCHASE' | 'TEAM' | 'SYSTEM' | 'REPORT' | 'CUSTOMER' | 'EXPENSE' | 'RETURN';
+export type PermissionModule = 'PRODUCT' | 'STOCK' | 'SALE' | 'INVOICE' | 'FINANCE' | 'PURCHASE' | 'TEAM' | 'SYSTEM' | 'REPORT' | 'CUSTOMER' | 'EXPENSE' | 'RETURN' | 'SUPPLIER';
 
 export interface PermissionDefinition {
     code: string;
@@ -59,11 +59,13 @@ export const PERMISSION_REGISTRY: PermissionDefinition[] = [
     { code: 'REPORT_VIEW_SALES', module: 'REPORT', label: 'ดูรายงานขาย', description: 'เข้าถึง Dashboard และรายงานยอดขาย', risk: 'low', defaultRoles: ['ADMIN', 'MANAGER', 'SALE'] },
     { code: 'REPORT_EXPORT', module: 'REPORT', label: 'ส่งออกข้อมูล', description: 'ดาวน์โหลดรายงานเป็น Excel/CSV', risk: 'medium', defaultRoles: ['ADMIN', 'MANAGER', 'ACCOUNTANT'] },
 
-    // --- PURCHASE ---
-    { code: 'PURCHASE_VIEW', module: 'PURCHASE', label: 'ดูใบซื้อ', description: 'ดูรายการสั่งซื้อสินค้าจาก Supplier', risk: 'low', defaultRoles: ['ADMIN', 'MANAGER', 'ACCOUNTANT'] },
-    { code: 'PURCHASE_CREATE', module: 'PURCHASE', label: 'สร้างใบซื้อ', description: 'บันทึกรายการสั่งซื้อใหม่', risk: 'medium', defaultRoles: ['ADMIN', 'MANAGER'] },
-    { code: 'PURCHASE_UPDATE', module: 'PURCHASE', label: 'แก้ไขใบซื้อ', description: 'แก้ไขรายละเอียดใบซื้อที่ยังไม่ได้ปิดดีล', risk: 'medium', defaultRoles: ['ADMIN', 'MANAGER'] },
     { code: 'PURCHASE_VOID', module: 'PURCHASE', label: 'ยกเลิกใบซื้อ', description: 'ยกเลิกรายการซื้อสินค้า', risk: 'high', defaultRoles: ['ADMIN'] },
+
+    // --- SUPPLIER ---
+    { code: 'SUPPLIER_VIEW', module: 'SUPPLIER', label: 'ดูผู้จำหน่าย', description: 'ดูรายชื่อและข้อมูลผู้ผลิต/ผู้จำหน่าย', risk: 'low', defaultRoles: ['ADMIN', 'MANAGER', 'ACCOUNTANT'] },
+    { code: 'SUPPLIER_CREATE', module: 'SUPPLIER', label: 'เพิ่มผู้จำหน่าย', description: 'ลงทะเบียนผู้จำหน่ายใหม่', risk: 'medium', defaultRoles: ['ADMIN', 'MANAGER'] },
+    { code: 'SUPPLIER_UPDATE', module: 'SUPPLIER', label: 'แก้ไขผู้จำหน่าย', description: 'อัปเดตข้อมูลผู้จำหน่ายเดิม', risk: 'medium', defaultRoles: ['ADMIN', 'MANAGER'] },
+    { code: 'SUPPLIER_DELETE', module: 'SUPPLIER', label: 'ลบผู้จำหน่าย', description: 'ลบฐานข้อมูลผู้จำหน่าย (ควรใช้ความระมัดระวัง)', risk: 'high', defaultRoles: ['ADMIN'] },
 
     // --- CUSTOMER ---
     { code: 'CUSTOMER_VIEW', module: 'CUSTOMER', label: 'ดูลูกค้า', description: 'ดูรายชื่อและข้อมูลติดต่อลูกค้า', risk: 'low', defaultRoles: ['SALE', 'MARKETING'] },
@@ -118,7 +120,10 @@ export const MAP_GROUPS: Record<string, PermissionGroup> = {
     },
     purchasing: {
         label: 'งานจัดซื้อและ Supplier',
-        permissions: PERMISSION_REGISTRY.filter(p => p.module === 'PURCHASE').map(p => ({ key: p.code, label: p.label })),
+        permissions: [
+            ...PERMISSION_REGISTRY.filter(p => p.module === 'PURCHASE').map(p => ({ key: p.code, label: p.label })),
+            ...PERMISSION_REGISTRY.filter(p => p.module === 'SUPPLIER').map(p => ({ key: p.code, label: p.label })),
+        ]
     },
     crm: {
         label: 'CRM และบริหารลูกค้า',

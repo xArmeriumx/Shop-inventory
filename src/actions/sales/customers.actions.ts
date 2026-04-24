@@ -53,15 +53,22 @@ export async function updateCustomer(id: string, input: CustomerInput): Promise<
   }, { context: { action: 'sales:updateCustomer', id } });
 }
 
-export async function deleteCustomer(id: string): Promise<ActionResponse<null>> {
+export async function deleteCustomer(id: string): Promise<ActionResponse<any>> {
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
-      const ctx = await requirePermission('CUSTOMER_DELETE');
-      await CustomerService.delete(id, ctx);
-      revalidatePath('/customers');
-      return null;
+      const ctx = await requirePermission('CUSTOMER_DELETE' as any);
+      return CustomerService.delete(id, ctx);
     }, 'sales:deleteCustomer');
   }, { context: { action: 'sales:deleteCustomer', id } });
+}
+
+export async function getCustomerDeletionImpact(id: string): Promise<ActionResponse<any>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('CUSTOMER_VIEW' as any);
+      return CustomerService.getDeletionImpact(id, ctx);
+    }, 'sales:getCustomerDeletionImpact');
+  }, { context: { action: 'sales:getCustomerDeletionImpact', id } });
 }
 
 export async function getCustomersForSelect(): Promise<ActionResponse<any[]>> {

@@ -12,9 +12,13 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Edit, Trash2, Phone, Mail } from 'lucide-react';
-import { deleteCustomer } from '@/actions/sales/customers.actions';
+import { deleteCustomer, getCustomerDeletionImpact } from '@/actions/sales/customers.actions';
 import { useState, useTransition } from 'react';
 import { PaginationControl } from '@/components/ui/pagination-control';
+import { DeleteEntityDialog } from '@/components/ui/delete-entity-dialog';
+import { PermissionGuard } from '@/components/core/auth/permission-guard';
+import { toast } from 'sonner';
+import { Permission } from '@prisma/client';
 
 interface Customer {
   id: string;
@@ -39,25 +43,44 @@ interface CustomersTableProps {
 export function CustomersTable({ customers, pagination }: CustomersTableProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [isImpactLoading, setIsImpactLoading] = useState(false);
+  const [impactData, setImpactData] = useState<any>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [targetEntity, setTargetEntity] = useState<{ id: string; name: string } | null>(null);
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`ต้องการลบลูกค้า "${name}" หรือไม่?`)) {
-      return;
-    }
-
-    setDeletingId(id);
+  const openDeleteDialog = async (id: string, name: string) => {
+    setTargetEntity({ id, name });
+    setShowDeleteDialog(true);
+    setIsImpactLoading(true);
     try {
-      const result = await deleteCustomer(id);
-      if (!result.success) {
-        alert(result.message);
+      const result = await getCustomerDeletionImpact(id);
+      if (result.success) {
+        setImpactData(result.data);
       }
-      router.refresh();
-    } catch {
-      alert('เกิดข้อผิดพลาด');
+    } catch (err) {
+      console.error('Failed to get impact:', err);
     } finally {
-      setDeletingId(null);
+      setIsImpactLoading(false);
     }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!targetEntity) return;
+
+    startTransition(async () => {
+      try {
+        const result = await deleteCustomer(targetEntity.id);
+        if (result.success) {
+          toast.success(result.message);
+          setShowDeleteDialog(false);
+          router.refresh();
+        } else {
+          toast.error(result.message);
+        }
+      } catch (err) {
+        toast.error('เกิดข้อผิดพลาดในการลบข้อมูล');
+      }
+    });
   };
 
   if (customers.length === 0) {
@@ -130,20 +153,24 @@ export function CustomersTable({ customers, pagination }: CustomersTableProps) {
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center justify-end gap-0.5">
-                      <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-primary/10 hover:text-primary transition-colors" asChild>
-                        <Link href={`/customers/${customer.id}/edit`}>
-                          <Edit className="h-4 w-4" />
-                        </Link>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive transition-colors"
-                        onClick={() => handleDelete(customer.id, customer.name)}
-                        disabled={deletingId === customer.id}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <PermissionGuard permission={Permission.CUSTOMER_UPDATE as any}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-primary/10 hover:text-primary transition-colors" asChild>
+                          <Link href={`/customers/${customer.id}/edit`}>
+                            <Edit className="h-4 w-4" />
+                          </Link>
+                        </Button>
+                      </PermissionGuard>
+                      <PermissionGuard permission={Permission.CUSTOMER_DELETE as any}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive transition-colors"
+                          onClick={() => openDeleteDialog(customer.id, customer.name)}
+                          disabled={isPending}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </PermissionGuard>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -156,6 +183,19 @@ export function CustomersTable({ customers, pagination }: CustomersTableProps) {
       <div className="px-4">
         <PaginationControl pagination={pagination} />
       </div>
+
+      <DeleteEntityDialog
+        isOpen={showDeleteDialog}
+        onClose={() => {
+          setShowDeleteDialog(false);
+          setImpactData(null);
+        }}
+        onConfirm={handleConfirmDelete}
+        title="ลบข้อมูลลูกค้า"
+        entityName={targetEntity?.name || ''}
+        impact={impactData}
+        isLoading={isPending}
+      />
     </div>
   );
 }

@@ -221,21 +221,46 @@ export const SupplierService = {
     );
   },
 
-  async delete(id: string, ctx: RequestContext): Promise<ActionResponse<null>> {
-    const existing = await this.getById(id, ctx);
-    if (!existing) return { success: false, message: 'ไม่พบข้อมูลผู้จำหน่าย' };
+  async getDeletionImpact(id: string, ctx: RequestContext) {
+    const counts = await db.$transaction([
+      db.purchase.count({ where: { supplierId: id, shopId: ctx.shopId, status: { not: 'CANCELLED' } } }),
+      db.product.count({ where: { supplierId: id, shopId: ctx.shopId, deletedAt: null } }),
+      db.expense.count({ where: { description: { contains: id }, shopId: ctx.shopId } }), // Fallback for linked expenses
+    ]);
 
-    await AuditService.runWithAudit(
+    const totalTransactions = counts.reduce((a, b) => a + b, 0);
+    return {
+      canHardDelete: totalTransactions === 0,
+      transactionCount: totalTransactions,
+      impacts: [
+        { label: 'บิลสั่งซื้อ', count: counts[0] },
+        { label: 'สินค้าที่ผูกไว้', count: counts[1] },
+        { label: 'รายการค่าใช้จ่าย', count: counts[2] },
+      ].filter(i => i.count > 0),
+    };
+  },
+
+  async delete(id: string, ctx: RequestContext): Promise<{ success: boolean; message: string; type: 'delete' | 'archive' }> {
+    const existing = await this.getById(id, ctx);
+    if (!existing) throw new ServiceError('ไม่พบข้อมูลผู้จำหน่าย');
+
+    const impact = await this.getDeletionImpact(id, ctx);
+
+    return AuditService.runWithAudit(
       ctx,
       SUPPLIER_AUDIT_POLICIES.DELETE(id, existing.name),
       async () => {
-        await db.supplier.update({
-          where: { id },
-          data: { deletedAt: new Date() },
-        });
+        if (impact.canHardDelete) {
+          await db.supplier.delete({ where: { id } });
+          return { success: true, message: 'ลบข้อมูลผู้จำหน่ายถาวรสำเร็จ', type: 'delete' as const };
+        } else {
+          await db.supplier.update({
+            where: { id },
+            data: { deletedAt: new Date() },
+          });
+          return { success: true, message: 'ปิดใช้งานผู้จำหน่ายสำเร็จ (เนื่องจากมีรายการธุรการค้างอยู่)', type: 'archive' as const };
+        }
       }
     );
-
-    return { success: true, message: 'ลบข้อมูลผู้จำหน่ายสำเร็จ', data: null };
   },
 };
