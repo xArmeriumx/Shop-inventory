@@ -18,9 +18,9 @@ export async function submitForApproval(input: SubmitApprovalInputSchema): Promi
             revalidatePath('/approvals');
             // Revalidate the source document
             revalidatePath(`/${validated.documentType.toLowerCase()}s/${validated.documentId}`);
-            return true;
+            return null;
         }, 'core:submitForApproval');
-    }, { context: { action: 'submitForApproval' } });
+    }, { context: { action: 'core:submitForApproval' } });
 }
 
 export async function takeApprovalAction(input: ApprovalActionInputSchema): Promise<ActionResponse> {
@@ -38,7 +38,7 @@ export async function takeApprovalAction(input: ApprovalActionInputSchema): Prom
             revalidatePath('/approvals');
             return result;
         }, 'core:takeApprovalAction');
-    }, { context: { action: 'takeApprovalAction' } });
+    }, { context: { action: 'core:takeApprovalAction' } });
 }
 
 export async function approveStep(documentId: string, documentType: string): Promise<ActionResponse> {
@@ -55,7 +55,7 @@ export async function getApprovalStatus(documentType: string, documentId: string
             const ctx = await requirePermission('APPROVAL_VIEW');
             return ApprovalService.getStatus(ctx, documentType, documentId);
         }, 'core:getApprovalStatus');
-    }, { context: { action: 'getApprovalStatus', documentId } });
+    }, { context: { action: 'core:getApprovalStatus', documentId } });
 }
 
 
@@ -65,7 +65,7 @@ export async function getApprovals(params: { page?: number; limit?: number; stat
             const ctx = await requirePermission('APPROVAL_VIEW');
             return ApprovalService.list(ctx, params);
         }, 'core:getApprovals');
-    }, { context: { action: 'getApprovals' } });
+    }, { context: { action: 'core:getApprovals' } });
 }
 
 

@@ -40,15 +40,15 @@ export async function getIncompleteRequests(page = 1) {
 /**
  * มอบหมายผู้ขายให้กับ PR แบบด่วน (Bulk)
  */
-export async function quickAssignSupplier(ids: string[], supplierId: string): Promise<ActionResponse> {
+export async function quickAssignSupplier(ids: string[], supplierId: string): Promise<ActionResponse<null>> {
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
       const ctx = await requirePermission('PURCHASE_CREATE');
       await PurchaseService.quickAssignSupplier(ids, supplierId, ctx);
       revalidatePath('/system/ops');
-      return true;
-    });
-  }, { context: { action: 'quickAssignSupplier' } });
+      return null;
+    }, 'inventory:quickAssignSupplier');
+  }, { context: { action: 'inventory:quickAssignSupplier' } });
 }
 
 /**

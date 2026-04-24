@@ -19,7 +19,7 @@ export async function getNotificationSummary(limit = 15) {
       ]);
       return { recentNotifications, unreadCount };
     }, 'core:getNotificationSummary');
-  }, { context: { action: 'getNotificationSummary', limit } });
+  }, { context: { action: 'core:getNotificationSummary', limit } });
 }
 
 /**
@@ -31,7 +31,7 @@ export async function getNotifications(limit = 20) {
       const ctx = await requireShop();
       return NotificationService.getNotifications(ctx.shopId, ctx.userId, limit);
     }, 'core:getNotifications');
-  }, { context: { action: 'getNotifications', limit } });
+  }, { context: { action: 'core:getNotifications', limit } });
 }
 
 /**
@@ -43,7 +43,7 @@ export async function getUnreadNotificationCount() {
       const ctx = await requireShop();
       return NotificationService.getUnreadCount(ctx.shopId, ctx.userId);
     }, 'core:getUnreadNotificationCount');
-  }, { context: { action: 'getUnreadNotificationCount' } });
+  }, { context: { action: 'core:getUnreadNotificationCount' } });
 }
 
 /**
@@ -55,9 +55,9 @@ export async function markNotificationAsRead(id: string) {
       const ctx = await requireShop();
       await NotificationService.markRead(id, ctx.shopId);
       revalidatePath('/');
-      return true;
+      return null;
     }, 'core:markNotificationAsRead');
-  }, { context: { action: 'markNotificationAsRead', id } });
+  }, { context: { action: 'core:markNotificationAsRead', id } });
 }
 
 /**
@@ -69,9 +69,9 @@ export async function markAllNotificationsAsRead() {
       const ctx = await requireShop();
       await NotificationService.markAllRead(ctx.shopId, ctx.userId);
       revalidatePath('/');
-      return true;
+      return null;
     }, 'core:markAllNotificationsAsRead');
-  }, { context: { action: 'markAllNotificationsAsRead' } });
+  }, { context: { action: 'core:markAllNotificationsAsRead' } });
 }
 
 /**
@@ -84,7 +84,7 @@ export async function refreshOperationalAlerts() {
       // We assume specific permissions for health checks or rely on shop membership
       await NotificationService.checkOperationalHealth(ctx.shopId);
       revalidatePath('/');
-      return true;
+      return null;
     }, 'core:refreshOperationalAlerts');
-  }, { context: { action: 'refreshOperationalAlerts' } });
+  }, { context: { action: 'core:refreshOperationalAlerts' } });
 }

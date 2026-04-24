@@ -47,7 +47,7 @@ export async function postInvoice(id: string): Promise<ActionResponse> {
             await InvoiceService.post(ctx, id);
             revalidatePath('/invoices');
             revalidatePath(`/invoices/${id}`);
-            return true;
+            return null;
         }, 'sales:postInvoice');
     }, { context: { action: 'postInvoice', id } });
 }
@@ -59,7 +59,7 @@ export async function markInvoicePaid(id: string): Promise<ActionResponse> {
             await InvoiceService.markPaid(ctx, id);
             revalidatePath('/invoices');
             revalidatePath(`/invoices/${id}`);
-            return true;
+            return null;
         }, 'sales:markInvoicePaid');
     }, { context: { action: 'markInvoicePaid', id } });
 }
@@ -71,7 +71,7 @@ export async function cancelInvoice(id: string): Promise<ActionResponse> {
             await InvoiceService.cancel(ctx, id);
             revalidatePath('/invoices');
             revalidatePath(`/invoices/${id}`);
-            return true;
+            return null;
         }, 'sales:cancelInvoice');
     }, { context: { action: 'cancelInvoice', id } });
 }

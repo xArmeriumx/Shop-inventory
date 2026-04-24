@@ -18,7 +18,7 @@ export async function getCustomers(params: GetCustomersParams = {}): Promise<Act
       const ctx = await requirePermission('CUSTOMER_VIEW');
       return CustomerService.getAll(ctx, params);
     }, 'sales:getCustomers');
-  }, { context: { action: 'getCustomers', ...params } });
+  }, { context: { action: 'sales:getCustomers', ...params } });
 }
 
 export async function getCustomer(id: string): Promise<ActionResponse<any>> {
@@ -27,7 +27,7 @@ export async function getCustomer(id: string): Promise<ActionResponse<any>> {
       const ctx = await requirePermission('CUSTOMER_VIEW');
       return CustomerService.getById(id, ctx);
     }, 'sales:getCustomer');
-  }, { context: { action: 'getCustomer', id } });
+  }, { context: { action: 'sales:getCustomer', id } });
 }
 
 export async function createCustomer(input: CustomerInput): Promise<ActionResponse<SerializedCustomer>> {
@@ -37,7 +37,7 @@ export async function createCustomer(input: CustomerInput): Promise<ActionRespon
       const validated = customerSchema.parse(input);
       return CustomerService.create(ctx, validated);
     }, 'sales:createCustomer');
-  }, { context: { action: 'createCustomer' } });
+  }, { context: { action: 'sales:createCustomer' } });
 }
 
 export async function updateCustomer(id: string, input: CustomerInput): Promise<ActionResponse<SerializedCustomer>> {
@@ -50,18 +50,18 @@ export async function updateCustomer(id: string, input: CustomerInput): Promise<
       revalidatePath(`/customers/${id}`);
       return customer;
     }, 'sales:updateCustomer');
-  }, { context: { action: 'updateCustomer', id } });
+  }, { context: { action: 'sales:updateCustomer', id } });
 }
 
-export async function deleteCustomer(id: string): Promise<ActionResponse<boolean>> {
+export async function deleteCustomer(id: string): Promise<ActionResponse<null>> {
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
       const ctx = await requirePermission('CUSTOMER_DELETE');
       await CustomerService.delete(id, ctx);
       revalidatePath('/customers');
-      return true;
+      return null;
     }, 'sales:deleteCustomer');
-  }, { context: { action: 'deleteCustomer', id } });
+  }, { context: { action: 'sales:deleteCustomer', id } });
 }
 
 export async function getCustomersForSelect(): Promise<ActionResponse<any[]>> {
@@ -70,7 +70,7 @@ export async function getCustomersForSelect(): Promise<ActionResponse<any[]>> {
       const ctx = await requirePermission('CUSTOMER_VIEW');
       return CustomerService.getForSelect(ctx);
     }, 'sales:getCustomersForSelect');
-  }, { context: { action: 'getCustomersForSelect' } });
+  }, { context: { action: 'sales:getCustomersForSelect' } });
 }
 
 export async function getCustomerProfile(id: string): Promise<ActionResponse<any>> {
@@ -79,5 +79,5 @@ export async function getCustomerProfile(id: string): Promise<ActionResponse<any
       const ctx = await requirePermission('CUSTOMER_VIEW');
       return CustomerService.getProfile(id, ctx);
     }, 'sales:getCustomerProfile');
-  }, { context: { action: 'getCustomerProfile', id } });
+  }, { context: { action: 'sales:getCustomerProfile', id } });
 }

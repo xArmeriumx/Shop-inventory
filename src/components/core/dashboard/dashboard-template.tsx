@@ -78,9 +78,9 @@ export function DashboardTemplate({ stats, monthlyStats, isAdmin, formatCurrency
                         <CardContent>
                             <div className="grid grid-cols-3 gap-2 sm:gap-4">
                                 {[
-                                    { label: 'ยอดขาย', value: formatCurrency(monthlyStats.revenue.toString()), className: '' },
-                                    { label: 'กำไร', value: formatCurrency(monthlyStats.profit.toString()), className: 'text-green-600' },
-                                    { label: 'รายการ', value: monthlyStats.count.toString(), className: '' },
+                                    { label: 'ยอดขาย', value: formatCurrency((monthlyStats.revenue ?? 0).toString()), className: '' },
+                                    { label: 'กำไร', value: formatCurrency((monthlyStats.profit ?? 0).toString()), className: 'text-green-600' },
+                                    { label: 'รายการ', value: (monthlyStats.count ?? 0).toString(), className: '' },
                                 ].map((item) => (
                                     <div key={item.label} className="text-center sm:text-left">
                                         <p className="text-[10px] sm:text-sm text-muted-foreground">{item.label}</p>
@@ -98,9 +98,9 @@ export function DashboardTemplate({ stats, monthlyStats, isAdmin, formatCurrency
                         </CardHeader>
                         <CardContent>
                             <p className="text-lg sm:text-2xl font-bold text-red-600">
-                                {formatCurrency(stats.todayExpenses.total.toString())}
+                                {formatCurrency((stats.todayExpenses?.total ?? 0).toString())}
                             </p>
-                            <p className="text-xs text-muted-foreground">{stats.todayExpenses.count} รายการ</p>
+                            <p className="text-xs text-muted-foreground">{stats.todayExpenses?.count ?? 0} รายการ</p>
                         </CardContent>
                     </Card>
 
