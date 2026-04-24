@@ -13,10 +13,8 @@ import { auth } from '@/lib/auth';
 import { OnboardingService } from '@/services/core/system/onboarding.service';
 import { SETUP_ITEM_KEYS } from '@/types/onboarding.types';
 import type { SetupItemStatus } from '@/types/onboarding.types';
-import { CheckCircle2, Circle, ChevronRight, Rocket, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { DismissSetupItemButton } from './dismiss-setup-item-button';
-import { SetupChecklistClient } from './setup-checklist-client';
+import { SetupProgressBanner } from './setup-progress-banner';
 
 // ── Item display meta ─────────────────────────────────────────────────────────
 
@@ -43,56 +41,6 @@ const ITEM_META: Record<string, {
     [SETUP_ITEM_KEYS.WHT_SETTINGS]: { label: 'ตั้งค่า WHT Code', description: 'สำหรับหนังสือรับรองหัก ณ ที่จ่าย', actionLabel: 'ตั้งค่า WHT', actionHref: '/settings/tax' },
 };
 
-const LEVEL_LABELS: Record<1 | 2 | 3, { label: string; color: string }> = {
-    1: { label: 'จำเป็นก่อน Go-Live', color: 'text-destructive' },
-    2: { label: 'ความพร้อมธุรกรรมแรก', color: 'text-warning-foreground' },
-    3: { label: 'ความพร้อมทางการเงิน', color: 'text-muted-foreground' },
-};
-
-// ── Sub-components ────────────────────────────────────────────────────────────
-
-function ChecklistItem({ item }: { item: SetupItemStatus }) {
-    const meta = ITEM_META[item.key];
-    if (!meta || item.isDismissed) return null;
-
-    return (
-        <div className={cn(
-            'group flex items-start gap-3 rounded-lg p-3 transition-colors',
-            item.isDone ? 'opacity-60' : 'hover:bg-muted/40',
-        )}>
-            {/* Status icon */}
-            <div className="mt-0.5 shrink-0">
-                {item.isDone
-                    ? <CheckCircle2 className="h-4 w-4 text-success" />
-                    : <Circle className="h-4 w-4 text-muted-foreground/50" />
-                }
-            </div>
-
-            {/* Label + description */}
-            <div className="flex-1 min-w-0">
-                <p className={cn('text-sm font-medium', item.isDone && 'line-through')}>
-                    {meta.label}
-                </p>
-                <p className="text-xs text-muted-foreground">{meta.description}</p>
-            </div>
-
-            {/* Action */}
-            {!item.isDone && (
-                <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <DismissSetupItemButton itemKey={item.key} />
-                    <Link
-                        href={meta.actionHref}
-                        className="flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-                    >
-                        {meta.actionLabel}
-                        <ChevronRight className="h-3 w-3" />
-                    </Link>
-                </div>
-            )}
-        </div>
-    );
-}
-
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export async function SetupProgressCard() {
@@ -118,83 +66,17 @@ export async function SetupProgressCard() {
 
     const hasBlockers = blockerItems.some((i) => !i.isDone);
 
+    // Find the first incomplete item to suggest as the "Next Step"
+    const nextItem = report.items.find(i => !i.isDone && !i.isDismissed);
+    const nextMeta = nextItem ? ITEM_META[nextItem.key] : null;
+
     return (
-        <div className={cn(
-            'rounded-xl border overflow-hidden',
-            hasBlockers ? 'border-destructive/30 bg-destructive/5' : 'border-border bg-card',
-        )}>
-            {/* Card Header */}
-            <div className="px-4 py-3 border-b flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                    {hasBlockers
-                        ? <AlertCircle className="h-4 w-4 text-destructive shrink-0" />
-                        : <Rocket className="h-4 w-4 text-primary shrink-0" />
-                    }
-                    <div>
-                        <p className="text-sm font-semibold">
-                            {hasBlockers ? 'จำเป็นต้องดำเนินการก่อน Go-Live' : 'ความพร้อมระบบ'}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                            {report.completedItems} / {report.totalItems} รายการเสร็จสมบูรณ์
-                        </p>
-                    </div>
-                </div>
-
-                {/* Progress bar */}
-                <div className="w-24 flex flex-col items-end gap-1 shrink-0">
-                    <span className="text-xs font-bold">{report.progressPercent}%</span>
-                    <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden">
-                        <div
-                            className={cn(
-                                'h-full rounded-full transition-all duration-500',
-                                report.progressPercent === 100 ? 'bg-success' : hasBlockers ? 'bg-destructive' : 'bg-primary',
-                            )}
-                            style={{ width: `${report.progressPercent}%` }}
-                        />
-                    </div>
-                </div>
-            </div>
-
-            {/* Checklist by level */}
-            <SetupChecklistClient
-                totalIncomplete={report.totalItems - report.completedItems}
-                blockerItems={
-                    <div>
-                        <p className={cn('text-[10px] font-bold uppercase tracking-wider px-3 pb-1', LEVEL_LABELS[1].color)}>
-                            {LEVEL_LABELS[1].label}
-                        </p>
-                        <div className="space-y-0.5">
-                            {report.items.filter((i) => i.level === 1).map((item) => (
-                                <ChecklistItem key={item.key} item={item} />
-                            ))}
-                        </div>
-                    </div>
-                }
-                transactionItems={
-                    <div key={2}>
-                        <p className={cn('text-[10px] font-bold uppercase tracking-wider px-3 pb-1', LEVEL_LABELS[2].color)}>
-                            {LEVEL_LABELS[2].label}
-                        </p>
-                        <div className="space-y-0.5">
-                            {report.items.filter((i) => i.level === 2).map((item) => (
-                                <ChecklistItem key={item.key} item={item} />
-                            ))}
-                        </div>
-                    </div>
-                }
-                financialItems={
-                    <div key={3}>
-                        <p className={cn('text-[10px] font-bold uppercase tracking-wider px-3 pb-1', LEVEL_LABELS[3].color)}>
-                            {LEVEL_LABELS[3].label}
-                        </p>
-                        <div className="space-y-0.5">
-                            {report.items.filter((i) => i.level === 3).map((item) => (
-                                <ChecklistItem key={item.key} item={item} />
-                            ))}
-                        </div>
-                    </div>
-                }
-            />
-        </div>
+        <SetupProgressBanner
+            progressPercent={report.progressPercent}
+            completedItems={report.completedItems}
+            totalItems={report.totalItems}
+            nextStepLabel={nextMeta?.label}
+            nextStepHref={nextMeta?.actionHref}
+        />
     );
 }
