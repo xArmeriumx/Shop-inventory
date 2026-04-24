@@ -16,6 +16,7 @@ import type { SetupItemStatus } from '@/types/onboarding.types';
 import { CheckCircle2, Circle, ChevronRight, Rocket, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DismissSetupItemButton } from './dismiss-setup-item-button';
+import { SetupChecklistClient } from './setup-checklist-client';
 
 // ── Item display meta ─────────────────────────────────────────────────────────
 
@@ -155,29 +156,45 @@ export async function SetupProgressCard() {
             </div>
 
             {/* Checklist by level */}
-            <div className="p-2 space-y-4">
-                {([1, 2, 3] as const).map((level) => {
-                    const items = report.items.filter((i) => i.level === level);
-                    const allDone = items.every((i) => i.isDone);
-                    const levelMeta = LEVEL_LABELS[level];
-
-                    // Hide level if all done and it's level 2 or 3
-                    if (allDone && level >= 2) return null;
-
-                    return (
-                        <div key={level}>
-                            <p className={cn('text-[10px] font-bold uppercase tracking-wider px-3 pb-1', levelMeta.color)}>
-                                {levelMeta.label}
-                            </p>
-                            <div className="space-y-0.5">
-                                {items.map((item) => (
-                                    <ChecklistItem key={item.key} item={item} />
-                                ))}
-                            </div>
+            <SetupChecklistClient
+                totalIncomplete={report.totalItems - report.completedItems}
+                blockerItems={
+                    <div>
+                        <p className={cn('text-[10px] font-bold uppercase tracking-wider px-3 pb-1', LEVEL_LABELS[1].color)}>
+                            {LEVEL_LABELS[1].label}
+                        </p>
+                        <div className="space-y-0.5">
+                            {report.items.filter((i) => i.level === 1).map((item) => (
+                                <ChecklistItem key={item.key} item={item} />
+                            ))}
                         </div>
-                    );
-                })}
-            </div>
+                    </div>
+                }
+                transactionItems={
+                    <div key={2}>
+                        <p className={cn('text-[10px] font-bold uppercase tracking-wider px-3 pb-1', LEVEL_LABELS[2].color)}>
+                            {LEVEL_LABELS[2].label}
+                        </p>
+                        <div className="space-y-0.5">
+                            {report.items.filter((i) => i.level === 2).map((item) => (
+                                <ChecklistItem key={item.key} item={item} />
+                            ))}
+                        </div>
+                    </div>
+                }
+                financialItems={
+                    <div key={3}>
+                        <p className={cn('text-[10px] font-bold uppercase tracking-wider px-3 pb-1', LEVEL_LABELS[3].color)}>
+                            {LEVEL_LABELS[3].label}
+                        </p>
+                        <div className="space-y-0.5">
+                            {report.items.filter((i) => i.level === 3).map((item) => (
+                                <ChecklistItem key={item.key} item={item} />
+                            ))}
+                        </div>
+                    </div>
+                }
+            />
         </div>
     );
 }
