@@ -7,15 +7,10 @@ interface CustomerPageProps {
 }
 
 export default async function CustomerPage({ params }: CustomerPageProps) {
-  let data;
+  const res = await getCustomerProfile(params.id);
 
-  try {
-    data = await getCustomerProfile(params.id);
-  } catch {
+  if (!res.success || !res.data) {
     notFound();
   }
 
-  if (!data) notFound();
-
-  return <CustomerProfile data={data as any} />;
 }
