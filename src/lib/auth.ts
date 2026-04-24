@@ -27,32 +27,37 @@ const ALL_PERMISSIONS: Permission[] = [
  * Returns null if user has no active shop membership.
  */
 async function getActiveShopMembership(userId: string) {
-  // First, try to find existing membership
-  const membership = await db.shopMember.findFirst({
-    where: { userId },
-    include: {
-      role: {
-        select: {
-          id: true,
-          permissions: true,
+  try {
+    // First, try to find existing membership
+    const membership = await db.shopMember.findFirst({
+      where: { userId },
+      include: {
+        role: {
+          select: {
+            id: true,
+            permissions: true,
+          },
+        },
+        shop: {
+          select: { id: true },
         },
       },
-      shop: {
-        select: { id: true },
-      },
-    },
-  });
+    });
 
-  if (membership) {
-    return {
-      shopId: membership.shop.id,
-      roleId: membership.role.id,
-      permissions: membership.role.permissions,
-      isOwner: membership.isOwner,
-    };
+    if (membership) {
+      return {
+        shopId: membership.shop.id,
+        roleId: membership.role.id,
+        permissions: membership.role.permissions,
+        isOwner: membership.isOwner,
+      };
+    }
+
+    return null;
+  } catch (error) {
+    console.error('[Auth] getActiveShopMembership error:', error);
+    return null;
   }
-
-  return null;
 }
 
 /**
@@ -76,10 +81,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // 1. Initial sign in (user exists)
       // 2. Client requested update (trigger === 'update')
       // 3. Token is missing shopId (stale)
-      
-      const shouldFetchMembership = 
-        !!user || 
-        trigger === 'update' || 
+
+      const shouldFetchMembership =
+        !!user ||
+        trigger === 'update' ||
         !token.shopId;
 
 
@@ -90,7 +95,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
 
         const userId = (token.sub as string) || (token.id as string) || user?.id;
-        
+
         // Fetch fresh RBAC data
         const membership = await getActiveShopMembership(userId);
 
@@ -120,10 +125,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         session.user.isOwner = token.isOwner as boolean | undefined;
         // Role ID might be useful for some UI logic
         session.user.roleId = token.roleId as string | undefined;
-        
+
         // Add session version for revocation checks
         session.user.sessionVersion = token.sessionVersion as number | undefined;
-        
+
         // IMPORTANT: permissions are NOT passed to the client session anymore
         // to prevent RBAC model exposure. Use Server Actions or API routes for checks.
       }
@@ -141,29 +146,42 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
 
-        const user = await db.user.findUnique({
-          where: { email: credentials.email as string },
-        });
+        try {
+          const user = await db.user.findUnique({
+            where: { email: credentials.email as string },
+          });
 
-        if (!user || !user.password) {
+          if (!user) {
+            console.warn('[Auth] Sign-in failed: User not found', { email: credentials.email });
+            return null;
+          }
+
+          if (!user.password) {
+            console.warn('[Auth] Sign-in failed: User has no password (OAuth account?)', { email: credentials.email });
+            return null;
+          }
+
+          const isPasswordValid = await bcrypt.compare(
+            credentials.password as string,
+            user.password
+          );
+
+          if (!isPasswordValid) {
+            console.warn('[Auth] Sign-in failed: Incorrect password', { email: credentials.email });
+            return null;
+          }
+
+          console.log('[Auth] Sign-in successful', { userId: user.id });
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            image: user.image,
+          };
+        } catch (error) {
+          console.error('[Auth] Authorize error:', error);
           return null;
         }
-
-        const isPasswordValid = await bcrypt.compare(
-          credentials.password as string,
-          user.password
-        );
-
-        if (!isPasswordValid) {
-          return null;
-        }
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          image: user.image,
-        };
       },
     }),
   ],
