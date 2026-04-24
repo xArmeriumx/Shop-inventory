@@ -17,7 +17,7 @@
 
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth-guard';
-import { createSale as createSaleAction } from '@/actions/sales';
+import { createSale as createSaleAction } from '@/actions/sales/sales.actions';
 import type { 
   POSProduct, 
   POSCategory, 

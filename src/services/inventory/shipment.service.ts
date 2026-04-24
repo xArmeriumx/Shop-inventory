@@ -8,13 +8,13 @@ import {
   GetShipmentsParams,
 } from '@/types/domain';
 import { IShippingService } from '@/types/service-contracts';
-import { SequenceService } from '@/services/core/sequence.service';
+import { SequenceService } from '@/services/core/system/sequence.service';
 import { SaleService } from '@/services/sales/sale.service';
-import { UpdateShipmentInput, UpdateShipmentStatusInput } from '@/schemas/shipment';
+import { UpdateShipmentInput, UpdateShipmentStatusInput } from '@/schemas/sales/shipment.schema';
 import { SpatialPoint, sortShipmentsByRoute } from '@/lib/spatial-utils';
-import { AuditService } from '@/services/core/audit.service';
-import { SHIPMENT_AUDIT_POLICIES } from './shipment.policy';
-import { Security } from '@/services/core/security.service';
+import { AuditService } from '@/services/core/system/audit.service';
+import { SHIPMENT_AUDIT_POLICIES } from '@/policies/inventory/shipment.policy';
+import { Security } from '@/services/core/iam/security.service';
 import { serializeShipment, serializeSale } from '@/lib/mappers';
 import { Prisma } from '@prisma/client';
 

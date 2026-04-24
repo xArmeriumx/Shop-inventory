@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
-import { getShipment } from '@/actions/shipments';
-import { ShipmentDetail } from '@/components/shipments/shipment-detail';
+import { getShipment } from '@/actions/sales/shipments.actions';
+import { ShipmentDetail } from '@/components/sales/shipments/shipment-detail';
 
 interface ShipmentDetailPageProps {
   params: Promise<{ id: string }>;

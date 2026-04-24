@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { RequestContext, ServiceError } from '@/types/domain';
-import { Security } from '@/services/core/security.service';
+import { Security } from '@/services/core/iam/security.service';
 
 /**
  * WarehouseService — Manage physical storage locations

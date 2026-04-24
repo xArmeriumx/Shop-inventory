@@ -15,8 +15,8 @@ import {
     whtCodeSchema,
     WhtCodeFormValues,
     getDefaultWhtCodeValues
-} from "@/schemas/wht-form";
-import { upsertWhtCode } from "@/actions/wht";
+} from "@/schemas/tax/wht-form.schema";
+import { upsertWhtCode } from "@/actions/tax/wht.actions";
 import { toast } from "sonner";
 import { useTransition } from "react";
 import {

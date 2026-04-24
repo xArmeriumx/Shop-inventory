@@ -1,5 +1,5 @@
 import { Metadata } from 'next';
-import { getQuotations } from '@/actions/quotations';
+import { getQuotations } from '@/actions/sales/quotations.actions';
 import { TableView, Column } from '@/components/ui/table-view';
 import { StatusBadge, StatusConfig } from '@/components/ui/status-badge';
 import { ClientDate } from '@/components/ui/client-date';

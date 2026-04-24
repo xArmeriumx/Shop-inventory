@@ -12,7 +12,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { getUnpaidDocumentsAction } from '@/actions/voucher';
+import { getUnpaidDocumentsAction } from '@/actions/accounting/voucher.actions';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { Loader2, CheckCircle2, ChevronRight, Calculator } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';

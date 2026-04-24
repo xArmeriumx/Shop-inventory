@@ -1,7 +1,7 @@
 'use client';
 
 import { DataExportPanel } from '@/components/shared/data-export-panel';
-import { exportSalesData } from '@/actions/export';
+import { exportSalesData } from '@/actions/core/export.actions';
 
 export function SalesExportButton() {
   return (

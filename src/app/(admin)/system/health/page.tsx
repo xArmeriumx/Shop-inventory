@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import { ShieldAlert, AlertTriangle, Zap, Activity, Bug } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { getHardeningHealth } from '@/actions/system';
+import { getHardeningHealth } from '@/actions/core/system.actions';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { formatDate } from '@/lib/formatters';

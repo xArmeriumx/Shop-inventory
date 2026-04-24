@@ -1,7 +1,7 @@
 import { db, runInTransaction } from '@/lib/db';
 import { Prisma } from '@prisma/client';
 import { StockService } from '@/services/inventory/stock.service';
-import { NotificationService } from '@/services/core/notification.service';
+import { NotificationService } from '@/services/core/intelligence/notification.service';
 import {
   ServiceError,
   RequestContext,
@@ -12,9 +12,9 @@ import {
   SerializedReturnItem
 } from '@/types/serialized';
 import { money, toNumber, calcSubtotal } from '@/lib/money';
-import { AuditService } from '@/services/core/audit.service';
-import { RETURN_AUDIT_POLICIES } from '@/services/sales/return.policy';
-import { SequenceService } from '@/services/core/sequence.service';
+import { AuditService } from '@/services/core/system/audit.service';
+import { RETURN_AUDIT_POLICIES } from '@/policies/sales/return.policy';
+import { SequenceService } from '@/services/core/system/sequence.service';
 import { serializeReturn, serializeReturnItem } from '@/lib/mappers';
 
 export interface ReturnItemInput {

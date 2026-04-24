@@ -6,9 +6,9 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 
-import { createProduct, updateProduct } from '@/actions/products';
-import { productFormSchema, getProductFormDefaults } from '@/schemas/product-form';
-import type { ProductFormValues } from '@/schemas/product-form';
+import { createProduct, updateProduct } from '@/actions/inventory/products.actions';
+import { productFormSchema, getProductFormDefaults } from '@/schemas/inventory/product-form.schema';
+import type { ProductFormValues } from '@/schemas/inventory/product-form.schema';
 import type { SerializedProduct } from '@/services';
 import { VERSION_CONFLICT_ERROR } from '@/lib/optimistic-lock';
 

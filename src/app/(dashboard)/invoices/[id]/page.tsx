@@ -1,11 +1,11 @@
 import { Metadata } from 'next';
 import { requirePermission } from '@/lib/auth-guard';
 import { InvoiceService } from '@/services/sales/invoice.service';
-import { SettingsService } from '@/services/settings.service';
+import { SettingsService } from '@/services/core/system/settings.service';
 import { notFound } from 'next/navigation';
-import { InvoiceDetailView } from '@/components/invoices/invoice-detail-view';
-import { getPaymentHistoryAction } from '@/actions/payments';
-import { getInvoicePostingPreviewAction, getJournalEntryBySourceAction } from '@/actions/journal';
+import { InvoiceDetailView } from '@/components/sales/invoices/invoice-detail-view';
+import { getPaymentHistoryAction } from '@/actions/accounting/payments.actions';
+import { getInvoicePostingPreviewAction, getJournalEntryBySourceAction } from '@/actions/accounting/journal.actions';
 
 export const metadata: Metadata = { title: 'รายละเอียดใบแจ้งหนี้ | ERP System' };
 

@@ -11,9 +11,11 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { BackPageHeader } from '@/components/ui/back-page-header';
 import { StatusBadge, type StatusConfig } from '@/components/ui/status-badge';
-import { getReturnById } from '@/actions/returns';
+import { getReturnById } from '@/actions/sales/returns.actions';
 import { formatCurrency } from '@/lib/formatters';
 import Loading from '@/app/(dashboard)/loading';
+import { DocumentFlowPath } from '@/components/ui/document-flow-path';
+import { WorkflowAssistant } from '@/components/ui/workflow-assistant';
 
 // ─── Status / Label Config ───────────────────────────────────────────────────
 
@@ -63,6 +65,53 @@ async function ReturnDetailContent({ id }: { id: string }) {
         />
         <StatusBadge status={returnData.status} config={RETURN_STATUS_CONFIG} />
       </div>
+
+      {/* Document Lifecycle Path */}
+      <DocumentFlowPath
+        steps={[
+          {
+            id: 'sale',
+            label: 'บิลขายต้นทาง',
+            status: 'completed'
+          },
+          {
+            id: 'return',
+            label: 'ใบคืนสินค้า',
+            status: 'current'
+          },
+          {
+            id: 'refund',
+            label: 'คืนเงิน / Credit Note',
+            status: returnData.status === 'COMPLETED' ? 'completed' : 'pending'
+          }
+        ]}
+      />
+
+      {/* Workflow Assistant */}
+      <WorkflowAssistant
+        type="sale" // Using sale context for refund actions
+        status={returnData.status === 'COMPLETED' ? 'ดำเนินคืนสินค้าเสร็จสิ้น' : 'รอตรวจสอบการคืน'}
+        steps={[
+          ...(returnData.status === 'PENDING' ? [{
+            label: 'ตรวจสอบสภาพสินค้าที่คืน',
+            action: 'ยืนยันการรับคืน',
+            description: 'เมื่อได้รับสินค้าคืนและตรวจสอบความถูกต้องแล้ว กรุณายืนยันเพื่อบันทึกสต็อกและเตรียมคืนเงิน',
+            isPrimary: true,
+            onClick: () => {
+              // Action logic
+              alert('ยืนยันคืนสินค้า (Simulation)');
+            }
+          }] : []),
+          ...(returnData.status === 'COMPLETED' ? [{
+            label: 'ขั้นตอนถัดไป: บันทึกการคืนเงิน',
+            action: 'ไปที่รายการรับเงิน',
+            description: 'การคืนสินค้าเสร็จสิ้นแล้ว หากเป็นการคืนเงินสดหรือโอนเงิน กรุณาตรวจสอบประวัติการเงินเพื่อความถูกต้อง',
+            onClick: () => {
+              window.location.href = `/accounting/payments`;
+            }
+          }] : [])
+        ]}
+      />
 
       {/* Sale Reference */}
       <Card>

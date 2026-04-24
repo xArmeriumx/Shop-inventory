@@ -7,9 +7,9 @@ import {
   StockAvailability,
 } from '@/types/domain';
 import { IStockService } from '@/types/service-contracts';
-import { SequenceService } from '@/services/core/sequence.service';
-import { AuditService } from '@/services/core/audit.service';
-import { STOCK_AUDIT_POLICIES } from './stock.policy';
+import { SequenceService } from '@/services/core/system/sequence.service';
+import { AuditService } from '@/services/core/system/audit.service';
+import { STOCK_AUDIT_POLICIES } from '@/policies/inventory/stock.policy';
 import { Prisma } from '@prisma/client';
 
 export interface CreateStockMovementParams {

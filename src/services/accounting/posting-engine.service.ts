@@ -3,7 +3,7 @@ import { db } from '@/lib/db';
 import { AccountingService } from './accounting.service';
 import { JournalService } from './journal.service';
 
-import { ACCOUNTING_CONFIG } from '@/lib/accounting-constants';
+import { ACCOUNTING_CONFIG } from '@/constants/erp/accounting-logic.constants';
 
 const ACCOUNT_MAPPING = ACCOUNTING_CONFIG.ACCOUNT_MAPPING;
 

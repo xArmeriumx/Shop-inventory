@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import { requirePermission } from '@/lib/auth-guard';
-import { AuditLogViewer } from '@/components/settings/audit-log-viewer';
-import { SecurityDashboardCards } from '@/components/settings/security-dashboard';
+import { AuditLogViewer } from '@/components/core/settings/audit-log-viewer';
+import { SecurityDashboardCards } from '@/components/core/settings/security-dashboard';
 import { Separator } from '@/components/ui/separator';
 import { BackPageHeader } from '@/components/ui/back-page-header';
 import Loading from '@/app/(dashboard)/loading';

@@ -1,11 +1,11 @@
 import { db } from '@/lib/db';
 import { RequestContext, ServiceError } from '@/types/domain';
-import { AuditService } from '@/services/core/audit.service';
+import { AuditService } from '@/services/core/system/audit.service';
 import { toNumber, money } from '@/lib/money';
-import { Security } from '@/services/core/security.service';
+import { Security } from '@/services/core/iam/security.service';
 import { type Permission } from '@prisma/client';
 import { WhtService } from '@/services/tax/wht.service';
-import { SequenceService } from '@/services/core/sequence.service';
+import { SequenceService } from '@/services/core/system/sequence.service';
 import { PostingService } from '@/services/accounting/posting-engine.service';
 import { JournalService } from '@/services/accounting/journal.service';
 import { DocumentType } from '@/types/domain';

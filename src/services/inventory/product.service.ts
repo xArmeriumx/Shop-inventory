@@ -1,7 +1,7 @@
 import { db, runInTransaction } from '@/lib/db';
-import { ProductInput } from '@/schemas/product';
+import { ProductInput } from '@/schemas/inventory/product.schema';
 import { StockService } from '@/services/inventory/stock.service';
-import { AuditService } from '@/services/core/audit.service';
+import { AuditService } from '@/services/core/system/audit.service';
 import { Prisma, Product } from '@prisma/client';
 import { paginatedQuery, buildSearchFilter } from '@/lib/pagination';
 
@@ -16,8 +16,8 @@ import {
   SerializedProduct,
   AdjustStockInput
 } from '@/types/domain';
-import { PRODUCT_AUDIT_POLICIES } from './product.policy';
-import { STOCK_AUDIT_POLICIES } from './stock.policy';
+import { PRODUCT_AUDIT_POLICIES } from '@/policies/inventory/product.policy';
+import { STOCK_AUDIT_POLICIES } from '@/policies/inventory/stock.policy';
 import { serializeProduct } from '@/lib/mappers';
 import { IProductService } from '@/types/service-contracts';
 

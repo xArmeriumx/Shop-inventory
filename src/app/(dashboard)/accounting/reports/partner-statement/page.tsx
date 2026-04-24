@@ -2,15 +2,15 @@
 
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { getPartnerStatementAction } from '@/actions/accounting';
+import { getPartnerStatementAction } from '@/actions/accounting/accounting.actions';
 import { PartnerStatementView } from '@/components/accounting/reports/partner-statement-view';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { ArrowLeft, CalendarRange, Filter, Search } from 'lucide-react';
-import { getCustomers } from '@/actions/customers';
-import { getSuppliers } from '@/actions/suppliers';
+import { getCustomers } from '@/actions/sales/customers.actions';
+import { getSuppliers } from '@/actions/purchases/suppliers.actions';
 
 export default function PartnerStatementPage() {
     const searchParams = useSearchParams();

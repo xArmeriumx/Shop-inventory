@@ -1,8 +1,8 @@
 import { notFound } from 'next/navigation';
 import { PageHeader } from '@/components/layout/page-header';
-import { ExpenseForm } from '@/components/expenses/expense-form';
-import { getExpense } from '@/actions/expenses';
-import { getLookupValues, seedDefaultLookupValues } from '@/actions/lookups';
+import { ExpenseForm } from '@/components/accounting/expenses/expense-form';
+import { getExpense } from '@/actions/accounting/expense.actions';
+import { getLookupValues, seedDefaultLookupValues } from '@/actions/core/lookups.actions';
 
 interface EditExpensePageProps {
   params: { id: string };

@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { SequenceService } from '@/services/core/sequence.service';
+import { SequenceService } from '@/services/core/system/sequence.service';
 import {
     DocumentType,
     QuotationStatus,
@@ -66,6 +66,10 @@ export const QuotationService = {
                 items: {
                     include: { product: true },
                     orderBy: { sortOrder: 'asc' }
+                },
+                sales: {
+                    include: { invoices: true },
+                    orderBy: { createdAt: 'desc' }
                 }
             },
         });

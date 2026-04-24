@@ -1,9 +1,9 @@
 import { Suspense } from 'react';
-import { getDashboardStats, getMonthlyStats } from '@/actions/dashboard';
-import { refreshOperationalAlerts } from '@/actions/notifications';
+import { getDashboardStats, getMonthlyStats } from '@/actions/core/dashboard.actions';
+import { refreshOperationalAlerts } from '@/actions/core/notifications.actions';
 import { requireAuth } from '@/lib/auth-guard';
 import { formatCurrency, formatDate } from '@/lib/formatters';
-import { DashboardTemplate, DashboardSkeleton } from '@/components/dashboard/dashboard-template';
+import { DashboardTemplate, DashboardSkeleton } from '@/components/core/dashboard/dashboard-template';
 
 // ─── Data Fetcher ─────────────────────────────────────────────────────────────
 

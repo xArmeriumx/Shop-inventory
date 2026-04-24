@@ -1,0 +1,135 @@
+'use client';
+
+import { useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { useForm, FormProvider } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { toast } from 'sonner';
+
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent } from '@/components/ui/card';
+import { FormField } from '@/components/ui/form-field';
+
+import { createSupplier, updateSupplier } from '@/actions/purchases/suppliers.actions';
+import { supplierFormSchema, getSupplierFormDefaults } from '@/schemas/purchases/supplier-form.schema';
+import type { SupplierFormValues } from '@/schemas/purchases/supplier-form.schema';
+
+import { PartnerIdentitySection } from '@/components/shared/partners/partner-identity-section';
+import { PartnerFinancialSection } from '@/components/shared/partners/partner-financial-section';
+import { PartnerAddressSection } from '@/components/shared/partners/partner-address-section';
+import { SafeBoundary } from '@/components/ui/safe-boundary';
+
+// ============================================================================
+// Types
+// ============================================================================
+
+interface Supplier {
+  id: string;
+  name: string;
+  code: string | null;
+  contactName: string | null;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  taxId: string | null;
+  notes: string | null;
+}
+
+interface SupplierFormProps {
+  supplier?: Supplier;
+}
+
+// ============================================================================
+// Main: SupplierForm
+// ============================================================================
+
+export function SupplierForm({ supplier }: SupplierFormProps) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const isEdit = !!supplier;
+
+  const methods = useForm<SupplierFormValues>({
+    resolver: zodResolver(supplierFormSchema),
+    defaultValues: getSupplierFormDefaults(supplier),
+  });
+
+  const { handleSubmit, setError } = methods;
+
+  function onSubmit(data: SupplierFormValues) {
+    startTransition(async () => {
+      const result = isEdit
+        ? await updateSupplier(supplier.id, data as any)
+        : await createSupplier(data as any);
+
+      if (!result.success) {
+        if (result.errors && typeof result.errors === 'object') {
+          Object.entries(result.errors).forEach(([field, messages]) => {
+            if (field === '_form') {
+              setError('root', { message: (messages as string[]).join(', ') });
+            } else {
+              setError(field as any, { message: (messages as string[])[0] });
+            }
+          });
+        } else if (result.message) {
+          setError('root', { message: result.message });
+        }
+      } else {
+        toast.success(isEdit ? 'บันทึกการแก้ไขสำเร็จ' : 'เพิ่มผู้จำหน่ายสำเร็จ');
+        router.push('/suppliers');
+        router.refresh();
+      }
+    });
+  }
+
+  return (
+    <FormProvider {...methods}>
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-8 pb-20">
+        {methods.formState.errors.root && (
+          <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+            {methods.formState.errors.root.message}
+          </div>
+        )}
+
+        <div className="grid gap-8">
+          <Card>
+            <CardContent className="pt-6">
+              <SafeBoundary variant="compact" componentName="SupplierIdentity">
+                <PartnerIdentitySection type="SUPPLIER" />
+              </SafeBoundary>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-6">
+              <SafeBoundary variant="compact" componentName="SupplierFinancial">
+                <PartnerFinancialSection type="SUPPLIER" />
+              </SafeBoundary>
+            </CardContent>
+          </Card>
+
+          <SafeBoundary variant="compact" componentName="SupplierAddress">
+            <PartnerAddressSection />
+          </SafeBoundary>
+        </div>
+
+        {/* Rule 7: Sticky Action Bar */}
+        <div className="fixed bottom-0 left-0 right-0 md:left-64 bg-background/80 backdrop-blur-md border-t p-4 flex items-center justify-end gap-3 z-50">
+          <div className="container max-w-5xl flex justify-end gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.back()}
+              disabled={isPending}
+            >
+              ยกเลิก
+            </Button>
+            <Button type="submit" disabled={isPending} className="px-8 shadow-lg shadow-primary/20">
+              {isPending ? 'กำลังบันทึก...' : isEdit ? 'บันทึกการแก้ไข' : 'เพิ่มผู้จำหน่าย'}
+            </Button>
+          </div>
+        </div>
+      </form>
+    </FormProvider>
+  );
+}

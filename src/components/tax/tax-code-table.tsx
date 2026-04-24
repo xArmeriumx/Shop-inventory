@@ -26,7 +26,7 @@ import {
     DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
-import { toggleTaxCode } from '@/actions/tax';
+import { toggleTaxCode } from '@/actions/tax/tax.actions';
 import { TaxCodeForm } from './tax-code-form';
 import {
     Dialog,

@@ -2,7 +2,7 @@ import { Prisma, BankLineMatchStatus } from '@prisma/client';
 import { db } from '@/lib/db';
 import crypto from 'crypto';
 import { AccountingService } from './accounting.service';
-import { ACCOUNTING_CONFIG } from '@/lib/accounting-constants';
+import { ACCOUNTING_CONFIG } from '@/constants/erp/accounting-logic.constants';
 
 export class BankService {
     /**

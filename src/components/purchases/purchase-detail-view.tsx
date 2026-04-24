@@ -6,13 +6,14 @@ import { Separator } from '@/components/ui/separator';
 import { formatCurrency } from '@/lib/formatters';
 import { getPurchaseStatusLabel, calculateCtn } from '@/lib/erp-utils';
 import { PrintButton } from '@/components/sales/print-button';
-import { ReceiptImage } from '@/components/receipts/receipt-image';
+import { ReceiptImage } from '@/components/purchases/receipts/receipt-image';
 import { BackPageHeader } from '@/components/ui/back-page-header';
 import { PdfPrintTrigger } from '@/features/print/components/pdf-print-trigger';
 import { buildPurchasePrintDTO } from '@/features/print/builders/purchase-order-print.builder';
 import { RegisterPurchaseTaxButton } from '@/components/tax/register-purchase-tax-button';
 import { WorkflowAssistant } from '@/components/ui/workflow-assistant';
 import { Truck, Wallet, FileText, CheckCircle2 } from 'lucide-react';
+import { DocumentFlowPath } from '@/components/ui/document-flow-path';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -48,6 +49,37 @@ export function PurchaseDetailView({ purchase, shop }: PurchaseDetailViewProps) 
                     />
                 </div>
             </div>
+
+            {/* Document Lifecycle Path */}
+            <DocumentFlowPath
+                steps={[
+                    {
+                        id: 'pr',
+                        label: 'ใบขอซื้อ (PR)',
+                        status: purchase.linkedPRId ? 'completed' : 'skipped'
+                    },
+                    {
+                        id: 'po',
+                        label: 'ใบสั่งซื้อ (PO)',
+                        status: 'current'
+                    },
+                    {
+                        id: 'receipt',
+                        label: 'รับสินค้า',
+                        status: purchase.status === 'RECEIVED' ? 'completed' : 'pending'
+                    },
+                    {
+                        id: 'tax',
+                        label: 'ภาษีซื้อ',
+                        status: purchase.purchaseTaxLinks?.length > 0 ? 'completed' : 'pending'
+                    },
+                    {
+                        id: 'payment',
+                        label: 'จ่ายเงิน',
+                        status: purchase.residualAmount <= 0 ? 'completed' : 'pending'
+                    }
+                ]}
+            />
 
             {/* Workflow Assistant - Guided UX */}
             <div className="print:hidden">

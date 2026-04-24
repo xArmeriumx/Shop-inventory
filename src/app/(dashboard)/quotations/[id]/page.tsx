@@ -1,18 +1,17 @@
 import { Metadata } from 'next';
-import { getQuotations } from '@/actions/quotations';
 import { QuotationService } from '@/services/sales/quotation.service';
 import { requirePermission } from '@/lib/auth-guard';
 import { StatusBadge, StatusConfig } from '@/components/ui/status-badge';
 import { ClientDate } from '@/components/ui/client-date';
-import { QuotationStatus } from '@/types/domain';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BackPageHeader } from '@/components/ui/back-page-header';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { CheckCircle, XCircle, FileText, Printer } from 'lucide-react';
-import Link from 'next/link';
+import { Printer } from 'lucide-react';
 import { notFound } from 'next/navigation';
-import { QuotationActions } from '@/components/quotations/quotation-actions';
+import { QuotationActions } from '@/components/sales/quotations/quotation-actions';
+import { DocumentFlowPath } from '@/components/ui/document-flow-path';
+import { WorkflowAssistant } from '@/components/ui/workflow-assistant';
 
 export const metadata: Metadata = {
     title: 'รายละเอียดใบเสนอราคา | ERP System',
@@ -35,6 +34,11 @@ export default async function QuotationDetailPage({ params }: { params: { id: st
         return notFound();
     }
 
+    const firstSale = quotation.sales?.[0] as any;
+    const hasSale = !!firstSale;
+    const hasInvoice = hasSale && firstSale.invoices?.length > 0;
+    const isPaid = hasSale && Number(firstSale.residualAmount) <= 0;
+
     return (
         <div className="p-6 space-y-6">
             <BackPageHeader
@@ -49,6 +53,60 @@ export default async function QuotationDetailPage({ params }: { params: { id: st
                         <QuotationActions quotationId={quotation.id} status={quotation.status} />
                     </div>
                 }
+            />
+
+            {/* Document Lifecycle Path */}
+            <DocumentFlowPath
+                steps={[
+                    {
+                        id: 'quote',
+                        label: 'ใบเสนอราคา',
+                        status: 'current'
+                    },
+                    {
+                        id: 'sale',
+                        label: 'รายการขาย',
+                        status: hasSale ? 'completed' : 'pending'
+                    },
+                    {
+                        id: 'invoice',
+                        label: 'ใบแจ้งหนี้',
+                        status: hasInvoice ? 'completed' : 'pending'
+                    },
+                    {
+                        id: 'payment',
+                        label: 'ชำระเงิน',
+                        status: isPaid ? 'completed' : 'pending'
+                    }
+                ]}
+            />
+
+            {/* Workflow Assistant */}
+            <WorkflowAssistant
+                type="sale"
+                status={quotation.status === 'CONFIRMED' ? 'ใบเสนอราคาได้รับการยืนยันแล้ว' : 'รอการยืนยันจากลูกค้า'}
+                steps={[
+                    ...(quotation.status === 'CONFIRMED' && !hasSale ? [{
+                        label: 'ขั้นตอนถัดไป: สร้างรายการขาย',
+                        action: 'เปิดบิลขาย',
+                        description: 'ใบเสนอราคานี้ได้รับการยืนยันแล้ว คุณสามารถสร้างรายการขาย (Sale) เพื่อตัดสต็อกและรับชำระเงินได้ทันที',
+                        isPrimary: true,
+                        onClick: () => {
+                            // Re-navigate to POS or sale creation
+                            if (typeof window !== 'undefined') {
+                                window.location.href = `/sales/create?quotationId=${quotation.id}`;
+                            }
+                        }
+                    }] : []),
+                    ...(quotation.status === 'DRAFT' ? [{
+                        label: 'เตรียมส่งให้ลูกค้า',
+                        action: 'ทำเครื่องหมายว่าส่งแล้ว',
+                        description: 'ตรวจสอบความถูกต้องของราคาและส่วนลด ก่อนส่งให้ลูกค้าพิจารณา',
+                        onClick: () => {
+                            alert('บันทึกสถานะ: ส่งแล้ว (Simulation)');
+                        }
+                    }] : [])
+                ]}
             />
 
             <div className="grid gap-6 md:grid-cols-3">

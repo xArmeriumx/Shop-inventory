@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { quickSearchProduct } from '@/actions/warehouse';
+import { quickSearchProduct } from '@/actions/inventory/warehouse.actions';
 import { formatCurrency } from '@/lib/formatters';
 import Link from 'next/link';
 

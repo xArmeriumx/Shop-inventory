@@ -5,7 +5,7 @@ import { ArrowLeft, Download, Truck, Package, ChevronRight, CheckCircle2, Shoppi
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { getPendingDeliveries, confirmReceipt } from '@/actions/warehouse';
+import { getPendingDeliveries, confirmReceipt } from '@/actions/inventory/warehouse.actions';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';

@@ -44,11 +44,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { getAuditLogs, GetAuditLogsResult, exportAuditLogsAction } from '@/actions/audit';
+import { getAuditLogs, GetAuditLogsResult, exportAuditLogsAction } from '@/actions/core/audit.actions';
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { toast } from 'sonner';
-import { AuditDetailModal } from '@/components/audit/audit-detail-modal';
+import { AuditDetailModal } from '@/components/core/audit/audit-detail-modal';
 
 export default function AuditLogsPage() {
   const [logs, setLogs] = useState<any[]>([]);

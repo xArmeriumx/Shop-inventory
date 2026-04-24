@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { ErrorFallback } from '@/components/errors/error-boundary';
+import { ErrorFallback } from '@/components/core/errors/error-boundary';
 
 /**
  * Global Error Page

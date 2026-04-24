@@ -1,13 +1,13 @@
 import { db, runInTransaction } from '@/lib/db';
 import { RequestContext, ServiceError, DocumentType } from '@/types/domain';
-import { SequenceService } from '@/services/core/sequence.service';
+import { SequenceService } from '@/services/core/system/sequence.service';
 import { JournalService } from './journal.service';
 import { PostingService } from './posting-engine.service';
 import { PaymentService } from './payment.service';
 import { money, toNumber } from '@/lib/money';
-import { ACCOUNTING_CONFIG } from '@/lib/accounting-constants';
-import { AuditService } from '@/services/core/audit.service';
-import { Security } from '@/services/core/security.service';
+import { ACCOUNTING_CONFIG } from '@/constants/erp/accounting-logic.constants';
+import { AuditService } from '@/services/core/system/audit.service';
+import { Security } from '@/services/core/iam/security.service';
 
 const ACCOUNT_MAPPING = ACCOUNTING_CONFIG.ACCOUNT_MAPPING;
 

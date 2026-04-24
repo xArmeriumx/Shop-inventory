@@ -1,5 +1,5 @@
-import { getSalesWithoutShipment } from '@/actions/shipments';
-import { ShipmentForm } from '@/components/shipments/shipment-form';
+import { getSalesWithoutShipment } from '@/actions/sales/shipments.actions';
+import { ShipmentForm } from '@/components/sales/shipments/shipment-form';
 import { BackPageHeader } from '@/components/ui/back-page-header';
 
 export const metadata = {

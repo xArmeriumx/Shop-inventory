@@ -1,260 +1,158 @@
-<p align="center">
-  <h1 align="center">🏪 Shop Inventory</h1>
-  <p align="center">
-    Full-stack POS & Inventory Management System
-    <br />
-    Built with Next.js 14 · TypeScript · Prisma · PostgreSQL
-    <br /><br />
-    <a href="https://shop-inventory.napatdev.com">🌐 Live Demo</a>
-    ·
-    <a href="#features">Features</a>
-    ·
-    <a href="#tech-stack">Tech Stack</a>
-    ·
-    <a href="#getting-started">Setup</a>
-  </p>
-</p>
+# Shop-Inventory to ERP (Practice Project)
+
+โปรเจกต์ฝึกพัฒนาเพื่อศึกษาการขยายระบบจากระบบจัดการสต็อกสินค้า (Inventory) ไปสู่ระบบจัดการทรัพยากรองค์กร (ERP) โดยเน้นการฝึกฝนทักษะการออกแบบซอฟต์แวร์ที่รองรับการเติบโตของข้อมูล
+
+## วัตถุประสงค์ในการพัฒนา (Learning Objectives)
+1. **Software Architecture**: ฝึกการจัดโครงสร้างแบบ Domain-Driven (Rule of 6) เพื่อแยกส่วนงานที่ซับซ้อนออกจากกัน
+2. **Data Integrity**: ฝึกการออกแบบฐานข้อมูลและความสัมพันธ์ที่ซับซ้อน เช่น การจัดการ Stock Reservation และ Document Lifecycle
+3. **Enterprise Logic**: ฝึกการเขียนระบบบัญชีรายรับ-รายจ่าย และการคำนวณภาษี (VAT 7%, WHT 1/3/5%) ที่ใช้งานจริงในประเทศไทย
+4. **Clean Code**: ฝึกการใช้ Type-Safe Service Contracts เพื่อลดข้อผิดพลาดในระบบขนาดใหญ่
 
 ---
 
-## About
+## ฟังก์ชันการทำงาน (Core Functions)
 
-A production-grade **Point of Sale & Inventory Management** system designed for small-to-medium retail businesses. Supports multi-tenant shops, role-based access control, AI-powered receipt scanning, and real-time stock tracking — all in a single deployable Next.js application.
+### 1. ระบบคลังสินค้า (Inventory Management)
+- **Product Catalog**: จัดการข้อมูลสินค้าพร้อม SKU, บาร์โค้ด, และการแบ่งหมวดหมู่
+- **Stock Movement**: บันทึกทุกกิจกรรมการเคลื่อนไหว (รับเข้า, จ่ายออก, โอนย้าย) พร้อมชื่อผู้ดำเนินการและเวลาที่เกิดขึ้นจริง
+- **Multi-Warehouse Support**: รองรับการแยกคลังสินค้าหลายจุดและการโอนย้ายสินค้าระหว่างคลัง (Stock Transfer)
+- **Stock Take / Adjustment**: ระบบตรวจนับและปรับปรุงยอดสต็อกให้ตรงกับสภาพจริง
 
-### 📊 Project Stats
+### 2. ระบบการขายและรายได้ (Sales & Revenue)
+- **Document Workflow**: ระบบไหลของเอกสารเริ่มจาก ใบเสนอราคา (Quotation) -> รายการขาย (Sale) -> ใบแจ้งหนี้ (Invoice)
+- **Inventory Reservation**: ระบบ "ลอคสินค้าชั่วคราว" เมื่อมีการยืนยันรายการขาย เพื่อป้องกันการขายสินค้าเกินจำนวนที่มีอยู่จริง
+- **Payment Verification**: ระบบอัปโหลดหลักฐานการโอนเงิน (Slip) และตรวจสอบความถูกต้องก่อนปิดรายการขาย
+- **Profit Analysis**: ระบบคำนวณกำไรเบื้องต้น (Gross Profit) จากต้นทุนสินค้าจริงในแต่ละรายการขาย
 
-|                        |                                                           |
-| ---------------------- | --------------------------------------------------------- |
-| **Database Models**    | 22 (User, Product, Sale, Purchase, Return, Shipment, ...) |
-| **Server Actions**     | 24 modules (type-safe, audit-logged)                      |
-| **Feature Components** | 23 areas (POS, Reports, OCR, Team, ...)                   |
-| **Test Framework**     | Vitest with unit test coverage                            |
-| **Deployment**         | Vercel (Edge-compatible)                                  |
+### 3. ระบบจัดซื้อและต้นทุน (Purchasing)
+- **Purchase Workflow**: ระบบจัดการใบขอซื้อ (Purchase Request) และใบสั่งซื้อ (Purchase Order)
+- **Supplier Management**: ระบบจัดการข้อมูลผู้จ่ายสินค้า (Suppliers) พร้อมประวัติการสั่งซื้อ
+- **Landed Cost**: การบันทึกรับสินค้าเข้าสต็อกพร้อมอัปเดตต้นทุนสินค้า (Cost Price) อัตโนมัติ
 
----
+### 4. ระบบบัญชีและภาษีไทย (Financials & Thai Tax)
+- **Income/Expense Tracking**: บันทึกรายได้และค่าใช้จ่ายอื่นๆ ที่นอกเหนือจากการขายสินค้า
+- **Thai Tax Compliance**:
+    - ระบบคำนวณและออกใบกำกับภาษีมูลค่าเพิ่ม (VAT 7%)
+    - ระบบภาษีหัก ณ ที่จ่าย (Withholding Tax - WHT) สำหรับการจ่ายค่าบริการ
+- **Period Locking**: ระบบล็อกช่วงเวลาบัญชีเพื่อป้องกันการแก้ไขข้อมูลย้อนหลัง
 
-## Features
-
-### 🛒 Point of Sale (POS)
-
-- Full-screen POS optimized for tablet & desktop
-- Barcode scanning for quick product lookup
-- PromptPay QR code generation for mobile payments
-- Thermal receipt printing (80mm)
-- Slip upload & payment proof tracking
-
-### 📦 Inventory Management
-
-- Real-time stock tracking with movement history
-- Low stock alerts with configurable thresholds
-- CSV batch import with Thai/English header auto-mapping
-- Barcode label generation (EAN-13, Code128)
-- Optimistic locking to prevent concurrent stock conflicts
-
-### 🧾 Sales & Purchases
-
-- Complete sales lifecycle: create → invoice → receipt → return
-- Purchase orders with supplier management
-- Audit-ready cancellation (soft delete + reason logging)
-- Automatic profit calculation per transaction
-- Multi-payment method support (Cash, Transfer, Credit)
-
-### 📊 Reports & Analytics
-
-- Revenue, expense, and profit dashboards with Recharts
-- Daily/monthly breakdowns
-- CSV export for all reports
-- Printable report formats
-
-### 🤖 AI & OCR
-
-- **Receipt Scanner**: Tesseract.js (client-side) + Groq AI (server-side) for structured data extraction
-- **AI Chat Assistant**: Groq-powered business chatbot for product/sales queries
-- **Smart Matching**: Fuzzy matching engine for products & suppliers from scanned data
-
-### 🔐 Security & Multi-Tenancy
-
-- **RBAC**: Granular role system (Owner → Manager → Cashier) with auto-dependency resolution
-- **Multi-Tenant**: Complete data isolation per shop
-- **Auth**: NextAuth.js v5 with credential + invite-based registration
-- **Input Sanitization**: XSS protection on all text inputs
-- **Optimistic Locking**: Prevents race conditions on financial records
-
-### 📱 Responsive Design
-
-- Mobile-first UI across all pages
-- PWA-ready manifest
-- Touch-optimized POS interface
-
-### 🚚 Additional Modules
-
-- Customer management with address book
-- Supplier directory
-- Shipment tracking with carrier integration
-- Expense & income recording
-- Team management & invitation system
-- System health monitoring dashboard
+### 5. ระบบรักษาความปลอดภัยและจัดการ (Core System)
+- **RBAC (Role-Based Access Control)**: กำหนดสิทธิ์ให้ผู้ใช้งานตามตำแหน่ง (เช่น เจ้าของร้าน, แคชเชียร์, พนักงานคลังสินค้า)
+- **Sequence Generator**: ระบบรันเลขที่เอกสารอัตโนมัติที่สามารถตั้งค่า Format ได้ตามความต้องการ (เช่น INV-2024-0001)
+- **Audit Logs**: ระบบบันทึกการใช้งาน ใคร ทำอะไร ที่ไหน เมื่อไหร่ สำหรับการตรวจสอบย้อนหลัง
 
 ---
 
-## Tech Stack
-
-| Layer          | Technology                               |
-| -------------- | ---------------------------------------- |
-| **Framework**  | Next.js 14 (App Router, Server Actions)  |
-| **Language**   | TypeScript (Strict mode)                 |
-| **Database**   | PostgreSQL                               |
-| **ORM**        | Prisma 6                                 |
-| **Auth**       | NextAuth.js v5                           |
-| **Storage**    | Supabase Storage                         |
-| **AI/OCR**     | Groq SDK (Llama), Tesseract.js           |
-| **UI**         | TailwindCSS, Shadcn/UI, Radix Primitives |
-| **Charts**     | Recharts                                 |
-| **Validation** | Zod                                      |
-| **Forms**      | React Hook Form                          |
-| **Testing**    | Vitest, Testing Library                  |
-| **Financial**  | Decimal.js (precision arithmetic)        |
-| **Deploy**     | Vercel                                   |
+## รายละเอียดทางเทคนิค (Technical Stack)
+- **Frontend/Backend**: Next.js 14 (App Router)
+- **Language**: TypeScript (Strict Mode)
+- **Database**: PostgreSQL (Prisma ORM)
+- **Form & Validation**: React Hook Form + Zod
+- **Authentication**: NextAuth.js (Session-based)
+- **Finance Logic**: Decimal.js สำหรับการคำนวณตัวเลขทางการเงินที่ไม่ให้เกิด Error จาก Floating Point
 
 ---
 
-## Architecture
+## ผังฐานข้อมูล (Database Schema - Simplified)
+ความสัมพันธ์หลักของระบบที่แสดงถึงความเชื่อมโยงของเอกสารและสต็อกสินค้า:
 
-```
-src/
-├── app/                    # Next.js App Router
-│   ├── (auth)/             # Login, Register
-│   ├── (dashboard)/        # Protected pages (products, sales, reports, ...)
-│   ├── (pos)/              # Full-screen POS interface
-│   └── api/                # API routes (OCR, AI, webhooks)
-│
-├── actions/                # 24 Server Action modules
-│   ├── sales.ts            # Sale CRUD, cancellation, audit
-│   ├── products.ts         # Product CRUD, batch import
-│   ├── reports.ts          # Financial aggregation queries
-│   └── ...
-│
-├── components/
-│   ├── features/           # 23 feature-specific component groups
-│   │   ├── pos/            # POS interface, payment dialog, QR
-│   │   ├── products/       # Product table, CSV import, barcode
-│   │   ├── reports/        # Charts, filters, export
-│   │   ├── ocr/            # Scanner, review modal
-│   │   └── ...
-│   └── ui/                 # Shadcn/UI base components
-│
-├── lib/                    # Shared utilities
-│   ├── ocr/                # OCR engine, AI extraction, matching
-│   ├── pos/                # POS service layer
-│   ├── ai/                 # Groq AI client & chat tools
-│   ├── money.ts            # Decimal.js financial helpers
-│   ├── permissions.ts      # RBAC permission engine
-│   ├── optimistic-lock.ts  # Concurrency control
-│   └── sanitize.ts         # XSS input protection
-│
-└── schemas/                # Zod validation schemas
-```
-
-### Data Flow
-
-```
-Client (React) → Server Action → Prisma → PostgreSQL
-                      ↓
-              Input Validation (Zod)
-              Auth Check (NextAuth)
-              Permission Check (RBAC)
-              Audit Logging
+```mermaid
+erDiagram
+    SALE ||--o{ INVOICE : "generates"
+    INVOICE ||--o{ PAYMENT : "collects"
+    SALE ||--o{ STOCK_LOG : "reserves/deducts"
+    PRODUCT ||--o{ STOCK_LOG : "tracks"
+    SHOP ||--o{ SALE : "owns"
 ```
 
 ---
 
-## Getting Started
+## ตัวอย่างโค้ด (Code Snippet Spotlight)
 
-### Prerequisites
+### 1. Atomic Sequence Generator
+ระบบรันเลขที่เอกสารที่รองรับการทำงานพร้อมกัน (Concurrency) โดยใช้ `upsert` ของ Prisma เพื่อให้มั่นใจว่าเลขเอกสารจะไม่ซ้ำกันอย่างแน่นอน
 
-- Node.js 18+
-- PostgreSQL database
-- Supabase project (for file storage)
+```typescript
+// Algorithm: Atomic increment counter using Database Level Locking
+const sequence = await tx.docSequence.upsert({
+  where: { shopId_prefix_year_month: { shopId, prefix, year, month } },
+  create: { shopId, prefix, year, month, counter: 1 },
+  update: { counter: { increment: 1 } },
+});
 
-### Installation
+return formatSequenceNumber(prefix, yearStr, monthStr, sequence.counter);
+```
 
+### 2. Inventory Soft-Lock
+การจองสินค้า (Reservation) โดยใช้ระบบ Movement Log ที่แยกประเภทเป็น `RESERVATION` แทนการลดจำนวนสินค้าตรงๆ เพื่อให้สามารถยกเลิกและตรวจสอบย้อนหลังได้ง่าย
+
+```typescript
+async reserveStock(productId, quantity, ctx, tx) {
+  return this.recordMovement(ctx, {
+    productId,
+    type: 'RESERVATION',
+    quantity,
+    note: 'จองสินค้าสำหรับรายการขาย',
+    tx,
+  });
+}
+```
+
+---
+
+## โครงสร้างสถาปัตยกรรม (Architectural Deep-Dive)
+
+โปรเจกต์นี้ใช้โครงสร้างแบบ **Layered Architecture** เพื่อแยกความรับผิดชอบ (Separation of Concerns) ออกเป็นชั้นๆ ดังนี้:
+
+- **1. Presentation Layer (`src/app`)**: รับผิดชอบเรื่อง Routing และ UI Layout โดยใช้ Next.js App Router
+- **2. Interaction Layer (`src/actions`)**: ชั้นของ Server Actions ทำหน้าที่รับข้อมูลจาก UI, ตรวจสอบสิทธิ์ (Auth), และเรียกใช้ Service ที่เกี่ยวข้อง
+- **3. Domain Service Layer (`src/services`)**: **หัวใจของระบบ** รวม Logic ธุรกิจทั้งหมดไว้ที่นี่แยกตาม Domain (เช่น Sales, Inventory, Accounting) โดยแต่ละ Service จะต้องทำตามสัญญา (Interface) ที่กำหนดไว้ใน `src/types/service-contracts.ts`
+- **4. Governance Layer (`src/policies`)**: ชั้นที่รวบรวมกฎทางธุรกิจ (Business Rules) เช่น เงื่อนไขการล็อกเอกสาร หรือสิทธิ์การยกเลิก เพื่อให้ Logic เหล่านี้คงที่และไม่ปนกับโค้ดส่วนอื่น
+- **5. Data Layer (Prisma)**: ชั้นการจัดการฐานข้อมูลและการจัดการความสัมพันธ์ของ Model
+
+---
+
+## ผังการทำงานหลัก (Core Workflows)
+
+### 1. วงจรการขาย (Sales Lifecycle)
+```mermaid
+graph TD
+    A[Quotation] -->|Confirm| B[Sale Order]
+    B -->|Soft-Lock| C[Inventory Reservation]
+    B -->|Generate| D[Invoice]
+    D -->|Match| E[Payment Verification]
+    E -->|Finalize| F[Complete Sale & Deduct Stock]
+```
+
+### 2. วงจรการจัดซื้อ (Purchasing Lifecycle)
+```mermaid
+graph TD
+    A[Purchase Request] -->|Approve| B[Purchase Order]
+    B -->|Send to Vendor| C[Wait for Goods]
+    C -->|Goods Receipt| D[Update Stock & Cost]
+    D -->|Post to Tax| E[Vat/WHT Recording]
+```
+
+---
+
+## โครงสร้างหน่วยงานในโค้ด (Module Structure)
 ```bash
-# Clone
-git clone https://github.com/xArmeriumx/Shop-inventory.git
-cd Shop-inventory
-
-# Install
-npm install
-
-# Environment
-cp .env.example .env
-# Edit .env with your database URL, auth secret, and Supabase keys
-
-# Database
-npx prisma db push
-
-# Dev server
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000)
-
-### Environment Variables
-
-```env
-DATABASE_URL="postgresql://..."
-AUTH_SECRET="your-secret-key"
-NEXT_PUBLIC_SUPABASE_URL="https://xxx.supabase.co"
-NEXT_PUBLIC_SUPABASE_ANON_KEY="..."
-GROQ_API_KEY="..."  # Optional: for AI/OCR features
-```
-
-### Scripts
-
-| Command             | Description        |
-| ------------------- | ------------------ |
-| `npm run dev`       | Start dev server   |
-| `npm run build`     | Production build   |
-| `npm test`          | Run tests (Vitest) |
-| `npm run db:studio` | Open Prisma Studio |
-| `npm run db:seed`   | Seed sample data   |
-
----
-
-## Database Schema
-
-22 models covering the full retail business domain:
-
-```
-User ─┬─ ShopMember ── Shop
-      │       └── Role (RBAC permissions)
-      │
-      ├── Product ── SaleItem ── Sale ── Customer
-      │     └── StockLog           └── Return ── ReturnItem
-      │
-      ├── Supplier ── Purchase ── PurchaseItem
-      │
-      ├── Expense / Income
-      │
-      ├── Shipment ── CustomerAddress
-      │
-      └── SystemLog / Notification
+src/
+├── actions/      # รวม Server Actions (UI to Data)
+├── services/     # รวม Logic ธุรกิจ (หัวใจของระบบ แยกตาม Domain)
+├── policies/     # รวมกฎเกณฑ์ธุรกิจ (เช่น เงื่อนไขการยกเลิกเอกสาร)
+├── schemas/      # รวม Zod Validation สำหรับ Form ต่างๆ
+├── types/        # รวม Type และ Interface ทั้งหมด
+└── components/   # รวม UI Components (แยกเป็น Features)
 ```
 
 ---
 
-## Deployment
-
-Optimized for **Vercel**:
-
-1. Connect GitHub repo to Vercel
-2. Set environment variables
-3. Deploy
-
-Production URL: [shop-inventory.napatdev.com](https://shop-inventory.napatdev.com)
+## วิธีการเริ่มต้น (Getting Started)
+1. ติดตั้ง Library ทั้งหมด: `npm install`
+2. สร้างไฟล์ `.env` และตั้งค่า `DATABASE_URL` ให้ตรงกับฐานข้อมูลของคุณ
+3. Sync Database Schema: `npx prisma db push`
+4. รันระบบในโหมดพัฒนา: `npm run dev`
 
 ---
-
-## License
-
-MIT License — see [LICENSE](LICENSE) for details.
+*โปรเจกต์นี้เป็นโครงสร้างสำหรับการฝึกฝนทักษะการพัฒนา Web Application ขนาดใหญ่ และการจัดการ Logic ธุรกิจที่ซับซ้อนเท่านั้น*

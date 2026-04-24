@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
-import { getSupplier } from '@/actions/suppliers';
-import { SupplierForm } from '@/components/suppliers/supplier-form';
+import { getSupplier } from '@/actions/purchases/suppliers.actions';
+import { SupplierForm } from '@/components/purchases/suppliers/supplier-form';
 import { SectionHeader } from '@/components/ui/section-header';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';

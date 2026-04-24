@@ -1,7 +1,7 @@
 import { Metadata } from 'next';
-import { getTeamMembers } from '@/actions/team';
-import { getProductsForSelect } from '@/actions/products';
-import { OrderRequestForm } from '@/components/order-requests/order-request-form';
+import { getTeamMembers } from '@/actions/core/team.actions';
+import { getProductsForSelect } from '@/actions/inventory/products.actions';
+import { OrderRequestForm } from '@/components/sales/order-requests/order-request-form';
 import { BackPageHeader } from '@/components/ui/back-page-header';
 
 export const metadata: Metadata = {

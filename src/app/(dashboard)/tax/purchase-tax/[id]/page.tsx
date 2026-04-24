@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
-import { getPurchaseTax } from '@/actions/tax';
+import { getPurchaseTax } from '@/actions/tax/tax.actions';
 import { PurchaseTaxDetail } from '@/components/tax/purchase-tax-detail';
 import Loading from '@/app/(dashboard)/loading';
 

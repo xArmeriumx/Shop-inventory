@@ -10,8 +10,8 @@ import { BackPageHeader } from '@/components/ui/back-page-header';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Send, FileText, Printer } from 'lucide-react';
 import { notFound } from 'next/navigation';
-import { OrderRequestActions } from '@/components/order-requests/order-request-actions';
-import { ApprovalActions } from '@/components/approvals/approval-actions';
+import { OrderRequestActions } from '@/components/sales/order-requests/order-request-actions';
+import { ApprovalActions } from '@/components/core/approvals/approval-actions';
 
 export const metadata: Metadata = {
     title: 'รายละเอียดคำขอซื้อ | ERP System',

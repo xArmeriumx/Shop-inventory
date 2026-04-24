@@ -1,5 +1,5 @@
-import { getAccountsAction } from '@/actions/accounting';
-import { getJournalsAction } from '@/actions/journal';
+import { getAccountsAction } from '@/actions/accounting/accounting.actions';
+import { getJournalsAction } from '@/actions/accounting/journal.actions';
 import { AccountingBoard } from '@/components/accounting/accounting-board';
 import { Metadata } from 'next';
 

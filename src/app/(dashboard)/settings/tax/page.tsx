@@ -1,5 +1,5 @@
-import { getCompanyTaxProfile, listTaxCodes } from '@/actions/tax';
-import { getWhtCodes, getWhtEntriesAction } from '@/actions/wht';
+import { getCompanyTaxProfile, listTaxCodes } from '@/actions/tax/tax.actions';
+import { getWhtCodes, getWhtEntriesAction } from '@/actions/tax/wht.actions';
 import { CompanyTaxProfileForm } from '@/components/tax/company-tax-profile-form';
 import { TaxCodeTable } from '@/components/tax/tax-code-table';
 import { WhtCodeTable } from '@/components/tax/wht-code-table';

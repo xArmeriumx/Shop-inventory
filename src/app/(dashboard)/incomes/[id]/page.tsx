@@ -1,8 +1,8 @@
 import { notFound } from 'next/navigation';
 import { PageHeader } from '@/components/layout/page-header';
-import { IncomeForm } from '@/components/incomes/income-form';
-import { getIncome } from '@/actions/incomes';
-import { getLookupValues, seedDefaultLookupValues } from '@/actions/lookups';
+import { IncomeForm } from '@/components/accounting/incomes/income-form';
+import { getIncome } from '@/actions/accounting/income.actions';
+import { getLookupValues, seedDefaultLookupValues } from '@/actions/core/lookups.actions';
 
 interface EditIncomePageProps {
   params: { id: string };

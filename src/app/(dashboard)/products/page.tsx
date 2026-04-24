@@ -4,12 +4,12 @@ import { Plus, AlertTriangle } from 'lucide-react';
 import { SectionHeader } from '@/components/ui/section-header';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { getProducts } from '@/actions/products';
-import { ProductsTable } from '@/components/products/products-table';
-import { ProductsToolbar } from '@/components/products/products-toolbar';
-import { ProductImportButton } from '@/components/products/product-import-button';
-import { Guard } from '@/components/auth/guard';
-import { StartStockTakeButton } from '@/components/products/start-stock-take-button';
+import { getProducts } from '@/actions/inventory/products.actions';
+import { ProductsTable } from '@/components/inventory/products/products-table';
+import { ProductsToolbar } from '@/components/inventory/products/products-toolbar';
+import { ProductImportButton } from '@/components/inventory/products/product-import-button';
+import { Guard } from '@/components/core/auth/guard';
+import { StartStockTakeButton } from '@/components/inventory/products/start-stock-take-button';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 

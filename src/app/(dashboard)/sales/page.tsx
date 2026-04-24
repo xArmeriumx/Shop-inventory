@@ -2,13 +2,13 @@ import Link from 'next/link';
 import { Plus } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
-import { getSales } from '@/actions/sales';
+import { getSales } from '@/actions/sales/sales.actions';
 import { SalesTable } from '@/components/sales/sales-table';
 import { SalesToolbar } from '@/components/sales/sales-toolbar';
 import { SaleStatus } from '@/types/domain';
 import { SalesExportButton } from '@/components/sales/sales-export-button';
 
-import { Guard } from '@/components/auth/guard';
+import { Guard } from '@/components/core/auth/guard';
 
 interface SalesPageProps {
   searchParams: {

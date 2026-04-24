@@ -87,7 +87,7 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
-import { AnnouncementPopup } from '@/components/announcements/announcement-popup';
+import { AnnouncementPopup } from '@/components/core/announcements/announcement-popup';
 
 export default async function RootLayout({
   children,

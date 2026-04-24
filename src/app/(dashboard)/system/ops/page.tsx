@@ -1,4 +1,4 @@
-import { OpsHubTemplate } from '@/components/system/ops-hub-template';
+import { OpsHubTemplate } from '@/components/core/system/ops-hub-template';
 
 export default function OpsManagementPage() {
   return <OpsHubTemplate />;

@@ -1,8 +1,8 @@
 import { db, runInTransaction } from '@/lib/db';
 import { Prisma, Permission } from '@prisma/client';
-import { SaleInput } from '@/schemas/sale';
+import { SaleInput } from '@/schemas/sales/sale.schema';
 import { StockService } from '@/services/inventory/stock.service';
-import { NotificationService } from '@/services/core/notification.service';
+import { NotificationService } from '@/services/core/intelligence/notification.service';
 import { JournalService } from '@/services/accounting/journal.service';
 import { money, calcSubtotal, calcProfit } from '@/lib/money';
 import { paginatedQuery, buildSearchFilter, buildDateRangeFilter } from '@/lib/pagination';
@@ -25,12 +25,12 @@ import {
   SerializedSaleListItem
 } from '@/types/serialized';
 import { ISaleService } from '@/types/service-contracts';
-import { SequenceService } from '@/services/core/sequence.service';
+import { SequenceService } from '@/services/core/system/sequence.service';
 import { CustomerService } from './customer.service';
-import { AuditService } from '@/services/core/audit.service';
-import { SALE_AUDIT_POLICIES } from './sale.policy';
-import { Security } from '@/services/core/security.service';
-import { WorkflowService } from '@/services/core/workflow.service';
+import { AuditService } from '@/services/core/system/audit.service';
+import { SALE_AUDIT_POLICIES } from '@/policies/sales/sale.policy';
+import { Security } from '@/services/core/iam/security.service';
+import { WorkflowService } from '@/services/core/workflow/workflow.service';
 import { serializeSale, serializeSaleItem } from '@/lib/mappers';
 
 export const CANCEL_REASONS = {
@@ -225,7 +225,7 @@ export const SaleService: ISaleService = {
       async () => {
         // ERP Rule: If document is locked for editing, only allow specific meta-fields 
         // UNLESS user has SALE_UPDATE_LOCKED permission
-        const isLocked = ((sale as any).editLockStatus as unknown as EditLockStatus) !== 'NONE' || sale.isLocked;
+        const isLocked = ((sale as any).editLockStatus === EditLockStatus.LOCKED) || sale.isLocked;
 
         if (isLocked) {
           try {
@@ -434,7 +434,7 @@ export const SaleService: ISaleService = {
           if (fullSale.status === 'CANCELLED') throw new ServiceError('รายการนี้ถูกยกเลิกไปแล้ว');
 
           // ERP Rule: Cannot cancel if document is locked (e.g. invoiced)
-          if ((fullSale as any).editLockStatus !== 'NONE') {
+          if ((fullSale as any).editLockStatus === EditLockStatus.LOCKED) {
             throw new ServiceError((fullSale as any).lockReason || 'เอกสารนี้ถูกล็อก ไม่สามารถยกเลิกได้');
           }
 

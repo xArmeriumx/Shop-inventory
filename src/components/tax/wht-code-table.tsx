@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { MoreHorizontal, Edit, Power, PowerOff, Percent } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { toggleWhtCodeStatus } from '@/actions/wht';
+import { toggleWhtCodeStatus } from '@/actions/tax/wht.actions';
 import { toast } from 'sonner';
 import { WhtCodeForm } from '@/components/tax/wht-code-form';
 

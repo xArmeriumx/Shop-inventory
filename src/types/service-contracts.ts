@@ -50,9 +50,9 @@ import type {
   SequenceConfig,
 } from './domain';
 
-import type { IncomeInput } from '@/schemas/income';
-import type { ExpenseInput } from '@/schemas/expense';
-import type { SaleInput } from '@/schemas/sale';
+import type { IncomeInput } from '@/schemas/accounting/income.schema';
+import type { ExpenseInput } from '@/schemas/accounting/expense.schema';
+import type { SaleInput } from '@/schemas/sales/sale.schema';
 
 // ============================================================================
 // PRODUCT SERVICE

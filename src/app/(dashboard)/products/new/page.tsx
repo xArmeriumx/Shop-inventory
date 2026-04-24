@@ -1,6 +1,6 @@
 import { PageHeader } from '@/components/layout/page-header';
-import { ProductForm } from '@/components/products/product-form';
-import { getLookupValues, seedDefaultLookupValues } from '@/actions/lookups';
+import { ProductForm } from '@/components/inventory/products/product-form';
+import { getLookupValues, seedDefaultLookupValues } from '@/actions/core/lookups.actions';
 
 export default async function NewProductPage() {
   // Seed default categories if needed

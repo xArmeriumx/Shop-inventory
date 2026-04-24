@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { getProfitAndLossAction, getBalanceSheetAction } from '@/actions/accounting';
+import { getProfitAndLossAction, getBalanceSheetAction } from '@/actions/accounting/accounting.actions';
 import { PnLReport } from '@/components/accounting/reports/pnl-report';
 import { BalanceSheetReport } from '@/components/accounting/reports/balance-sheet-report';
 import { Calendar, RefreshCw, FileText, BarChart3, PieChart, Package } from 'lucide-react';

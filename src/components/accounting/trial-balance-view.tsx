@@ -5,7 +5,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { formatCurrency } from '@/lib/formatters';
 import { Badge } from '@/components/ui/badge';
-import { getTrialBalanceAction } from '@/actions/accounting';
+import { getTrialBalanceAction } from '@/actions/accounting/accounting.actions';
 import { Loader2, TrendingUp, TrendingDown, Wallet, PieChart, Activity } from 'lucide-react';
 
 interface TrialBalanceViewProps {

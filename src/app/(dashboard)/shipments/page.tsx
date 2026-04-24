@@ -1,9 +1,9 @@
 import { Suspense } from 'react';
-import { getShipments } from '@/actions/shipments';
-import { ShipmentsTable } from '@/components/shipments/shipments-table';
-import { ShipmentsToolbar } from '@/components/shipments/shipments-toolbar';
+import { getShipments } from '@/actions/sales/shipments.actions';
+import { ShipmentsTable } from '@/components/sales/shipments/shipments-table';
+import { ShipmentsToolbar } from '@/components/sales/shipments/shipments-toolbar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ShipmentStatsWidget } from '@/components/shipments/shipment-stats-widget';
+import { ShipmentStatsWidget } from '@/components/sales/shipments/shipment-stats-widget';
 import { SectionHeader } from '@/components/ui/section-header';
 
 export const metadata = {

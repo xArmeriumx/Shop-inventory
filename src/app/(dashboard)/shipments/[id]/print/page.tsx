@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { getShipment } from '@/actions/shipments';
+import { getShipment } from '@/actions/sales/shipments.actions';
 import { formatDate, formatCurrency } from '@/lib/formatters';
 
 export default async function ShipmentPrintPage({ params }: { params: Promise<{ id: string }> }) {

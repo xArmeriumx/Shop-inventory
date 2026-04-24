@@ -27,7 +27,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Download, FileBarChart, PieChart, Users, Loader2 } from 'lucide-react';
 import { formatCurrency } from '@/lib/formatters';
-import { getWhtEntriesAction } from '@/actions/wht';
+import { getWhtEntriesAction } from '@/actions/tax/wht.actions';
 import { toast } from 'sonner';
 
 export function WhtReport() {

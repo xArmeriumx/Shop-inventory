@@ -3,8 +3,8 @@
 import React, { useState } from 'react';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { paymentVoucherSchema, PaymentVoucherInput, getPaymentVoucherDefaultValues } from '@/schemas/voucher';
-import { createPaymentVoucherAction } from '@/actions/voucher';
+import { paymentVoucherSchema, PaymentVoucherInput, getPaymentVoucherDefaultValues } from '@/schemas/accounting/voucher.schema';
+import { createPaymentVoucherAction } from '@/actions/accounting/voucher.actions';
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';

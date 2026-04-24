@@ -2,7 +2,7 @@ import { db, runInTransaction } from '@/lib/db';
 import { RequestContext, ServiceError } from '@/types/domain';
 import { StockTakeStatus, Prisma } from '@prisma/client';
 import { StockService } from '@/services/inventory/stock.service';
-import { AuditService } from '@/services/core/audit.service';
+import { AuditService } from '@/services/core/system/audit.service';
 
 export const StockTakeService = {
     /**

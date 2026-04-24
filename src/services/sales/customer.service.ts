@@ -1,11 +1,11 @@
 import { db } from '@/lib/db';
-import { customerSchema, type CustomerInput } from '@/schemas/customer';
-import { partnerAddressSchema } from '@/schemas/partner-common';
+import { customerSchema, type CustomerInput } from '@/schemas/sales/customer.schema';
+import { partnerAddressSchema } from '@/schemas/core/partner-common.schema';
 import { paginatedQuery, buildSearchFilter } from '@/lib/pagination';
 import { logger } from '@/lib/logger';
 import { Prisma } from '@prisma/client';
-import { AuditService } from '@/services/core/audit.service';
-import { CUSTOMER_AUDIT_POLICIES } from '@/services/sales/customer.policy';
+import { AuditService } from '@/services/core/system/audit.service';
+import { CUSTOMER_AUDIT_POLICIES } from '@/policies/sales/customer.policy';
 import type { SerializedCustomer, RequestContext, SerializedPartnerAddress, ActionResponse } from '@/types/domain';
 
 export class ServiceError extends Error {

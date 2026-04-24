@@ -1,6 +1,6 @@
 import { Metadata } from 'next';
 import { requirePermission } from '@/lib/auth-guard';
-import { ApprovalService } from '@/services/approval.service';
+import { ApprovalService } from '@/services/core/workflow/approval.service';
 import { BackPageHeader } from '@/components/ui/back-page-header';
 import { notFound } from 'next/navigation';
 import { ApprovalDecisionCenter } from '@/components/shared/approvals/approval-decision-center';

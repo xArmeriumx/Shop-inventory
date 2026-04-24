@@ -28,7 +28,7 @@ import {
     ArrowUpRight,
     ArrowDownRight
 } from 'lucide-react';
-import { getVatReport } from '@/actions/tax';
+import { getVatReport } from '@/actions/tax/tax.actions';
 import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';

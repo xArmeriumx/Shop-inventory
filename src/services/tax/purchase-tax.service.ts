@@ -1,7 +1,7 @@
 import { db } from '@/lib/db';
 import { RequestContext, ServiceError } from '@/types/domain';
-import { Security } from '@/services/core/security.service';
-import { SequenceService } from '@/services/core/sequence.service';
+import { Security } from '@/services/core/iam/security.service';
+import { SequenceService } from '@/services/core/system/sequence.service';
 import { TaxCalculationService } from './tax-calculation.service';
 import { format } from 'date-fns';
 

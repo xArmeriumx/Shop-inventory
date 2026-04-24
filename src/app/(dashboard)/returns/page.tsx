@@ -1,12 +1,12 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { getReturns } from '@/actions/returns';
-import { ReturnsTable } from '@/components/returns/returns-table';
+import { getReturns } from '@/actions/sales/returns.actions';
+import { ReturnsTable } from '@/components/sales/returns/returns-table';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Plus } from 'lucide-react';
-import { Guard } from '@/components/auth/guard';
-import { ReturnsExportButton } from '@/components/returns/returns-export-button';
+import { Guard } from '@/components/core/auth/guard';
+import { ReturnsExportButton } from '@/components/sales/returns/returns-export-button';
 import { SectionHeader } from '@/components/ui/section-header';
 
 // ─── Metadata ────────────────────────────────────────────────────────────────

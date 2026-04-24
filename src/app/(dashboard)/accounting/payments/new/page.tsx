@@ -1,5 +1,5 @@
 import React from 'react';
-import { SupplierService } from '@/services/inventory/supplier.service';
+import { SupplierService } from '@/services/purchases/supplier.service';
 import { requireShop } from '@/lib/auth-guard';
 import { PaymentVoucherForm } from '@/components/accounting/vouchers/payment-voucher-form';
 import { BackPageHeader } from '@/components/ui/back-page-header';

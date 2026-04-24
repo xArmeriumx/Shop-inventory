@@ -5,7 +5,7 @@ import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PurchaseScannerButton } from './purchase-scanner-button';
 import { DataExportPanel } from '@/components/shared/data-export-panel';
-import { exportPurchasesData } from '@/actions/export';
+import { exportPurchasesData } from '@/actions/core/export.actions';
 
 /**
  * Header actions for purchases page - includes scanner, export, and add button

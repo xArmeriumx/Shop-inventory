@@ -22,7 +22,7 @@ import {
     Calendar as CalendarIcon,
     AlertCircle
 } from 'lucide-react';
-import { importStatementAction } from '@/actions/bank';
+import { importStatementAction } from '@/actions/accounting/bank.actions';
 import { toast } from 'sonner';
 
 const lineSchema = z.object({

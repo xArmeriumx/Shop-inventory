@@ -1,12 +1,12 @@
 import { Suspense } from 'react';
-import { getRoles } from '@/actions/roles';
-import { RolesTable } from '@/components/roles/roles-table';
-import { CreateRoleDialog } from '@/components/roles/create-role-dialog';
+import { getRoles } from '@/actions/core/roles.actions';
+import { RolesTable } from '@/components/core/roles/roles-table';
+import { CreateRoleDialog } from '@/components/core/roles/create-role-dialog';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { BackPageHeader } from '@/components/ui/back-page-header';
 import Loading from '@/app/(dashboard)/loading';
 import { requirePermission } from '@/lib/auth-guard';
-import { Guard } from '@/components/auth/guard';
+import { Guard } from '@/components/core/auth/guard';
 
 async function RolesContent() {
   await requirePermission('SETTINGS_ROLES');

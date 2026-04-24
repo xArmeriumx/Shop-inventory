@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { StatusBadge } from '@/components/ui/status-badge';
 import { ClientDate } from '@/components/ui/client-date';
-import { approveStep, rejectStep } from '@/actions/approvals';
+import { approveStep, rejectStep } from '@/actions/core/approvals.actions';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import {

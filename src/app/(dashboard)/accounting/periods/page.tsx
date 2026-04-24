@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { PeriodList } from '@/components/accounting/periods/period-list';
-import { getAccountingPeriodsAction } from '@/actions/accounting';
+import { getAccountingPeriodsAction } from '@/actions/accounting/accounting.actions';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';

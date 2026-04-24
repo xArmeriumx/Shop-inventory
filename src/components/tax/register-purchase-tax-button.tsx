@@ -2,7 +2,7 @@
 
 import { useTransition } from 'react';
 import { Button } from '@/components/ui/button';
-import { registerPurchaseTax } from '@/actions/tax';
+import { registerPurchaseTax } from '@/actions/tax/tax.actions';
 import { toast } from 'sonner';
 import { FileText, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';

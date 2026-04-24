@@ -1,6 +1,6 @@
-import { getNotifications, markAllNotificationsAsRead } from '@/actions/notifications';
+import { getNotifications, markAllNotificationsAsRead } from '@/actions/core/notifications.actions';
 import { SectionHeader } from '@/components/ui/section-header';
-import { NotificationList } from '@/components/notifications/notification-list';
+import { NotificationList } from '@/components/core/notifications/notification-list';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2, RotateCw } from 'lucide-react';
 import { revalidatePath } from 'next/cache';

@@ -1,5 +1,5 @@
 import { Metadata } from 'next';
-import { getApprovals } from '@/actions/approvals';
+import { getApprovals } from '@/actions/core/approvals.actions';
 import { TableView, Column } from '@/components/ui/table-view';
 import { StatusBadge, StatusConfig } from '@/components/ui/status-badge';
 import { ClientDate } from '@/components/ui/client-date';

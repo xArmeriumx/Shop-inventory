@@ -6,7 +6,7 @@ import { money } from '@/lib/money';
 import { formatDate } from '@/lib/formatters';
 import { Wallet, Landmark, Users, CheckCircle2, AlertCircle, ReceiptText, FileDown } from 'lucide-react';
 import { ExportButton } from '../shared/export-button';
-import { exportBalanceSheetAction } from '@/actions/accounting';
+import { exportBalanceSheetAction } from '@/actions/accounting/accounting.actions';
 import { format } from 'date-fns';
 
 interface BalanceSheetReportProps {

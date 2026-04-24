@@ -1,8 +1,8 @@
 import { Ratelimit } from '@upstash/ratelimit';
 import { Redis } from '@upstash/redis';
 import { db } from '@/lib/db';
-import { AuditService } from '@/services/core/audit.service';
-import { Security } from '@/services/core/security.service';
+import { AuditService } from '@/services/core/system/audit.service';
+import { Security } from '@/services/core/iam/security.service';
 import { ServiceError } from '@/types/domain';
 
 const upstashUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;

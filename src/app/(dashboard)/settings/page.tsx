@@ -1,9 +1,9 @@
 import { Suspense } from 'react';
-import { getUserProfile } from '@/actions/settings';
-import { getShop } from '@/actions/shop';
-import { getLookupValuesForSettings, seedDefaultLookupValues } from '@/actions/lookups';
+import { getUserProfile } from '@/actions/core/settings.actions';
+import { getShop } from '@/actions/core/shop.actions';
+import { getLookupValuesForSettings, seedDefaultLookupValues } from '@/actions/core/lookups.actions';
 import { LookupValue } from '@prisma/client';
-import { SettingsForm } from '@/components/settings/settings-form';
+import { SettingsForm } from '@/components/core/settings/settings-form';
 import { SectionHeader } from '@/components/ui/section-header';
 import Loading from '@/app/(dashboard)/loading';
 

@@ -1,7 +1,7 @@
 import { Metadata } from 'next';
-import { getCustomersForSelect } from '@/actions/customers';
-import { getProductsForSelect } from '@/actions/products';
-import { QuotationForm } from '@/components/quotations/quotation-form';
+import { getCustomersForSelect } from '@/actions/sales/customers.actions';
+import { getProductsForSelect } from '@/actions/inventory/products.actions';
+import { QuotationForm } from '@/components/sales/quotations/quotation-form';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { BackPageHeader } from '@/components/ui/back-page-header';
 

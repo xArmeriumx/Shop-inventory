@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
-import { getCustomerProfile } from '@/actions/customers';
-import { CustomerProfile } from '@/components/customers/customer-profile';
+import { getCustomerProfile } from '@/actions/sales/customers.actions';
+import { CustomerProfile } from '@/components/sales/customers/customer-profile';
 
 interface CustomerPageProps {
   params: { id: string };

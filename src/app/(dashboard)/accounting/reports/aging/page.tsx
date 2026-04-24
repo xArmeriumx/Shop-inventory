@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { getAgingReportAction } from '@/actions/accounting';
+import { getAgingReportAction } from '@/actions/accounting/accounting.actions';
 import { AgingSummary } from '@/components/accounting/reports/aging-summary';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';

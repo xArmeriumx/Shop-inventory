@@ -34,7 +34,7 @@ import { FileText, Save, CheckCircle, XCircle, ArrowLeft, History, Link as LinkI
 import { formatCurrency } from '@/lib/formatters';
 import Link from 'next/link';
 
-import { postPurchaseTax, voidPurchaseTax } from '@/actions/tax';
+import { postPurchaseTax, voidPurchaseTax } from '@/actions/tax/tax.actions';
 // Note: Manual update action would be needed for a full edit flow, 
 // for now we focus on the core snapshot and posting.
 

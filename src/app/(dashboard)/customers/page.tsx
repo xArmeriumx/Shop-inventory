@@ -1,9 +1,9 @@
 import { Suspense } from 'react';
-import { getCustomers } from '@/actions/customers';
+import { getCustomers } from '@/actions/sales/customers.actions';
 import { SectionHeader } from '@/components/ui/section-header';
-import { CustomersToolbar } from '@/components/customers/customers-toolbar';
-import { CustomerGrid } from '@/components/customers/customer-grid';
-import { CustomersTable } from '@/components/customers/customers-table';
+import { CustomersToolbar } from '@/components/sales/customers/customers-toolbar';
+import { CustomerGrid } from '@/components/sales/customers/customer-grid';
+import { CustomersTable } from '@/components/sales/customers/customers-table';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { Customer } from '@prisma/client';
 

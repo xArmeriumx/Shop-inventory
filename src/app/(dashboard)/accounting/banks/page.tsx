@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Plus, Wallet, Building2, Landmark } from 'lucide-react';
 import { BankAccountFormModal } from '@/components/accounting/banks/bank-account-form-modal';
-import { getAccountsAction } from '@/actions/accounting';
+import { getAccountsAction } from '@/actions/accounting/accounting.actions';
 
 export default async function BankAccountsPage() {
     const ctx = await getSessionContext();

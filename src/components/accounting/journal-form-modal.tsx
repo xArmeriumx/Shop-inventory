@@ -29,7 +29,7 @@ import {
 import { Plus, Trash2, AlertTriangle, CheckCircle2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { money } from '@/lib/money';
-import { createJournalAction } from '@/actions/journal';
+import { createJournalAction } from '@/actions/accounting/journal.actions';
 import { cn } from '@/lib/utils';
 
 interface JournalFormModalProps {

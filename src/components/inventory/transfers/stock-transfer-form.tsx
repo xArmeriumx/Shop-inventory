@@ -2,13 +2,13 @@
 
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { stockTransferSchema, StockTransferFormValues } from '@/schemas/stock-transfer-form';
+import { stockTransferSchema, StockTransferFormValues } from '@/schemas/inventory/stock-transfer-form.schema';
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { FormProvider } from 'react-hook-form';
-import { createStockTransferAction } from '@/actions/stock-transfer';
+import { createStockTransferAction } from '@/actions/inventory/stock-transfer.actions';
 import { toast } from 'sonner';
 import { useTransition } from 'react';
 import { Trash2, Plus, ArrowRightLeft } from 'lucide-react';

@@ -1,8 +1,8 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getRole } from '@/actions/roles';
-import { RoleForm } from '@/components/roles/role-form';
+import { getRole } from '@/actions/core/roles.actions';
+import { RoleForm } from '@/components/core/roles/role-form';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowLeft } from 'lucide-react';

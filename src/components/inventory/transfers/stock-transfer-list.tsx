@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Eye, CheckCircle2, ArrowRightLeft, Clock, CheckCircle } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 import { SectionHeader } from '@/components/ui/section-header';
-import { completeStockTransferAction } from '@/actions/stock-transfer';
+import { completeStockTransferAction } from '@/actions/inventory/stock-transfer.actions';
 import { toast } from 'sonner';
 import { useTransition } from 'react';
 import Link from 'next/link';

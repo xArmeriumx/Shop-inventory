@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { formatDate } from '@/lib/formatters';
 import { Lock, Unlock, History, Info, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
-import { closePeriodAction, reopenPeriodAction } from '@/actions/accounting';
+import { closePeriodAction, reopenPeriodAction } from '@/actions/accounting/accounting.actions';
 import {
     Dialog,
     DialogContent,

@@ -1,6 +1,6 @@
 import { Metadata } from 'next';
 import { requirePermission } from '@/lib/auth-guard';
-import { getInvoices, getInvoiceStats } from '@/actions/invoices';
+import { getInvoices, getInvoiceStats } from '@/actions/sales/invoices.actions';
 import { TableView, Column } from '@/components/ui/table-view';
 import { StatusBadge, StatusConfig } from '@/components/ui/status-badge';
 import { ClientDate } from '@/components/ui/client-date';
@@ -10,7 +10,7 @@ import Link from 'next/link';
 import { SectionHeader } from '@/components/ui/section-header';
 import { formatCurrency } from '@/lib/utils';
 import { MetricGrid } from '@/components/ui/metric-card';
-import { InvoiceFilters } from '@/components/invoices/invoice-filters';
+import { InvoiceFilters } from '@/components/sales/invoices/invoice-filters';
 import { PaginationControl } from '@/components/ui/pagination-control';
 
 export const metadata: Metadata = {

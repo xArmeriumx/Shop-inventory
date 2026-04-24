@@ -1,6 +1,6 @@
 import { PageHeader } from '@/components/layout/page-header';
-import { ExpenseForm } from '@/components/expenses/expense-form';
-import { getLookupValues, seedDefaultLookupValues } from '@/actions/lookups';
+import { ExpenseForm } from '@/components/accounting/expenses/expense-form';
+import { getLookupValues, seedDefaultLookupValues } from '@/actions/core/lookups.actions';
 
 export default async function NewExpensePage() {
   // Seed default categories if needed

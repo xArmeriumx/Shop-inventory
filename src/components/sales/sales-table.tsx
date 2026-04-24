@@ -17,11 +17,11 @@ import { Badge } from '@/components/ui/badge';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { PAYMENT_METHODS } from '@/lib/constants';
 import { XCircle, Eye } from 'lucide-react';
-import { cancelSale } from '@/actions/sales';
+import { cancelSale } from '@/actions/sales/sales.actions';
 import { useState } from 'react';
 import { CancelDialog } from '@/components/shared/cancel-dialog';
 import { usePermissions } from '@/hooks/use-permissions';
-import { Guard } from '@/components/auth/guard';
+import { Guard } from '@/components/core/auth/guard';
 import { PaginationControl } from '@/components/ui/pagination-control';
 
 type SaleWithCustomer = SerializedSale & {

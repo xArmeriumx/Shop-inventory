@@ -1,6 +1,6 @@
 import { Metadata } from 'next';
 import { requirePermission } from '@/lib/auth-guard';
-import { getWarehousesAction } from '@/actions/warehouse';
+import { getWarehousesAction } from '@/actions/inventory/warehouse.actions';
 import { ProductService } from '@/services/inventory/product.service';
 import { requireShop } from '@/lib/auth-guard';
 import { StockTransferForm } from '@/components/inventory/transfers/stock-transfer-form';

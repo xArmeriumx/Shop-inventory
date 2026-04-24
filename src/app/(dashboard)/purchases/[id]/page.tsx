@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
-import { getPurchase } from '@/actions/purchases';
-import { getShop } from '@/actions/shop';
+import { getPurchase } from '@/actions/purchases/purchases.actions';
+import { getShop } from '@/actions/core/shop.actions';
 import { PurchaseDetailView } from '@/components/purchases/purchase-detail-view';
 import Loading from '@/app/(dashboard)/loading';
 

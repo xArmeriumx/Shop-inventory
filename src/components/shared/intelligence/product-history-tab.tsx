@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useTransition, useCallback } from 'react';
 import { ProductIntelligenceSummary, StockMovementDTO, PaginatedIntelligence, SupplierIntelligenceDTO } from '@/types/intelligence';
-import { getProductIntelligenceSummary, getProductMovementHistory, getProductSupplierIntelligence } from '@/actions/intelligence';
+import { getProductIntelligenceSummary, getProductMovementHistory, getProductSupplierIntelligence } from '@/actions/inventory/intelligence.actions';
 import { IntelligenceSummaryCards } from './intelligence-summary-cards';
 import { IntelligenceFilterBar } from './intelligence-filter-bar';
 import { StockMovementTable } from './stock-movement-table';

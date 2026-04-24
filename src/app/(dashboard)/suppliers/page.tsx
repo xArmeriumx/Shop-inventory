@@ -1,10 +1,10 @@
 import { Suspense } from 'react';
-import { getSuppliers } from '@/actions/suppliers';
+import { getSuppliers } from '@/actions/purchases/suppliers.actions';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SectionHeader } from '@/components/ui/section-header';
-import { SuppliersToolbar } from '@/components/suppliers/suppliers-toolbar';
-import { SupplierGrid } from '@/components/suppliers/supplier-grid';
-import { SuppliersTable } from '@/components/suppliers/suppliers-table';
+import { SuppliersToolbar } from '@/components/purchases/suppliers/suppliers-toolbar';
+import { SupplierGrid } from '@/components/purchases/suppliers/supplier-grid';
+import { SuppliersTable } from '@/components/purchases/suppliers/suppliers-table';
 
 interface PageProps {
   searchParams: { page?: string; search?: string; view?: 'grid' | 'table' };

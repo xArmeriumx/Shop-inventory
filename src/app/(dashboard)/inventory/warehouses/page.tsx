@@ -1,6 +1,6 @@
 import { Metadata } from 'next';
 import { requirePermission } from '@/lib/auth-guard';
-import { getWarehousesAction } from '@/actions/warehouse';
+import { getWarehousesAction } from '@/actions/inventory/warehouse.actions';
 import { WarehouseList } from '@/components/inventory/warehouses/warehouse-list';
 
 export const metadata: Metadata = {

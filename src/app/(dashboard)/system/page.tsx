@@ -28,7 +28,7 @@ import {
   TableHeader, 
   TableRow 
 } from '@/components/ui/table';
-import { getSystemMetrics, generateTestLog, type SystemMetrics } from '@/actions/system'; // Import generateTestLog
+import { getSystemMetrics, generateTestLog, type SystemMetrics } from '@/actions/core/system.actions'; // Import generateTestLog
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { 
   LineChart, 

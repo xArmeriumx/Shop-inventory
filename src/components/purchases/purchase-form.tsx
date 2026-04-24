@@ -13,20 +13,20 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FormField } from '@/components/ui/form-field';
 import { FileUpload } from '@/components/ui/file-upload';
-import { SupplierCombobox } from '@/components/suppliers/supplier-combobox';
+import { SupplierCombobox } from '@/components/purchases/suppliers/supplier-combobox';
 import { ScanPurchaseButton } from '@/components/purchases/scan-purchase-button';
-import { QuickAddSupplierDialog } from '@/components/suppliers/quick-add-supplier-dialog';
-import { QuickAddProductDialog } from '@/components/products/quick-add-product-dialog';
-import { ScanReviewModal } from '@/components/ocr/scan-review-modal';
+import { QuickAddSupplierDialog } from '@/components/purchases/suppliers/quick-add-supplier-dialog';
+import { QuickAddProductDialog } from '@/components/inventory/products/quick-add-product-dialog';
+import { ScanReviewModal } from '@/components/core/ocr/scan-review-modal';
 import { Plus, Trash2 } from 'lucide-react';
 
-import { createPurchase } from '@/actions/purchases';
-import { getProductsForPurchase } from '@/actions/products';
-import { getSuppliersForSelect } from '@/actions/suppliers';
+import { createPurchase } from '@/actions/purchases/purchases.actions';
+import { getProductsForPurchase } from '@/actions/inventory/products.actions';
+import { getSuppliersForSelect } from '@/actions/purchases/suppliers.actions';
 import { formatCurrency } from '@/lib/formatters';
 import { PAYMENT_METHODS } from '@/lib/constants';
 import { loadPendingScanResult } from './use-purchase-scanner';
-import { purchaseFormSchema, getPurchaseFormDefaults, type PurchaseFormValues } from '@/schemas/purchase-form';
+import { purchaseFormSchema, getPurchaseFormDefaults, type PurchaseFormValues } from '@/schemas/purchases/purchase-form.schema';
 
 // ============================================================================
 // Section: Purchase Info

@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
-import { POSInterface } from '@/components/pos/pos-interface';
+import { POSInterface } from '@/components/sales/pos/pos-interface';
 import { getProductsForPOS, getCategories } from '@/lib/pos/pos-service';
-import { getShop } from '@/actions/shop';
+import { getShop } from '@/actions/core/shop.actions';
 
 /**
  * POS Page - Main point of sale interface

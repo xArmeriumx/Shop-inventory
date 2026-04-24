@@ -22,7 +22,7 @@ import {
     SelectTrigger,
     SelectValue
 } from '@/components/ui/select';
-import { createBankAccountAction } from '@/actions/bank';
+import { createBankAccountAction } from '@/actions/accounting/bank.actions';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 

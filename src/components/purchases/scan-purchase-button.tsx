@@ -10,7 +10,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Camera, ShoppingCart } from 'lucide-react';
-import { DocumentScanner } from '@/components/ocr/document-scanner';
+import { DocumentScanner } from '@/components/core/ocr/document-scanner';
 
 interface ScanPurchaseButtonProps {
   onScanComplete: (data: any) => void;

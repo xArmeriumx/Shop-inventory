@@ -41,3 +41,8 @@ prisma/*.db-journal
 
 # Vercel
 .vercel
+
+# Documentation
+*.md
+!README.md
+!readme.md

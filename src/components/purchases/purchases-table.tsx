@@ -14,7 +14,7 @@ import { GuidedErrorAlert } from '@/components/ui/guided-error-alert';
 import { CancelDialog, PURCHASE_VOID_REASONS } from '@/components/shared/cancel-dialog';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { getPurchaseStatusLabel } from '@/lib/erp-utils';
-import { cancelPurchase, convertToPurchaseOrder } from '@/actions/purchases';
+import { cancelPurchase, convertToPurchaseOrder } from '@/actions/purchases/purchases.actions';
 import { usePermissions } from '@/hooks/use-permissions';
 import { Package, Edit, Trash2, ShoppingCart } from 'lucide-react';
 import { toast } from 'sonner';

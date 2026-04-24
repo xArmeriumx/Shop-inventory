@@ -1,10 +1,10 @@
 import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import { type Metadata } from 'next';
-import { getSale } from '@/actions/sales';
-import { getShop } from '@/actions/shop';
+import { getSale } from '@/actions/sales/sales.actions';
+import { getShop } from '@/actions/core/shop.actions';
 import { SaleDetailView } from '@/components/sales/sale-detail-view';
-import { getPaymentHistoryAction } from '@/actions/payments';
+import { getPaymentHistoryAction } from '@/actions/accounting/payments.actions';
 import Loading from '@/app/(dashboard)/loading';
 
 interface SaleDetailsPageProps {

@@ -10,8 +10,8 @@ import {
     companyTaxProfileSchema,
     CompanyTaxProfileValues,
     getDefaultCompanyTaxValues
-} from '@/schemas/tax-form';
-import { upsertCompanyTaxProfile } from '@/actions/tax';
+} from '@/schemas/tax/tax-form.schema';
+import { upsertCompanyTaxProfile } from '@/actions/tax/tax.actions';
 import { toast } from 'sonner';
 import { useTransition } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';

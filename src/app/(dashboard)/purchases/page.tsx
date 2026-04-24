@@ -1,5 +1,5 @@
 import { PageHeader } from '@/components/layout/page-header';
-import { getPurchases } from '@/actions/purchases';
+import { getPurchases } from '@/actions/purchases/purchases.actions';
 import { PurchasesTable } from '@/components/purchases/purchases-table';
 import { PurchasesToolbar } from '@/components/purchases/purchases-toolbar';
 import { PurchaseStatus } from '@/types/domain';

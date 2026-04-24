@@ -29,7 +29,7 @@ import {
     matchLineAction,
     getUnmatchedBankLinesAction,
     getUnreconciledLedgerAction
-} from '@/actions/bank';
+} from '@/actions/accounting/bank.actions';
 import { StatementImportModal } from '@/components/accounting/reconcile/statement-import-modal';
 import { Loader2 } from 'lucide-react';
 

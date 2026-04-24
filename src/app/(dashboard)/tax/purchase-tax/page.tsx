@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import { getPurchaseTaxes } from '@/actions/tax';
+import { getPurchaseTaxes } from '@/actions/tax/tax.actions';
 import { PurchaseTaxList } from '@/components/tax/purchase-tax-list';
 import Loading from '@/app/(dashboard)/loading';
 import { Button } from '@/components/ui/button';

@@ -17,7 +17,7 @@ import {
   getUnreadNotificationCount, 
   markNotificationAsRead, 
   markAllNotificationsAsRead 
-} from '@/actions/notifications';
+} from '@/actions/core/notifications.actions';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { formatDistanceToNow } from 'date-fns';

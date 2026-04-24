@@ -18,9 +18,9 @@ import {
     exportTrialBalanceAction,
     exportAccountLedgerAction,
     exportGeneralLedgerAction
-} from '@/actions/accounting';
-import { exportVatReportAction } from '@/actions/tax';
-import { exportWhtEntriesAction } from '@/actions/wht';
+} from '@/actions/accounting/accounting.actions';
+import { exportVatReportAction } from '@/actions/tax/tax.actions';
+import { exportWhtEntriesAction } from '@/actions/tax/wht.actions';
 
 export function AuditPackModal() {
     const [isOpen, setIsOpen] = useState(false);

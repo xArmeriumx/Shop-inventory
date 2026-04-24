@@ -18,8 +18,8 @@ import {
     taxCodeSchema,
     TaxCodeFormValues,
     getDefaultTaxCodeValues
-} from '@/schemas/tax-form';
-import { createTaxCode, updateTaxCode } from '@/actions/tax';
+} from '@/schemas/tax/tax-form.schema';
+import { createTaxCode, updateTaxCode } from '@/actions/tax/tax.actions';
 import { toast } from 'sonner';
 import { useTransition } from 'react';
 

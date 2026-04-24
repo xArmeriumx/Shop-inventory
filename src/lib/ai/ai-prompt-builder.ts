@@ -1,4 +1,4 @@
-import { AiShopContextData } from '@/services/ai.service';
+import { AiShopContextData } from '@/services/core/intelligence/ai.service';
 
 /**
  * Pure function to build the system prompt context from structured shop data.

@@ -1,10 +1,10 @@
 import { notFound } from 'next/navigation';
 import { PageHeader } from '@/components/layout/page-header';
-import { ProductForm } from '@/components/products/product-form';
-import { getProduct } from '@/actions/products';
-import { getLookupValues, seedDefaultLookupValues } from '@/actions/lookups';
+import { ProductForm } from '@/components/inventory/products/product-form';
+import { getProduct } from '@/actions/inventory/products.actions';
+import { getLookupValues, seedDefaultLookupValues } from '@/actions/core/lookups.actions';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ProductBarcodeTab } from '@/components/products/product-barcode-tab';
+import { ProductBarcodeTab } from '@/components/inventory/products/product-barcode-tab';
 import { ProductHistoryTab } from '@/components/shared/intelligence/product-history-tab';
 
 interface EditProductPageProps {

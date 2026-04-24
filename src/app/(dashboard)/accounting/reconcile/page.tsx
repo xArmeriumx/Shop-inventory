@@ -11,7 +11,7 @@ import {
     Search
 } from 'lucide-react';
 import { ReconcileWorkspace } from '@/components/accounting/reconcile/reconcile-workspace';
-import { getAccountsAction } from '@/actions/accounting';
+import { getAccountsAction } from '@/actions/accounting/accounting.actions';
 
 export default async function ReconcilePage({
     searchParams

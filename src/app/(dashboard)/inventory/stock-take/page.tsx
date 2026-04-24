@@ -10,7 +10,7 @@ import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { EmptyState } from '@/components/ui/empty-state';
 import { StatusBadge } from '@/components/ui/status-badge';
-import { STOCK_TAKE_STATUS_CONFIG } from '@/constants/inventory';
+import { STOCK_TAKE_STATUS_CONFIG } from '@/constants/erp/inventory.constants';
 import { serialize } from '@/lib/utils';
 
 async function StockTakeList() {

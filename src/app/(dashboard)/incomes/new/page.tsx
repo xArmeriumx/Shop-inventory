@@ -1,6 +1,6 @@
 import { PageHeader } from '@/components/layout/page-header';
-import { IncomeForm } from '@/components/incomes/income-form';
-import { getLookupValues, seedDefaultLookupValues } from '@/actions/lookups';
+import { IncomeForm } from '@/components/accounting/incomes/income-form';
+import { getLookupValues, seedDefaultLookupValues } from '@/actions/core/lookups.actions';
 
 export default async function NewIncomePage() {
   // Seed default categories if needed

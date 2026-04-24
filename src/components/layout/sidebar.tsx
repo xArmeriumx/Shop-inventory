@@ -34,7 +34,7 @@ import { Separator } from '@/components/ui/separator';
 import { Permission } from '@prisma/client';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useSession } from 'next-auth/react';
-import { UserActivityTracker } from '@/components/system/user-activity-tracker';
+import { UserActivityTracker } from '@/components/core/system/user-activity-tracker';
 
 const navItems = [
   {

@@ -1,5 +1,5 @@
 import { PageHeader } from '@/components/layout/page-header';
-import { AIChat } from '@/components/ai/ai-chat';
+import { AIChat } from '@/components/core/ai/ai-chat';
 
 export default function AIPage() {
   return (

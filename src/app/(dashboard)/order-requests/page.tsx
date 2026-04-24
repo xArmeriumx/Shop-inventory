@@ -1,5 +1,5 @@
 import { Metadata } from 'next';
-import { getOrderRequests } from '@/actions/order-requests';
+import { getOrderRequests } from '@/actions/sales/order-requests.actions';
 import { TableView, Column } from '@/components/ui/table-view';
 import { StatusBadge, StatusConfig } from '@/components/ui/status-badge';
 import { ClientDate } from '@/components/ui/client-date';

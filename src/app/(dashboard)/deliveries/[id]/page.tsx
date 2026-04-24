@@ -10,7 +10,7 @@ import { BackPageHeader } from '@/components/ui/back-page-header';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Truck, Printer, PackageCheck } from 'lucide-react';
 import { notFound } from 'next/navigation';
-import { DeliveryActions } from '@/components/deliveries/delivery-actions';
+import { DeliveryActions } from '@/components/sales/deliveries/delivery-actions';
 
 export const metadata: Metadata = {
     title: 'รายละเอียดใบส่งสินค้า | ERP System',

@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { getProductsForPurchase } from '@/actions/products';
-import { getSuppliersForSelect } from '@/actions/suppliers';
+import { getProductsForPurchase } from '@/actions/inventory/products.actions';
+import { getSuppliersForSelect } from '@/actions/purchases/suppliers.actions';
 import type { ProductForMatch, SupplierForMatch } from '@/lib/ocr/matcher';
 
 /**

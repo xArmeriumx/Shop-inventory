@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ClipboardCheck, Loader2 } from 'lucide-react';
-import { createStockTakeAction } from '@/actions/stock-take';
+import { createStockTakeAction } from '@/actions/inventory/stock-take.actions';
 import { toast } from 'sonner';
 
 interface StockTakeSetupModalProps {

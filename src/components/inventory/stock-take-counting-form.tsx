@@ -15,13 +15,13 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { StatusBadge } from '@/components/ui/status-badge';
-import { STOCK_TAKE_STATUS_CONFIG } from '@/constants/inventory';
+import { STOCK_TAKE_STATUS_CONFIG } from '@/constants/erp/inventory.constants';
 import {
     updateStockTakeItemAction,
     submitStockTakeAction,
     completeStockTakeAction,
     cancelStockTakeAction
-} from '@/actions/stock-take';
+} from '@/actions/inventory/stock-take.actions';
 import { toast } from 'sonner';
 import {
     Save,

@@ -2,11 +2,11 @@ import Link from 'next/link';
 import { Plus } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
-import { getExpenses } from '@/actions/expenses';
-import { ExpensesTable } from '@/components/expenses/expenses-table';
-import { ExpensesToolbar } from '@/components/expenses/expenses-toolbar';
-import { ScanReceiptButton } from '@/components/expenses/scan-receipt-button';
-import { ExpensesExportButton } from '@/components/expenses/expenses-export-button';
+import { getExpenses } from '@/actions/accounting/expense.actions';
+import { ExpensesTable } from '@/components/accounting/expenses/expenses-table';
+import { ExpensesToolbar } from '@/components/accounting/expenses/expenses-toolbar';
+import { ScanReceiptButton } from '@/components/accounting/expenses/scan-receipt-button';
+import { ExpensesExportButton } from '@/components/accounting/expenses/expenses-export-button';
 
 interface ExpensesPageProps {
   searchParams: {

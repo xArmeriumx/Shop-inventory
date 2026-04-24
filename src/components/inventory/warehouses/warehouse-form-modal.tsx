@@ -2,14 +2,14 @@
 
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { warehouseSchema, WarehouseFormValues } from '@/schemas/warehouse-form';
+import { warehouseSchema, WarehouseFormValues } from '@/schemas/inventory/warehouse-form.schema';
 import { Modal } from '@/components/ui';
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { FormProvider } from 'react-hook-form';
-import { createWarehouseAction } from '@/actions/warehouse';
+import { createWarehouseAction } from '@/actions/inventory/warehouse.actions';
 import { toast } from 'sonner';
 import { useTransition } from 'react';
 

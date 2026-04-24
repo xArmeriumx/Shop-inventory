@@ -20,7 +20,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { FileCheck, AlertCircle, Printer, Loader2 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/formatters';
-import { getWhtEntriesAction, issueWhtCertificateAction } from '@/actions/wht';
+import { getWhtEntriesAction, issueWhtCertificateAction } from '@/actions/tax/wht.actions';
 import { toast } from 'sonner';
 import { PdfPrintTrigger } from '@/features/print/components/pdf-print-trigger';
 

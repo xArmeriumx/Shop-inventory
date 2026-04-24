@@ -1,9 +1,9 @@
 import { db } from '@/lib/db';
 import { RequestContext, ServiceError, PaginatedResult, GetFinanceParams, SerializedIncome, SerializedExpense } from '@/types/domain';
-import { AuditService } from '@/services/core/audit.service';
-import { FINANCE_AUDIT_POLICIES } from './finance.policy';
-import { IncomeInput } from '@/schemas/income';
-import { ExpenseInput } from '@/schemas/expense';
+import { AuditService } from '@/services/core/system/audit.service';
+import { FINANCE_AUDIT_POLICIES } from '@/policies/accounting/finance.policy';
+import { IncomeInput } from '@/schemas/accounting/income.schema';
+import { ExpenseInput } from '@/schemas/accounting/expense.schema';
 import { paginatedQuery, buildSearchFilter, buildDateRangeFilter } from '@/lib/pagination';
 import { toNumber, money } from '@/lib/money';
 import { FINANCE_CONSTANTS, serializeIncome, serializeExpense } from '@/lib/mappers';

@@ -12,7 +12,7 @@ import {
 } from 'react';
 import { useSession } from 'next-auth/react';
 import type { Permission } from '@prisma/client';
-import { getMyPermissions, getPermissionVersion, type PermissionData } from '@/actions/auth';
+import { getMyPermissions, getPermissionVersion, type PermissionData } from '@/actions/core/auth.actions';
 import { logger, SystemEventType } from '@/lib/logger';
 
 // ============================================================================

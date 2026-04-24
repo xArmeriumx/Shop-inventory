@@ -1,5 +1,5 @@
 import { db } from '@/lib/db';
-import { SequenceService } from '@/services/core/sequence.service';
+import { SequenceService } from '@/services/core/system/sequence.service';
 import {
     DocumentType,
     OrderRequestStatus,

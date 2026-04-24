@@ -12,20 +12,21 @@ import { Badge } from '@/components/ui/badge';
 import { formatCurrency } from '@/lib/formatters';
 import { calculateCtn } from '@/lib/erp-utils';
 import { PrintButton } from '@/components/sales/print-button';
-import { ReceiptImage } from '@/components/receipts/receipt-image';
-import { ShipmentStatusBadge } from '@/components/shipments/shipment-status-badge';
+import { ReceiptImage } from '@/components/purchases/receipts/receipt-image';
+import { ShipmentStatusBadge } from '@/components/sales/shipments/shipment-status-badge';
 import { BackPageHeader } from '@/components/ui/back-page-header';
-import { Guard } from '@/components/auth/guard';
-import { PaymentModal } from '@/components/finance/payment-modal';
-import { FinancialTimeline } from '@/components/finance/financial-timeline';
+import { Guard } from '@/components/core/auth/guard';
+import { PaymentModal } from '@/components/accounting/finance/payment-modal';
+import { FinancialTimeline } from '@/components/accounting/finance/financial-timeline';
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { createInvoiceFromSale } from '@/actions/invoices';
+import { createInvoiceFromSale } from '@/actions/sales/invoices.actions';
 import { PdfPrintTrigger } from '@/features/print/components/pdf-print-trigger';
 import { buildSalePrintDTO } from '@/features/print/builders/sale-print.builder';
 import { WorkflowAssistant } from '@/components/ui/workflow-assistant';
 import { StatusBadgeGlass } from '@/components/ui/status-badge-glass';
+import { DocumentFlowPath, FlowStep } from '@/components/ui/document-flow-path';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -105,6 +106,37 @@ export function SaleDetailView({ sale, shop, payments = [] }: SaleDetailViewProp
                     <PrintButton />
                 </div>
             </div>
+
+            {/* Document Lifecycle Path */}
+            <DocumentFlowPath
+                steps={[
+                    {
+                        id: 'quote',
+                        label: 'ใบเสนอราคา',
+                        status: sale.quotationId ? 'completed' : 'skipped'
+                    },
+                    {
+                        id: 'sale',
+                        label: 'รายการขาย',
+                        status: 'current'
+                    },
+                    {
+                        id: 'shipment',
+                        label: 'จัดส่งสินค้า',
+                        status: activeShipment ? 'completed' : 'pending'
+                    },
+                    {
+                        id: 'invoice',
+                        label: 'ใบแจ้งหนี้',
+                        status: existingInvoice ? 'completed' : 'pending'
+                    },
+                    {
+                        id: 'payment',
+                        label: 'ชำระเงิน',
+                        status: isFullyPaid ? 'completed' : 'pending'
+                    }
+                ]}
+            />
 
             {/* Workflow Assistant - Premium Guided UX */}
             <WorkflowAssistant

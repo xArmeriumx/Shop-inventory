@@ -15,18 +15,18 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FormField } from '@/components/ui/form-field';
 import { FileUpload } from '@/components/ui/file-upload';
-import { CustomerCombobox } from '@/components/customers/customer-combobox';
+import { CustomerCombobox } from '@/components/sales/customers/customer-combobox';
 import { SaleScannerButton, type SaleScanResult } from './sale-scanner-button';
 import { Plus, Trash2, ScanBarcode, Tag, Percent } from 'lucide-react';
 
-import { createSale } from '@/actions/sales';
-import { getProductsForSelect } from '@/actions/products';
-import { getCustomersForSelect } from '@/actions/customers';
-import { getMyProfile } from '@/actions/auth';
+import { createSale } from '@/actions/sales/sales.actions';
+import { getProductsForSelect } from '@/actions/inventory/products.actions';
+import { getCustomersForSelect } from '@/actions/sales/customers.actions';
+import { getMyProfile } from '@/actions/core/auth.actions';
 import { formatCurrency } from '@/lib/formatters';
 import { PAYMENT_METHODS } from '@/lib/constants';
 import { usePermissions } from '@/hooks/use-permissions';
-import { saleFormSchema, getSaleFormDefaults, type SaleFormValues } from '@/schemas/sale-form';
+import { saleFormSchema, getSaleFormDefaults, type SaleFormValues } from '@/schemas/sales/sale-form.schema';
 
 // ============================================================================
 // Section: Sales Info

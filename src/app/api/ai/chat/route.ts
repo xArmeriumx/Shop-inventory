@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { groq, DEFAULT_MODEL, SHOP_AI_SYSTEM_PROMPT, detectToolFromMessage } from '@/lib/groq';
-import { getShopContextForAI } from '@/actions/ai';
+import { getShopContextForAI } from '@/actions/core/ai.actions';
 import { getToolDefinitions, executeTool } from '@/lib/ai/tools';
 import { withAuth } from '@/lib/auth/api-guard';
 import { AiStreamUtils } from '@/lib/ai/ai-stream-utils';

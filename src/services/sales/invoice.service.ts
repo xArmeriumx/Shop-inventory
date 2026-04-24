@@ -1,8 +1,8 @@
 import { db } from '@/lib/db';
-import { SequenceService } from '@/services/core/sequence.service';
+import { SequenceService } from '@/services/core/system/sequence.service';
 import { DB_TIMEOUTS } from '@/lib/constants';
-import { Security } from '@/services/core/security.service';
-import { WorkflowService } from '@/services/core/workflow.service';
+import { Security } from '@/services/core/iam/security.service';
+import { WorkflowService } from '@/services/core/workflow/workflow.service';
 import { DocumentType, ServiceError, type RequestContext } from '@/types/domain';
 import { Permission } from '@prisma/client';
 import { TaxResolutionService } from '@/services/tax/tax-resolution.service';
@@ -11,14 +11,7 @@ import { TaxSettingsService } from '@/services/tax/tax-settings.service';
 import { PostingService } from '@/services/accounting/posting-engine.service';
 import { JournalService } from '@/services/accounting/journal.service';
 
-export interface GetInvoicesParams {
-    page?: number;
-    limit?: number;
-    search?: string;
-    status?: string;
-    customerId?: string;
-    partnerAddress?: string;
-}
+import { GetInvoicesParams } from './sales.types';
 
 /**
  * InvoiceService — จัดการใบแจ้งหนี้ / Invoice (Billing Module)

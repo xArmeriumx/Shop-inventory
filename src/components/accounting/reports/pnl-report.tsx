@@ -6,7 +6,7 @@ import { money } from '@/lib/money';
 import { formatDate } from '@/lib/formatters';
 import { ArrowUpRight, ArrowDownRight, TrendingUp, ReceiptText, FileDown } from 'lucide-react';
 import { ExportButton } from '../shared/export-button';
-import { exportProfitAndLossAction } from '@/actions/accounting';
+import { exportProfitAndLossAction } from '@/actions/accounting/accounting.actions';
 import { format } from 'date-fns';
 
 interface PnLReportProps {
