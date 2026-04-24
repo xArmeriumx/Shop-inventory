@@ -11,16 +11,16 @@ interface EditIncomePageProps {
 export default async function EditIncomePage({ params }: EditIncomePageProps) {
   // Seed default categories if needed
   await seedDefaultLookupValues();
-  
-  let income;
-  try {
-    income = await getIncome(params.id);
-  } catch {
+
+  const result = await getIncome(params.id);
+  if (!result.success || !result.data) {
     notFound();
   }
+  const income = result.data;
 
   // Fetch categories from DB
-  const categories = await getLookupValues('INCOME_CATEGORY');
+  const categoriesRes = await getLookupValues('INCOME_CATEGORY');
+  const categories = categoriesRes.success ? categoriesRes.data : [];
 
   return (
     <div>
@@ -29,7 +29,7 @@ export default async function EditIncomePage({ params }: EditIncomePageProps) {
         description={income.description || 'แก้ไขข้อมูลรายรับ'}
       />
       <div className="max-w-2xl">
-        <IncomeForm income={income} categories={categories} />
+        <IncomeForm income={income} categories={categories as any} />
       </div>
     </div>
   );

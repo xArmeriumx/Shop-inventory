@@ -4,6 +4,7 @@ import { Security } from '@/services/core/iam/security.service';
 import { SequenceService } from '@/services/core/system/sequence.service';
 import { TaxCalculationService } from './tax-calculation.service';
 import { format } from 'date-fns';
+import { Permission } from '@prisma/client';
 
 /**
  * PurchaseTaxService — บริหารจัดการเอกสารภาษีซื้อ (Document Lifecycle)
@@ -20,7 +21,7 @@ export const PurchaseTaxService = {
      * snap ข้อมูล ณ ปัจจุบันเพื่อทำ Audit Trail ที่สมบูรณ์
      */
     async registerFromPurchase(purchaseId: string, ctx: RequestContext) {
-        Security.requirePermission(ctx, 'TAX_REPORT_POST' as any);
+        Security.requirePermission(ctx, Permission.TAX_REPORT_POST);
 
         // 1. Fetch Purchase order with items and supplier
         const purchase = await db.purchase.findFirst({
@@ -90,7 +91,7 @@ export const PurchaseTaxService = {
      * ลงบัญชีเอกสาร: อัปเดตข้อมูลเลขที่ใบกำกับภาษี และยืนยันยอดเข้ารายงาน ภ.พ. 30
      */
     async post(id: string, input: { vendorDocNo: string; vendorDocDate: Date; claimStatus: string }, ctx: RequestContext) {
-        Security.requirePermission(ctx, 'TAX_REPORT_POST' as any);
+        Security.requirePermission(ctx, Permission.TAX_REPORT_POST);
 
         const now = new Date();
         const doc = await (db as any).purchaseTaxDocument.findUnique({
@@ -147,7 +148,7 @@ export const PurchaseTaxService = {
      * ยกเลิกเอกสารภาษี: Reverse สถานะและยกเลิกรายการในรายงานภาษี
      */
     async void(id: string, ctx: RequestContext) {
-        Security.requirePermission(ctx, 'TAX_REPORT_POST' as any);
+        Security.requirePermission(ctx, Permission.TAX_REPORT_POST);
 
         const now = new Date();
         const doc = await (db as any).purchaseTaxDocument.findUnique({ where: { id, shopId: ctx.shopId } });
@@ -178,7 +179,7 @@ export const PurchaseTaxService = {
      * ค้นหาและจัดการรายการภาษีซื้อ
      */
     async getList(params: any, ctx: RequestContext) {
-        Security.requirePermission(ctx, 'TAX_REPORT_VIEW' as any);
+        Security.requirePermission(ctx, Permission.TAX_REPORT_VIEW);
 
         const { page = 1, limit = 20, search, status, claimStatus } = params;
         const skip = (page - 1) * limit;
@@ -217,7 +218,7 @@ export const PurchaseTaxService = {
      * ดึงรายละเอียดเอกสารพร้อม Items และ Links
      */
     async getById(id: string, ctx: RequestContext) {
-        Security.requirePermission(ctx, 'TAX_REPORT_VIEW' as any);
+        Security.requirePermission(ctx, Permission.TAX_REPORT_VIEW);
 
         return await (db as any).purchaseTaxDocument.findUnique({
             where: { id, shopId: ctx.shopId },

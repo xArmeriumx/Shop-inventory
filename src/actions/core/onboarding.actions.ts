@@ -16,7 +16,8 @@
 import { auth } from '@/lib/auth';
 import { revalidatePath } from 'next/cache';
 import { logger } from '@/lib/logger';
-import type { ActionResponse } from '@/types/common';
+import { handleAction, type ActionResponse } from '@/lib/action-handler';
+import { ServiceError } from '@/types/common';
 import { OnboardingService } from '@/services/core/system/onboarding.service';
 import {
   genesisStep1Schema,
@@ -36,23 +37,23 @@ import type { SetupItemKey, SetupProgressReport } from '@/types/onboarding.types
 // WIZARD: Draft autosave per step
 // ============================================================================
 
+// ============================================================================
+// WIZARD: Draft autosave per step
+// ============================================================================
+
 export async function saveOnboardingDraft(
   step: number,
   data: Record<string, unknown>,
-): Promise<ActionResponse> {
-  try {
+): Promise<ActionResponse<null>> {
+  return handleAction(async () => {
     const session = await auth();
     if (!session?.user?.shopId) {
-      return { success: false, message: 'ไม่พบร้านค้า กรุณาเริ่มต้นใหม่' };
+      throw new ServiceError('ไม่พบร้านค้า กรุณาเริ่มต้นใหม่');
     }
 
     await OnboardingService.saveDraft(session.user.shopId, step, data);
-    return { success: true };
-  } catch (error) {
-    const err = error as Error;
-    await logger.error('saveOnboardingDraft error', err, { step });
-    return { success: false, message: err.message };
-  }
+    return null;
+  }, { context: { action: 'saveOnboardingDraft', step } });
 }
 
 // ============================================================================
@@ -66,50 +67,34 @@ export async function completeGenesis(
   step4: GenesisStep4Input,
   step5: GenesisStep5Input,
 ): Promise<ActionResponse<{ shopId: string }>> {
-  try {
+  return handleAction(async () => {
     const session = await auth();
     const userId = session?.user?.id;
 
     if (!userId) {
-      return { success: false, message: 'กรุณาเข้าสู่ระบบก่อนสร้างร้านค้า' };
+      throw new ServiceError('กรุณาเข้าสู่ระบบก่อนสร้างร้านค้า');
     }
 
-    // Re-validate all steps server-side (SSOT — never trust client alone)
-    const v1 = genesisStep1Schema.safeParse(step1);
-    const v2 = genesisStep2Schema.safeParse(step2);
-    const v3 = genesisStep3Schema.safeParse(step3);
-    const v4 = genesisStep4Schema.safeParse(step4);
-    const v5 = genesisStep5Schema.safeParse(step5);
-
-    const failures = [v1, v2, v3, v4, v5]
-      .map((r, i) => (!r.success ? `Step ${i + 1}: ${r.error.issues[0]?.message}` : null))
-      .filter(Boolean);
-
-    if (failures.length > 0) {
-      return {
-        success: false,
-        message: failures.join(' | '),
-        errors: Object.fromEntries(failures.map((f, i) => [`step${i + 1}`, [f!]])),
-      };
-    }
+    // Re-validate all steps server-side (SSOT)
+    const v1 = genesisStep1Schema.parse(step1);
+    const v2 = genesisStep2Schema.parse(step2);
+    const v3 = genesisStep3Schema.parse(step3);
+    const v4 = genesisStep4Schema.parse(step4);
+    const v5 = genesisStep5Schema.parse(step5);
 
     const shop = await OnboardingService.createShop(
       userId,
       session.user.name,
-      v1.data!,
-      v2.data!,
-      v3.data!,
-      v4.data!,
-      v5.data!,
+      v1,
+      v2,
+      v3,
+      v4,
+      v5,
     );
 
     revalidatePath('/');
-    return { success: true, message: 'สร้างร้านค้าสำเร็จ', data: { shopId: shop.id } };
-  } catch (error) {
-    const err = error as Error;
-    await logger.error('completeGenesis error', err, { path: 'completeGenesis' });
-    return { success: false, message: err.message || 'เกิดข้อผิดพลาดในการสร้างร้านค้า' };
-  }
+    return { shopId: shop.id };
+  }, { context: { action: 'completeGenesis' } });
 }
 
 // ============================================================================
@@ -117,18 +102,14 @@ export async function completeGenesis(
 // ============================================================================
 
 export async function getSetupProgress(): Promise<ActionResponse<SetupProgressReport>> {
-  try {
+  return handleAction(async () => {
     const session = await auth();
     if (!session?.user?.shopId) {
-      return { success: false, message: 'ไม่พบร้านค้า' };
+      throw new ServiceError('ไม่พบร้านค้า');
     }
 
-    const report = await OnboardingService.getSetupProgress(session.user.shopId);
-    return { success: true, data: report };
-  } catch (error) {
-    const err = error as Error;
-    return { success: false, message: err.message };
-  }
+    return OnboardingService.getSetupProgress(session.user.shopId);
+  }, { context: { action: 'getSetupProgress' } });
 }
 
 // ============================================================================
@@ -137,19 +118,16 @@ export async function getSetupProgress(): Promise<ActionResponse<SetupProgressRe
 
 export async function dismissSetupItem(
   itemKey: SetupItemKey,
-): Promise<ActionResponse> {
-  try {
+): Promise<ActionResponse<null>> {
+  return handleAction(async () => {
     const session = await auth();
     if (!session?.user?.shopId) {
-      return { success: false, message: 'ไม่พบร้านค้า' };
+      throw new ServiceError('ไม่พบร้านค้า');
     }
 
     await OnboardingService.dismissSetupItem(session.user.shopId, itemKey);
-    return { success: true };
-  } catch (error) {
-    const err = error as Error;
-    return { success: false, message: err.message };
-  }
+    return null;
+  }, { context: { action: 'dismissSetupItem', itemKey } });
 }
 
 // ============================================================================
@@ -159,43 +137,34 @@ export async function dismissSetupItem(
 export async function updateTutorialProgress(
   track: number,
   step: number,
-): Promise<ActionResponse> {
-  try {
+): Promise<ActionResponse<null>> {
+  return handleAction(async () => {
     const session = await auth();
     if (!session?.user?.shopId) {
-      return { success: false, message: 'ไม่พบร้านค้า' };
+      throw new ServiceError('ไม่พบร้านค้า');
     }
 
     await OnboardingService.updateTutorialProgress(session.user.shopId, track, step);
-    return { success: true };
-  } catch (error) {
-    const err = error as Error;
-    return { success: false, message: err.message };
-  }
+    return null;
+  }, { context: { action: 'updateTutorialProgress', track, step } });
 }
 
-export async function dismissTutorial(): Promise<ActionResponse> {
-  try {
+export async function dismissTutorial(): Promise<ActionResponse<null>> {
+  return handleAction(async () => {
     const session = await auth();
     if (!session?.user?.shopId) {
-      return { success: false, message: 'ไม่พบร้านค้า' };
+      throw new ServiceError('ไม่พบร้านค้า');
     }
 
     await OnboardingService.dismissTutorial(session.user.shopId);
-    return { success: true };
-  } catch (error) {
-    const err = error as Error;
-    return { success: false, message: err.message };
-  }
+    return null;
+  }, { context: { action: 'dismissTutorial' } });
 }
 
 /**
  * @deprecated Use completeGenesis() for the new 5-step wizard.
- * Legacy: Backward compatibility shim for old onboarding/page.tsx
- * Accepts only shopName — uses all other fields as minimal defaults.
- * TODO: Remove after new GenesisWizard UI is deployed.
  */
-export async function createShop(shopName: string): Promise<ActionResponse> {
+export async function createShop(shopName: string): Promise<ActionResponse<any>> {
   return completeGenesis(
     // Step 1: Identity
     { name: shopName, industryType: 'RETAIL', phone: '', logo: null },

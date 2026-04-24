@@ -11,12 +11,6 @@ export default async function AuditSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <BackPageHeader
-        backHref="/settings"
-        title="ประวัติความปลอดภัย"
-        description="Security Dashboard & Audit Logs"
-      />
-
       <Suspense fallback={<Loading />}>
         <SecurityDashboardCards />
       </Suspense>

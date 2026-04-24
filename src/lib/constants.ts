@@ -11,6 +11,13 @@ export const PAGINATION_CONFIG = {
   MAX_LIMIT: 100,
 } as const;
 
+/**
+ * Default threshold below which a product is considered "low stock".
+ * Used by StockService when product.minStock is not set.
+ * Override per-product using the minStock field on the Product model.
+ */
+export const DEFAULT_LOW_STOCK_THRESHOLD = 5;
+
 // Legacy aliases for compatibility
 export const ITEMS_PER_PAGE = PAGINATION_CONFIG.DEFAULT_LIMIT;
 export const MAX_ITEMS_PER_PAGE = PAGINATION_CONFIG.MAX_LIMIT;

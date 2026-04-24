@@ -11,23 +11,25 @@ interface PageProps {
 }
 
 export default async function EditSupplierPage({ params }: PageProps) {
-    const supplier = await getSupplier(params.id);
+    const result = await getSupplier(params.id);
 
-    if (!supplier) {
+    if (!result.success || !result.data) {
         notFound();
     }
 
+    const supplier = result.data;
+
     // Map SerializedSupplier to the thin Supplier interface expected by the form
     const mappedSupplier = {
-        id: supplier.id,
-        name: supplier.name,
-        code: supplier.code,
-        contactName: supplier.contactName,
-        phone: supplier.phone,
-        email: supplier.email,
-        address: supplier.address,
-        taxId: supplier.taxId,
-        notes: supplier.notes,
+        id: (supplier as any).id,
+        name: (supplier as any).name,
+        code: (supplier as any).code,
+        contactName: (supplier as any).contactName,
+        phone: (supplier as any).phone,
+        email: (supplier as any).email,
+        address: (supplier as any).address,
+        taxId: (supplier as any).taxId,
+        notes: (supplier as any).notes,
     };
 
     return (
@@ -40,7 +42,7 @@ export default async function EditSupplierPage({ params }: PageProps) {
                 </Button>
                 <SectionHeader
                     title="แก้ไขผู้จำหน่าย"
-                    description={`แก้ไขข้อมูลของ ${supplier.name}`}
+                    description={`แก้ไขข้อมูลของ ${(supplier as any).name}`}
                 />
             </div>
 

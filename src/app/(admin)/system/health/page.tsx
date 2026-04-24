@@ -7,7 +7,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { formatDate } from '@/lib/formatters';
 
 async function HealthContent() {
-  const data = await getHardeningHealth();
+  const result = await getHardeningHealth();
+
+  if (!result.success) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 border-2 border-dashed rounded-xl opacity-60">
+        <AlertTriangle className="h-10 w-10 text-destructive mb-4" />
+        <h3 className="text-lg font-semibold">ไม่สามารถดึงข้อมูลสุขภาพระบบได้</h3>
+        <p className="text-sm text-muted-foreground">{result.message}</p>
+      </div>
+    );
+  }
+
+  const data = result.data;
 
   return (
     <div className="space-y-6">
@@ -70,7 +82,7 @@ async function HealthContent() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  data.hotspots.map((h, i) => (
+                  data.hotspots.map((h: any, i: number) => (
                     <TableRow key={i}>
                       <TableCell className="font-medium font-mono text-xs">{h.source}</TableCell>
                       <TableCell className="text-right font-bold text-red-600">{h.count}</TableCell>
@@ -97,7 +109,7 @@ async function HealthContent() {
                   No recent events logged
                 </div>
               ) : (
-                data.recent.map((event) => (
+                data.recent.map((event: any) => (
                   <div key={event.id} className="border-l-2 border-primary/20 pl-4 py-1 space-y-1">
                     <div className="flex items-center justify-between gap-2">
                       <Badge variant="outline" className="text-[10px] uppercase font-mono">

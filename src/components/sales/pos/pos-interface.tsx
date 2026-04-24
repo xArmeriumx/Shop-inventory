@@ -32,7 +32,7 @@ export function POSInterface({ initialProducts, categories, promptPayId }: POSIn
 
   // Detect touch device (iPad/tablet) - don't auto-focus on touch devices to prevent keyboard popup
   const [isTouchDevice, setIsTouchDevice] = useState(false);
-  
+
   useEffect(() => {
     // Check if device has touch capability
     const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
@@ -73,7 +73,7 @@ export function POSInterface({ initialProducts, categories, promptPayId }: POSIn
     const refreshInterval = setInterval(async () => {
       // Skip refresh if tab is not active (user switched to another tab/app)
       if (!document.hasFocus()) return;
-      
+
       // Skip refresh if payment dialog is open (don't interrupt user)
       if (isPaymentOpen || isProcessing) return;
 
@@ -209,7 +209,7 @@ export function POSInterface({ initialProducts, categories, promptPayId }: POSIn
 
       // Find product by SKU
       const product = products.find((p) => p.sku === sku);
-      
+
       if (product) {
         addToCart(product);
         setScanInput('');
@@ -270,18 +270,18 @@ export function POSInterface({ initialProducts, categories, promptPayId }: POSIn
         // Success! Clear cart and close dialog
         clearCart();
         setIsPaymentOpen(false);
-        
+
         // Show success dialog
         setSuccessInvoiceNumber(result.invoiceNumber || '');
         setSuccessSaleId(result.saleId || '');
         setSuccessAmountReceived(amountReceived);
         setSuccessChange(change);
         setIsSuccessOpen(true);
-        
+
         // Refresh to update stock (backup sync from server)
         router.refresh();
       } else {
-        alert(result.error || 'เกิดข้อผิดพลาด');
+        alert(result.message || 'เกิดข้อผิดพลาด');
       }
     } catch (error) {
       console.error('Checkout error:', error);
@@ -373,7 +373,7 @@ export function POSInterface({ initialProducts, categories, promptPayId }: POSIn
       {/* Mobile: Floating Cart Button */}
       {cart.itemCount > 0 && (
         <div className="lg:hidden fixed bottom-4 left-4 right-4 z-40">
-          <Button 
+          <Button
             size="lg"
             className="w-full h-14 text-lg shadow-lg"
             onClick={() => setIsMobileCartOpen(true)}
@@ -391,11 +391,11 @@ export function POSInterface({ initialProducts, categories, promptPayId }: POSIn
       {isMobileCartOpen && (
         <div className="lg:hidden fixed inset-0 z-50">
           {/* Backdrop */}
-          <div 
-            className="absolute inset-0 bg-black/50" 
+          <div
+            className="absolute inset-0 bg-black/50"
             onClick={() => setIsMobileCartOpen(false)}
           />
-          
+
           {/* Sheet */}
           <div className="absolute bottom-0 left-0 right-0 max-h-[85vh] bg-card rounded-t-2xl shadow-2xl flex flex-col animate-in slide-in-from-bottom duration-300">
             {/* Handle + Header */}
@@ -409,8 +409,8 @@ export function POSInterface({ initialProducts, categories, promptPayId }: POSIn
                     {cart.itemCount}
                   </span>
                 </div>
-                <Button 
-                  variant="ghost" 
+                <Button
+                  variant="ghost"
                   size="icon"
                   onClick={() => setIsMobileCartOpen(false)}
                 >
@@ -418,7 +418,7 @@ export function POSInterface({ initialProducts, categories, promptPayId }: POSIn
                 </Button>
               </div>
             </div>
-            
+
             {/* Cart Content */}
             <div className="flex-1 overflow-hidden">
               <POSCartPanel

@@ -80,7 +80,7 @@ export default async function ApprovalsPage({ searchParams }: PageProps) {
             <TableView
                 title="รายการอนุมัติ (Approvals Inbox)"
                 description="ตรวจสอบและอนุมัติเอกสารต่างๆ ในระบบ"
-                items={result.data}
+                items={result.data?.data || []}
                 columns={columns}
                 keyExtractor={(item) => item.id}
             />

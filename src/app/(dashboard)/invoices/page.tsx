@@ -41,27 +41,44 @@ export default async function InvoicesPage({ searchParams }: InvoicesPageProps) 
         getInvoiceStats(),
     ]);
 
+    if (!result.success) {
+        return (
+            <div className="flex flex-col items-center justify-center py-20 bg-card rounded-lg border border-dashed">
+                <AlertCircle className="w-10 h-10 text-destructive mb-4" />
+                <h3 className="text-lg font-semibold">ไม่สามารถดึงข้อมูลใบแจ้งหนี้ได้</h3>
+                <p className="text-muted-foreground">{result.message}</p>
+            </div>
+        );
+    }
+
+    // Metrics data extraction with ActionResponse wrapper
+    const statsData = stats.success ? stats.data : {
+        draft: { count: 0 },
+        unpaid: { amount: 0, count: 0 },
+        overdue: { amount: 0, count: 0 }
+    };
+
     const metrics = [
         {
             label: 'รอดำเนินการ (Draft)',
-            value: stats.draft.count.toString(),
+            value: (statsData.draft?.count || 0).toString(),
             icon: <FileEdit className="h-4 w-4" />,
             iconClassName: 'text-gray-400',
             hint: 'รายการที่ยังไม่ได้รับรองการลงบัญชี',
         },
         {
             label: 'ยอดค้างชำระทั้งหมด',
-            value: formatCurrency(stats.unpaid.amount),
+            value: formatCurrency(statsData.unpaid?.amount || 0),
             icon: <Receipt className="h-4 w-4" />,
             iconClassName: 'text-blue-500',
-            hint: `จาก ${stats.unpaid.count} ใบแจ้งหนี้`,
+            hint: `จาก ${statsData.unpaid?.count || 0} ใบแจ้งหนี้`,
         },
         {
             label: 'ยอดลูกหนี้ที่เกินกำหนด',
-            value: formatCurrency(stats.overdue.amount),
+            value: formatCurrency(statsData.overdue?.amount || 0),
             icon: <AlertCircle className="h-4 w-4" />,
             iconClassName: 'text-red-500',
-            hint: `${stats.overdue.count} ใบที่เกินวันครบกำหนด`,
+            hint: `${statsData.overdue?.count || 0} ใบที่เกินวันครบกำหนด`,
         },
     ];
 
@@ -135,14 +152,14 @@ export default async function InvoicesPage({ searchParams }: InvoicesPageProps) 
 
             <div className="bg-card rounded-lg border shadow-sm overflow-hidden">
                 <TableView
-                    items={result.data}
+                    items={result.data?.data || []}
                     columns={columns}
                     keyExtractor={(item) => item.id}
                 />
             </div>
 
             <PaginationControl
-                pagination={result.pagination as any}
+                pagination={result.data?.pagination as any}
             />
         </div>
     );

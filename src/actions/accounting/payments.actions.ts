@@ -4,52 +4,55 @@ import { PaymentService, PaymentInput } from '@/services/accounting/payment.serv
 import { requireShop, requirePermission } from '@/lib/auth-guard';
 import { revalidatePath } from 'next/cache';
 import { Permission } from '@prisma/client';
+import { ActionResponse } from '@/types/common';
+
+import { PerformanceCollector } from '@/lib/debug/measurement';
+import { handleAction } from '@/lib/action-handler';
 
 /**
  * Record a new payment via Server Action
  */
-export async function recordPaymentAction(data: PaymentInput) {
-    try {
-        const ctx = await requirePermission('PAYMENT_RECORD' as any);
-        const result = await PaymentService.recordPayment(data, ctx);
+export async function recordPaymentAction(data: PaymentInput): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requirePermission('FINANCE_CONFIG');
+            const result = await PaymentService.recordPayment(data, ctx);
 
-        // Revalidate the parent document paths
-        if (data.saleId) revalidatePath(`/sales/${data.saleId}`);
-        if (data.invoiceId) revalidatePath(`/invoices/${data.invoiceId}`);
+            // Revalidate the parent document paths
+            if (data.saleId) revalidatePath(`/sales/${data.saleId}`);
+            if (data.invoiceId) revalidatePath(`/invoices/${data.invoiceId}`);
 
-        return { success: true, data: result };
-    } catch (error: any) {
-        return { success: false, error: error.message || 'เกิดข้อผิดพลาดในการบันทึกการชำระเงิน' };
-    }
+            return result;
+        });
+    }, { context: { action: 'recordPaymentAction' } });
 }
 
 /**
  * Void a payment via Server Action
  */
-export async function voidPaymentAction(paymentId: string, parentPaths: { saleId?: string, invoiceId?: string }) {
-    try {
-        const ctx = await requirePermission('PAYMENT_VOID' as any);
-        const result = await PaymentService.voidPayment(paymentId, ctx);
+export async function voidPaymentAction(paymentId: string, parentPaths: { saleId?: string, invoiceId?: string }): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requirePermission('FINANCE_PAYMENT_VOID');
+            const result = await PaymentService.voidPayment(paymentId, ctx);
 
-        // Revalidate
-        if (parentPaths.saleId) revalidatePath(`/sales/${parentPaths.saleId}`);
-        if (parentPaths.invoiceId) revalidatePath(`/invoices/${parentPaths.invoiceId}`);
+            // Revalidate
+            if (parentPaths.saleId) revalidatePath(`/sales/${parentPaths.saleId}`);
+            if (parentPaths.invoiceId) revalidatePath(`/invoices/${parentPaths.invoiceId}`);
 
-        return { success: true, data: result };
-    } catch (error: any) {
-        return { success: false, error: error.message || 'เกิดข้อผิดพลาดในการยกเลิกการชำระเงิน' };
-    }
+            return result;
+        });
+    }, { context: { action: 'voidPaymentAction' } });
 }
 
 /**
  * Get Payment History via Server Action
  */
-export async function getPaymentHistoryAction(target: { invoiceId?: string, saleId?: string }) {
-    try {
-        const ctx = await requireShop();
-        const payments = await PaymentService.getPaymentHistory(target, ctx);
-        return { success: true, data: payments };
-    } catch (error: any) {
-        return { success: false, error: error.message || 'ไม่สามารถดึงข้อมูลย้อนหลังได้' };
-    }
+export async function getPaymentHistoryAction(target: { invoiceId?: string, saleId?: string }): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requireShop();
+            return await PaymentService.getPaymentHistory(target, ctx);
+        });
+    }, { context: { action: 'getPaymentHistoryAction' } });
 }

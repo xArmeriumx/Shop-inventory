@@ -41,7 +41,18 @@ export function StockValueReport() {
     );
   }
 
-  if (!data) return null;
+  if (!data?.success) {
+    return (
+      <Card>
+        <CardContent className="py-10 text-center">
+          <p className="text-muted-foreground">{data?.message || 'ไม่สามารถดึงข้อมูลรายงานสต็อกได้'}</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const reportData = data.data;
+  const turnoverData = turnover?.success ? turnover.data : null;
 
   const handleSort = (field: typeof sortBy) => {
     if (sortBy === field) {
@@ -52,9 +63,9 @@ export function StockValueReport() {
     }
   };
 
-  const items = data.items
-    .filter(item => !filterDead || item.isDead)
-    .sort((a, b) => {
+  const items = reportData.items
+    .filter((item: any) => !filterDead || item.isDead)
+    .sort((a: any, b: any) => {
       const mul = sortDir === 'asc' ? 1 : -1;
       if (sortBy === 'name') return mul * a.name.localeCompare(b.name);
       const aVal = a[sortBy] ?? -1;
@@ -82,8 +93,8 @@ export function StockValueReport() {
             <DollarSign className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="text-lg sm:text-2xl font-bold">{formatCurrency(data.summary.totalCostValue)}</div>
-            <p className="text-[10px] sm:text-xs text-muted-foreground">{formatNumber(data.summary.totalUnits)} ชิ้น / {data.summary.totalItems} รายการ</p>
+            <div className="text-lg sm:text-2xl font-bold">{formatCurrency(reportData.summary.totalCostValue)}</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">{formatNumber(reportData.summary.totalUnits)} ชิ้น / {reportData.summary.totalItems} รายการ</p>
           </CardContent>
         </Card>
 
@@ -93,8 +104,8 @@ export function StockValueReport() {
             <Package className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="text-lg sm:text-2xl font-bold text-green-600">{formatCurrency(data.summary.totalRetailValue)}</div>
-            <p className="text-[10px] sm:text-xs text-muted-foreground">กำไรที่คาดหวัง {formatCurrency(data.summary.potentialProfit)}</p>
+            <div className="text-lg sm:text-2xl font-bold text-green-600">{formatCurrency(reportData.summary.totalRetailValue)}</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">กำไรที่คาดหวัง {formatCurrency(reportData.summary.potentialProfit)}</p>
           </CardContent>
         </Card>
 
@@ -104,8 +115,8 @@ export function StockValueReport() {
             <AlertTriangle className="h-4 w-4 text-red-600" />
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="text-lg sm:text-2xl font-bold text-red-600">{data.summary.deadStockCount}</div>
-            <p className="text-[10px] sm:text-xs text-muted-foreground">มูลค่า {formatCurrency(data.summary.deadStockValue)}</p>
+            <div className="text-lg sm:text-2xl font-bold text-red-600">{reportData.summary.deadStockCount}</div>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">มูลค่า {formatCurrency(reportData.summary.deadStockValue)}</p>
           </CardContent>
         </Card>
 
@@ -115,9 +126,9 @@ export function StockValueReport() {
             <RotateCcw className="h-4 w-4 text-purple-600" />
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="text-lg sm:text-2xl font-bold">{turnover?.turnoverRate ?? '-'}x</div>
+            <div className="text-lg sm:text-2xl font-bold">{turnoverData?.turnoverRate ?? '-'}x</div>
             <p className="text-[10px] sm:text-xs text-muted-foreground">
-              {turnover?.daysSalesOfInventory ? `${turnover.daysSalesOfInventory} วันจึงขายหมด` : 'ข้อมูลไม่เพียงพอ'}
+              {turnoverData?.daysSalesOfInventory ? `${turnoverData.daysSalesOfInventory} วันจึงขายหมด` : 'ข้อมูลไม่เพียงพอ'}
             </p>
           </CardContent>
         </Card>
@@ -130,14 +141,13 @@ export function StockValueReport() {
             <CardTitle className="text-base sm:text-lg">รายละเอียดสต็อก</CardTitle>
             <button
               onClick={() => setFilterDead(f => !f)}
-              className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                filterDead 
-                  ? 'bg-red-100 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-800' 
-                  : 'bg-muted text-muted-foreground border-border'
-              }`}
+              className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${filterDead
+                ? 'bg-red-100 text-red-700 border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-800'
+                : 'bg-muted text-muted-foreground border-border'
+                }`}
             >
               <AlertTriangle className="h-3 w-3 inline mr-1" />
-              {filterDead ? `แสดง Dead Stock (${data.summary.deadStockCount})` : 'ดูเฉพาะสินค้าค้าง'}
+              {filterDead ? `แสดง Dead Stock (${reportData.summary.deadStockCount})` : 'ดูเฉพาะสินค้าค้าง'}
             </button>
           </div>
         </CardHeader>
@@ -164,7 +174,7 @@ export function StockValueReport() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-muted">
-                {items.map(item => (
+                {items.map((item: any) => (
                   <tr key={item.id} className={item.isDead ? 'bg-red-50/50 dark:bg-red-950/20' : ''}>
                     <td className="py-2 px-2">
                       <div className="font-medium">{item.name}</div>
@@ -214,11 +224,11 @@ export function StockValueReport() {
                 <tr className="border-t-2 font-bold bg-muted/50">
                   <td className="py-3 px-2">รวม ({items.length} รายการ)</td>
                   <td className="text-right py-3 px-2">
-                    {formatNumber(items.reduce((s, i) => s + i.stock, 0))}
+                    {formatNumber(items.reduce((s: number, i: any) => s + i.stock, 0))}
                   </td>
                   <td className="text-right py-3 px-2">-</td>
                   <td className="text-right py-3 px-2">
-                    {formatCurrency(items.reduce((s, i) => s + i.stockValueCost, 0))}
+                    {formatCurrency(items.reduce((s: number, i: any) => s + i.stockValueCost, 0))}
                   </td>
                   <td colSpan={3}></td>
                 </tr>

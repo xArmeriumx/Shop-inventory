@@ -29,7 +29,12 @@ async function ReturnsContent({ searchParams }: ReturnsPageProps) {
     page: params.page ? Number(params.page) : 1,
     search: params.search,
   });
-  return <ReturnsTable returns={result.data as any} pagination={result.pagination} />;
+
+  if (!result.success || !result.data) {
+    return <ReturnsTable returns={[]} pagination={{ total: 0, totalPages: 0, currentPage: 1, limit: 10, hasNextPage: false, hasPrevPage: false } as any} />;
+  }
+
+  return <ReturnsTable returns={result.data.data as any} pagination={result.data.pagination} />;
 }
 
 function ReturnsSkeleton() {

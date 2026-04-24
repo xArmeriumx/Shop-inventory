@@ -2,159 +2,132 @@
 
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
+import { groq, DEFAULT_MODEL } from '@/lib/ai';
 import { Security } from '@/services/core/iam/security.service';
 import { getSessionContext } from '@/lib/auth-guard';
 import { whtCodeSchema, WhtCodeFormValues } from '@/schemas/tax/wht-form.schema';
 import { WhtService } from '@/services/tax/wht.service';
 import { ExportService } from '@/services/core/intelligence/export.service';
-import { ActionResponse } from '@/types/domain';
 
-/**
- * Helper to ensure context or throw
- */
-async function getRequiredContext() {
-    const ctx = await getSessionContext();
-    if (!ctx) throw new Error('Unauthorized');
-    return ctx;
-}
+import { PerformanceCollector } from '@/lib/debug/measurement';
+import { handleAction, type ActionResponse } from '@/lib/action-handler';
+import { requirePermission } from '@/lib/auth-guard';
 
 /**
  * Server Actions for Withholding Tax (WHT)
  */
 
-export async function getWhtCodes() {
-    const ctx = await getSessionContext();
-    if (!ctx || !ctx.shopId) return [];
-
-    return await (db as any).whtCode.findMany({
-        where: { shopId: ctx.shopId },
-        orderBy: { rate: 'asc' },
-    });
+export async function getWhtCodes(): Promise<ActionResponse<any[]>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requirePermission('TAX_SETTINGS_VIEW');
+            return await db.whtCode.findMany({
+                where: { shopId: ctx.shopId },
+                orderBy: { rate: 'asc' },
+            });
+        }, 'tax:getWhtCodes');
+    }, { context: { action: 'getWhtCodes' } });
 }
 
-export async function upsertWhtCode(data: WhtCodeFormValues, id?: string) {
-    const ctx = await getRequiredContext();
-    Security.requirePermission(ctx as any, 'TAX_REPORT_POST' as any);
+export async function upsertWhtCode(data: WhtCodeFormValues, id?: string): Promise<ActionResponse<null>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requirePermission('TAX_SETTINGS_MANAGE');
+            const validated = whtCodeSchema.parse(data);
 
-    const validated = whtCodeSchema.parse(data);
+            if (id) {
+                await db.whtCode.update({
+                    where: { id, shopId: ctx.shopId },
+                    data: validated as any,
+                });
+            } else {
+                await db.whtCode.upsert({
+                    where: {
+                        shopId_code: {
+                            shopId: ctx.shopId,
+                            code: validated.code,
+                        },
+                    },
+                    update: validated as any,
+                    create: {
+                        shopId: ctx.shopId,
+                        ...validated,
+                    } as any,
+                });
+            }
 
-    if (id) {
-        await (db as any).whtCode.update({
-            where: { id, shopId: ctx.shopId },
-            data: validated,
-        });
-    } else {
-        await (db as any).whtCode.upsert({
-            where: {
-                shopId_code: {
-                    shopId: ctx.shopId,
-                    code: validated.code,
-                },
-            },
-            update: validated,
-            create: {
-                shopId: ctx.shopId,
-                ...validated,
-            },
-        });
-    }
-
-    revalidatePath('/settings/tax');
-    return { success: true };
+            revalidatePath('/settings/tax');
+            return null;
+        }, 'tax:upsertWhtCode');
+    }, { context: { action: 'upsertWhtCode' } });
 }
 
-export async function toggleWhtCodeStatus(id: string, isActive: boolean) {
-    const ctx = await getRequiredContext();
-    Security.requirePermission(ctx as any, 'TAX_REPORT_POST' as any);
-
-    await (db as any).whtCode.update({
-        where: { id, shopId: ctx.shopId },
-        data: { isActive },
-    });
-
-    revalidatePath('/settings/tax');
-    return { success: true };
+export async function toggleWhtCodeStatus(id: string, isActive: boolean): Promise<ActionResponse<null>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requirePermission('TAX_SETTINGS_MANAGE');
+            await db.whtCode.update({
+                where: { id, shopId: ctx.shopId },
+                data: { isActive },
+            });
+            revalidatePath('/settings/tax');
+            return null;
+        }, 'tax:toggleWhtCodeStatus');
+    }, { context: { action: 'toggleWhtCodeStatus', id } });
 }
 
-/**
- * ลบ WHT Code
- */
-export async function deleteWhtCodeAction(id: string) {
-    const ctx = await getRequiredContext();
-    Security.requirePermission(ctx as any, 'TAX_REPORT_POST' as any);
-
-    try {
-        await (db as any).whtCode.delete({
-            where: { id, shopId: ctx.shopId }
-        });
-        revalidatePath('/settings/tax');
-        return { success: true };
-    } catch (error: any) {
-        return { success: false, message: error.message };
-    }
+export async function deleteWhtCodeAction(id: string): Promise<ActionResponse<null>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requirePermission('TAX_SETTINGS_MANAGE');
+            await db.whtCode.delete({
+                where: { id, shopId: ctx.shopId }
+            });
+            revalidatePath('/settings/tax');
+            return null;
+        }, 'tax:deleteWhtCode');
+    }, { context: { action: 'deleteWhtCode', id } });
 }
 
-/**
- * ดึงรายการ WHT Ledger
- */
-export async function getWhtEntriesAction(params: { year: number; month: number; formType?: string }) {
-    const ctx = await getRequiredContext();
-    Security.requirePermission(ctx as any, 'TAX_REPORT_VIEW' as any);
-
-    try {
-        const result = await WhtService.getReportData(ctx as any, params as any);
-        return { success: true, data: result };
-    } catch (error: any) {
-        return { success: false, message: error.message };
-    }
+export async function getWhtEntriesAction(params: { year: number; month: number; formType?: string }): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requirePermission('TAX_REPORT_VIEW');
+            return await WhtService.getReportData(ctx, params as any);
+        }, 'tax:getWhtEntries');
+    }, { context: { action: 'getWhtEntries' } });
 }
 
-/**
- * ออกหนังสือรับรองการหักภาษี ณ ที่จ่าย (50 ทวิ)
- */
-export async function issueWhtCertificateAction(entryId: string) {
-    const ctx = await getRequiredContext();
-    Security.requirePermission(ctx as any, 'TAX_REPORT_POST' as any);
-
-    try {
-        const certificate = await WhtService.issueCertificate(ctx as any, entryId);
-        revalidatePath('/settings/tax');
-        return { success: true, data: certificate };
-    } catch (error: any) {
-        return { success: false, message: error.message };
-    }
+export async function issueWhtCertificateAction(entryId: string): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requirePermission('TAX_REPORT_POST');
+            const certificate = await WhtService.issueCertificate(ctx, entryId);
+            revalidatePath('/settings/tax');
+            return certificate;
+        }, 'tax:issueWhtCertificate');
+    }, { context: { action: 'issueWhtCertificate', entryId } });
 }
 
-/**
- * ยกเลิกหนังสือรับรอง
- */
-export async function voidWhtCertificateAction(certId: string) {
-    const ctx = await getRequiredContext();
-    Security.requirePermission(ctx as any, 'TAX_REPORT_POST' as any);
-
-    try {
-        await WhtService.voidCertificate(ctx as any, certId);
-        revalidatePath('/settings/tax');
-        return { success: true };
-    } catch (error: any) {
-        return { success: false, message: error.message };
-    }
+export async function voidWhtCertificateAction(certId: string): Promise<ActionResponse<null>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requirePermission('TAX_REPORT_POST');
+            await WhtService.voidCertificate(ctx, certId);
+            revalidatePath('/settings/tax');
+            return null;
+        }, 'tax:voidWhtCertificate');
+    }, { context: { action: 'voidWhtCertificate', certId } });
 }
 
-/**
- * Export WHT entries to CSV
- */
-export async function exportWhtEntriesAction(params: { year: number; month: number; formType?: string }): Promise<ActionResponse> {
-    try {
-        const ctx = await getRequiredContext();
-        Security.requirePermission(ctx as any, 'TAX_REPORT_VIEW' as any);
-
-        const result = await WhtService.getReportData(ctx as any, params as any);
-        const rows = ExportService.adaptWhtReportToRows(result.data);
-        const csv = ExportService.toCSV(rows);
-
-        return { success: true, data: csv };
-    } catch (error: any) {
-        return { success: false, message: error.message };
-    }
+export async function exportWhtEntriesAction(params: { year: number; month: number; formType?: string }): Promise<ActionResponse<string>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requirePermission('TAX_REPORT_VIEW');
+            const result = await WhtService.getReportData(ctx, params as any);
+            const rows = ExportService.adaptWhtReportToRows(result.data);
+            const csv = ExportService.toCSV(rows);
+            return csv;
+        }, 'tax:exportWhtEntries');
+    }, { context: { action: 'exportWhtEntries' } });
 }

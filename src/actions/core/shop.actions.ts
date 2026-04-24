@@ -5,6 +5,8 @@ import { z } from 'zod';
 import { requirePermission, requireAuth } from '@/lib/auth-guard';
 import { logger } from '@/lib/logger';
 import { SettingsService, ServiceError } from '@/services';
+import { handleAction, type ActionResponse } from '@/lib/action-handler';
+import { PerformanceCollector } from '@/lib/debug/measurement';
 
 const shopSchema = z.object({
   name: z.string().min(1, 'กรุณากรอกชื่อร้าน'),
@@ -15,45 +17,29 @@ const shopSchema = z.object({
   promptPayId: z.string().optional(),
 });
 
-export type ShopState = {
-  success?: boolean;
-  error?: string;
-  fieldErrors?: {
-    name?: string[];
-    address?: string[];
-    phone?: string[];
-    logo?: string[];
-    taxId?: string[];
-  };
-};
+// Removed ShopState as we use standard ActionResponse<T>
 
-export async function getShop() {
-  const ctx = await requireAuth();
-  // Pass to service - usage of optional shopId is handled inside the service logic
-  return SettingsService.getShop(ctx as unknown as import('@/types/domain').RequestContext);
+export async function getShop(): Promise<ActionResponse<any>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requireAuth();
+      return SettingsService.getShop(ctx as unknown as import('@/types/domain').RequestContext);
+    }, 'shop:getShop');
+  }, { context: { action: 'getShop' } });
 }
 
-export async function updateShop(data: z.infer<typeof shopSchema>): Promise<ShopState> {
-  const ctx = await requirePermission('SETTINGS_SHOP');
+export async function updateShop(data: z.infer<typeof shopSchema>): Promise<ActionResponse<null>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('SETTINGS_SHOP');
+      const validated = shopSchema.parse(data);
 
-  const validatedFields = shopSchema.safeParse(data);
+      await SettingsService.updateShop(validated, ctx);
 
-  if (!validatedFields.success) {
-    return {
-      error: 'ข้อมูลไม่ถูกต้อง',
-      fieldErrors: validatedFields.error.flatten().fieldErrors,
-    };
-  }
+      revalidatePath('/settings');
+      revalidatePath('/sales');
 
-  try {
-    await SettingsService.updateShop(validatedFields.data, ctx);
-    revalidatePath('/settings');
-    revalidatePath('/sales');
-    return { success: true };
-  } catch (error: unknown) {
-    if (error instanceof ServiceError) return { error: error.message };
-    const typedError = error as Error;
-    await logger.error('Update shop error', typedError, { path: 'updateShop', userId: ctx.userId });
-    return { error: 'เกิดข้อผิดพลาดในการบันทึกข้อมูล' };
-  }
+      return null;
+    }, 'shop:updateShop');
+  }, { context: { action: 'updateShop' } });
 }

@@ -14,6 +14,7 @@ declare module 'next-auth' {
       permissions?: Permission[];
       isOwner?: boolean;
       sessionVersion?: number;
+      permissionVersion?: number;
     };
   }
 
@@ -35,5 +36,6 @@ declare module 'next-auth/jwt' {
     permissions?: Permission[];
     isOwner?: boolean;
     sessionVersion?: number;
+    permissionVersion?: number;
   }
 }

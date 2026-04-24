@@ -33,8 +33,9 @@ export default function PartnerStatementPage() {
             setIsPartnersLoading(true);
             try {
                 const res = type === 'CUSTOMER' ? await getCustomers() : await getSuppliers();
-                if (res && res.data) {
-                    setPartners(res.data);
+                if (res.success) {
+                    const items = (res.data as any).data || (Array.isArray(res.data) ? res.data : []);
+                    setPartners(items);
                 }
             } finally {
                 setIsPartnersLoading(false);

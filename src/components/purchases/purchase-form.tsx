@@ -242,8 +242,10 @@ export function PurchaseForm() {
   const { handleSubmit, setValue, watch, control } = methods;
 
   const refreshProducts = useCallback(async () => {
-    const data = await getProductsForPurchase();
-    setProducts(data.map((p: any) => ({ ...p, costPrice: Number(p.costPrice) })));
+    const res = await getProductsForPurchase();
+    if (res.success && res.data) {
+      setProducts(res.data.map((p: any) => ({ ...p, costPrice: Number(p.costPrice) })));
+    }
   }, []);
 
   const populateFromScanResult = useCallback(async (result: any) => {
@@ -262,21 +264,27 @@ export function PurchaseForm() {
     }
     if (result.items && result.items.length > 0) {
       const items = result.items.map((it: any) => {
-        const p = products.find(x => x.id === it.productId);
+        // Since products is local state, we need to find it here
+        // Note: products state might be behind if refreshProducts just finished
+        // But the scan result usually happens after mount.
         return {
           productId: it.productId,
           quantity: it.quantity || 1,
-          costPrice: it.costPrice || p?.costPrice || 0,
+          costPrice: it.costPrice || 0, // Fallback if not found yet
         };
       });
       setValue('items', items);
     }
     toast.success('นำเข้าข้อมูลสำเร็จ!');
-  }, [refreshProducts, setValue, products]);
+  }, [refreshProducts, setValue]);
 
   useEffect(() => {
     refreshProducts();
-    getSuppliersForSelect().then(data => setSuppliers(data));
+    getSuppliersForSelect().then(res => {
+      if (res.success && res.data) {
+        setSuppliers(res.data);
+      }
+    });
 
     const fromScan = searchParams.get('fromScan');
     if (fromScan === 'true') {

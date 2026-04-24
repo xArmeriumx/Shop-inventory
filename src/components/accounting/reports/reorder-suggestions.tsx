@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { getReorderSuggestions } from '@/actions/core/analytics.actions';
-import { createPRFromSuggestions } from '@/actions/purchases/purchase.actions';
+import { createPRFromSuggestions } from '@/actions/purchases/purchases.actions';
 import { money } from '@/lib/money';
 import { Box, AlertCircle, ShoppingCart, Loader2, CheckCircle2, ChevronRight, Package, Truck } from 'lucide-react';
 import { toast } from 'sonner';
@@ -59,7 +59,7 @@ export default function ReorderSuggestions() {
 
   const handleCreatePRs = async () => {
     if (selectedIds.size === 0) return;
-    
+
     setProcessing(true);
     try {
       const selectedItems = suggestions
@@ -71,11 +71,11 @@ export default function ReorderSuggestions() {
         }));
 
       const result = await createPRFromSuggestions(selectedItems);
-      
+
       toast.success('สร้างใบขอซื้อสำเร็จ', {
-        description: `สร้างใบขอซื้อ (Draft PR) จำนวน ${result.createdCount} ฉบับ เรียบร้อยแล้ว`,
+        description: `สร้างใบขอซื้อ (Draft PR) จำนวน ${result.data?.createdCount ?? 0} ฉบับ เรียบร้อยแล้ว`,
       });
-      
+
       // Reload to refresh stock levels if any sync happened (though draft PR doesn't affect stock)
       loadSuggestions();
       setSelectedIds(new Set());
@@ -139,8 +139,8 @@ export default function ReorderSuggestions() {
             <p className="text-xs text-muted-foreground">เลือกแล้ว</p>
             <p className="text-sm font-bold text-indigo-700">{selectedIds.size} รายการ</p>
           </div>
-          <Button 
-            onClick={handleCreatePRs} 
+          <Button
+            onClick={handleCreatePRs}
             disabled={selectedIds.size === 0 || processing}
             className="bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-200"
           >
@@ -159,7 +159,7 @@ export default function ReorderSuggestions() {
             <TableHeader className="bg-slate-100/50">
               <TableRow>
                 <TableHead className="w-10 px-4">
-                  <Checkbox 
+                  <Checkbox
                     checked={selectedIds.size === suggestions.length}
                     onCheckedChange={toggleSelectAll}
                   />
@@ -176,7 +176,7 @@ export default function ReorderSuggestions() {
               {suggestions.map((item) => (
                 <TableRow key={item.productId} className="hover:bg-indigo-50/30 transition-colors">
                   <TableCell className="px-4">
-                    <Checkbox 
+                    <Checkbox
                       checked={selectedIds.has(item.productId)}
                       onCheckedChange={() => toggleSelect(item.productId)}
                     />
@@ -222,42 +222,42 @@ export default function ReorderSuggestions() {
                   </TableCell>
                   <TableCell className="hidden lg:table-cell">
                     <div className="flex items-center gap-2">
-                       <Truck className="h-3 w-3 text-slate-400" />
-                       <div className="flex flex-col">
-                          <span className="text-sm font-medium">{item.vendorName}</span>
-                          <span className="text-[10px] text-slate-400">Lead time: {item.reorderThresholdDays - 3} วัน</span>
-                       </div>
+                      <Truck className="h-3 w-3 text-slate-400" />
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium">{item.vendorName}</span>
+                        <span className="text-[10px] text-slate-400">Lead time: {item.reorderThresholdDays - 3} วัน</span>
+                      </div>
                     </div>
                   </TableCell>
                   <TableCell>
-                     <Popover>
-                        <PopoverTrigger asChild>
-                           <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <ChevronRight className="h-4 w-4 text-slate-300" />
-                           </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-80">
-                           <div className="space-y-3">
-                              <h4 className="font-bold border-b pb-1">รายละเอียดการคำนวณ</h4>
-                              <div className="grid grid-cols-2 text-xs gap-y-2">
-                                 <span className="text-muted-foreground">อัตราการขายเฉลี่ย:</span>
-                                 <span className="text-right font-medium text-emerald-600">{item.avgDailySales.toFixed(2)} ชิ้น/วัน</span>
-                                 
-                                 <span className="text-muted-foreground">คงเหลือปัจจุบัน:</span>
-                                 <span className="text-right font-medium">{item.currentStock} ชิ้น</span>
-                                 
-                                 <span className="text-muted-foreground">เป้าหมายสำรอง:</span>
-                                 <span className="text-right font-medium">30 วัน</span>
-                                 
-                                 <span className="text-muted-foreground">รวมที่ต้องการ (ชิ้น):</span>
-                                 <span className="text-right font-bold text-indigo-600">{item.suggestedUnits}</span>
-                              </div>
-                              <div className="bg-slate-50 p-2 rounded text-[10px] text-slate-500 border border-slate-100">
-                                 * ปัดเศษขึ้นตามจำนวนบรรจุภัณฑ์ (Pack Size: {item.packSize}) เพื่อความสะดวกในการสั่งซื้อจริง
-                              </div>
-                           </div>
-                        </PopoverContent>
-                     </Popover>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <ChevronRight className="h-4 w-4 text-slate-300" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-80">
+                        <div className="space-y-3">
+                          <h4 className="font-bold border-b pb-1">รายละเอียดการคำนวณ</h4>
+                          <div className="grid grid-cols-2 text-xs gap-y-2">
+                            <span className="text-muted-foreground">อัตราการขายเฉลี่ย:</span>
+                            <span className="text-right font-medium text-emerald-600">{item.avgDailySales.toFixed(2)} ชิ้น/วัน</span>
+
+                            <span className="text-muted-foreground">คงเหลือปัจจุบัน:</span>
+                            <span className="text-right font-medium">{item.currentStock} ชิ้น</span>
+
+                            <span className="text-muted-foreground">เป้าหมายสำรอง:</span>
+                            <span className="text-right font-medium">30 วัน</span>
+
+                            <span className="text-muted-foreground">รวมที่ต้องการ (ชิ้น):</span>
+                            <span className="text-right font-bold text-indigo-600">{item.suggestedUnits}</span>
+                          </div>
+                          <div className="bg-slate-50 p-2 rounded text-[10px] text-slate-500 border border-slate-100">
+                            * ปัดเศษขึ้นตามจำนวนบรรจุภัณฑ์ (Pack Size: {item.packSize}) เพื่อความสะดวกในการสั่งซื้อจริง
+                          </div>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   </TableCell>
                 </TableRow>
               ))}

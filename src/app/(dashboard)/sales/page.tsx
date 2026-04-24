@@ -31,7 +31,7 @@ export default async function SalesPage({ searchParams }: SalesPageProps) {
   const channel = searchParams.channel || '';
   const status = searchParams.status as SaleStatus | undefined;
 
-  const { data: sales, pagination } = await getSales({
+  const result = await getSales({
     page,
     search,
     startDate,
@@ -40,6 +40,8 @@ export default async function SalesPage({ searchParams }: SalesPageProps) {
     channel,
     status,
   });
+
+  const { data: sales = [], pagination = { page: 1, limit: 10, total: 0, totalPages: 0, hasNextPage: false, hasPrevPage: false } } = result.data || {};
 
   return (
     <div>

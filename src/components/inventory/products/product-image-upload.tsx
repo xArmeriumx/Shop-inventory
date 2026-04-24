@@ -27,15 +27,15 @@ async function compressImage(file: File): Promise<File> {
 
   return new Promise((resolve, reject) => {
     const img = document.createElement('img');
-    
+
     const cleanup = () => {
-      try { URL.revokeObjectURL(img.src); } catch {}
+      try { URL.revokeObjectURL(img.src); } catch { }
     };
 
     img.onload = () => {
       try {
         let { naturalWidth: w, naturalHeight: h } = img;
-        
+
         // Resize if needed
         if (w > MAX_DIMENSION || h > MAX_DIMENSION) {
           const ratio = Math.min(MAX_DIMENSION / w, MAX_DIMENSION / h);
@@ -46,7 +46,7 @@ async function compressImage(file: File): Promise<File> {
         const canvas = document.createElement('canvas');
         canvas.width = w;
         canvas.height = h;
-        
+
         const ctx = canvas.getContext('2d');
         if (!ctx) {
           cleanup();
@@ -57,7 +57,7 @@ async function compressImage(file: File): Promise<File> {
         ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(0, 0, w, h);
         ctx.drawImage(img, 0, 0, w, h);
-        
+
         canvas.toBlob(
           (blob) => {
             cleanup();
@@ -80,7 +80,7 @@ async function compressImage(file: File): Promise<File> {
       cleanup();
       resolve(file); // Fallback to original
     };
-    
+
     try {
       img.src = URL.createObjectURL(file);
     } catch {
@@ -109,23 +109,23 @@ export function ProductImageUpload({
 
     const slots = maxImages - value.length;
     const toUpload = files.slice(0, slots);
-    
+
     setError(null);
     setIsUploading(true);
-    
+
     const uploaded: string[] = [];
 
     for (let i = 0; i < toUpload.length; i++) {
       const originalFile = toUpload[i];
-      
+
       try {
         setProgress(`กำลังประมวลผล ${i + 1}/${toUpload.length}...`);
-        
+
         // Compress image
         const fileToUpload = await compressImage(originalFile);
 
         setProgress(`กำลังอัพโหลด ${i + 1}/${toUpload.length}...`);
-        
+
         // Direct upload to Supabase (no Vercel limit!)
         const result = await uploadToStorage(
           fileToUpload,
@@ -134,11 +134,11 @@ export function ProductImageUpload({
         );
 
         if ('error' in result) {
-          throw new Error(result.error);
+          throw new Error((result as any).message || 'อัพโหลดรูปภาพไม่สำเร็จ');
         }
 
         uploaded.push(result.url);
-        
+
       } catch (err) {
         setError(err instanceof Error ? err.message : 'อัพโหลดไม่สำเร็จ');
         break;
@@ -151,7 +151,7 @@ export function ProductImageUpload({
         setError(null);
       }
     }
-    
+
     setIsUploading(false);
     setProgress('');
   }, [value, maxImages, onChange]);
@@ -204,7 +204,7 @@ export function ProductImageUpload({
               className="object-cover"
               sizes="33vw"
             />
-            
+
             {index === 0 && (
               <div className="absolute top-1.5 left-1.5 bg-primary text-white text-[10px] px-1.5 py-0.5 rounded flex items-center gap-0.5">
                 <Star className="h-2.5 w-2.5 fill-current" />
@@ -222,7 +222,7 @@ export function ProductImageUpload({
                   ตั้งเป็นหลัก
                 </button>
               )}
-              
+
               {!disabled && (
                 <button
                   type="button"

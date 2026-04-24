@@ -1,8 +1,8 @@
 'use client';
 
 import { Suspense, useEffect, useState, useTransition, useRef, useCallback } from 'react';
-import { 
-  Activity, 
+import {
+  Activity,
   Database,
   Server,
   RefreshCw,
@@ -20,41 +20,41 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from '@/components/ui/table';
 import { getSystemMetrics, generateTestLog, type SystemMetrics } from '@/actions/core/system.actions'; // Import generateTestLog
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { 
-  LineChart, 
-  Line, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
   ResponsiveContainer,
   AreaChart,
   Area
 } from 'recharts';
 
 
-function StatusCard({ 
-  title, 
-  value, 
-  subValue, 
-  icon: Icon, 
+function StatusCard({
+  title,
+  value,
+  subValue,
+  icon: Icon,
   status = 'default',
-  progress 
-}: { 
-  title: string; 
-  value: string; 
-  subValue?: string; 
-  icon: any; 
+  progress
+}: {
+  title: string;
+  value: string;
+  subValue?: string;
+  icon: any;
   status?: 'default' | 'success' | 'warning' | 'error';
   progress?: number;
 }) {
@@ -88,11 +88,11 @@ function StatusCard({
           </p>
         )}
         {progress !== undefined && (
-          <Progress value={progress} className="h-2 mt-3" 
+          <Progress value={progress} className="h-2 mt-3"
             indicatorClassName={
-              status === 'warning' ? 'bg-orange-500' : 
-              status === 'error' ? 'bg-red-500' : 
-              status === 'success' ? 'bg-green-500' : ''
+              status === 'warning' ? 'bg-orange-500' :
+                status === 'error' ? 'bg-red-500' :
+                  status === 'success' ? 'bg-green-500' : ''
             }
           />
         )}
@@ -118,23 +118,30 @@ function SystemDashboard() {
   const fetchMetrics = useCallback(() => {
     startTransition(async () => {
       try {
-        const data = await getSystemMetrics();
+        const result = await getSystemMetrics();
+        if (!result.success) {
+          setError(result.message);
+          setLoading(false);
+          return;
+        }
+
+        const data = result.data;
         setMetrics(data);
         setError(null);
 
         // Calculate QPS
         const now = Date.now();
         let currentQps = 0;
-        
+
         if (lastQueriesRef.current) {
           const deltaSeconds = (now - lastQueriesRef.current.time) / 1000;
           const deltaQueries = data.totalQueries - lastQueriesRef.current.total;
-          
+
           if (deltaSeconds > 0 && deltaQueries >= 0) {
             currentQps = Math.round(deltaQueries / deltaSeconds);
           }
         }
-        
+
         setQps(currentQps);
         lastQueriesRef.current = { total: data.totalQueries, time: now };
 
@@ -142,8 +149,8 @@ function SystemDashboard() {
         setHistory(prev => {
           const date = new Date();
           const timeLabel = date.getHours().toString().padStart(2, '0') + ':' +
-                           date.getMinutes().toString().padStart(2, '0') + ':' +
-                           date.getSeconds().toString().padStart(2, '0');
+            date.getMinutes().toString().padStart(2, '0') + ':' +
+            date.getSeconds().toString().padStart(2, '0');
 
           const newPoint = {
             time: timeLabel,
@@ -193,7 +200,7 @@ function SystemDashboard() {
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    
+
     fetchMetrics();
     // Auto refresh every 2 seconds (Real-time)
     const interval = setInterval(() => {
@@ -274,7 +281,7 @@ function SystemDashboard() {
               View Audit Logs
             </Button>
           </Link>
-             <Button
+          <Button
             variant="outline"
             size="sm"
             onClick={() => setIsPaused(!isPaused)}
@@ -292,10 +299,10 @@ function SystemDashboard() {
               </>
             )}
           </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => { setIsPaused(false); fetchMetrics(); }} 
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => { setIsPaused(false); fetchMetrics(); }}
             disabled={isPending}
             className="gap-2"
           >
@@ -304,7 +311,7 @@ function SystemDashboard() {
           </Button>
         </div>
       </div>
-      
+
       {/* ... (Rest of dashboard remains unchanged) ... */}
 
       {/* Primary Stats Cards */}
@@ -331,7 +338,7 @@ function SystemDashboard() {
           subValue="Queries per second"
           icon={Zap}
           status={qps > 100 ? 'warning' : 'success'}
-          progress={Math.min((qps / 100) * 100, 100)} 
+          progress={Math.min((qps / 100) * 100, 100)}
         />
 
         {/* Process CPU */}
@@ -341,7 +348,7 @@ function SystemDashboard() {
           subValue={`System Load: ${metrics.os.loadAvg[0]?.toFixed(2) || '0.00'}`}
           icon={Cpu}
           status={metrics.process.cpuUsage > 70 ? 'warning' : 'success'}
-          progress={metrics.process.cpuUsage} 
+          progress={metrics.process.cpuUsage}
         />
 
         {/* Online Users */}
@@ -349,7 +356,7 @@ function SystemDashboard() {
           title="Users Online"
           value={`${metrics.onlineUsers}`}
           subValue="Active in last 5m"
-          icon={Users} 
+          icon={Users}
           status="success"
         />
 
@@ -373,7 +380,7 @@ function SystemDashboard() {
 
       {/* Real-time Charts Section */}
       <div className="grid gap-6 lg:grid-cols-2">
-         <Card>
+        <Card>
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <Activity className="h-4 w-4 text-blue-500" />
@@ -419,8 +426,8 @@ function SystemDashboard() {
                 <AreaChart data={history}>
                   <defs>
                     <linearGradient id="colorLatency" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#f97316" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#f97316" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
@@ -482,7 +489,7 @@ function SystemDashboard() {
                   </TableRow>
                 ))
               ) : (
-                 <TableRow>
+                <TableRow>
                   <TableCell colSpan={4} className="text-center text-muted-foreground h-24">
                     No recent errors found. System is running smoothly.
                   </TableCell>
@@ -507,7 +514,7 @@ function SystemDashboard() {
               <span className="text-muted-foreground">CPUs (Cores)</span>
               <span className="font-medium">{metrics.os.cpus} Cores</span>
             </div>
-             <div className="flex justify-between border-b pb-2">
+            <div className="flex justify-between border-b pb-2">
               <span className="text-muted-foreground">Free Memory (Host)</span>
               <span className="font-medium">{formatBytes(metrics.os.freeMemory)}</span>
             </div>

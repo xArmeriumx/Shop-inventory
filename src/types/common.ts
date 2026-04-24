@@ -12,13 +12,21 @@ export interface RequestContext {
     employeeDepartment?: string;
 }
 
-export type ActionResponse<T = unknown> = {
-    success: boolean;
+export type ActionSuccess<T> = {
+    success: true;
+    data: T;
     message?: string;
-    data?: T;
-    errors?: Record<string, string[]> | string;
+};
+
+export type ActionFailure = {
+    success: false;
+    data?: never;
+    message: string;
+    errors?: Record<string, string[]>;
     action?: ErrorAction;
 };
+
+export type ActionResponse<T = unknown> = ActionSuccess<T> | ActionFailure;
 
 export interface PaginatedResult<T> {
     data: T[];

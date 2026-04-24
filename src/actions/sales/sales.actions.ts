@@ -1,55 +1,64 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { logger } from '@/lib/logger';
-import { requirePermission, hasPermission } from '@/lib/auth-guard';
+import { requirePermission, hasPermission, requireAuth, requireShop } from '@/lib/auth-guard';
 import { saleSchema, type SaleInput } from '@/schemas/sales/sale.schema';
 import { z } from 'zod';
-import { ActionResponse } from '@/types/domain';
-import { handleActionError } from '@/lib/error-handler';
+import { ActionResponse } from '@/types/common';
 import {
   SaleService,
-  ServiceError,
   type GetSalesParams,
   type CancelSaleInput
 } from '@/services';
-import { serialize } from '@/lib/utils';
-import { SerializedSale } from '@/types/serialized';
-
+import { SaleDetailDTO } from '@/types/dtos/sales.dto';
+import { PerformanceCollector } from '@/lib/debug/measurement';
+import { handleAction } from '@/lib/action-handler';
 
 // =============================================================================
 // SALE LIST & DETAIL
 // =============================================================================
 
-export async function getSales(params: GetSalesParams = {}) {
-  const ctx = await requirePermission('SALE_VIEW');
-  const canViewProfit = hasPermission(ctx, 'SALE_VIEW_PROFIT');
-  const result = await SaleService.getList(params, ctx, { canViewProfit });
-  return serialize(result);
+export async function getSales(params: GetSalesParams = {}): Promise<ActionResponse<any>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('SALE_VIEW');
+      const canViewProfit = hasPermission(ctx, 'SALE_VIEW_PROFIT');
+      return SaleService.getList(params, ctx, { canViewProfit });
+    }, 'sales:getSales');
+  }, { context: { action: 'getSales' } });
 }
 
 
-export async function getSale(id: string) {
-  const ctx = await requirePermission('SALE_VIEW');
-  const canViewProfit = hasPermission(ctx, 'SALE_VIEW_PROFIT');
-  const sale = await SaleService.getById(id, ctx, { canViewProfit });
-  return serialize(sale);
+export async function getSale(id: string): Promise<ActionResponse<any>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('SALE_VIEW');
+      const canViewProfit = hasPermission(ctx, 'SALE_VIEW_PROFIT');
+      return SaleService.getById(id, ctx, { canViewProfit });
+    }, 'sales:getSale');
+  }, { context: { action: 'getSale', id } });
 }
 
 
-export async function getTodaySales() {
-  const ctx = await requirePermission('SALE_VIEW');
-  const canViewProfit = hasPermission(ctx, 'SALE_VIEW_PROFIT');
-  const result = await SaleService.getTodayAggregate(ctx, { canViewProfit });
-  return serialize(result);
+export async function getTodaySales(): Promise<ActionResponse<any>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('SALE_VIEW');
+      const canViewProfit = hasPermission(ctx, 'SALE_VIEW_PROFIT');
+      return SaleService.getTodayAggregate(ctx, { canViewProfit });
+    }, 'sales:getTodaySales');
+  }, { context: { action: 'getTodaySales' } });
 }
 
 
-export async function getRecentSales(limit: number = 5) {
-  const ctx = await requirePermission('SALE_VIEW');
-  const canViewProfit = hasPermission(ctx, 'SALE_VIEW_PROFIT');
-  const result = await SaleService.getRecentList(limit, ctx, { canViewProfit });
-  return serialize(result);
+export async function getRecentSales(limit: number = 5): Promise<ActionResponse<any>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('SALE_VIEW');
+      const canViewProfit = hasPermission(ctx, 'SALE_VIEW_PROFIT');
+      return SaleService.getRecentList(limit, ctx, { canViewProfit });
+    }, 'sales:getRecentSales');
+  }, { context: { action: 'getRecentSales' } });
 }
 
 
@@ -57,43 +66,32 @@ export async function getRecentSales(limit: number = 5) {
 // SALE OPERATIONS
 // =============================================================================
 
-export async function createSale(input: SaleInput): Promise<ActionResponse<SerializedSale>> {
-  const ctx = await requirePermission('SALE_CREATE');
+export async function createSale(input: SaleInput): Promise<ActionResponse<SaleDetailDTO>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('SALE_CREATE');
+      const validated = saleSchema.parse(input);
 
-  const validated = saleSchema.safeParse(input);
-  if (!validated.success) {
-    return {
-      success: false,
-      errors: validated.error.flatten().fieldErrors,
-      message: 'ข้อมูลการขายไม่ถูกต้อง',
-    };
-  }
-
-  try {
-    const sale = await SaleService.create(ctx, validated.data);
-    revalidatePath('/sales');
-    revalidatePath('/dashboard');
-    return serialize({ success: true, message: 'บันทึกการขายสำเร็จ', data: sale });
-  } catch (error: unknown) {
-
-    return handleActionError(error, 'เกิดข้อผิดพลาดในการบันทึกการขาย', { path: 'createSale', userId: ctx.userId });
-  }
+      const sale = await SaleService.create(ctx, validated);
+      revalidatePath('/sales');
+      revalidatePath('/dashboard');
+      return sale;
+    }, 'sales:createSale');
+  }, { context: { action: 'createSale' } });
 }
 
-export async function cancelSale(input: CancelSaleInput) {
-  const ctx = await requirePermission('SALE_CANCEL');
-
-  try {
-    await SaleService.cancel(input, ctx);
-    revalidatePath('/sales');
-    revalidatePath('/products');
-    revalidatePath('/expenses');
-    revalidatePath('/shipments');
-    revalidatePath('/dashboard');
-    return { success: true, message: 'ยกเลิกรายการขายเรียบร้อย' };
-  } catch (error: unknown) {
-    return handleActionError(error, 'เกิดข้อผิดพลาดในการยกเลิกรายการขาย', { path: 'cancelSale', userId: ctx.userId, saleId: input.id });
-  }
+export async function cancelSale(input: CancelSaleInput): Promise<ActionResponse> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('SALE_CANCEL');
+      await SaleService.cancel(input, ctx);
+      revalidatePath('/sales');
+      revalidatePath('/products');
+      revalidatePath('/expenses');
+      revalidatePath('/shipments');
+      revalidatePath('/dashboard');
+    }, 'sales:cancelSale');
+  }, { context: { action: 'cancelSale', saleId: input.id } });
 }
 
 // =============================================================================
@@ -105,36 +103,32 @@ export async function verifyPayment(
   status: 'VERIFIED' | 'REJECTED',
   note?: string
 ): Promise<ActionResponse> {
-  const ctx = await requirePermission('FINANCE_VIEW_LEDGER' as any);
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('FINANCE_VIEW_LEDGER');
+      const sanitizedSaleId = z.string().min(1).parse(saleId);
+      const sanitizedNote = note ? z.string().max(500).parse(note.trim()) : undefined;
 
-  try {
-    const sanitizedSaleId = z.string().min(1).parse(saleId);
-    const sanitizedNote = note ? z.string().max(500).parse(note.trim()) : undefined;
-
-    await SaleService.verifyPayment(sanitizedSaleId, status, sanitizedNote, ctx);
-    revalidatePath('/sales');
-    revalidatePath(`/sales/${saleId}`);
-    return { success: true, message: status === 'VERIFIED' ? 'ยืนยันการชำระเงินสำเร็จ' : 'ปฏิเสธการชำระเงิน' };
-  } catch (error: unknown) {
-    return handleActionError(error, 'เกิดข้อผิดพลาดในการตรวจสอบการชำระเงิน', { path: 'verifyPayment', userId: ctx.userId, saleId });
-  }
+      await SaleService.verifyPayment(sanitizedSaleId, status, sanitizedNote, ctx);
+      revalidatePath('/sales');
+      revalidatePath(`/sales/${saleId}`);
+    }, 'sales:verifyPayment');
+  }, { context: { action: 'verifyPayment', saleId } });
 }
 
 export async function uploadPaymentProof(
   saleId: string,
   proofUrl: string
 ): Promise<ActionResponse> {
-  const ctx = await requirePermission('SALE_VIEW');
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requireShop();
+      const sanitizedSaleId = z.string().min(1).parse(saleId);
+      const sanitizedUrl = z.string().url().max(2048).parse(proofUrl);
 
-  try {
-    const sanitizedSaleId = z.string().min(1).parse(saleId);
-    const sanitizedUrl = z.string().url().max(2048).parse(proofUrl);
-
-    await SaleService.uploadPaymentProof(sanitizedSaleId, sanitizedUrl, ctx);
-    revalidatePath('/sales');
-    revalidatePath(`/sales/${saleId}`);
-    return { success: true, message: 'อัพโหลดหลักฐานสำเร็จ' };
-  } catch (error: unknown) {
-    return handleActionError(error, 'เกิดข้อผิดพลาดในการอัปโหลดหลักฐาน', { path: 'uploadPaymentProof', userId: ctx.userId, saleId });
-  }
+      await SaleService.uploadPaymentProof(sanitizedSaleId, sanitizedUrl, ctx);
+      revalidatePath('/sales');
+      revalidatePath(`/sales/${saleId}`);
+    }, 'sales:uploadPaymentProof');
+  }, { context: { action: 'uploadPaymentProof', saleId } });
 }

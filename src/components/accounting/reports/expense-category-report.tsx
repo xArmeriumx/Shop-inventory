@@ -65,9 +65,18 @@ export function ExpenseCategoryReport({ startDate, endDate }: ExpenseCategoryRep
     );
   }
 
-  if (!data) return null;
+  if (!data?.success) {
+    return (
+      <Card>
+        <CardContent className="py-10 text-center">
+          <p className="text-muted-foreground">{data?.message || 'ไม่สามารถดึงข้อมูลรายงานได้'}</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
-  const topCategory = data.categories[0];
+  const reportData = data.data;
+  const topCategory = reportData.categories[0];
 
   return (
     <div className="space-y-4">
@@ -79,11 +88,11 @@ export function ExpenseCategoryReport({ startDate, endDate }: ExpenseCategoryRep
             <Receipt className="h-4 w-4 text-orange-600" />
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="text-lg sm:text-2xl font-bold">{formatCurrency(data.total)}</div>
-            <span className={`text-xs flex items-center gap-0.5 ${data.totalChange > 0 ? 'text-red-600' : data.totalChange < 0 ? 'text-green-600' : 'text-muted-foreground'}`}>
-              <ChangeArrow value={data.totalChange} />
-              {data.totalChange !== 0 && `${data.totalChange > 0 ? '+' : ''}${data.totalChange}%`}
-              {data.totalChange === 0 ? 'ไม่เปลี่ยนแปลง' : ' จากเดือนก่อน'}
+            <div className="text-lg sm:text-2xl font-bold">{formatCurrency(reportData.total)}</div>
+            <span className={`text-xs flex items-center gap-0.5 ${reportData.totalChange > 0 ? 'text-red-600' : reportData.totalChange < 0 ? 'text-green-600' : 'text-muted-foreground'}`}>
+              <ChangeArrow value={reportData.totalChange} />
+              {reportData.totalChange !== 0 && `${reportData.totalChange > 0 ? '+' : ''}${reportData.totalChange}%`}
+              {reportData.totalChange === 0 ? 'ไม่เปลี่ยนแปลง' : ' จากเดือนก่อน'}
             </span>
           </CardContent>
         </Card>
@@ -94,8 +103,8 @@ export function ExpenseCategoryReport({ startDate, endDate }: ExpenseCategoryRep
             <PieChart className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="text-lg sm:text-2xl font-bold">{data.count}</div>
-            <p className="text-xs text-muted-foreground">{data.categories.length} หมวดหมู่</p>
+            <div className="text-lg sm:text-2xl font-bold">{reportData.count}</div>
+            <p className="text-xs text-muted-foreground">{reportData.categories.length} หมวดหมู่</p>
           </CardContent>
         </Card>
 
@@ -119,7 +128,7 @@ export function ExpenseCategoryReport({ startDate, endDate }: ExpenseCategoryRep
           <CardTitle className="text-base sm:text-lg">สัดส่วนค่าใช้จ่ายตามหมวดหมู่</CardTitle>
         </CardHeader>
         <CardContent>
-          {data.categories.length === 0 ? (
+          {reportData.categories.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground text-sm">
               ไม่มีข้อมูลค่าใช้จ่ายในช่วงเวลานี้
             </div>
@@ -127,7 +136,7 @@ export function ExpenseCategoryReport({ startDate, endDate }: ExpenseCategoryRep
             <div className="space-y-3">
               {/* Stacked bar */}
               <div className="flex h-4 rounded-full overflow-hidden gap-0.5">
-                {data.categories.map((cat, i) => (
+                {reportData.categories.map((cat: any, i: number) => (
                   <div
                     key={cat.category}
                     className={`${COLORS[i % COLORS.length]} transition-all duration-500`}
@@ -139,7 +148,7 @@ export function ExpenseCategoryReport({ startDate, endDate }: ExpenseCategoryRep
 
               {/* Category list */}
               <div className="space-y-2 mt-4">
-                {data.categories.map((cat, i) => (
+                {reportData.categories.map((cat: any, i: number) => (
                   <div key={cat.category} className="flex items-center gap-3 group">
                     {/* Color dot */}
                     <div className={`w-3 h-3 rounded-full shrink-0 ${COLORS[i % COLORS.length]}`} />
@@ -177,8 +186,8 @@ export function ExpenseCategoryReport({ startDate, endDate }: ExpenseCategoryRep
 
               {/* Total */}
               <div className="flex items-center justify-between pt-3 border-t border-muted font-bold text-sm">
-                <span>รวม ({data.categories.length} หมวด, {data.count} รายการ)</span>
-                <span>{formatCurrency(data.total)}</span>
+                <span>รวม ({reportData.categories.length} หมวด, {reportData.count} รายการ)</span>
+                <span>{formatCurrency(reportData.total)}</span>
               </div>
             </div>
           )}

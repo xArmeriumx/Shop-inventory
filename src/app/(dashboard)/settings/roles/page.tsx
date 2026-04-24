@@ -10,7 +10,8 @@ import { Guard } from '@/components/core/auth/guard';
 
 async function RolesContent() {
   await requirePermission('SETTINGS_ROLES');
-  const roles = await getRoles();
+  const result = await getRoles();
+  const roles = result.success ? result.data : [];
 
   return (
     <Card>
@@ -24,7 +25,7 @@ async function RolesContent() {
         </Guard>
       </CardHeader>
       <CardContent>
-        <RolesTable roles={roles} />
+        <RolesTable roles={roles as any} />
       </CardContent>
     </Card>
   );
@@ -33,11 +34,6 @@ async function RolesContent() {
 export default function RolesPage() {
   return (
     <div className="space-y-6">
-      <BackPageHeader
-        backHref="/settings"
-        title="จัดการ Roles"
-        description="สร้างและจัดการสิทธิ์สำหรับสมาชิก"
-      />
       <Suspense fallback={<Loading />}>
         <RolesContent />
       </Suspense>

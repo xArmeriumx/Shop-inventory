@@ -221,7 +221,7 @@ export const SupplierService = {
     );
   },
 
-  async delete(id: string, ctx: RequestContext): Promise<ActionResponse> {
+  async delete(id: string, ctx: RequestContext): Promise<ActionResponse<null>> {
     const existing = await this.getById(id, ctx);
     if (!existing) return { success: false, message: 'ไม่พบข้อมูลผู้จำหน่าย' };
 
@@ -236,6 +236,6 @@ export const SupplierService = {
       }
     );
 
-    return { success: true, message: 'ลบข้อมูลผู้จำหน่ายสำเร็จ' };
+    return { success: true, message: 'ลบข้อมูลผู้จำหน่ายสำเร็จ', data: null };
   },
 };

@@ -60,7 +60,7 @@ export interface POSCreateSaleResult {
   success: boolean;
   saleId?: string;
   invoiceNumber?: string;
-  error?: string;
+  message?: string;
 }
 
 // ==================== Category Types ====================

@@ -258,6 +258,7 @@ enum Permission {
   SALE_VOID
   SALE_VIEW_PROFIT
   SALE_EDIT_LOCKED
+  SALE_UPDATE_LOCKED
 
   // INVOICE
   INVOICE_VIEW
@@ -270,8 +271,10 @@ enum Permission {
   FINANCE_VIEW_LEDGER
   FINANCE_PAYMENT_VOID
   FINANCE_MANAGE_CREDIT
+  FINANCE_CONFIG
 
   // STOCK
+  STOCK_VIEW
   STOCK_VIEW_HISTORY
   STOCK_ADJUST
   STOCK_TAKE_APPROVE
@@ -373,6 +376,8 @@ model ShopMember {
   roleId String
   role   Role   @relation(fields: [roleId], references: [id])
 
+  permissionVersion Int @default(1)
+
   isOwner Boolean @default(false) // Shortcut flag for Owner
 
   // ERP Foundational Metadata
@@ -380,7 +385,6 @@ model ShopMember {
   regionIds      String[] // UC 3: ภูมิภาคที่ดูแล (e.g., ['NORTH', 'SOUTH'])
 
   // Permission version counter - increments when role changes
-  permissionVersion Int @default(0)
 
   // CRM: Many-to-Many with Customers (Salespersons assignment)
   customers Customer[] // UC 3
@@ -1410,8 +1414,8 @@ model Notification {
   expiresAt DateTime?
 
   @@unique([shopId, groupKey])
-  @@index([shopId, userId, isRead, createdAt])
-  @@index([shopId, isRead, createdAt(sort: Desc)]) // Optimized for dashboard unread + recent fetch
+  @@index([shopId, userId, isRead, createdAt(sort: Desc)])
+  @@index([shopId, isRead, createdAt(sort: Desc)])
   @@index([shopId, createdAt(sort: Desc)])
 }
 

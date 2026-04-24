@@ -15,8 +15,8 @@ export function LogisticsGapTool() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const gaps = await getLogisticsGaps();
-      setData(gaps);
+      const result = await getLogisticsGaps();
+      setData(result.success && result.data ? result.data : []);
     } catch (error) {
       console.error('Failed to load logistics gaps', error);
     } finally {

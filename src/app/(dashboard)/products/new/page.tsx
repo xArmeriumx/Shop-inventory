@@ -5,9 +5,10 @@ import { getLookupValues, seedDefaultLookupValues } from '@/actions/core/lookups
 export default async function NewProductPage() {
   // Seed default categories if needed
   await seedDefaultLookupValues();
-  
+
   // Fetch categories from DB
-  const categories = await getLookupValues('PRODUCT_CATEGORY');
+  const categoriesRes = await getLookupValues('PRODUCT_CATEGORY');
+  const categories = categoriesRes.success ? categoriesRes.data : [];
 
   return (
     <div>
@@ -17,7 +18,7 @@ export default async function NewProductPage() {
       />
 
       <div className="max-w-2xl">
-        <ProductForm categories={categories} />
+        <ProductForm categories={categories as any} />
       </div>
     </div>
   );

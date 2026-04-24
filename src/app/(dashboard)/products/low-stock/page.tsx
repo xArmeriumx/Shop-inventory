@@ -3,13 +3,13 @@ import Link from 'next/link';
 import { getLowStockProductsPaginated } from '@/actions/inventory/products.actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -31,11 +31,23 @@ export default async function LowStockPage({ searchParams }: PageProps) {
   const limit = 20;
 
   // 1. Fetch Data directly on server
-  const { data: products, pagination } = await getLowStockProductsPaginated({
+  const result = await getLowStockProductsPaginated({
     page,
     limit,
     search,
   });
+
+  if (!result.success || !result.data) {
+    // Falls back to empty state if action fails
+    return (
+      <div className="p-6 text-center">
+        <h1 className="text-2xl font-bold text-red-600">เกิดข้อผิดพลาด</h1>
+        <p className="text-muted-foreground">ไม่สามารถดึงข้อมูลสินค้าใกล้หมดได้</p>
+      </div>
+    );
+  }
+
+  const { data: products, pagination } = result.data;
 
   return (
     <div className="space-y-6 p-6">
@@ -65,13 +77,13 @@ export default async function LowStockPage({ searchParams }: PageProps) {
             <CardTitle className="text-base font-medium">
               พบ {pagination.total} รายการ
             </CardTitle>
-            
+
             {/* Simple Search Form using native behavior (Form submission reloads with params) */}
             {/* For better UX, client component search is preferred, but this is zero-js fallback friendly */}
             <form className="flex w-full md:w-auto max-w-sm items-center space-x-2">
-              <Input 
-                type="search" 
-                placeholder="ค้นหาชื่อ หรือ SKU..." 
+              <Input
+                type="search"
+                placeholder="ค้นหาชื่อ หรือ SKU..."
                 name="search"
                 defaultValue={search}
               />
@@ -104,7 +116,7 @@ export default async function LowStockPage({ searchParams }: PageProps) {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  products.map((product) => {
+                  (products as any[]).map((product: any) => {
                     const isCritical = product.stock === 0;
                     return (
                       <TableRow key={product.id}>
@@ -130,16 +142,16 @@ export default async function LowStockPage({ searchParams }: PageProps) {
                             {product.stock}
                           </span>
                           <span className="text-xs text-muted-foreground block lg:hidden">
-                             Min: {product.minStock}
+                            Min: {product.minStock}
                           </span>
                         </TableCell>
                         <TableCell className="text-center hidden md:table-cell">
                           {isCritical ? (
-                             <Badge variant="destructive">หมดแล้ว</Badge>
+                            <Badge variant="destructive">หมดแล้ว</Badge>
                           ) : (
-                             <Badge variant="outline" className="text-orange-500 border-orange-200 bg-orange-50">
-                               ใกล้หมด
-                             </Badge>
+                            <Badge variant="outline" className="text-orange-500 border-orange-200 bg-orange-50">
+                              ใกล้หมด
+                            </Badge>
                           )}
                         </TableCell>
                         <TableCell className="text-right">
@@ -167,7 +179,7 @@ export default async function LowStockPage({ searchParams }: PageProps) {
               ) : (
                 <Button variant="outline" size="sm" disabled>ก่อนหน้า</Button>
               )}
-              
+
               <div className="text-sm font-medium">
                 หน้า {page} / {pagination.totalPages}
               </div>

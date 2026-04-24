@@ -2,49 +2,63 @@
 
 import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/auth-guard';
-import { 
-  PurchaseService, 
-  ShipmentService, 
+import {
+  PurchaseService,
+  ShipmentService,
   DashboardService,
-  ServiceError 
+  ServiceError
 } from '@/services';
 import { ActionResponse } from '@/types/domain';
+
+import { PerformanceCollector } from '@/lib/debug/measurement';
+import { handleAction } from '@/lib/action-handler';
 
 /**
  * ดึงรายการลูกค้าที่มีปัญหาเรื่องพิกัด (Logistics Gaps)
  */
 export async function getLogisticsGaps() {
-  const ctx = await requirePermission('SHIPMENT_VIEW');
-  return ShipmentService.getLogisticsGaps(ctx);
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('SHIPMENT_VIEW');
+      return ShipmentService.getLogisticsGaps(ctx);
+    }, 'ops:getLogisticsGaps');
+  }, { context: { action: 'getLogisticsGaps' } });
 }
 
 /**
  * ดึงรายการใบขอซื้อ (PR) ที่ไม่มีผู้ขาย
  */
 export async function getIncompleteRequests(page = 1) {
-  const ctx = await requirePermission('PURCHASE_VIEW');
-  return PurchaseService.getIncompleteRequests({ page, limit: 20 }, ctx);
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('PURCHASE_VIEW');
+      return PurchaseService.getIncompleteRequests({ page, limit: 20 }, ctx);
+    }, 'ops:getIncompleteRequests');
+  }, { context: { action: 'getIncompleteRequests', page } });
 }
 
 /**
  * มอบหมายผู้ขายให้กับ PR แบบด่วน (Bulk)
  */
 export async function quickAssignSupplier(ids: string[], supplierId: string): Promise<ActionResponse> {
-  const ctx = await requirePermission('PURCHASE_CREATE');
-  try {
-    await PurchaseService.quickAssignSupplier(ids, supplierId, ctx);
-    revalidatePath('/system/ops');
-    return { success: true, message: `มอบหมายผู้ขายสำเร็จ (${ids.length} รายการ)` };
-  } catch (error: unknown) {
-    if (error instanceof ServiceError) return { success: false, message: error.message };
-    return { success: false, message: 'เกิดข้อผิดพลาดในการมอบหมายผู้ขาย' };
-  }
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('PURCHASE_CREATE');
+      await PurchaseService.quickAssignSupplier(ids, supplierId, ctx);
+      revalidatePath('/system/ops');
+      return true;
+    });
+  }, { context: { action: 'quickAssignSupplier' } });
 }
 
 /**
  * ดึงรายการเอกสารค้าง (Stale Documents)
  */
 export async function getStaleDocuments() {
-  const ctx = await requirePermission('SALE_VIEW'); // ต้องการสิทธิ์ดูกระบวนการทำงาน
-  return DashboardService.getStaleDocuments(ctx);
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('SALE_VIEW');
+      return DashboardService.getStaleDocuments(ctx);
+    }, 'ops:getStaleDocuments');
+  }, { context: { action: 'getStaleDocuments' } });
 }

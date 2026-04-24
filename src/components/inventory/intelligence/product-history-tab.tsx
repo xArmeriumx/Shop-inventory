@@ -3,11 +3,11 @@
 import React, { useState, useEffect, useTransition, useCallback } from 'react';
 import { ProductIntelligenceSummary, StockMovementDTO, PaginatedIntelligence, SupplierIntelligenceDTO } from '@/types/intelligence';
 import { getProductIntelligenceSummary, getProductMovementHistory, getProductSupplierIntelligence } from '@/actions/inventory/intelligence.actions';
-import { IntelligenceSummaryCards } from './intelligence-summary-cards';
-import { IntelligenceFilterBar } from './intelligence-filter-bar';
+import { IntelligenceSummaryCards } from '@/components/core/ai/intelligence-summary-cards';
+import { IntelligenceFilterBar } from '@/components/core/ai/intelligence-filter-bar';
 import { StockMovementTable } from './stock-movement-table';
-import { VendorIntelligencePanel } from './vendor-intelligence-panel';
-import { LocalPagination } from './local-pagination';
+import { VendorIntelligencePanel } from '@/components/purchases/intelligence/vendor-intelligence-panel';
+import { LocalPagination } from '@/components/ui/local-pagination';
 import { StockMovementType } from '@prisma/client';
 import { toast } from 'sonner';
 
@@ -30,7 +30,9 @@ export function ProductHistoryTab({ productId }: ProductHistoryTabProps) {
 
     const fetchSummary = React.useCallback(() => {
         getProductIntelligenceSummary(productId).then(res => {
-            setSummary(res);
+            if (res.success) {
+                setSummary(res.data);
+            }
         }).catch(err => {
             console.error('Failed to fetch intelligence summary', err);
         });
@@ -45,7 +47,11 @@ export function ProductHistoryTab({ productId }: ProductHistoryTabProps) {
                 if (endDate) params.endDate = endDate;
 
                 const res = await getProductMovementHistory(productId, params);
-                setHistory(res);
+                if (res.success) {
+                    setHistory(res.data);
+                } else {
+                    toast.error(res.message || 'Failed to load history');
+                }
             } catch (err) {
                 toast.error('Failed to load history');
                 console.error(err);
@@ -56,7 +62,9 @@ export function ProductHistoryTab({ productId }: ProductHistoryTabProps) {
     const fetchVendors = React.useCallback(() => {
         setIsVendorsLoading(true);
         getProductSupplierIntelligence(productId).then(res => {
-            setVendors(res);
+            if (res.success) {
+                setVendors(res.data || []);
+            }
             setIsVendorsLoading(false);
         }).catch(err => {
             console.error('Failed to fetch vendor intelligence', err);

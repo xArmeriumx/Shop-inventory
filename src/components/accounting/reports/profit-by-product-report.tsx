@@ -40,7 +40,17 @@ export function ProfitByProductReport({ startDate, endDate }: ProfitByProductRep
     );
   }
 
-  if (!data) return null;
+  if (!data?.success) {
+    return (
+      <Card>
+        <CardContent className="py-10 text-center">
+          <p className="text-muted-foreground">{data?.message || 'ไม่สามารถดึงข้อมูลรายงานได้'}</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const reportData = data.data as any[];
 
   const handleSort = (field: typeof sortBy) => {
     if (sortBy === field) {
@@ -51,19 +61,19 @@ export function ProfitByProductReport({ startDate, endDate }: ProfitByProductRep
     }
   };
 
-  const sorted = [...data].sort((a, b) => {
+  const sorted = [...reportData].sort((a, b) => {
     const mul = sortDir === 'asc' ? 1 : -1;
     if (sortBy === 'name') return mul * a.name.localeCompare(b.name);
     return mul * ((a[sortBy] as number) - (b[sortBy] as number));
   });
 
   // Summary
-  const totalRevenue = data.reduce((s, d) => s + d.totalRevenue, 0);
-  const totalCost = data.reduce((s, d) => s + d.totalCost, 0);
-  const totalProfit = data.reduce((s, d) => s + d.profit, 0);
+  const totalRevenue = reportData.reduce((s, d) => s + d.totalRevenue, 0);
+  const totalCost = reportData.reduce((s, d) => s + d.totalCost, 0);
+  const totalProfit = reportData.reduce((s, d) => s + d.profit, 0);
   const avgMargin = totalRevenue > 0 ? Math.round((totalProfit / totalRevenue) * 100) : 0;
-  const dangerCount = data.filter(d => d.margin < 10).length;
-  const warningCount = data.filter(d => d.margin >= 10 && d.margin < 20).length;
+  const dangerCount = reportData.filter(d => d.margin < 10).length;
+  const warningCount = reportData.filter(d => d.margin >= 10 && d.margin < 20).length;
 
   const getMarginBg = (margin: number) => {
     if (margin < 10) return 'bg-red-50 dark:bg-red-950/30';
@@ -95,7 +105,7 @@ export function ProfitByProductReport({ startDate, endDate }: ProfitByProductRep
             <div className={`text-lg sm:text-2xl font-bold ${totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
               {formatCurrency(totalProfit)}
             </div>
-            <p className="text-[10px] sm:text-xs text-muted-foreground">จาก {data.length} สินค้า</p>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">จาก {reportData.length} สินค้า</p>
           </CardContent>
         </Card>
 
@@ -199,7 +209,7 @@ export function ProfitByProductReport({ startDate, endDate }: ProfitByProductRep
               <tfoot>
                 <tr className="border-t-2 font-bold bg-muted/50">
                   <td className="py-3 px-2">รวม ({sorted.length} รายการ)</td>
-                  <td className="text-right py-3 px-2">{formatNumber(data.reduce((s, d) => s + d.totalQty, 0))}</td>
+                  <td className="text-right py-3 px-2">{formatNumber(reportData.reduce((s, d) => s + d.totalQty, 0))}</td>
                   <td className="text-right py-3 px-2">{formatCurrency(totalRevenue)}</td>
                   <td className="text-right py-3 px-2">{formatCurrency(totalCost)}</td>
                   <td className={`text-right py-3 px-2 ${totalProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>

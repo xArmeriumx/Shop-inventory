@@ -12,7 +12,7 @@ import { downloadCSV } from '@/lib/csv';
 
 interface DataExportPanelProps {
   /** Server action that fetches data for export */
-  exportFn: (...args: any[]) => Promise<any[]>;
+  exportFn: (...args: any[]) => Promise<any>;
   /** Filename for the CSV download (without .csv extension) */
   filename: string;
   /** Whether date range is required (default: true) */
@@ -40,9 +40,23 @@ export function DataExportPanel({
   const handleExport = () => {
     startTransition(async () => {
       try {
-        const data = requireDateRange
+        const result = requireDateRange
           ? await exportFn(startDate, endDate)
           : await exportFn();
+
+        // Handle standardized ActionResponse if present
+        let data: any[] = [];
+        const typedResult = result as any;
+        if (typedResult && typeof typedResult === 'object' && 'success' in typedResult) {
+          if (!typedResult.success) {
+            alert(typedResult.message || 'เกิดข้อผิดพลาดในการ Export');
+            return;
+          }
+          data = typedResult.data || [];
+        } else {
+          // Fallback for legacy raw array returns
+          data = Array.isArray(result) ? result : [];
+        }
 
         if (!data || data.length === 0) {
           alert('ไม่มีข้อมูลในช่วงเวลาที่เลือก');

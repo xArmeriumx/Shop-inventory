@@ -5,52 +5,36 @@ import { z } from 'zod';
 import { requireAuth } from '@/lib/auth-guard';
 import { logger } from '@/lib/logger';
 import { SettingsService, ServiceError } from '@/services';
+import { handleAction, type ActionResponse } from '@/lib/action-handler';
+import { PerformanceCollector } from '@/lib/debug/measurement';
 
 const profileSchema = z.object({
   name: z.string().min(1, 'กรุณากรอกชื่อ'),
 });
 
-export type ProfileState = {
-  success?: boolean;
-  error?: string;
-  fieldErrors?: {
-    name?: string[];
-  };
-};
+// Removed ProfileState as we use standard ActionResponse<T>
 
-export async function updateProfile(data: { name: string }): Promise<ProfileState> {
-  const ctx = await requireAuth();
-  const userId = ctx.userId;
+export async function updateProfile(data: { name: string }): Promise<ActionResponse<null>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requireAuth();
+      const validated = profileSchema.parse(data);
 
-  const validatedFields = profileSchema.safeParse(data);
+      await SettingsService.updateUserProfile(ctx.userId, validated);
 
-  if (!validatedFields.success) {
-    return {
-      error: 'ข้อมูลไม่ถูกต้อง',
-      fieldErrors: validatedFields.error.flatten().fieldErrors,
-    };
-  }
+      revalidatePath('/settings');
+      revalidatePath('/dashboard');
 
-  try {
-    await SettingsService.updateUserProfile(userId, validatedFields.data);
-    revalidatePath('/settings');
-    revalidatePath('/dashboard');
-    return { success: true };
-  } catch (error: unknown) {
-    if (error instanceof ServiceError) return { error: error.message };
-    const typedError = error as Error;
-    await logger.error('Update profile error', typedError, { path: 'updateProfile', userId });
-    return { error: 'เกิดข้อผิดพลาดในการบันทึกข้อมูล' };
-  }
+      return null;
+    }, 'settings:updateProfile');
+  }, { context: { action: 'updateProfile' } });
 }
 
-export async function getUserProfile() {
-  const ctx = await requireAuth();
-  const userId = ctx.userId;
-  try {
-    return await SettingsService.getUserProfile(userId);
-  } catch (error: unknown) {
-    if (error instanceof ServiceError) throw new Error(error.message);
-    throw error;
-  }
+export async function getUserProfile(): Promise<ActionResponse<any>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requireAuth();
+      return SettingsService.getUserProfile(ctx.userId);
+    }, 'settings:getUserProfile');
+  }, { context: { action: 'getUserProfile' } });
 }

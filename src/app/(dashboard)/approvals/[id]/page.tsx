@@ -3,8 +3,8 @@ import { requirePermission } from '@/lib/auth-guard';
 import { ApprovalService } from '@/services/core/workflow/approval.service';
 import { BackPageHeader } from '@/components/ui/back-page-header';
 import { notFound } from 'next/navigation';
-import { ApprovalDecisionCenter } from '@/components/shared/approvals/approval-decision-center';
-import { RelationshipPanel, type DocumentNode } from '@/components/shared/document-relations/relationship-panel';
+import { ApprovalDecisionCenter } from '@/components/core/approvals/approval-decision-center';
+import { RelationshipPanel, type DocumentNode } from '@/components/core/documents/relationship-panel';
 import { StatusConfig } from '@/components/ui/status-badge';
 
 export const metadata: Metadata = { title: 'รายละเอียดการอนุมัติ | ERP System' };

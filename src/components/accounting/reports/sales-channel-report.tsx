@@ -47,10 +47,19 @@ export function SalesChannelReport({ startDate, endDate }: SalesChannelReportPro
     );
   }
 
-  if (!data) return null;
+  if (!data?.success) {
+    return (
+      <Card>
+        <CardContent className="py-10 text-center">
+          <p className="text-muted-foreground">{data?.message || 'ไม่สามารถดึงข้อมูลรายงานได้'}</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
-  const topChannel = data.channels[0];
-  const bestMarginChannel = [...data.channels].sort((a, b) => b.margin - a.margin)[0];
+  const reportData = data.data;
+  const topChannel = reportData.channels[0];
+  const bestMarginChannel = [...reportData.channels].sort((a: any, b: any) => b.margin - a.margin)[0];
 
   return (
     <div className="space-y-4">
@@ -62,8 +71,8 @@ export function SalesChannelReport({ startDate, endDate }: SalesChannelReportPro
             <TrendingUp className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="text-lg sm:text-2xl font-bold">{formatCurrency(data.totalRevenue)}</div>
-            <p className="text-xs text-muted-foreground">{data.channels.length} ช่องทาง</p>
+            <div className="text-lg sm:text-2xl font-bold">{formatCurrency(reportData.totalRevenue)}</div>
+            <p className="text-xs text-muted-foreground">{reportData.channels.length} ช่องทาง</p>
           </CardContent>
         </Card>
 
@@ -100,7 +109,7 @@ export function SalesChannelReport({ startDate, endDate }: SalesChannelReportPro
 
       {/* Channel Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {data.channels.map((ch) => {
+        {reportData.channels.map((ch: any) => {
           const config = CHANNEL_CONFIG[ch.channel] || CHANNEL_CONFIG.OTHER;
           const Icon = config.icon;
 
@@ -151,7 +160,7 @@ export function SalesChannelReport({ startDate, endDate }: SalesChannelReportPro
           );
         })}
 
-        {data.channels.length === 0 && (
+        {reportData.channels.length === 0 && (
           <Card className="col-span-full">
             <CardContent className="py-8 text-center text-sm text-muted-foreground">
               ไม่มีข้อมูลการขายในช่วงเวลานี้

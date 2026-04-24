@@ -5,118 +5,79 @@ import { requirePermission } from '@/lib/auth-guard';
 import { logger } from '@/lib/logger';
 import { customerSchema, type CustomerInput } from '@/schemas/sales/customer.schema';
 import type { Customer } from '@prisma/client';
-import type { ActionResponse, SerializedCustomer, GetCustomersParams } from '@/types/domain';
+import type { SerializedCustomer, GetCustomersParams } from '@/types/domain';
 import { CustomerService, ServiceError } from '@/services';
+import { Permission } from '@prisma/client';
 
-export async function getCustomers(params: GetCustomersParams = {}) {
-  const ctx = await requirePermission('CUSTOMER_VIEW');
-  return CustomerService.getAll(ctx, params);
+import { PerformanceCollector } from '@/lib/debug/measurement';
+import { handleAction, type ActionResponse } from '@/lib/action-handler';
+
+export async function getCustomers(params: GetCustomersParams = {}): Promise<ActionResponse<any>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('CUSTOMER_VIEW');
+      return CustomerService.getAll(ctx, params);
+    }, 'sales:getCustomers');
+  }, { context: { action: 'getCustomers', ...params } });
 }
 
-export async function getCustomer(id: string) {
-  const ctx = await requirePermission('CUSTOMER_VIEW');
-  try {
-    return await CustomerService.getById(id, ctx);
-  } catch (error: unknown) {
-    if (error instanceof ServiceError) throw new Error(error.message);
-    throw error;
-  }
+export async function getCustomer(id: string): Promise<ActionResponse<any>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('CUSTOMER_VIEW');
+      return CustomerService.getById(id, ctx);
+    }, 'sales:getCustomer');
+  }, { context: { action: 'getCustomer', id } });
 }
 
 export async function createCustomer(input: CustomerInput): Promise<ActionResponse<SerializedCustomer>> {
-  const ctx = await requirePermission('CUSTOMER_CREATE' as any);
-
-  const validated = customerSchema.safeParse(input);
-  if (!validated.success) {
-    return {
-      success: false,
-      errors: validated.error.flatten().fieldErrors,
-      message: 'ข้อมูลไม่ถูกต้อง กรุณาตรวจสอบความถูกต้อง',
-    };
-  }
-
-  try {
-    const customer = await CustomerService.create(ctx, validated.data);
-    revalidatePath('/customers');
-    return {
-      success: true,
-      message: 'บันทึกข้อมูลลูกค้าสำเร็จ',
-      data: customer,
-    };
-  } catch (error: unknown) {
-    const typedError = error as Error;
-    await logger.error('Create customer error', typedError, { path: 'createCustomer', userId: ctx.userId });
-    return {
-      success: false,
-      message: 'เกิดข้อผิดพลาดในการบันทึกข้อมูล กรุณาลองใหม่อีกครั้ง',
-    };
-  }
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission(Permission.CUSTOMER_CREATE);
+      const validated = customerSchema.parse(input);
+      return CustomerService.create(ctx, validated);
+    }, 'sales:createCustomer');
+  }, { context: { action: 'createCustomer' } });
 }
 
 export async function updateCustomer(id: string, input: CustomerInput): Promise<ActionResponse<SerializedCustomer>> {
-  const ctx = await requirePermission('CUSTOMER_UPDATE' as any);
-
-  const validated = customerSchema.safeParse(input);
-  if (!validated.success) {
-    return {
-      success: false,
-      errors: validated.error.flatten().fieldErrors,
-      message: 'ข้อมูลไม่ถูกต้อง กรุณาตรวจสอบความถูกต้อง',
-    };
-  }
-
-  try {
-    const customer = await CustomerService.update(id, ctx, validated.data);
-    revalidatePath('/customers');
-    revalidatePath(`/customers/${id}`);
-    return {
-      success: true,
-      message: 'อัปเดตข้อมูลลูกค้าสำเร็จ',
-      data: customer,
-    };
-  } catch (error: unknown) {
-    if (error instanceof ServiceError) return { success: false, message: error.message };
-    const typedError = error as Error;
-    await logger.error('Update customer error', typedError, { path: 'updateCustomer', userId: ctx.userId, customerId: id });
-    return {
-      success: false,
-      message: 'เกิดข้อผิดพลาดในการอัปเดตข้อมูล',
-    };
-  }
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission(Permission.CUSTOMER_UPDATE);
+      const validated = customerSchema.parse(input);
+      const customer = await CustomerService.update(id, ctx, validated);
+      revalidatePath('/customers');
+      revalidatePath(`/customers/${id}`);
+      return customer;
+    }, 'sales:updateCustomer');
+  }, { context: { action: 'updateCustomer', id } });
 }
 
-export async function deleteCustomer(id: string): Promise<ActionResponse> {
-  const ctx = await requirePermission('CUSTOMER_DELETE');
-
-  try {
-    await CustomerService.delete(id, ctx);
-    revalidatePath('/customers');
-    return {
-      success: true,
-      message: 'ลบข้อมูลลูกค้าสำเร็จ',
-    };
-  } catch (error: unknown) {
-    if (error instanceof ServiceError) return { success: false, message: error.message };
-    const typedError = error as Error;
-    await logger.error('Delete customer error', typedError, { path: 'deleteCustomer', userId: ctx.userId, customerId: id });
-    return {
-      success: false,
-      message: 'เกิดข้อผิดพลาดในการลบข้อมูล (อาจมีการใช้งานลูกค้ารายนี้ในรายการขาย)',
-    };
-  }
+export async function deleteCustomer(id: string): Promise<ActionResponse<boolean>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('CUSTOMER_DELETE');
+      await CustomerService.delete(id, ctx);
+      revalidatePath('/customers');
+      return true;
+    }, 'sales:deleteCustomer');
+  }, { context: { action: 'deleteCustomer', id } });
 }
 
-export async function getCustomersForSelect() {
-  const ctx = await requirePermission('CUSTOMER_VIEW');
-  return CustomerService.getForSelect(ctx);
+export async function getCustomersForSelect(): Promise<ActionResponse<any[]>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('CUSTOMER_VIEW');
+      return CustomerService.getForSelect(ctx);
+    }, 'sales:getCustomersForSelect');
+  }, { context: { action: 'getCustomersForSelect' } });
 }
 
-export async function getCustomerProfile(id: string) {
-  const ctx = await requirePermission('CUSTOMER_VIEW');
-  try {
-    return await CustomerService.getProfile(id, ctx);
-  } catch (error: unknown) {
-    if (error instanceof ServiceError) throw new Error(error.message);
-    throw error;
-  }
+export async function getCustomerProfile(id: string): Promise<ActionResponse<any>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('CUSTOMER_VIEW');
+      return CustomerService.getProfile(id, ctx);
+    }, 'sales:getCustomerProfile');
+  }, { context: { action: 'getCustomerProfile', id } });
 }

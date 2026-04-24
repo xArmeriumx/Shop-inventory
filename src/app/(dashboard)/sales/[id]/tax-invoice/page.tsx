@@ -23,19 +23,22 @@ const printStyles = `
 `;
 
 async function TaxInvoice({ id }: { id: string }) {
-  const [sale, shop] = await Promise.all([
+  const [saleResult, shopResult] = await Promise.all([
     getSale(id),
     getShop(),
   ]);
 
-  if (!sale) {
+  if (!saleResult.success || !saleResult.data) {
     notFound();
   }
 
+  const sale = saleResult.data;
+  const shop = shopResult.success ? shopResult.data : null;
+
   const zonedDate = toZonedTime(sale.date, 'Asia/Bangkok');
-  const customerName = sale.customer?.name || sale.customerName || 'ลูกค้าทั่วไป';
-  const customerAddress = sale.customer?.address || '-';
-  const customerTaxId = sale.customer?.taxId || '-';
+  const customerName = sale.customerName || 'ลูกค้าทั่วไป';
+  const customerAddress = sale.customerAddress || '-';
+  const customerTaxId = sale.customerTaxId || '-';
 
   return (
     <div className="bg-white min-h-screen p-8 max-w-[210mm] mx-auto text-black">
@@ -91,14 +94,14 @@ async function TaxInvoice({ id }: { id: string }) {
             <tr key={item.id} className="border-b border-gray-100 text-xs">
               <td className="py-2 text-center">{index + 1}</td>
               <td className="py-2">
-                <div>{item.product.name}</div>
-                {item.product.sku && <div className="text-[10px] text-gray-500">SKU: {item.product.sku}</div>}
+                <div>{item.productName}</div>
+                {/* {item.product.sku && <div className="text-[10px] text-gray-500">SKU: {item.product.sku}</div>} */}
               </td>
-              <td className="py-2 text-right">{formatCurrency(Number(item.salePrice))}</td>
+              <td className="py-2 text-right">{formatCurrency(Number(item.unitPrice))}</td>
               <td className="py-2 text-right">{item.quantity}</td>
-              <td className="py-2 text-right text-gray-500">{item.packagingQty || 1}</td>
+              <td className="py-2 text-right text-gray-500">{1}</td>
               <td className="py-2 text-right font-medium">
-                {calculateCtn(item.quantity, item.packagingQty || 1)}
+                {calculateCtn(item.quantity, 1)}
               </td>
               <td className="py-2 text-right">{formatCurrency(Number(item.subtotal))}</td>
             </tr>

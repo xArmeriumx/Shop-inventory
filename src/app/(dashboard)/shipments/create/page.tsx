@@ -12,7 +12,8 @@ interface CreateShipmentPageProps {
 
 export default async function CreateShipmentPage({ searchParams }: CreateShipmentPageProps) {
   const params = await searchParams;
-  const sales = await getSalesWithoutShipment();
+  const result = await getSalesWithoutShipment();
+  const sales = result.success ? result.data : [];
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">

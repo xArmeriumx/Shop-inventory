@@ -99,7 +99,7 @@ export function PaymentModal({
                 toast.success('บันทึกการชำระเงินสำเร็จ');
                 onClose();
             } else {
-                toast.error(result.error);
+                toast.error(result.message || 'เกิดข้อผิดพลาดในการบันทึกการชำระเงิน');
             }
         } catch (error) {
             toast.error('เกิดข้อผิดพลาดในการเชื่อมต่อ');

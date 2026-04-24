@@ -18,10 +18,10 @@
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth-guard';
 import { createSale as createSaleAction } from '@/actions/sales/sales.actions';
-import type { 
-  POSProduct, 
-  POSCategory, 
-  POSCreateSaleInput, 
+import type {
+  POSProduct,
+  POSCategory,
+  POSCreateSaleInput,
   POSCreateSaleResult,
   POSCustomer
 } from './types';
@@ -193,21 +193,21 @@ export async function createPOSSale(input: POSCreateSaleInput): Promise<POSCreat
 
     if (!actionResult.success) {
       let errorMessage = actionResult.message || 'เกิดข้อผิดพลาดในการบันทึกการขาย';
-      
+
       // Type guard for errors object
       if (actionResult.errors && typeof actionResult.errors === 'object') {
         const fieldErrors = actionResult.errors as Record<string, string[]>;
         const firstErrorKey = Object.keys(fieldErrors)[0];
         if (firstErrorKey && fieldErrors[firstErrorKey]) {
-           errorMessage = fieldErrors[firstErrorKey][0];
+          errorMessage = fieldErrors[firstErrorKey][0];
         }
       } else if (typeof actionResult.errors === 'string') {
         errorMessage = actionResult.errors;
       }
-      
+
       return {
         success: false,
-        error: errorMessage,
+        message: errorMessage,
       };
     }
 
@@ -222,13 +222,13 @@ export async function createPOSSale(input: POSCreateSaleInput): Promise<POSCreat
 
     return {
       success: false,
-      error: 'เกิดข้อผิดพลาดที่ไม่คาดคิด',
+      message: 'เกิดข้อผิดพลาดที่ไม่คาดคิด',
     };
   } catch (error) {
     console.error('POS Sale Error:', error);
     return {
       success: false,
-      error: 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง',
+      message: 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง',
     };
   }
 }

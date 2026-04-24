@@ -2,21 +2,21 @@
 
 import React, { useEffect, useState, useTransition } from 'react';
 import { Bell, Check, ExternalLink, Info, AlertTriangle, ShieldAlert, MoreHorizontal } from 'lucide-react';
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuLabel, 
-  DropdownMenuSeparator, 
-  DropdownMenuTrigger 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { 
-  getNotifications, 
-  getUnreadNotificationCount, 
-  markNotificationAsRead, 
-  markAllNotificationsAsRead 
+import {
+  getNotifications,
+  getUnreadNotificationCount,
+  markNotificationAsRead,
+  markAllNotificationsAsRead
 } from '@/actions/core/notifications.actions';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
@@ -31,12 +31,22 @@ export function NotificationBell() {
 
   const fetchNotifications = async () => {
     try {
-      const [list, count] = await Promise.all([
+      const [listResult, countResult] = await Promise.all([
         getNotifications(10),
         getUnreadNotificationCount()
       ]);
-      setNotifications(list);
-      setUnreadCount(count);
+
+      if (listResult.success) {
+        setNotifications(listResult.data);
+      } else {
+        console.error('Failed to fetch notifications list:', listResult.message);
+      }
+
+      if (countResult.success) {
+        setUnreadCount(countResult.data);
+      } else {
+        console.error('Failed to fetch unread count:', countResult.message);
+      }
     } catch (error) {
       console.error('Failed to fetch notifications', error);
     }
@@ -44,7 +54,7 @@ export function NotificationBell() {
 
   useEffect(() => {
     fetchNotifications();
-    
+
     // Polling every 60 seconds as a simple heartbeat
     const interval = setInterval(fetchNotifications, 60000);
     return () => clearInterval(interval);
@@ -85,7 +95,7 @@ export function NotificationBell() {
         <Button variant="ghost" size="icon" className="relative h-10 w-10">
           <Bell className={cn("h-5 w-5", unreadCount > 0 && "animate-pulse")} />
           {unreadCount > 0 && (
-            <Badge 
+            <Badge
               className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-red-600 text-[10px]"
             >
               {unreadCount > 9 ? '9+' : unreadCount}
@@ -99,10 +109,10 @@ export function NotificationBell() {
             <span className="font-bold text-lg">รายการแจ้งเตือน</span>
             {unreadCount > 0 && <Badge variant="secondary">{unreadCount} ใหม่</Badge>}
           </div>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="text-xs h-8 text-primary hover:text-primary/80" 
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs h-8 text-primary hover:text-primary/80"
             onClick={handleMarkAllRead}
             disabled={unreadCount === 0 || isPending}
           >
@@ -142,7 +152,7 @@ export function NotificationBell() {
                       {notif.message}
                     </p>
                     {notif.link && (
-                      <Link 
+                      <Link
                         href={notif.link}
                         className="inline-flex items-center gap-1 text-xs text-primary font-medium hover:underline mt-2"
                       >
@@ -151,7 +161,7 @@ export function NotificationBell() {
                     )}
                   </div>
                 </div>
-                
+
                 {!notif.isRead && (
                   <Button
                     variant="ghost"

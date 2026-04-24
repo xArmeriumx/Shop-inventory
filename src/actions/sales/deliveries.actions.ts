@@ -4,41 +4,49 @@ import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/auth-guard';
 import { deliveryOrderSchema, type DeliveryOrderInput } from '@/schemas/sales/delivery.schema';
 import { DeliveryOrderService } from '@/services/inventory/delivery-order.service';
-import { ServiceError } from '@/types/domain';
-import type { ActionResponse } from '@/types/domain';
+import { handleAction } from '@/lib/action-handler';
+import { PerformanceCollector } from '@/lib/debug/measurement';
+import { ActionResponse } from '@/types/common';
 
-export async function getDeliveryOrders(params: any = {}) {
-    const ctx = await requirePermission('DELIVERY_VIEW');
-    return DeliveryOrderService.list(ctx, params);
+/**
+ * Get delivery orders list
+ */
+export async function getDeliveryOrders(params: any = {}): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requirePermission('DELIVERY_VIEW');
+            return DeliveryOrderService.list(ctx, params);
+        }, 'sales:getDeliveryOrders');
+    }, { context: { action: 'getDeliveryOrders' } });
 }
 
-export async function createDeliveryOrder(input: DeliveryOrderInput): Promise<ActionResponse> {
-    const ctx = await requirePermission('DELIVERY_VALIDATE');
-
-    const validated = deliveryOrderSchema.safeParse(input);
-    if (!validated.success) return { success: false, message: 'ข้อมูลไม่ถูกต้อง' };
-
-    try {
-        await DeliveryOrderService.create(ctx, validated.data);
-        revalidatePath('/deliveries');
-        revalidatePath(`/sales/${validated.data.saleId}`);
-        return { success: true, message: 'สร้างใบส่งของสำเร็จ' };
-    } catch (error: any) {
-        if (error instanceof ServiceError) return { success: false, message: error.message };
-        return { success: false, message: 'เกิดข้อผิดพลาดในการสร้างใบส่งของ' };
-    }
+/**
+ * Create a new delivery order
+ */
+export async function createDeliveryOrder(input: DeliveryOrderInput): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requirePermission('DELIVERY_VALIDATE');
+            const validated = deliveryOrderSchema.parse(input);
+            const result = await DeliveryOrderService.create(ctx, validated);
+            revalidatePath('/deliveries');
+            revalidatePath(`/sales/${validated.saleId}`);
+            return result;
+        }, 'sales:createDeliveryOrder');
+    }, { context: { action: 'createDeliveryOrder', saleId: input.saleId } });
 }
 
-export async function validateDelivery(id: string): Promise<ActionResponse> {
-    const ctx = await requirePermission('DELIVERY_VALIDATE');
-
-    try {
-        await DeliveryOrderService.validate(ctx, id);
-        revalidatePath('/deliveries');
-        revalidatePath('/sales');
-        return { success: true, message: 'ยืนยันการส่งของเรียบร้อยแล้ว' };
-    } catch (error: any) {
-        if (error instanceof ServiceError) return { success: false, message: error.message };
-        return { success: false, message: 'เกิดข้อผิดพลาดในการยืนยันการส่งของ' };
-    }
+/**
+ * Validate/Confirm delivery order
+ */
+export async function validateDelivery(id: string): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requirePermission('DELIVERY_VALIDATE');
+            const result = await DeliveryOrderService.validate(ctx, id);
+            revalidatePath('/deliveries');
+            revalidatePath('/sales');
+            return result;
+        }, 'sales:validateDelivery');
+    }, { context: { action: 'validateDelivery', id } });
 }

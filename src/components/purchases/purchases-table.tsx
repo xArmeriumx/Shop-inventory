@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { PaginationControl } from '@/components/ui/pagination-control';
 import { EmptyState } from '@/components/ui/empty-state';
 import { GuidedErrorAlert } from '@/components/ui/guided-error-alert';
-import { CancelDialog, PURCHASE_VOID_REASONS } from '@/components/shared/cancel-dialog';
+import { CancelDialog, PURCHASE_VOID_REASONS } from '@/components/ui/cancel-dialog';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { getPurchaseStatusLabel } from '@/lib/erp-utils';
 import { cancelPurchase, convertToPurchaseOrder } from '@/actions/purchases/purchases.actions';

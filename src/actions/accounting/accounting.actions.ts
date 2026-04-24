@@ -3,58 +3,57 @@ import { AccountingReportService } from '@/services/accounting/accounting-report
 import { ExportService } from '@/services/core/intelligence/export.service';
 import { requireShop } from '@/lib/auth-guard';
 import { revalidatePath } from 'next/cache';
-import { ActionResponse } from '@/types/domain';
+import { ActionResponse } from '@/types/common';
+import { handleAction } from '@/lib/action-handler';
+import { PerformanceCollector } from '@/lib/debug/measurement';
 
 /**
  * ดึงรายการผังบัญชี (Chart of Accounts)
  */
-export async function getAccountsAction(): Promise<ActionResponse> {
-    try {
-        const ctx = await requireShop();
-        const data = await AccountingService.getAccounts(ctx);
-        return { success: true, data };
-    } catch (error: any) {
-        return { success: false, message: error.message };
-    }
+export async function getAccountsAction(): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requireShop();
+            return AccountingService.getAccounts(ctx);
+        }, 'accounting:getAccounts');
+    });
 }
 
 /**
  * สร้างรายการผังบัญชีหลัก/ย่อย
  */
-export async function createAccountAction(data: any): Promise<ActionResponse> {
-    try {
-        const ctx = await requireShop();
-        const result = await AccountingService.createAccount(ctx, data);
-        revalidatePath('/settings/accounting');
-        return { success: true, data: result };
-    } catch (error: any) {
-        return { success: false, message: error.message };
-    }
+export async function createAccountAction(data: any): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requireShop();
+            const result = await AccountingService.createAccount(ctx, data);
+            revalidatePath('/settings/accounting');
+            return result;
+        }, 'accounting:createAccount');
+    });
 }
 
-export async function getTrialBalanceAction(params: { date?: string } = {}): Promise<ActionResponse> {
-    try {
-        const ctx = await requireShop();
-        const data = await AccountingService.getTrialBalance(ctx, {
-            date: params.date ? new Date(params.date) : undefined
-        });
-        return { success: true, data };
-    } catch (err: any) {
-        return { success: false, message: err.message };
-    }
+export async function getTrialBalanceAction(params: { date?: string } = {}): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requireShop();
+            return AccountingService.getTrialBalance(ctx, {
+                date: params.date ? new Date(params.date) : undefined
+            });
+        }, 'accounting:getTrialBalance');
+    });
 }
 
 /**
  * ดึงข้อมูลบัญชีรายตัว
  */
-export async function getAccountDetailAction(id: string): Promise<ActionResponse> {
-    try {
-        const ctx = await requireShop();
-        const data = await AccountingService.getAccountById(id, ctx);
-        return { success: true, data };
-    } catch (error: any) {
-        return { success: false, message: error.message };
-    }
+export async function getAccountDetailAction(id: string): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requireShop();
+            return AccountingService.getAccountById(id, ctx);
+        }, 'accounting:getAccountDetail');
+    });
 }
 
 /**
@@ -66,95 +65,91 @@ export async function getAccountDetailAction(id: string): Promise<ActionResponse
 /**
  * ดึงรายการงวดบัญชีทั้งหมด
  */
-export async function getAccountingPeriodsAction(): Promise<ActionResponse> {
-    try {
-        const ctx = await requireShop();
-        const data = await AccountingService.getAccountingPeriods(ctx);
-        return { success: true, data };
-    } catch (error: any) {
-        return { success: false, message: error.message };
-    }
+export async function getAccountingPeriodsAction(): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requireShop();
+            return AccountingService.getAccountingPeriods(ctx);
+        }, 'accounting:getAccountingPeriods');
+    });
 }
 
-export async function initializePeriodsAction(): Promise<ActionResponse> {
-    try {
-        const ctx = await requireShop();
-        const data = await AccountingService.initializePeriods(ctx);
-        revalidatePath('/accounting/periods');
-        return { success: true, data };
-    } catch (error: any) {
-        return { success: false, message: error.message };
-    }
+export async function initializePeriodsAction(): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requireShop();
+            const data = await AccountingService.initializePeriods(ctx);
+            revalidatePath('/accounting/periods');
+            return data;
+        }, 'accounting:initializePeriods');
+    });
 }
 
-export async function closePeriodAction(periodId: string): Promise<ActionResponse> {
-    try {
-        const ctx = await requireShop();
-        await AccountingService.closePeriod(ctx, periodId);
-        revalidatePath('/accounting/periods');
-        return { success: true };
-    } catch (error: any) {
-        return { success: false, message: error.message };
-    }
+export async function closePeriodAction(periodId: string): Promise<ActionResponse<null>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requireShop();
+            await AccountingService.closePeriod(ctx, periodId);
+            revalidatePath('/accounting/periods');
+            return null;
+        }, 'accounting:closePeriod');
+    });
 }
 
-export async function reopenPeriodAction(params: { periodId: string, reason: string }): Promise<ActionResponse> {
-    try {
-        const ctx = await requireShop();
-        await AccountingService.reopenPeriod(ctx, params.periodId, params.reason);
-        revalidatePath('/accounting/periods');
-        return { success: true };
-    } catch (error: any) {
-        return { success: false, message: error.message };
-    }
+export async function reopenPeriodAction(params: { periodId: string, reason: string }): Promise<ActionResponse<null>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requireShop();
+            await AccountingService.reopenPeriod(ctx, params.periodId, params.reason);
+            revalidatePath('/accounting/periods');
+            return null;
+        }, 'accounting:reopenPeriod');
+    });
 }
 
 /**
  * ดึงงบกำไรขาดทุน (P&L)
  */
-export async function getProfitAndLossAction(params: { startDate: string, endDate: string }): Promise<ActionResponse> {
-    try {
-        const ctx = await requireShop();
-        const data = await AccountingReportService.getProfitAndLoss(
-            ctx,
-            new Date(params.startDate),
-            new Date(params.endDate)
-        );
-        return { success: true, data };
-    } catch (error: any) {
-        return { success: false, message: error.message };
-    }
+export async function getProfitAndLossAction(params: { startDate: string, endDate: string }): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requireShop();
+            return AccountingReportService.getProfitAndLoss(
+                ctx,
+                new Date(params.startDate),
+                new Date(params.endDate)
+            );
+        }, 'accounting:getProfitAndLoss');
+    });
 }
 
-export async function getBalanceSheetAction(params: { asOfDate: string }): Promise<ActionResponse> {
-    try {
-        const ctx = await requireShop();
-        const data = await AccountingReportService.getBalanceSheet(
-            ctx,
-            new Date(params.asOfDate)
-        );
-        return { success: true, data };
-    } catch (error: any) {
-        return { success: false, message: error.message };
-    }
+export async function getBalanceSheetAction(params: { asOfDate: string }): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requireShop();
+            return AccountingReportService.getBalanceSheet(
+                ctx,
+                new Date(params.asOfDate)
+            );
+        }, 'accounting:getBalanceSheet');
+    });
 }
 
 /**
  * ดึงสมุดบัญชีรายตัว (Account Ledger)
  */
-export async function getAccountLedgerAction(params: { accountId: string, startDate: string, endDate: string }): Promise<ActionResponse> {
-    try {
-        const ctx = await requireShop();
-        const data = await AccountingReportService.getAccountLedger(
-            ctx,
-            params.accountId,
-            new Date(params.startDate),
-            new Date(params.endDate)
-        );
-        return { success: true, data };
-    } catch (error: any) {
-        return { success: false, message: error.message };
-    }
+export async function getAccountLedgerAction(params: { accountId: string, startDate: string, endDate: string }): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requireShop();
+            return AccountingReportService.getAccountLedger(
+                ctx,
+                params.accountId,
+                new Date(params.startDate),
+                new Date(params.endDate)
+            );
+        }, 'accounting:getAccountLedger');
+    });
 }
 
 /**
@@ -166,18 +161,17 @@ export async function getAccountLedgerAction(params: { accountId: string, startD
 /**
  * ดึงสถานะอายุหนี้ (Aging Report)
  */
-export async function getAgingReportAction(params: { type: 'AR' | 'AP', asOfDate?: string }): Promise<ActionResponse> {
-    try {
-        const ctx = await requireShop();
-        const data = await AccountingReportService.getAgingReport(
-            ctx,
-            params.type,
-            params.asOfDate ? new Date(params.asOfDate) : new Date()
-        );
-        return { success: true, data };
-    } catch (error: any) {
-        return { success: false, message: error.message };
-    }
+export async function getAgingReportAction(params: { type: 'AR' | 'AP', asOfDate?: string }): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requireShop();
+            return AccountingReportService.getAgingReport(
+                ctx,
+                params.type,
+                params.asOfDate ? new Date(params.asOfDate) : new Date()
+            );
+        }, 'accounting:getAgingReport');
+    });
 }
 
 /**
@@ -188,108 +182,101 @@ export async function getPartnerStatementAction(params: {
     type: 'CUSTOMER' | 'SUPPLIER',
     startDate: string,
     endDate: string
-}): Promise<ActionResponse> {
-    try {
-        const ctx = await requireShop();
-        const data = await AccountingReportService.getPartnerStatement(
-            ctx,
-            params.partnerId,
-            params.type,
-            new Date(params.startDate),
-            new Date(params.endDate)
-        );
-        return { success: true, data };
-    } catch (error: any) {
-        return { success: false, message: error.message };
-    }
+}): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requireShop();
+            return AccountingReportService.getPartnerStatement(
+                ctx,
+                params.partnerId,
+                params.type,
+                new Date(params.startDate),
+                new Date(params.endDate)
+            );
+        }, 'accounting:getPartnerStatement');
+    });
 }
 
 /**
  * Export Profit and Loss to CSV
  */
-export async function exportProfitAndLossAction(params: { startDate: string, endDate: string }): Promise<ActionResponse> {
-    try {
-        const ctx = await requireShop();
-        const dto = await AccountingReportService.getProfitAndLoss(ctx, new Date(params.startDate), new Date(params.endDate));
-        const rows = ExportService.adaptProfitAndLossToRows(dto);
-        const csv = ExportService.toCSV(rows);
-        return { success: true, data: csv };
-    } catch (error: any) {
-        return { success: false, message: error.message };
-    }
+export async function exportProfitAndLossAction(params: { startDate: string, endDate: string }): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requireShop();
+            const dto = await AccountingReportService.getProfitAndLoss(ctx, new Date(params.startDate), new Date(params.endDate));
+            const rows = ExportService.adaptProfitAndLossToRows(dto);
+            return ExportService.toCSV(rows);
+        }, 'accounting:exportProfitAndLoss');
+    }, { skipSerialize: true });
 }
 
 /**
  * Export Balance Sheet to CSV
  */
-export async function exportBalanceSheetAction(params: { asOfDate: string }): Promise<ActionResponse> {
-    try {
-        const ctx = await requireShop();
-        const dto = await AccountingReportService.getBalanceSheet(ctx, new Date(params.asOfDate));
-        const rows = ExportService.adaptBalanceSheetToRows(dto);
-        const csv = ExportService.toCSV(rows);
-        return { success: true, data: csv };
-    } catch (error: any) {
-        return { success: false, message: error.message };
-    }
+export async function exportBalanceSheetAction(params: { asOfDate: string }): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requireShop();
+            const dto = await AccountingReportService.getBalanceSheet(ctx, new Date(params.asOfDate));
+            const rows = ExportService.adaptBalanceSheetToRows(dto);
+            return ExportService.toCSV(rows);
+        }, 'accounting:exportBalanceSheet');
+    }, { skipSerialize: true });
 }
 
 /**
  * Export Trial Balance to CSV
  */
-export async function exportTrialBalanceAction(params: { date: string }): Promise<ActionResponse> {
-    try {
-        const ctx = await requireShop();
-        const data = await AccountingService.getTrialBalance(ctx, { date: new Date(params.date) });
-        const rows = ExportService.adaptTrialBalanceToRows(data);
-        const csv = ExportService.toCSV(rows);
-        return { success: true, data: csv };
-    } catch (error: any) {
-        return { success: false, message: error.message };
-    }
+export async function exportTrialBalanceAction(params: { date: string }): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requireShop();
+            const data = await AccountingService.getTrialBalance(ctx, { date: new Date(params.date) });
+            const rows = ExportService.adaptTrialBalanceToRows(data);
+            return ExportService.toCSV(rows);
+        }, 'accounting:exportTrialBalance');
+    }, { skipSerialize: true });
 }
 
 /**
  * Export Account Ledger to CSV
  */
-export async function exportAccountLedgerAction(params: { accountId: string, startDate: string, endDate: string }): Promise<ActionResponse> {
-    try {
-        const ctx = await requireShop();
-        const dto = await AccountingReportService.getAccountLedger(ctx, params.accountId, new Date(params.startDate), new Date(params.endDate));
-        const rows = ExportService.adaptAccountLedgerToRows(dto);
-        const csv = ExportService.toCSV(rows);
-        return { success: true, data: csv };
-    } catch (error: any) {
-        return { success: false, message: error.message };
-    }
+export async function exportAccountLedgerAction(params: { accountId: string, startDate: string, endDate: string }): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requireShop();
+            const dto = await AccountingReportService.getAccountLedger(ctx, params.accountId, new Date(params.startDate), new Date(params.endDate));
+            const rows = ExportService.adaptAccountLedgerToRows(dto);
+            return ExportService.toCSV(rows);
+        }, 'accounting:exportAccountLedger');
+    }, { skipSerialize: true });
 }
 
 /**
  * Export Aging Report to CSV
  */
-export async function exportAgingReportAction(params: { type: 'AR' | 'AP', asOfDate: string }): Promise<ActionResponse> {
-    try {
-        const ctx = await requireShop();
-        const dto = await AccountingReportService.getAgingReport(ctx, params.type, new Date(params.asOfDate));
-        const rows = ExportService.adaptAgingReportToRows(dto);
-        const csv = ExportService.toCSV(rows);
-        return { success: true, data: csv };
-    } catch (error: any) {
-        return { success: false, message: error.message };
-    }
+export async function exportAgingReportAction(params: { type: 'AR' | 'AP', asOfDate: string }): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requireShop();
+            const dto = await AccountingReportService.getAgingReport(ctx, params.type, new Date(params.asOfDate));
+            const rows = ExportService.adaptAgingReportToRows(dto);
+            return ExportService.toCSV(rows);
+        }, 'accounting:exportAgingReport');
+    }, { skipSerialize: true });
 }
 
 /**
  * Export General Ledger (All Journal Entries) to CSV
  */
-export async function exportGeneralLedgerAction(params: { startDate: string, endDate: string }): Promise<ActionResponse> {
-    try {
-        const ctx = await requireShop();
-        const data = await AccountingReportService.getGeneralLedger(ctx, new Date(params.startDate), new Date(params.endDate));
-        const rows = ExportService.adaptGeneralLedgerToRows(data);
-        const csv = ExportService.toCSV(rows);
-        return { success: true, data: csv };
-    } catch (error: any) {
-        return { success: false, message: error.message };
-    }
+export async function exportGeneralLedgerAction(params: { startDate: string, endDate: string }): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requireShop();
+            const data = await AccountingReportService.getGeneralLedger(ctx, new Date(params.startDate), new Date(params.endDate));
+            const rows = ExportService.adaptGeneralLedgerToRows(data);
+            return ExportService.toCSV(rows);
+        }, 'accounting:exportGeneralLedger');
+    }, { skipSerialize: true });
 }

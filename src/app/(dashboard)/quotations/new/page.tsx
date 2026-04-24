@@ -10,10 +10,13 @@ export const metadata: Metadata = {
 };
 
 export default async function NewQuotationPage() {
-    const [customers, products] = await Promise.all([
+    const [customersRes, productsRes] = await Promise.all([
         getCustomersForSelect(),
         getProductsForSelect(),
     ]);
+
+    const customers = customersRes.success ? customersRes.data : [];
+    const products = productsRes.success ? productsRes.data : [];
 
     return (
         <div className="p-6 space-y-6">
@@ -25,8 +28,8 @@ export default async function NewQuotationPage() {
 
             <div className="max-w-5xl mx-auto">
                 <QuotationForm
-                    customers={customers}
-                    products={products}
+                    customers={customers as any}
+                    products={products as any}
                 />
             </div>
         </div>

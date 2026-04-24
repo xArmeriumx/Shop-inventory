@@ -41,13 +41,13 @@ interface UsePurchaseScannerReturn {
   suppliers: SupplierForMatch[];
   pendingScanData: any;
   showReviewModal: boolean;
-  
+
   // Actions
   handleScanComplete: (scanData: any) => void;
   handleReviewConfirm: (result: ScanResult) => void;
   closeReviewModal: () => void;
   refreshData: () => Promise<void>;
-  
+
   // For review modal props
   setShowReviewModal: (show: boolean) => void;
 }
@@ -64,7 +64,7 @@ interface UsePurchaseScannerReturn {
  */
 export function usePurchaseScanner(options: UsePurchaseScannerOptions = {}): UsePurchaseScannerReturn {
   const { onConfirm, autoLoadData = true } = options;
-  
+
   const [isLoading, setIsLoading] = useState(false);
   const [products, setProducts] = useState<ProductForMatch[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierForMatch[]>([]);
@@ -75,23 +75,31 @@ export function usePurchaseScanner(options: UsePurchaseScannerOptions = {}): Use
   const refreshData = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [productsData, suppliersData] = await Promise.all([
+      const [productsResult, suppliersResult] = await Promise.all([
         getProductsForPurchase(),
         getSuppliersForSelect(),
       ]);
-      
-      setProducts(productsData.map((p: any) => ({
-        id: p.id,
-        name: p.name,
-        sku: p.sku,
-        costPrice: Number(p.costPrice),
-      })));
-      
-      setSuppliers(suppliersData.map((s: any) => ({
-        id: s.id,
-        name: s.name,
-        code: s.code,
-      })));
+
+      if (productsResult.success) {
+        setProducts(productsResult.data.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          sku: p.sku,
+          costPrice: Number(p.costPrice),
+        })));
+      } else {
+        console.error('Failed to fetch products for scanner:', productsResult.message);
+      }
+
+      if (suppliersResult.success) {
+        setSuppliers(suppliersResult.data.map((s: any) => ({
+          id: s.id,
+          name: s.name,
+          code: s.code,
+        })));
+      } else {
+        console.error('Failed to fetch suppliers for scanner:', suppliersResult.message);
+      }
     } finally {
       setIsLoading(false);
     }

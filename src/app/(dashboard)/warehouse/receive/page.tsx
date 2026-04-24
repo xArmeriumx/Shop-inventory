@@ -24,8 +24,13 @@ export default function MobileReceivePage() {
   async function loadDeliveries() {
     setLoading(true);
     try {
-      const data = await getPendingDeliveries();
-      setDeliveries(data);
+      const result = await getPendingDeliveries();
+      if (result.success) {
+        setDeliveries(result.data as any[]);
+      } else {
+        toast.error(result.message || 'ไม่สามารถดึงข้อมูลรายการรับของได้');
+        setDeliveries([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -34,10 +39,14 @@ export default function MobileReceivePage() {
   const handleConfirm = async (id: string) => {
     startTransition(async () => {
       try {
-        await confirmReceipt(id);
-        toast.success('รับสินค้าเข้าคลังเรียบร้อยแล้ว');
-        setSelectedPO(null);
-        await loadDeliveries();
+        const result = await confirmReceipt(id);
+        if (result.success) {
+          toast.success('รับสินค้าเข้าคลังเรียบร้อยแล้ว');
+          setSelectedPO(null);
+          await loadDeliveries();
+        } else {
+          toast.error(result.message || 'เกิดข้อผิดพลาดในการรับสินค้า');
+        }
       } catch (err: any) {
         toast.error(err.message || 'เกิดข้อผิดพลาด');
       }
@@ -94,8 +103,8 @@ export default function MobileReceivePage() {
                   การกดรับสินค้าจะเพิ่มจำนวนในคลังทันที และคำนวณต้นทุนเฉลี่ย (Weighted Average Cost) ให้อัตโนมัติ
                 </p>
               </div>
-              <Button 
-                className="w-full h-14 text-lg font-bold bg-green-600 hover:bg-green-700 shadow-lg" 
+              <Button
+                className="w-full h-14 text-lg font-bold bg-green-600 hover:bg-green-700 shadow-lg"
                 disabled={isPending}
                 onClick={() => handleConfirm(selectedPO.id)}
               >
@@ -138,8 +147,8 @@ export default function MobileReceivePage() {
           </div>
         ) : (
           deliveries.map((po) => (
-            <Card 
-              key={po.id} 
+            <Card
+              key={po.id}
               className="hover:border-primary/40 cursor-pointer transition-all active:scale-[0.98]"
               onClick={() => setSelectedPO(po)}
             >

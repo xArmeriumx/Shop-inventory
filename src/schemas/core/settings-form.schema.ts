@@ -23,6 +23,7 @@ export const shopFormSchema = z.object({
     address: z.string().max(500, 'ที่อยู่ต้องไม่เกิน 500 ตัวอักษร').optional().nullable(),
     taxId: z.string().max(13, 'เลขประจำตัวผู้เสียภาษีต้องไม่เกิน 13 หลัก').optional().nullable(),
     promptPayId: z.string().max(20, 'PromptPay ID ต้องไม่เกิน 20 หลัก').optional().nullable(),
+    logo: z.string().optional().nullable(),
 });
 
 export type ShopFormValues = z.infer<typeof shopFormSchema>;
@@ -34,5 +35,6 @@ export function getShopFormDefaults(shop?: any): ShopFormValues {
         address: shop?.address ?? '',
         taxId: shop?.taxId ?? '',
         promptPayId: shop?.promptPayId ?? '',
+        logo: shop?.logo ?? '',
     };
 }

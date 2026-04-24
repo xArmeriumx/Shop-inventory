@@ -18,7 +18,7 @@ export function StaleDocumentsTool() {
     setLoading(true);
     try {
       const result = await getStaleDocuments();
-      setData(result);
+      setData(result.success && result.data ? result.data : { sales: [], purchases: [] });
     } catch (error) {
       console.error('Failed to load stale documents', error);
       toast.error('ไม่สามารถโหลดข้อมูลเอกสารค้างได้');
@@ -44,9 +44,8 @@ export function StaleDocumentsTool() {
   const DocumentRow = ({ doc }: { doc: any }) => (
     <div className="flex items-center justify-between p-4 border-b last:border-0 hover:bg-muted/30 transition-colors">
       <div className="flex items-center gap-4">
-        <div className={`p-2 rounded-full ${
-          doc.type === 'SALE' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
-        }`}>
+        <div className={`p-2 rounded-full ${doc.type === 'SALE' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
+          }`}>
           <FileText className="h-5 w-5" />
         </div>
         <div>
@@ -89,17 +88,17 @@ export function StaleDocumentsTool() {
           <p className="text-sm text-muted-foreground">รายการที่สร้างไว้นานกว่า 3 วันแต่ยังไม่มีความคืบหน้า (เช่น ยังไม่ยืนยัน, ยังไม่รับของ)</p>
         </div>
         <div className="flex items-center gap-2">
-           {totalStale > 0 ? (
-             <div className="flex items-center gap-1 text-orange-600 font-medium text-sm border border-orange-200 bg-orange-50 px-3 py-1 rounded-full">
-               <AlertTriangle className="h-4 w-4" />
-               ค้าง {totalStale} รายการ
-             </div>
-           ) : (
-             <div className="flex items-center gap-1 text-green-600 font-medium text-sm border border-green-200 bg-green-50 px-3 py-1 rounded-full">
-               <CheckCircle2 className="h-4 w-4" />
-               ไม่มีเอกสารค้าง
-             </div>
-           )}
+          {totalStale > 0 ? (
+            <div className="flex items-center gap-1 text-orange-600 font-medium text-sm border border-orange-200 bg-orange-50 px-3 py-1 rounded-full">
+              <AlertTriangle className="h-4 w-4" />
+              ค้าง {totalStale} รายการ
+            </div>
+          ) : (
+            <div className="flex items-center gap-1 text-green-600 font-medium text-sm border border-green-200 bg-green-50 px-3 py-1 rounded-full">
+              <CheckCircle2 className="h-4 w-4" />
+              ไม่มีเอกสารค้าง
+            </div>
+          )}
         </div>
       </div>
 
@@ -107,7 +106,7 @@ export function StaleDocumentsTool() {
         {/* Sales Section */}
         <section>
           <h4 className="flex items-center gap-2 text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wider">
-            ฝั่งรายการขาย 
+            ฝั่งรายการขาย
             <Badge variant="secondary" className="rounded-sm px-1.5">{data.sales.length}</Badge>
           </h4>
           <Card>
@@ -126,7 +125,7 @@ export function StaleDocumentsTool() {
         {/* Purchases Section */}
         <section>
           <h4 className="flex items-center gap-2 text-sm font-semibold mb-3 text-muted-foreground uppercase tracking-wider">
-            ฝั่งรายการซื้อ 
+            ฝั่งรายการซื้อ
             <Badge variant="secondary" className="rounded-sm px-1.5">{data.purchases.length}</Badge>
           </h4>
           <Card>

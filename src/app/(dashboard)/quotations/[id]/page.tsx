@@ -27,14 +27,10 @@ const QUOTATION_STATUS_CONFIG: Record<string, StatusConfig> = {
 export default async function QuotationDetailPage({ params }: { params: { id: string } }) {
     const ctx = await requirePermission('QUOTATION_VIEW');
 
-    let quotation;
-    try {
-        quotation = await QuotationService.getById(ctx, params.id);
-    } catch (error) {
-        return notFound();
-    }
+    const quotation = await QuotationService.getById(ctx, params.id) as any;
+    if (!quotation) return notFound();
 
-    const firstSale = quotation.sales?.[0] as any;
+    const firstSale = quotation.sales?.[0];
     const hasSale = !!firstSale;
     const hasInvoice = hasSale && firstSale.invoices?.length > 0;
     const isPaid = hasSale && Number(firstSale.residualAmount) <= 0;

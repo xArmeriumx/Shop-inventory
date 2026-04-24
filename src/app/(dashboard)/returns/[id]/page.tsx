@@ -34,8 +34,8 @@ const REFUND_METHOD_LABEL: Record<string, string> = {
 // ─── Metadata ────────────────────────────────────────────────────────────────
 
 export async function generateMetadata({ params }: { params: { id: string } }) {
-  const data = await getReturnById(params.id);
-  return { title: data ? `${data.returnNumber} | คืนสินค้า` : 'ไม่พบรายการ' };
+  const result = await getReturnById(params.id);
+  return { title: result.success && result.data ? `${result.data.returnNumber} | คืนสินค้า` : 'ไม่พบรายการ' };
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -48,11 +48,12 @@ function formatThaiDate(date: Date | string) {
 // ─── Detail View ─────────────────────────────────────────────────────────────
 
 async function ReturnDetailContent({ id }: { id: string }) {
-  const returnData = await getReturnById(id);
-  if (!returnData) notFound();
+  const result = await getReturnById(id);
+  if (!result.success || !result.data) notFound();
 
-  const customerName =
-    returnData.sale?.customer?.name || returnData.sale?.customerName || 'ลูกค้าทั่วไป';
+  const returnData = result.data;
+  const sale = returnData.sale;
+  const customerName = sale?.customerName || 'ลูกค้าทั่วไป';
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">

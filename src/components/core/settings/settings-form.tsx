@@ -39,14 +39,14 @@ function ProfileSettings({ initialData }: { initialData: { name: string | null, 
     startTransition(async () => {
       const result = await updateProfile(data);
       if (result.success) {
-        toast.success('บันทึกข้อมูลผู้ใช้เรียบร้อยแล้ว');
+        toast.success('บันทึกข้อมูลเรียบร้อยแล้ว');
       } else {
-        if (result.fieldErrors) {
-          Object.entries(result.fieldErrors).forEach(([field, messages]) => {
+        if (result.errors && typeof result.errors === 'object') {
+          Object.entries(result.errors).forEach(([field, messages]) => {
             methods.setError(field as any, { message: (messages as string[])[0] });
           });
         }
-        toast.error(result.error || 'เกิดข้อผิดพลาด');
+        toast.error(result.message || 'เกิดข้อผิดพลาด');
       }
     });
   };
@@ -105,16 +105,24 @@ function ShopSettings({ shopData }: { shopData: any }) {
 
   const onSubmit = (data: ShopFormValues) => {
     startTransition(async () => {
-      const result = await updateShop(data as any);
+      const sanitizedData = {
+        ...data,
+        phone: data.phone ?? undefined,
+        address: data.address ?? undefined,
+        taxId: data.taxId ?? undefined,
+        promptPayId: data.promptPayId ?? undefined,
+        logo: data.logo ?? undefined,
+      };
+      const result = await updateShop(sanitizedData);
       if (result.success) {
-        toast.success('บันทึกข้อมูลร้านค้าเรียบร้อยแล้ว');
+        toast.success('บันทึกข้อมูลเรียบร้อยแล้ว');
       } else {
-        if (result.fieldErrors) {
-          Object.entries(result.fieldErrors).forEach(([field, messages]) => {
+        if (result.errors && typeof result.errors === 'object') {
+          Object.entries(result.errors).forEach(([field, messages]) => {
             methods.setError(field as any, { message: (messages as string[])[0] });
           });
         }
-        toast.error(result.error || 'เกิดข้อผิดพลาด');
+        toast.error(result.message || 'เกิดข้อผิดพลาด');
       }
     });
   };

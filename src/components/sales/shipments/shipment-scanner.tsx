@@ -93,9 +93,15 @@ export function ShipmentScanner({ availableSales }: ShipmentScannerProps) {
         }));
 
         const matchResult = await matchParcelsToSales(parcels);
-        setMatches(matchResult);
-        setStep('review');
-        toast.success(`พบ ${parcels.length} พัสดุ, จับคู่ได้ ${matchResult.filter((m) => m.sale).length} รายการ`);
+        if (matchResult.success) {
+          setMatches(matchResult.data);
+          setStep('review');
+          toast.success(`พบ ${parcels.length} พัสดุ, จับคู่ได้ ${matchResult.data.filter((m: any) => m.sale).length} รายการ`);
+        } else {
+          console.error('Failed to match parcels:', matchResult.message);
+          toast.error(matchResult.message);
+          setStep('upload');
+        }
       } catch (error) {
         toast.error('เกิดข้อผิดพลาดในการสแกน');
         setStep('upload');

@@ -2,7 +2,8 @@ import { db } from '@/lib/db';
 import { RequestContext, ServiceError, DocumentType } from '@/types/domain';
 import { Security } from '@/services/core/iam/security.service';
 import { SequenceService } from '@/services/core/system/sequence.service';
-import { Prisma } from '@prisma/client';
+import { Prisma, Permission } from '@prisma/client';
+
 import { money, toNumber } from '@/lib/money';
 import { Decimal } from '@prisma/client/runtime/library';
 const WhtPayeeType = { INDIVIDUAL: "INDIVIDUAL", CORPORATE: "CORPORATE", UNKNOWN: "UNKNOWN", ANY: "ANY" } as any;
@@ -60,7 +61,7 @@ export const WhtService = {
      * ต้องเรียกเมื่อมีการชำระเงิน (Payment event)
      */
     async createEntry(ctx: RequestContext, params: any, tx: any = db) {
-        Security.requirePermission(ctx, 'TAX_REPORT_POST' as any);
+        Security.requirePermission(ctx, Permission.TAX_REPORT_POST);
 
         return await db.$transaction(async (tx) => {
             // 1. Create Entry with Snapshots
@@ -107,7 +108,7 @@ export const WhtService = {
      * ดึงข้อมูลรายงานตามประเภทแบบ (ภ.ง.ด. 3 หรือ ภ.ง.ด. 53)
      */
     async getReportData(ctx: RequestContext, params: { year: number; month: number; formType: any }) {
-        Security.requirePermission(ctx, 'TAX_REPORT_VIEW' as any);
+        Security.requirePermission(ctx, Permission.TAX_REPORT_VIEW);
 
         const data = await (db as any).whtEntry.findMany({
             where: {
@@ -157,7 +158,7 @@ export const WhtService = {
      * ออกหนังสือรับรองการหักภาษี ณ ที่จ่าย (50 ทวิ)
      */
     async issueCertificate(ctx: RequestContext, entryId: string) {
-        Security.requirePermission(ctx, 'TAX_REPORT_POST' as any);
+        Security.requirePermission(ctx, Permission.TAX_REPORT_POST);
 
         return await db.$transaction(async (tx) => {
             const entry = await (tx as any).whtEntry.findFirst({
@@ -194,7 +195,7 @@ export const WhtService = {
      * ยกเลิกหนังสือรับรอง
      */
     async voidCertificate(ctx: RequestContext, certId: string) {
-        Security.requirePermission(ctx, 'TAX_REPORT_POST' as any);
+        Security.requirePermission(ctx, Permission.TAX_REPORT_POST);
 
         const existing = await (db as any).whtCertificate.findFirst({
             where: { id: certId, shopId: ctx.shopId }

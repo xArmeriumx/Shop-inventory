@@ -200,7 +200,7 @@ export function ShipmentScannerDialog({
       stopScanPhase();
 
       if (!result.success || !result.data?.parcels?.length) {
-        setErrorMsg(result.error || 'ไม่พบเลขพัสดุในภาพนี้ กรุณาลองใหม่');
+        setErrorMsg((result as any).message || 'ไม่พบเลขพัสดุในภาพนี้ กรุณาลองใหม่');
         setStep('review'); // Show empty review with option to retry
         return;
       }
@@ -229,11 +229,14 @@ export function ShipmentScannerDialog({
 
       // Auto-match with sales
       const matchResult = await matchParcelsToSales(parcels);
-      setMatches(matchResult);
+      if (matchResult.success) {
+        setMatches(matchResult.data);
+        const autoMatched = matchResult.data.filter((m: ParcelMatch) => m.sale).length;
+        toast.success(`พบ ${parcels.length} พัสดุ — จับคู่อัตโนมัติ ${autoMatched} รายการ`);
+      } else {
+        toast.error(matchResult.message);
+      }
       setStep('review');
-
-      const autoMatched = matchResult.filter((m) => m.sale).length;
-      toast.success(`พบ ${parcels.length} พัสดุ — จับคู่อัตโนมัติ ${autoMatched} รายการ`);
 
     } catch (err: any) {
       stopScanPhase();

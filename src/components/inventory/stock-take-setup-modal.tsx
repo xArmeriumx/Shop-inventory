@@ -37,10 +37,14 @@ export function StockTakeSetupModal({ open, onOpenChange, productIds, totalCount
 
         setIsLoading(true);
         try {
-            const session = await createStockTakeAction(productIds, notes);
-            toast.success('เริ่มรายการตรวจนับแล้ว');
-            onOpenChange(false);
-            router.push(`/inventory/stock-take/${session.id}`);
+            const result = await createStockTakeAction(productIds, notes);
+            if (result.success && result.data) {
+                toast.success('เริ่มรายการตรวจนับแล้ว');
+                onOpenChange(false);
+                router.push(`/inventory/stock-take/${result.data.id}`);
+            } else {
+                toast.error(result.message || 'ไม่สามารถเริ่มรายการตรวจนับได้');
+            }
         } catch (error: any) {
             toast.error(error.message);
         } finally {

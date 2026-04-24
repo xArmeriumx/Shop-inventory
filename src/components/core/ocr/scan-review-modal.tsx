@@ -109,7 +109,7 @@ export function ScanReviewModal({
   const [isProcessing, setIsProcessing] = useState(false);
   const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
   const [categoriesLoaded, setCategoriesLoaded] = useState(false);
-  
+
   // Reviewed data state
   const [reviewedSupplier, setReviewedSupplier] = useState<ReviewedSupplier | null>(null);
   const [reviewedItems, setReviewedItems] = useState<ReviewedItem[]>([]);
@@ -118,11 +118,11 @@ export function ScanReviewModal({
   const [newCategoryName, setNewCategoryName] = useState('');
   const [isAddingCategory, setIsAddingCategory] = useState(false);
 
-  // Load categories on mount
   useEffect(() => {
-    getLookupValues('PRODUCT_CATEGORY').then((values) => {
-      setCategories(values as Array<{ id: string; name: string }>);
-      const defaultCat = values.find((v: any) => v.isDefault);
+    getLookupValues('PRODUCT_CATEGORY').then((result) => {
+      const values = result.success ? (result.data || []) : [];
+      setCategories(values as any);
+      const defaultCat = (values as any[]).find((v: any) => v.isDefault);
       if (defaultCat) {
         setDefaultCategory((defaultCat as any).name);
       } else if (values.length > 0) {
@@ -161,12 +161,12 @@ export function ScanReviewModal({
         defaultCategory,
         categoriesAvailable: categories.length,
       });
-      
+
       const reviewed = scanData.items.map((scanned, index) => {
         const match = matchProduct(scanned, products);
         const costPrice = scanned.unitPrice || 0;
         const productName = generateUniqueProductName(scanned);
-        
+
         // Detailed logging for each item
         console.log(`📦 Item[${index}]:`, {
           scannedName: scanned.name,
@@ -177,7 +177,7 @@ export function ScanReviewModal({
           matchedProductId: match?.item?.id,
           categoryAssigned: match ? '(matched)' : categoryToUse,
         });
-        
+
         return {
           scanned,
           match,
@@ -221,15 +221,15 @@ export function ScanReviewModal({
   // Handle adding new category inline - connects to database
   const handleAddCategory = async () => {
     if (!newCategoryName.trim()) return;
-    
+
     setIsAddingCategory(true);
     try {
       const result = await quickAddCategory('PRODUCT_CATEGORY', newCategoryName.trim());
-      
+
       if (result.success && result.data) {
         // Add to local categories list
         setCategories((prev) => [...prev, { id: result.data!.id, name: result.data!.name }]);
-        
+
         // Set as default and update all unmatched items
         setDefaultCategory(result.data.name);
         setReviewedItems((prev) =>
@@ -239,12 +239,12 @@ export function ScanReviewModal({
               : item
           )
         );
-        
+
         toast.success(`เพิ่มหมวดหมู่ "${result.data.name}" สำเร็จ`);
         setShowAddCategory(false);
         setNewCategoryName('');
       } else {
-        toast.error(result.error || 'เพิ่มหมวดหมู่ไม่สำเร็จ');
+        toast.error((result as any).message || 'เพิ่มหมวดหมู่ไม่สำเร็จ');
       }
     } catch (error) {
       console.error('Add category error:', error);
@@ -306,7 +306,7 @@ export function ScanReviewModal({
       const unmatchedIndices: number[] = [];
       const productsToCreate: BatchProductInput[] = [];
       const skippedItems: { index: number; reason: string }[] = [];
-      
+
       reviewedItems.forEach((item, index) => {
         // Log each item for debugging
         console.log(`🔍 ReviewedItem[${index}]:`, {
@@ -323,7 +323,7 @@ export function ScanReviewModal({
           // Validate required fields
           const hasName = !!(item.newProduct?.name && item.newProduct.name.trim());
           const hasCategory = !!(item.newProduct?.category && item.newProduct.category.trim());
-          
+
           if (hasName && hasCategory) {
             unmatchedIndices.push(index);
             productsToCreate.push({
@@ -335,10 +335,10 @@ export function ScanReviewModal({
             });
           } else {
             // Log why this item was skipped
-            const reason = !hasName && !hasCategory 
-              ? 'MISSING_NAME_AND_CATEGORY' 
-              : !hasName 
-                ? 'MISSING_NAME' 
+            const reason = !hasName && !hasCategory
+              ? 'MISSING_NAME_AND_CATEGORY'
+              : !hasName
+                ? 'MISSING_NAME'
                 : 'MISSING_CATEGORY';
             console.warn(`⚠️ Skipped item[${index}]:`, reason, {
               name: item.newProduct?.name,
@@ -351,7 +351,7 @@ export function ScanReviewModal({
 
       console.log('🔧 Products to create:', productsToCreate.length, productsToCreate);
       console.log('🔧 Unmatched indices:', unmatchedIndices);
-      
+
       // Warn user about skipped items
       if (skippedItems.length > 0) {
         console.warn('⚠️ Skipped items due to missing data:', skippedItems);
@@ -375,11 +375,7 @@ export function ScanReviewModal({
           console.log('🔧 Created products map (by index):', createdProductsMap);
           toast.success(batchResult.message);
         } else {
-          // Show detailed error including failed items
-          console.error('❌ Batch create failed:', batchResult);
-          if (batchResult.data?.failed && batchResult.data.failed.length > 0) {
-            console.error('❌ Failed products:', batchResult.data.failed);
-          }
+          console.error('❌ Batch create failed:', batchResult.message);
           toast.error(batchResult.message || 'สร้างสินค้าไม่สำเร็จ');
         }
       } else if (unmatchedIndices.length === 0 && reviewedItems.some(i => !i.match)) {
@@ -457,7 +453,7 @@ export function ScanReviewModal({
                 <Building2 className="h-4 w-4" />
                 ผู้จำหน่าย
               </div>
-              
+
               {reviewedSupplier.match ? (
                 <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-950/30 rounded-lg border border-green-200 dark:border-green-800">
                   <Check className="h-4 w-4 text-green-600" />
@@ -547,7 +543,7 @@ export function ScanReviewModal({
                     ))}
                   </SelectContent>
                 </Select>
-                
+
                 {/* Add new category inline */}
                 {!showAddCategory ? (
                   <Button
@@ -613,11 +609,10 @@ export function ScanReviewModal({
               {reviewedItems.map((item, index) => (
                 <div
                   key={index}
-                  className={`p-3 rounded-lg border ${
-                    item.match
-                      ? 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800'
-                      : 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800'
-                  }`}
+                  className={`p-3 rounded-lg border ${item.match
+                    ? 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800'
+                    : 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800'
+                    }`}
                 >
                   {item.match ? (
                     // Matched item

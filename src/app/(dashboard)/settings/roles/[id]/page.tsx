@@ -19,11 +19,13 @@ async function EditRoleContent({ id }: { id: string }) {
   // Guard: Must have SETTINGS_ROLES permission to edit roles
   await requirePermission('SETTINGS_ROLES');
 
-  const role = await getRole(id);
+  const result = await getRole(id);
 
-  if (!role) {
+  if (!result.success || !result.data) {
     notFound();
   }
+
+  const role = result.data;
 
   return (
     <Card>

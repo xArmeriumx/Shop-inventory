@@ -59,17 +59,28 @@ export function TopProductsReport({ startDate, endDate }: TopProductsReportProps
     );
   }
 
-  if (!products || !categories) return null;
+  if (!products?.success || !categories?.success) {
+    return (
+      <Card>
+        <CardContent className="py-10 text-center">
+          <p className="text-muted-foreground">{products?.message || categories?.message || 'ไม่สามารถดึงข้อมูลรายงานได้'}</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const reportProducts = products.data as any[];
+  const reportCategories = categories.data as any[];
 
   // Chart data for top products
-  const chartData = products.map(p => ({
+  const chartData = reportProducts.map((p: any) => ({
     name: p.name.length > 15 ? p.name.substring(0, 15) + '...' : p.name,
     revenue: p.revenue,
     profit: p.profit,
   }));
 
   // Pie data for categories
-  const pieData = categories.map(c => ({
+  const pieData = reportCategories.map((c: any) => ({
     name: c.category,
     value: c.revenue,
     percentage: c.percentage,
@@ -163,7 +174,7 @@ export function TopProductsReport({ startDate, endDate }: TopProductsReportProps
                 </tr>
               </thead>
               <tbody className="divide-y divide-muted">
-                {products.map((p, i) => (
+                {reportProducts.map((p: any, i: number) => (
                   <tr key={p.productId}>
                     <td className="text-center py-2 px-2 font-bold text-muted-foreground">{i + 1}</td>
                     <td className="py-2 px-2">
@@ -176,7 +187,7 @@ export function TopProductsReport({ startDate, endDate }: TopProductsReportProps
                     <td className="text-right py-2 px-2">{p.orderCount}</td>
                   </tr>
                 ))}
-                {products.length === 0 && (
+                {reportProducts.length === 0 && (
                   <tr>
                     <td colSpan={6} className="text-center py-8 text-muted-foreground">
                       ไม่มีข้อมูลในช่วงเวลานี้
@@ -207,7 +218,7 @@ export function TopProductsReport({ startDate, endDate }: TopProductsReportProps
                 </tr>
               </thead>
               <tbody className="divide-y divide-muted">
-                {categories.map((c, i) => (
+                {reportCategories.map((c: any, i: number) => (
                   <tr key={c.category}>
                     <td className="py-2 px-2">
                       <div className="flex items-center gap-2">

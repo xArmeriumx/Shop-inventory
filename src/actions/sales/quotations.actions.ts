@@ -5,77 +5,52 @@ import { requirePermission } from '@/lib/auth-guard';
 import { logger } from '@/lib/logger';
 import { quotationSchema, type QuotationInput } from '@/schemas/sales/quotation.schema';
 import { QuotationService } from '@/services/sales/quotation.service';
-import { ServiceError } from '@/types/domain';
-import type { ActionResponse } from '@/types/domain';
-import { serialize } from '@/lib/utils';
+import { ActionResponse } from '@/types/common';
+import { PerformanceCollector } from '@/lib/debug/measurement';
+import { handleAction } from '@/lib/action-handler';
 
 
-export async function getQuotations(params: any = {}) {
-    const ctx = await requirePermission('QUOTATION_VIEW' as any);
-
-    const result = await QuotationService.list(ctx, params);
-    return serialize(result);
+export async function getQuotations(params: any = {}): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requirePermission('QUOTATION_VIEW' as any);
+            return QuotationService.list(ctx, params);
+        }, 'sales:getQuotations');
+    }, { context: { action: 'getQuotations' } });
 }
 
 
-export async function createQuotation(input: QuotationInput): Promise<ActionResponse> {
-    const ctx = await requirePermission('QUOTATION_CREATE' as any);
-
-
-    const validated = quotationSchema.safeParse(input);
-    if (!validated.success) {
-        return {
-            success: false,
-            errors: validated.error.flatten().fieldErrors,
-            message: 'ข้อมูลไม่ถูกต้อง',
-        };
-    }
-
-    try {
-        await QuotationService.create(ctx, validated.data);
-        revalidatePath('/quotations');
-        return {
-            success: true,
-            message: 'สร้างใบเสนอราคาสำเร็จ',
-        };
-    } catch (error: any) {
-        if (error instanceof ServiceError) return { success: false, message: error.message };
-        await logger.error('Create Quotation Error', error, { userId: ctx.userId });
-        return { success: false, message: 'เกิดข้อผิดพลาดในการสร้างใบเสนอราคา' };
-    }
+export async function createQuotation(input: QuotationInput): Promise<ActionResponse<null>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requirePermission('QUOTATION_CREATE' as any);
+            const validated = quotationSchema.parse(input);
+            await QuotationService.create(ctx, validated);
+            revalidatePath('/quotations');
+            return null;
+        }, 'sales:createQuotation');
+    }, { context: { action: 'createQuotation' } });
 }
 
-export async function confirmQuotation(id: string): Promise<ActionResponse> {
-    const ctx = await requirePermission('QUOTATION_CONFIRM' as any);
-
-
-    try {
-        await QuotationService.confirm(ctx, id);
-        revalidatePath('/quotations');
-        revalidatePath('/sales');
-        return {
-            success: true,
-            message: 'ยืนยันใบเสนอราคาและสร้างรายการขายสำเร็จ',
-        };
-    } catch (error: any) {
-        if (error instanceof ServiceError) return { success: false, message: error.message };
-        return { success: false, message: 'เกิดข้อผิดพลาดในการยืนยันใบเสนอราคา' };
-    }
+export async function confirmQuotation(id: string): Promise<ActionResponse<null>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requirePermission('QUOTATION_CONFIRM' as any);
+            await QuotationService.confirm(ctx, id);
+            revalidatePath('/quotations');
+            revalidatePath('/sales');
+            return null;
+        }, 'sales:confirmQuotation');
+    }, { context: { action: 'confirmQuotation', id } });
 }
 
-export async function cancelQuotation(id: string): Promise<ActionResponse> {
-    const ctx = await requirePermission('QUOTATION_EDIT' as any);
-
-
-    try {
-        await QuotationService.cancel(ctx, id);
-        revalidatePath('/quotations');
-        return {
-            success: true,
-            message: 'ยกเลิกใบเสนอราคาสำเร็จ',
-        };
-    } catch (error: any) {
-        if (error instanceof ServiceError) return { success: false, message: error.message };
-        return { success: false, message: 'เกิดข้อผิดพลาดในการยกเลิกใบเสนอราคา' };
-    }
+export async function cancelQuotation(id: string): Promise<ActionResponse<null>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requirePermission('QUOTATION_EDIT' as any);
+            await QuotationService.cancel(ctx, id);
+            revalidatePath('/quotations');
+            return null;
+        }, 'sales:cancelQuotation');
+    }, { context: { action: 'cancelQuotation', id } });
 }

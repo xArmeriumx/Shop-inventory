@@ -54,8 +54,8 @@ export function PeriodComparisonReport() {
   const getChangeBadge = (value: number, inverted = false) => {
     if (value === 0) return 'bg-muted text-muted-foreground';
     const isPositive = inverted ? value < 0 : value > 0;
-    return isPositive 
-      ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' 
+    return isPositive
+      ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
       : 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300';
   };
 
@@ -99,93 +99,104 @@ export function PeriodComparisonReport() {
       ) : data ? (
         <>
           {/* Comparison Cards */}
-          <div className="grid gap-4 md:grid-cols-2">
-            {/* Period 1 */}
-            <Card className="border-blue-200 dark:border-blue-800">
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base">ช่วงเวลาปัจจุบัน</CardTitle>
-                  <Badge variant="outline" className="text-xs">{data.period1.label}</Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">รายรับ</span>
-                  <span className="text-lg font-bold">{formatCurrency(data.period1.revenue)}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">กำไร</span>
-                  <span className="text-lg font-bold text-green-600">{formatCurrency(data.period1.profit)}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">ค่าใช้จ่าย</span>
-                  <span className="text-lg font-bold text-red-600">{formatCurrency(data.period1.expenses)}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">จำนวนออร์เดอร์</span>
-                  <span className="text-lg font-bold">{formatNumber(data.period1.orderCount)}</span>
-                </div>
+          {!data?.success ? (
+            <Card className="border-dashed">
+              <CardContent className="py-10 text-center">
+                <p className="text-muted-foreground">{data?.message || 'ไม่สามารถดึงข้อมูลเปรียบเทียบได้'}</p>
               </CardContent>
             </Card>
-
-            {/* Period 2 */}
-            <Card className="border-gray-200 dark:border-gray-700">
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-base">ช่วงเวลาเปรียบเทียบ</CardTitle>
-                  <Badge variant="secondary" className="text-xs">{data.period2.label}</Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">รายรับ</span>
-                  <span className="text-lg font-bold">{formatCurrency(data.period2.revenue)}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">กำไร</span>
-                  <span className="text-lg font-bold text-green-600">{formatCurrency(data.period2.profit)}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">ค่าใช้จ่าย</span>
-                  <span className="text-lg font-bold text-red-600">{formatCurrency(data.period2.expenses)}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">จำนวนออร์เดอร์</span>
-                  <span className="text-lg font-bold">{formatNumber(data.period2.orderCount)}</span>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Change Summary */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base sm:text-lg">สรุปการเปลี่ยนแปลง</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {[
-                  { label: 'รายรับ', change: data.changes.revenue, inverted: false },
-                  { label: 'กำไร', change: data.changes.profit, inverted: false },
-                  { label: 'ค่าใช้จ่าย', change: data.changes.expenses, inverted: true },
-                  { label: 'ออร์เดอร์', change: data.changes.orderCount, inverted: false },
-                ].map((item, i) => (
-                  <div key={i} className="text-center p-4 rounded-lg bg-muted/50">
-                    <p className="text-sm text-muted-foreground mb-1">{item.label}</p>
-                    <div className="flex items-center justify-center gap-1">
-                      <ChangeIndicator value={item.change} />
-                      <span className={`text-2xl font-bold ${getChangeColor(item.change, item.inverted)}`}>
-                        {item.change > 0 ? '+' : ''}{item.change}%
-                      </span>
+          ) : (
+            <>
+              {/* Comparison Cards */}
+              <div className="grid gap-4 md:grid-cols-2">
+                {/* Period 1 */}
+                <Card className="border-blue-200 dark:border-blue-800">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-base">ช่วงเวลาปัจจุบัน</CardTitle>
+                      <Badge variant="outline" className="text-xs">{data.data.period1.label}</Badge>
                     </div>
-                    <Badge className={`mt-1 text-[10px] ${getChangeBadge(item.change, item.inverted)}`}>
-                      {item.change > 0 ? 'เพิ่มขึ้น' : item.change < 0 ? 'ลดลง' : 'เท่าเดิม'}
-                    </Badge>
-                  </div>
-                ))}
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">รายรับ</span>
+                      <span className="text-lg font-bold">{formatCurrency(data.data.period1.revenue)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">กำไร</span>
+                      <span className="text-lg font-bold text-green-600">{formatCurrency(data.data.period1.profit)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">ค่าใช้จ่าย</span>
+                      <span className="text-lg font-bold text-red-600">{formatCurrency(data.data.period1.expenses)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">จำนวนออร์เดอร์</span>
+                      <span className="text-lg font-bold">{formatNumber(data.data.period1.orderCount)}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Period 2 */}
+                <Card className="border-gray-200 dark:border-gray-700">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-base">ช่วงเวลาเปรียบเทียบ</CardTitle>
+                      <Badge variant="secondary" className="text-xs">{data.data.period2.label}</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">รายรับ</span>
+                      <span className="text-lg font-bold">{formatCurrency(data.data.period2.revenue)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">กำไร</span>
+                      <span className="text-lg font-bold text-green-600">{formatCurrency(data.data.period2.profit)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">ค่าใช้จ่าย</span>
+                      <span className="text-lg font-bold text-red-600">{formatCurrency(data.data.period2.expenses)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">จำนวนออร์เดอร์</span>
+                      <span className="text-lg font-bold">{formatNumber(data.data.period2.orderCount)}</span>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
-            </CardContent>
-          </Card>
+
+              {/* Change Summary */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base sm:text-lg">สรุปการเปลี่ยนแปลง</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {[
+                      { label: 'รายรับ', change: data.data.changes.revenue, inverted: false },
+                      { label: 'กำไร', change: data.data.changes.profit, inverted: false },
+                      { label: 'ค่าใช้จ่าย', change: data.data.changes.expenses, inverted: true },
+                      { label: 'ออร์เดอร์', change: data.data.changes.orderCount, inverted: false },
+                    ].map((item, i) => (
+                      <div key={i} className="text-center p-4 rounded-lg bg-muted/50">
+                        <p className="text-sm text-muted-foreground mb-1">{item.label}</p>
+                        <div className="flex items-center justify-center gap-1">
+                          <ChangeIndicator value={item.change} />
+                          <span className={`text-2xl font-bold ${getChangeColor(item.change, item.inverted)}`}>
+                            {item.change > 0 ? '+' : ''}{item.change}%
+                          </span>
+                        </div>
+                        <Badge className={`mt-1 text-[10px] ${getChangeBadge(item.change, item.inverted)}`}>
+                          {item.change > 0 ? 'เพิ่มขึ้น' : item.change < 0 ? 'ลดลง' : 'เท่าเดิม'}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          )}
         </>
       ) : null}
     </div>

@@ -36,6 +36,15 @@ export default async function OrderRequestsPage({ searchParams }: PageProps) {
         status: searchParams.status as OrderRequestStatus,
     });
 
+    if (!result.success) {
+        return (
+            <div className="flex flex-col items-center justify-center py-20 bg-card rounded-lg border border-dashed">
+                <h3 className="text-lg font-semibold text-purple-600">ไม่สามารถดึงข้อมูลใบขอซื้อได้</h3>
+                <p className="text-muted-foreground">{result.message}</p>
+            </div>
+        );
+    }
+
     const columns: Column<any>[] = [
         {
             header: 'เลขที่คำขอ',
@@ -76,9 +85,9 @@ export default async function OrderRequestsPage({ searchParams }: PageProps) {
     return (
         <div className="space-y-4 p-6">
             <TableView
-                title="คำขอซื้อ (Order Requests)"
-                description="จัดการคำขอซื้อภายใน (Internal PR) เพื่อสร้างใบสั่งซื้อ (PO)"
-                items={result.data}
+                title="ใบขอซื้อ (Order Requests)"
+                description="รายการขอซื้อสินค้าจากพนักงาน"
+                items={result.data?.data || []}
                 columns={columns}
                 keyExtractor={(item) => item.id}
                 actionButton={

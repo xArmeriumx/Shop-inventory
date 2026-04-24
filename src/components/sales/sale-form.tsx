@@ -285,9 +285,13 @@ export function SaleForm() {
   const { handleSubmit, setValue, watch, control } = methods;
 
   useEffect(() => {
-    Promise.all([getProductsForSelect(), getCustomersForSelect(), getMyProfile()]).then(([ps, cs]) => {
-      setProducts(ps.map((p: any) => ({ ...p, salePrice: Number(p.salePrice), costPrice: Number(p.costPrice) })));
-      setCustomers(cs);
+    Promise.all([getProductsForSelect(), getCustomersForSelect(), getMyProfile()]).then(([psRes, csRes]) => {
+      if (psRes.success && psRes.data) {
+        setProducts(psRes.data.map((p: any) => ({ ...p, salePrice: Number(p.salePrice), costPrice: Number(p.costPrice) })));
+      }
+      if (csRes.success && csRes.data) {
+        setCustomers(csRes.data);
+      }
     });
   }, []);
 

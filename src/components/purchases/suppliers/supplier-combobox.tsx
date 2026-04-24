@@ -40,13 +40,15 @@ export function SupplierCombobox({
 }: SupplierComboboxProps) {
   const [open, setOpen] = useState(false);
   const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
-  
+
   useEffect(() => {
-    getSuppliersForSelect().then(setSuppliers);
+    getSuppliersForSelect().then((result) => {
+      if (result.success && result.data) setSuppliers(result.data as SupplierOption[]);
+    });
   }, []);
-  
+
   const selected = suppliers.find((s) => s.id === value);
-  
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>

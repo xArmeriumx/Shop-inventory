@@ -15,9 +15,9 @@ import { createSupplier, updateSupplier } from '@/actions/purchases/suppliers.ac
 import { supplierFormSchema, getSupplierFormDefaults } from '@/schemas/purchases/supplier-form.schema';
 import type { SupplierFormValues } from '@/schemas/purchases/supplier-form.schema';
 
-import { PartnerIdentitySection } from '@/components/shared/partners/partner-identity-section';
-import { PartnerFinancialSection } from '@/components/shared/partners/partner-financial-section';
-import { PartnerAddressSection } from '@/components/shared/partners/partner-address-section';
+import { PartnerIdentitySection } from '@/components/crm/partners/partner-identity-section';
+import { PartnerFinancialSection } from '@/components/crm/partners/partner-financial-section';
+import { PartnerAddressSection } from '@/components/crm/partners/partner-address-section';
 import { SafeBoundary } from '@/components/ui/safe-boundary';
 
 // ============================================================================

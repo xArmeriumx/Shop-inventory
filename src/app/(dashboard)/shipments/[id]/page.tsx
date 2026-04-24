@@ -8,25 +8,24 @@ interface ShipmentDetailPageProps {
 
 export async function generateMetadata({ params }: ShipmentDetailPageProps) {
   const { id } = await params;
-  try {
-    const shipment = await getShipment(id);
-    return {
-      title: `${shipment.shipmentNumber} | จัดส่งสินค้า`,
-    };
-  } catch {
+  const result = await getShipment(id);
+
+  if (!result.success) {
     return { title: 'ไม่พบข้อมูลจัดส่ง' };
   }
+
+  return {
+    title: `${result.data.shipmentNumber} | จัดส่งสินค้า`,
+  };
 }
 
 export default async function ShipmentDetailPage({ params }: ShipmentDetailPageProps) {
   const { id } = await params;
+  const result = await getShipment(id);
 
-  let shipment;
-  try {
-    shipment = await getShipment(id);
-  } catch {
+  if (!result.success) {
     notFound();
   }
 
-  return <ShipmentDetail shipment={shipment} />;
+  return <ShipmentDetail shipment={result.data} />;
 }

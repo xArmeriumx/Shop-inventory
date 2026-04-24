@@ -1,6 +1,6 @@
 'use client';
 
-import { DataExportPanel } from '@/components/shared/data-export-panel';
+import { DataExportPanel } from '@/components/ui/data-export-panel';
 import { exportIncomesData } from '@/actions/core/export.actions';
 
 export function IncomesExportButton() {

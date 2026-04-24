@@ -8,16 +8,18 @@ import { getShop } from '@/actions/core/shop.actions';
  * Server component that fetches initial data
  */
 export default async function POSPage() {
-  const [products, categories, shop] = await Promise.all([
+  const [products, categories, shopRes] = await Promise.all([
     getProductsForPOS(),
     getCategories(),
     getShop(),
   ]);
 
+  const shop = shopRes.success ? shopRes.data : null;
+
   return (
     <Suspense fallback={<POSLoadingSkeleton />}>
-      <POSInterface 
-        initialProducts={products} 
+      <POSInterface
+        initialProducts={products}
         categories={categories}
         promptPayId={shop?.promptPayId || undefined}
       />

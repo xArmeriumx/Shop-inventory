@@ -239,7 +239,7 @@ export const CustomerService = {
     );
   },
 
-  async delete(id: string, ctx: RequestContext): Promise<ActionResponse> {
+  async delete(id: string, ctx: RequestContext): Promise<ActionResponse<null>> {
     const existing = await this.getById(id, ctx);
     if (!existing) return { success: false, message: 'ไม่พบข้อมูลลูกค้า' };
 
@@ -254,7 +254,7 @@ export const CustomerService = {
       }
     );
 
-    return { success: true, message: 'ลบข้อมูลลูกค้าสำเร็จ' };
+    return { success: true, message: 'ลบข้อมูลลูกค้าสำเร็จ', data: null };
   },
 
   async checkCreditLimit(customerId: string, amount: number, ctx: RequestContext, tx?: any) {

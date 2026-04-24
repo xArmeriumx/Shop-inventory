@@ -26,7 +26,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { createLookupValue, updateLookupValue, deleteLookupValue, type LookupValueState } from '@/actions/core/lookups.actions';
+import { createLookupValue, updateLookupValue, deleteLookupValue } from '@/actions/core/lookups.actions';
 import { LookupTypeCode } from '@prisma/client';
 
 interface LookupValue {
@@ -43,7 +43,7 @@ interface CategoryManagerProps {
   values: LookupValue[];
 }
 
-const initialState: LookupValueState = {};
+const initialState = {};
 
 function SubmitButton({ text = 'บันทึก' }: { text?: string }) {
   const { pending } = useFormStatus();
@@ -56,8 +56,7 @@ function SubmitButton({ text = 'บันทึก' }: { text?: string }) {
 
 function AddCategoryDialog({ typeCode, onSuccess }: { typeCode: LookupTypeCode; onSuccess: () => void }) {
   const [open, setOpen] = useState(false);
-  const createWithType = createLookupValue.bind(null, typeCode);
-  const [state, formAction] = useFormState(createWithType, initialState);
+  const [state, formAction] = useFormState(createLookupValue.bind(null, typeCode), { success: false } as any);
 
   // Handle success with useEffect to avoid setState during render
   useEffect(() => {
@@ -110,11 +109,11 @@ function AddCategoryDialog({ typeCode, onSuccess }: { typeCode: LookupTypeCode; 
 }
 
 
-function DeleteCategoryDialog({ 
-  item, 
-  onSuccess 
-}: { 
-  item: LookupValue; 
+function DeleteCategoryDialog({
+  item,
+  onSuccess
+}: {
+  item: LookupValue;
   onSuccess: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -126,13 +125,13 @@ function DeleteCategoryDialog({
     setError(null);
     const result = await deleteLookupValue(item.id);
     setDeleting(false);
-    
-    if (result.error) {
-      setError(result.error);
-    } else {
-      setOpen(false);
-      onSuccess();
+
+    if (!result.success) {
+      setError(result.message || 'เกิดข้อผิดพลาด');
+      return;
     }
+    setOpen(false);
+    onSuccess();
   };
 
   return (
@@ -165,7 +164,7 @@ function DeleteCategoryDialog({
 
 export function CategoryManager({ title, typeCode, values }: CategoryManagerProps) {
   const [refreshKey, setRefreshKey] = useState(0);
-  
+
   const handleRefresh = () => {
     setRefreshKey((k) => k + 1);
     // Force revalidation - the page will refresh from server
@@ -178,7 +177,7 @@ export function CategoryManager({ title, typeCode, values }: CategoryManagerProp
         <h3 className="font-medium">{title}</h3>
         <AddCategoryDialog typeCode={typeCode} onSuccess={handleRefresh} />
       </div>
-      
+
       {values.length === 0 ? (
         <p className="text-sm text-muted-foreground py-4 text-center">
           ยังไม่มีข้อมูล กดปุ่ม &ldquo;เพิ่ม&rdquo; เพื่อสร้างหมวดหมู่

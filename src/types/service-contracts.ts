@@ -18,6 +18,8 @@ import type { Prisma, Product, Customer } from '@prisma/client';
 import type {
   RequestContext,
   ActionResponse,
+  SaleListDTO,
+  SaleDetailDTO,
   DocumentType,
   SequenceFormat,
   BatchCreateResult,
@@ -248,6 +250,36 @@ export interface IStockService {
   ): Promise<void>;
 
   /**
+   * จองสต็อกสินค้าแบบกลุ่ม (Bulk Reservation)
+   * - ป้องกัน Deadlock ด้วยการ Sort productId
+   * - ทำงานภายใน Transaction เดียว
+   */
+  bulkReserveStock(
+    items: Array<{ productId: string; quantity: number }>,
+    ctx: RequestContext,
+    tx: Prisma.TransactionClient,
+  ): Promise<void>;
+
+  /**
+   * ตัดสต็อกจริงแบบกลุ่ม (Bulk Deduction)
+   */
+  bulkDeductStock(
+    items: Array<{ productId: string; quantity: number }>,
+    ctx: RequestContext,
+    tx: Prisma.TransactionClient,
+    docRef?: { saleId?: string; deliveryOrderId?: string }
+  ): Promise<void>;
+
+  /**
+   * ปล่อยการจองแบบกลุ่ม (Bulk Release)
+   */
+  bulkReleaseStock(
+    items: Array<{ productId: string; quantity: number }>,
+    ctx: RequestContext,
+    tx: Prisma.TransactionClient,
+  ): Promise<void>;
+
+  /**
    * ดึงสถานะสต็อกแบบ Business-Ready
    * (onHand, reserved, available, isLowStock)
    */
@@ -299,10 +331,10 @@ export interface IStockService {
  */
 export interface ISaleService {
   // Existing CRUD & Utils
-  getList(params: GetSalesParams, ctx: RequestContext, options?: { canViewProfit?: boolean }): Promise<PaginatedResult<SerializedSaleListItem>>;
-  getById(id: string, ctx: RequestContext, options?: { canViewProfit?: boolean }): Promise<SerializedSaleWithItems>;
-  create(ctx: RequestContext, payload: SaleInput): Promise<SerializedSale>;
-  update(id: string, ctx: RequestContext, payload: any): Promise<SerializedSale>;
+  getList(params: GetSalesParams, ctx: RequestContext, options?: { canViewProfit?: boolean }): Promise<PaginatedResult<SaleListDTO>>;
+  getById(id: string, ctx: RequestContext, options?: { canViewProfit?: boolean }): Promise<SaleDetailDTO>;
+  create(ctx: RequestContext, payload: SaleInput): Promise<SaleDetailDTO>;
+  update(id: string, ctx: RequestContext, payload: any): Promise<SaleDetailDTO>;
   delete(id: string, ctx: RequestContext): Promise<void>;
   cancel(input: any, ctx: RequestContext): Promise<void>;
 

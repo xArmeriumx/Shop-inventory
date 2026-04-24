@@ -50,6 +50,7 @@ async function getActiveShopMembership(userId: string) {
         roleId: membership.role.id,
         permissions: membership.role.permissions,
         isOwner: membership.isOwner,
+        permissionVersion: membership.permissionVersion,
       };
     }
 
@@ -82,19 +83,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // 2. Client requested update (trigger === 'update')
       // 3. Token is missing shopId (stale)
 
-      const shouldFetchMembership =
-        !!user ||
-        trigger === 'update' ||
-        !token.shopId;
+      const userId = (token.sub as string) || (token.id as string) || (user?.id as string);
+      if (!userId) return token;
 
+      // 1. Initial Sign-in or forced update
+      const isInitialSignIn = !!user;
+      const isForcedUpdate = trigger === 'update';
+      const isMissingShop = !token.shopId;
 
-
-      if (shouldFetchMembership && token.sub) {
+      if (isInitialSignIn || isForcedUpdate || isMissingShop) {
         if (user) {
           token.id = user.id;
         }
-
-        const userId = (token.sub as string) || (token.id as string) || user?.id;
 
         // Fetch fresh RBAC data
         const membership = await getActiveShopMembership(userId);
@@ -104,16 +104,36 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           token.roleId = membership.roleId ?? undefined;
           token.permissions = membership.permissions;
           token.isOwner = membership.isOwner;
+          token.permissionVersion = membership.permissionVersion; // Store version
         } else {
-          // Explicitly clear if no membership
+          // Clear if no membership
           delete token.shopId;
           delete token.roleId;
           delete token.permissions;
           delete token.isOwner;
+          delete token.permissionVersion;
         }
 
-        // Add session version to token on sign in or update
         token.sessionVersion = await getSessionVersion(userId);
+      }
+      // 2. Incremental Version Check (Only if we HAVE a shopId and permissions)
+      else if (token.shopId) {
+        // Compare versions to detect out-of-sync permissions
+        const currentMember = await db.shopMember.findFirst({
+          where: { userId, shopId: token.shopId as string },
+          select: { permissionVersion: true }
+        });
+
+        if (currentMember && currentMember.permissionVersion !== token.permissionVersion) {
+          console.log(`[Auth] Permission version mismatch (Token: ${token.permissionVersion}, DB: ${currentMember.permissionVersion}). Refreshing...`);
+          const membership = await getActiveShopMembership(userId);
+          if (membership) {
+            token.permissions = membership.permissions;
+            token.isOwner = membership.isOwner;
+            token.roleId = membership.roleId ?? undefined;
+            token.permissionVersion = membership.permissionVersion;
+          }
+        }
       }
       return token;
     },

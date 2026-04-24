@@ -1,106 +1,90 @@
 'use server';
 
-import { db } from '@/lib/db';
-import { getTrustedShopId } from '@/lib/auth-guard';
-import { NotificationService } from '@/services/core/intelligence/notification.service';
-import { QueryMetrics } from '@/lib/performance';
 import { requireShop, requirePermission } from '@/lib/auth-guard';
 import { revalidatePath } from 'next/cache';
+import { handleAction } from '@/lib/action-handler';
+import { PerformanceCollector } from '@/lib/debug/measurement';
+import { NotificationService } from '@/services';
 
 /**
- * ดึงรายการแจ้งเตือนล่าสุด
+ * Get notification summary for current user
  */
-export interface NotificationSummary {
-  unreadCount: number;
-  recentNotifications: any[];
-  serverTime: string;
-}
-
-export async function getNotificationSummary(limit = 15): Promise<NotificationSummary> {
-  const shopId = await getTrustedShopId();
-
-  // Using Promise.all for parallel database execution under the same request context
-  const [unreadCount, recentNotifications] = await QueryMetrics.measure('db:notificationSummary', () =>
-    Promise.all([
-      db.notification.count({
-        where: { shopId, isRead: false }
-      }),
-      db.notification.findMany({
-        where: { shopId },
-        take: limit,
-        orderBy: { createdAt: 'desc' },
-        select: {
-          id: true,
-          type: true,
-          severity: true,
-          title: true,
-          message: true,
-          link: true,
-          isRead: true,
-          createdAt: true
-        }
-      })
-    ])
-  );
-
-  return {
-    unreadCount,
-    recentNotifications,
-    serverTime: new Date().toISOString()
-  };
-}
-
-export async function getNotifications(limit = 20) {
-  const shopId = await getTrustedShopId();
-  return db.notification.findMany({
-    where: { shopId },
-    take: limit,
-    orderBy: { createdAt: 'desc' },
-    select: {
-      id: true,
-      type: true,
-      severity: true,
-      title: true,
-      message: true,
-      link: true,
-      isRead: true,
-      createdAt: true
-    }
-  });
-}
-
-export async function getUnreadNotificationCount() {
-  const shopId = await getTrustedShopId();
-  return db.notification.count({
-    where: { shopId, isRead: false }
-  });
+export async function getNotificationSummary(limit = 15) {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requireShop();
+      const [recentNotifications, unreadCount] = await Promise.all([
+        NotificationService.getNotifications(ctx.shopId, ctx.userId, limit),
+        NotificationService.getUnreadCount(ctx.shopId, ctx.userId)
+      ]);
+      return { recentNotifications, unreadCount };
+    }, 'core:getNotificationSummary');
+  }, { context: { action: 'getNotificationSummary', limit } });
 }
 
 /**
- * ทำเครื่องหมายอ่านแล้ว
+ * Get full notifications list
+ */
+export async function getNotifications(limit = 20) {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requireShop();
+      return NotificationService.getNotifications(ctx.shopId, ctx.userId, limit);
+    }, 'core:getNotifications');
+  }, { context: { action: 'getNotifications', limit } });
+}
+
+/**
+ * Get count of unread notifications
+ */
+export async function getUnreadNotificationCount() {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requireShop();
+      return NotificationService.getUnreadCount(ctx.shopId, ctx.userId);
+    }, 'core:getUnreadNotificationCount');
+  }, { context: { action: 'getUnreadNotificationCount' } });
+}
+
+/**
+ * Mark a single notification as read
  */
 export async function markNotificationAsRead(id: string) {
-  const ctx = await requireShop();
-  await NotificationService.markRead(id, ctx.shopId);
-  revalidatePath('/');
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requireShop();
+      await NotificationService.markRead(id, ctx.shopId);
+      revalidatePath('/');
+      return true;
+    }, 'core:markNotificationAsRead');
+  }, { context: { action: 'markNotificationAsRead', id } });
 }
 
 /**
- * ทำเครื่องหมายอ่านแล้วทั้งหมด
+ * Mark all notifications as read for current user
  */
 export async function markAllNotificationsAsRead() {
-  const ctx = await requireShop();
-  await NotificationService.markAllRead(ctx.shopId, ctx.userId);
-  revalidatePath('/');
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requireShop();
+      await NotificationService.markAllRead(ctx.shopId, ctx.userId);
+      revalidatePath('/');
+      return true;
+    }, 'core:markAllNotificationsAsRead');
+  }, { context: { action: 'markAllNotificationsAsRead' } });
 }
 
 /**
- * สั่ง Refresh สุขภาพระบบ (Operational Health Check)
- * มักเรียกจากหน้า Dashboard เพื่ออัปเดตสรุปงานค้าง
+ * Trigger operational health check and generate alerts
  */
 export async function refreshOperationalAlerts() {
-  const ctx = await requireShop();
-  // เฉพาะ Admin/Owner หรือคนที่มีสิทธิ์ดูสรุปภาพรวม (เราใช้ SHIPMENT_VIEW/PURCHASE_VIEW เป็นเกณฑ์เบื้องต้น)
-  await NotificationService.checkOperationalHealth(ctx.shopId);
-  revalidatePath('/');
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requireShop();
+      // We assume specific permissions for health checks or rely on shop membership
+      await NotificationService.checkOperationalHealth(ctx.shopId);
+      revalidatePath('/');
+      return true;
+    }, 'core:refreshOperationalAlerts');
+  }, { context: { action: 'refreshOperationalAlerts' } });
 }

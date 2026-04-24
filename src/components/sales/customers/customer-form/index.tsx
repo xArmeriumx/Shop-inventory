@@ -15,9 +15,9 @@ import { createCustomer, updateCustomer } from '@/actions/sales/customers.action
 import { customerFormSchema, getCustomerFormDefaults } from '@/schemas/sales/customer-form.schema';
 import type { CustomerFormValues } from '@/schemas/sales/customer-form.schema';
 
-import { PartnerIdentitySection } from '@/components/shared/partners/partner-identity-section';
-import { PartnerFinancialSection } from '@/components/shared/partners/partner-financial-section';
-import { PartnerAddressSection } from '@/components/shared/partners/partner-address-section';
+import { PartnerIdentitySection } from '@/components/crm/partners/partner-identity-section';
+import { PartnerFinancialSection } from '@/components/crm/partners/partner-financial-section';
+import { PartnerAddressSection } from '@/components/crm/partners/partner-address-section';
 
 interface CustomerFormProps {
     customer?: any; // SerializedCustomer

@@ -11,7 +11,7 @@
  *   receipt → sale | purchase | invoice | shipment
  */
 
-import { groq } from '@/lib/groq';
+import { groq } from '@/lib/ai';
 import { getStrategy, DocumentType, ScanResult } from './strategies';
 
 // ═══════════════════════════════════════
@@ -202,11 +202,11 @@ function isRateLimitError(error: any): boolean {
 
 function tryFixJson(raw: string): any | null {
   let cleaned = raw.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
-  try { return JSON.parse(cleaned); } catch {}
+  try { return JSON.parse(cleaned); } catch { }
   let fixed = cleaned.replace(/,\s*}/g, '}').replace(/,\s*]/g, ']');
-  try { return JSON.parse(fixed); } catch {}
+  try { return JSON.parse(fixed); } catch { }
   const match = fixed.match(/\{[\s\S]*\}/);
-  if (match) { try { return JSON.parse(match[0]); } catch {} }
+  if (match) { try { return JSON.parse(match[0]); } catch { } }
   return null;
 }
 

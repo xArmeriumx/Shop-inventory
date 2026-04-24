@@ -1,66 +1,58 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { requireAuth, requirePermission, requireShop } from '@/lib/auth-guard';
-import { logger } from '@/lib/logger';
-import type { ActionResponse } from '@/types/domain';
-export type { InviteMemberInput } from '@/services';
-import { IamService, type InviteMemberInput, ServiceError } from '@/services';
+import { requirePermission, requireShop } from '@/lib/auth-guard';
+import { IamService, type InviteMemberInput } from '@/services';
+import { handleAction, type ActionResponse } from '@/lib/action-handler';
+import { PerformanceCollector } from '@/lib/debug/measurement';
 
-export async function getTeamMembers() {
-  const ctx = await requirePermission('SETTINGS_ROLES');
-  return IamService.getTeamMembers(ctx);
+export async function getTeamMembers(): Promise<ActionResponse<any[]>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('SETTINGS_ROLES');
+      return IamService.getTeamMembers(ctx);
+    }, 'iam:getTeamMembers');
+  }, { context: { action: 'getTeamMembers' } });
 }
 
-export async function getShopTeamInfo() {
-  const ctx = await requireShop();
-  return IamService.getShopTeamInfo(ctx);
+export async function getShopTeamInfo(): Promise<ActionResponse<any>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requireShop();
+      return IamService.getShopTeamInfo(ctx);
+    }, 'iam:getShopTeamInfo');
+  }, { context: { action: 'getShopTeamInfo' } });
 }
 
-export async function updateMemberRole(memberId: string, roleId: string): Promise<ActionResponse> {
-  const ctx = await requirePermission('SETTINGS_ROLES');
-
-  try {
-    await IamService.updateMemberRole(memberId, roleId, ctx);
-    revalidatePath('/settings/team');
-    return { success: true, message: 'อัปเดต Role สมาชิกสำเร็จ' };
-  } catch (error: unknown) {
-    if (error instanceof ServiceError) return { success: false, message: error.message };
-    const typedError = error as Error;
-    await logger.error('Update member role error', typedError, { path: 'updateMemberRole', userId: ctx.userId, memberId });
-    return { success: false, message: 'เกิดข้อผิดพลาดในการอัปเดต Role' };
-  }
+export async function updateMemberRole(memberId: string, roleId: string): Promise<ActionResponse<null>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('SETTINGS_ROLES');
+      await IamService.updateMemberRole(memberId, roleId, ctx);
+      revalidatePath('/settings/team');
+      return null;
+    }, 'iam:updateMemberRole');
+  }, { context: { action: 'updateMemberRole', memberId, roleId } });
 }
 
-export async function removeMember(memberId: string): Promise<ActionResponse> {
-  const ctx = await requirePermission('SETTINGS_ROLES');
-
-  try {
-    await IamService.removeMember(memberId, ctx);
-    revalidatePath('/settings/team');
-    return { 
-      success: true, 
-      message: 'ลบสมาชิกออกจากทีมสำเร็จ' 
-    };
-  } catch (error: unknown) {
-    if (error instanceof ServiceError) return { success: false, message: error.message };
-    const typedError = error as Error;
-    await logger.error('Remove member error', typedError, { path: 'removeMember', userId: ctx.userId, memberId });
-    return { success: false, message: 'เกิดข้อผิดพลาดในการลบสมาชิก' };
-  }
+export async function removeMember(memberId: string): Promise<ActionResponse<null>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('SETTINGS_ROLES');
+      await IamService.removeMember(memberId, ctx);
+      revalidatePath('/settings/team');
+      return null;
+    }, 'iam:removeMember');
+  }, { context: { action: 'removeMember', memberId } });
 }
 
-export async function inviteMember(input: InviteMemberInput): Promise<ActionResponse> {
-  const ctx = await requirePermission('SETTINGS_ROLES', { rateLimitPolicy: 'invite' });
-
-  try {
-    await IamService.inviteMember(input, ctx);
-    revalidatePath('/settings/team');
-    return { success: true, message: `ส่งคำเชิญให้ ${input.email} สำเร็จ` };
-  } catch (error: unknown) {
-    if (error instanceof ServiceError) return { success: false, message: error.message };
-    const typedError = error as Error;
-    await logger.error('Invite member error', typedError, { path: 'inviteMember', userId: ctx.userId });
-    return { success: false, message: 'เกิดข้อผิดพลาดในการเพิ่มสมาชิก' };
-  }
+export async function inviteMember(input: InviteMemberInput): Promise<ActionResponse<null>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('SETTINGS_ROLES', { rateLimitPolicy: 'invite' });
+      await IamService.inviteMember(input, ctx);
+      revalidatePath('/settings/team');
+      return null;
+    }, 'iam:inviteMember');
+  }, { context: { action: 'inviteMember', email: input.email } });
 }

@@ -89,7 +89,7 @@ export function ReportTabs({ activeTab, startDate, endDate, overviewData }: Repo
       </div>
 
       {/* 2. Content for each tab */}
-      
+
       {/* Intelligence Tab (Deep Analytics) */}
       <TabsContent value="intelligence">
         <IntelligenceDashboard startDate={startDate} endDate={endDate} />
@@ -99,13 +99,19 @@ export function ReportTabs({ activeTab, startDate, endDate, overviewData }: Repo
       <TabsContent value="overview">
         <div className="space-y-6">
           <ReportToolbar startDate={startDate} endDate={endDate} />
-          {overviewData && (
+          {overviewData && overviewData.success && (
             <>
               <div className="print:hidden">
-                <ReportCharts data={overviewData} />
+                <ReportCharts data={overviewData.data} />
               </div>
-              <ReportView data={overviewData} />
+              <ReportView data={overviewData.data} />
             </>
+          )}
+          {overviewData && !overviewData.success && (
+            <div className="py-20 text-center border rounded-lg bg-destructive/5 text-destructive">
+              <p className="font-semibold">ไม่สามารถดึงข้อมูลรายงานได้</p>
+              <p className="text-sm">{overviewData.message}</p>
+            </div>
           )}
         </div>
       </TabsContent>

@@ -12,7 +12,8 @@ export const metadata = {
 };
 
 export default async function NotificationsPage() {
-    const notifications = await getNotifications(50);
+    const result = await getNotifications(50);
+    const notifications = result.success ? result.data : [];
 
     async function handleMarkAllRead() {
         'use server';
@@ -38,7 +39,7 @@ export default async function NotificationsPage() {
             />
 
             <div className="bg-background rounded-2xl border shadow-sm p-4 sm:p-6 min-h-[500px]">
-                <NotificationList initialNotifications={notifications} />
+                <NotificationList initialNotifications={notifications as any} />
             </div>
         </div>
     );

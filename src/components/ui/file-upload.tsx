@@ -46,7 +46,7 @@ export function FileUpload({
       const result = await uploadToStorage(file, RECEIPTS_BUCKET, folder);
 
       if ('error' in result) {
-        throw new Error(result.error);
+        throw new Error((result as any).message || 'อัพโหลดไฟล์ไม่สำเร็จ');
       }
 
       onChange(result.url);

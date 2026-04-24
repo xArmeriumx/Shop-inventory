@@ -43,33 +43,38 @@ export function POSReceiptModal({
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        const [sale, shop] = await Promise.all([
+        const [saleRes, shopRes] = await Promise.all([
           getSale(saleId),
           getShop(),
         ]);
 
-        if (sale && shop) {
-          setReceiptData({
-            shopName: shop.name,
-            shopAddress: shop.address || undefined,
-            shopPhone: shop.phone || undefined,
-            shopLogo: shop.logo || undefined,
-            shopTaxId: shop.taxId || undefined,
-            invoiceNumber: sale.invoiceNumber,
-            date: new Date(sale.date),
-            customerName: sale.customer?.name || sale.customerName || undefined,
-            items: sale.items.map((item: any) => ({
-              name: item.product.name,
-              quantity: item.quantity,
-              price: Number(item.salePrice),
-              subtotal: Number(item.subtotal),
-            })),
-            subtotal: Number(sale.totalAmount),
-            total: Number(sale.totalAmount),
-            paymentMethod: sale.paymentMethod,
-            amountReceived: amountReceived,
-            change: change,
-          });
+        if (saleRes.success && shopRes.success) {
+          const shop = shopRes.data;
+          const sale = saleRes.data;
+
+          if (sale && shop) {
+            setReceiptData({
+              shopName: shop.name,
+              shopAddress: shop.address || undefined,
+              shopPhone: shop.phone || undefined,
+              shopLogo: shop.logo || undefined,
+              shopTaxId: shop.taxId || undefined,
+              invoiceNumber: sale.invoiceNumber,
+              date: new Date(sale.date),
+              customerName: sale.customerName || undefined,
+              items: sale.items.map((item: any) => ({
+                name: item.productName,
+                quantity: item.quantity,
+                price: Number(item.unitPrice),
+                subtotal: Number(item.subtotal),
+              })),
+              subtotal: Number(sale.totalAmount),
+              total: Number(sale.totalAmount),
+              paymentMethod: sale.paymentMethod,
+              amountReceived: amountReceived,
+              change: change,
+            });
+          }
         }
       } catch (error) {
         console.error('Failed to fetch receipt data:', error);
@@ -85,7 +90,7 @@ export function POSReceiptModal({
     if (printRef.current) {
       const printContent = printRef.current.innerHTML;
       const printWindow = window.open('', '_blank', 'width=400,height=600');
-      
+
       if (printWindow) {
         printWindow.document.write(`
           <!DOCTYPE html>
@@ -238,7 +243,7 @@ export function POSReceiptModal({
         `);
         printWindow.document.close();
         printWindow.focus();
-        
+
         // Short delay to ensure styles are loaded
         setTimeout(() => {
           printWindow.print();

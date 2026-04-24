@@ -15,11 +15,14 @@ interface SaleDetailsPageProps {
 
 export async function generateMetadata({ params }: SaleDetailsPageProps): Promise<Metadata> {
   try {
-    const sale = await getSale(params.id);
-    if (!sale) return { title: 'ไม่พบข้อมูลการขาย' };
+    const result = await getSale(params.id);
+    if (!result.success || !result.data) {
+      notFound();
+    }
+    const sale = result.data;
     return {
       title: `บิลเลขที่ ${sale.invoiceNumber}`,
-      description: `รายละเอียดการขาย ${sale.invoiceNumber} ลูกค้า ${sale.customer?.name || sale.customerName || 'ทั่วไป'}`,
+      description: `รายละเอียดการขาย ${sale.invoiceNumber} ลูกค้า ${sale.customerName || 'ทั่วไป'}`,
     };
   } catch {
     return { title: 'รายละเอียดการขาย' };
@@ -29,15 +32,19 @@ export async function generateMetadata({ params }: SaleDetailsPageProps): Promis
 // ─── Data Fetcher ─────────────────────────────────────────────────────────────
 
 async function SaleDetails({ id }: { id: string }) {
-  const [sale, shop, paymentsRes] = await Promise.all([
+  const [saleRes, shopRes, paymentsRes] = await Promise.all([
     getSale(id),
     getShop(),
     getPaymentHistoryAction({ saleId: id })
   ]);
 
-  if (!sale) notFound();
+  if (!saleRes.success) notFound();
 
-  return <SaleDetailView sale={sale} shop={shop} payments={paymentsRes.success ? paymentsRes.data : []} />;
+  const sale = saleRes.data;
+  const shop = shopRes.success ? shopRes.data : null;
+  const payments = paymentsRes.success ? paymentsRes.data : [];
+
+  return <SaleDetailView sale={sale} shop={shop} payments={payments} />;
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────

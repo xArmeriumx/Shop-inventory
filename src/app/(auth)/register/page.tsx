@@ -40,8 +40,8 @@ export default function RegisterPage() {
     try {
       const result = await registerUser({ name, email, password });
 
-      if (result.error) {
-        setError(result.error);
+      if (!result.success) {
+        setError(result.message || 'เกิดข้อผิดพลาดในการสมัครสมาชิก');
       } else {
         router.push('/login?registered=true');
       }

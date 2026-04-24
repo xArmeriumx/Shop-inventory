@@ -34,6 +34,9 @@ export interface ShopSessionContext extends SessionContext {
  * Cached session context fetcher - memoized per request.
  * Target: 1 Request = 1 Authentication Resolution.
  */
+// Server-side permission cache (In-memory, non-sensitive, keyed by userId_shopId_version)
+const permissionCache = new Map<string, { permissions: Permission[], isOwner: boolean, memberId: string }>();
+
 export const getSessionContext = cache(async (): Promise<SessionContext | null> => {
   const session = await auth();
 
@@ -41,13 +44,41 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
     return null;
   }
 
-  // Identity from Session (JWT)
   const userId = session.user.id;
-  const sessionVersion = (session.user as any).sessionVersion || 1;
+  const shopId = session.user.shopId;
+  const sessionVersion = session.user.sessionVersion || 1;
+  const permissionVersion = session.user.permissionVersion || 1;
+
+  // 1. FAST PATH: Check Permission Cache if we have shopId and version
+  if (shopId) {
+    const cacheKey = `${userId}:${shopId}:${permissionVersion}`;
+    const cached = permissionCache.get(cacheKey);
+
+    if (cached) {
+      // Still need revocation check for the whole session
+      const user = await db.user.findUnique({
+        where: { id: userId },
+        select: { sessionVersion: true }
+      });
+
+      if (user && user.sessionVersion <= sessionVersion) {
+        return {
+          userId,
+          userName: session.user.name || "Unknown User",
+          userEmail: session.user.email,
+          shopId,
+          memberId: cached.memberId,
+          permissions: cached.permissions,
+          isOwner: cached.isOwner,
+          sessionVersion: user.sessionVersion,
+        };
+      }
+    }
+  }
 
   /**
-   * PERFORMANCE: Using focused select instead of generic lookup
-   * Reduces Prisma query complexity and transfer size.
+   * SLOW PATH: First time or Version Mismatch
+   * Fetch full RBAC and update cache.
    */
   const user = await db.user.findUnique({
     where: { id: userId },
@@ -56,57 +87,53 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
       name: true,
       email: true,
       memberships: {
+        where: shopId ? { shopId } : undefined,
         take: 1,
         select: {
           id: true,
           shopId: true,
           roleId: true,
           isOwner: true,
+          permissionVersion: true,
           departmentCode: true,
-          role: {
-            select: {
-              permissions: true
-            }
-          }
+          role: { select: { permissions: true } }
         }
       }
     }
   });
 
-  if (!user) {
+  if (!user || user.sessionVersion > sessionVersion) {
     return null;
   }
 
-  // GLOBAL REVOCATION CHECK
-  if (user.sessionVersion > sessionVersion) {
-    return null;
-  }
-
-  const userName = user.name || user.email || "Unknown User";
-  const userEmail = user.email;
   const membership = user.memberships[0];
-
-  if (!membership || !membership.shopId) {
+  if (!membership) {
     return {
       userId,
-      userName,
-      userEmail,
+      userName: user.name || "Unknown",
       shopId: undefined,
-      roleId: undefined,
       permissions: [],
       isOwner: false,
-      sessionVersion: user.sessionVersion,
     };
   }
 
+  // Update Cache for future requests in this process
+  const permissions = (membership.role?.permissions as Permission[]) ?? [];
+  const cacheKey = `${userId}:${membership.shopId}:${membership.permissionVersion}`;
+  permissionCache.set(cacheKey, {
+    permissions,
+    isOwner: membership.isOwner,
+    memberId: membership.id
+  });
+
   return {
     userId,
-    userName,
-    userEmail,
+    userName: user.name || "Unknown",
+    userEmail: user.email,
     shopId: membership.shopId,
     memberId: membership.id,
     roleId: membership.roleId ?? undefined,
-    permissions: (membership.role?.permissions as Permission[]) ?? [],
+    permissions,
     isOwner: membership.isOwner,
     employeeDepartment: membership.departmentCode ?? undefined,
     sessionVersion: user.sessionVersion,

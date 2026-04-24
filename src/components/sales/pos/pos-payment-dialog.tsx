@@ -51,7 +51,7 @@ export function POSPaymentDialog({
   const [selectedMethod, setSelectedMethod] = useState<POSPaymentMethod>('CASH');
   const [amountReceived, setAmountReceived] = useState<string>('');
   const [change, setChange] = useState<number>(0);
-  
+
   // Slip upload state
   const [slipPreview, setSlipPreview] = useState<string | null>(null);
   const [slipFile, setSlipFile] = useState<File | null>(null);
@@ -104,7 +104,7 @@ export function POSPaymentDialog({
     }
 
     setSlipFile(file);
-    
+
     // Create preview
     const reader = new FileReader();
     reader.onloadend = () => {
@@ -133,7 +133,7 @@ export function POSPaymentDialog({
       const result = await uploadToStorage(slipFile, RECEIPTS_BUCKET, 'slips');
 
       if ('error' in result) {
-        throw new Error(result.error);
+        throw new Error(result.message || 'เกิดข้อผิดพลาดในการประมวลผลการชำระเงิน');
       }
 
       setUploadedUrl(result.url);
@@ -225,12 +225,12 @@ export function POSPaymentDialog({
           {selectedMethod === 'CASH' && (
             <div className="space-y-3 border-t pt-4">
               <Label className="text-base font-medium">รับเงิน</Label>
-              
+
               {/* Quick Amount Buttons */}
               <div className="flex flex-wrap gap-2">
-                <Button 
-                  type="button" 
-                  variant="outline" 
+                <Button
+                  type="button"
+                  variant="outline"
                   size="sm"
                   onClick={handleExactAmount}
                   className="text-xs"
@@ -287,9 +287,9 @@ export function POSPaymentDialog({
             <div className="space-y-4 border-t pt-4">
               {/* PromptPay QR */}
               {promptPayId ? (
-                <PromptPayQR 
-                  promptPayId={promptPayId} 
-                  amount={cart.totalAmount} 
+                <PromptPayQR
+                  promptPayId={promptPayId}
+                  amount={cart.totalAmount}
                 />
               ) : (
                 <div className="flex flex-col items-center gap-3 py-4 text-center">
@@ -320,8 +320,8 @@ export function POSPaymentDialog({
                 {slipPreview ? (
                   /* Slip Preview */
                   <div className="relative border rounded-lg overflow-hidden bg-muted/30">
-                    <Image 
-                      src={slipPreview} 
+                    <Image
+                      src={slipPreview}
                       alt="สลิปการโอนเงิน"
                       className="w-full max-h-[200px] object-contain"
                       width={400}

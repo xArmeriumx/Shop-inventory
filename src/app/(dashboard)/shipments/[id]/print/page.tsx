@@ -4,13 +4,13 @@ import { formatDate, formatCurrency } from '@/lib/formatters';
 
 export default async function ShipmentPrintPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  let shipment;
-  try {
-    shipment = await getShipment(id);
-  } catch {
+  const result = await getShipment(id);
+
+  if (!result.success) {
     notFound();
   }
 
+  const shipment = result.data;
   const sale = shipment.sale;
 
   return (
@@ -40,8 +40,8 @@ export default async function ShipmentPrintPage({ params }: { params: Promise<{ 
           <p className="text-sm">Invoice: <span className="font-bold">{sale.invoiceNumber}</span></p>
           <p className="text-sm">Customer: {sale.customer?.name || sale.customerName || 'General'}</p>
           <div className="mt-4 p-2 border border-dashed border-gray-300 inline-block">
-             <p className="text-[10px] text-gray-400 mb-1">Tracking Number</p>
-             <p className="font-mono text-lg">{shipment.trackingNumber || 'PENDING'}</p>
+            <p className="text-[10px] text-gray-400 mb-1">Tracking Number</p>
+            <p className="font-mono text-lg">{shipment.trackingNumber || 'PENDING'}</p>
           </div>
         </div>
       </div>
@@ -88,15 +88,16 @@ export default async function ShipmentPrintPage({ params }: { params: Promise<{ 
       </div>
 
       <div className="fixed bottom-8 right-8 print:hidden">
-        <button 
-          onClick={() => window.print()} 
+        <button
+          onClick={() => window.print()}
           className="bg-black text-white px-6 py-2 rounded-full font-bold shadow-lg hover:bg-gray-800 transition-all flex items-center gap-2"
         >
           🖨️ Print Now
         </button>
       </div>
 
-      <script dangerouslySetInnerHTML={{ __html: `
+      <script dangerouslySetInnerHTML={{
+        __html: `
         // Auto-print on load if query param present
         if (window.location.search.includes('autoprint=true')) {
           window.print();

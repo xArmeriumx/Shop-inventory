@@ -24,13 +24,15 @@ export default async function IncomesPage({ searchParams }: IncomesPageProps) {
   const startDate = searchParams.startDate;
   const endDate = searchParams.endDate;
 
-  const { data: incomes, pagination } = await getIncomes({
+  const result = await getIncomes({
     page,
     search,
     category,
     startDate,
     endDate,
   });
+
+  const { data: incomes = [], pagination = { page: 1, limit: 10, total: 0, totalPages: 0, hasNextPage: false, hasPrevPage: false } } = result.data || {};
 
   return (
     <div>

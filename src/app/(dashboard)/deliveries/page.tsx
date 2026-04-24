@@ -84,9 +84,9 @@ export default async function DeliveryOrdersPage({ searchParams }: PageProps) {
     return (
         <div className="p-6 space-y-4">
             <TableView
-                title="รายการใบส่งสินค้า (Delivery Orders)"
-                description="ติดตามสถานะการจัดส่งสินค้าให้ลูกค้า"
-                items={result.data}
+                title="รายการจัดส่ง (Deliveries)"
+                description="จัดการและติดตามสถานะการส่งสินค้า"
+                items={result.data?.data || []}
                 columns={columns}
                 keyExtractor={(item) => item.id}
             />

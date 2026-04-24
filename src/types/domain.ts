@@ -16,6 +16,7 @@ export * from '../services/inventory/inventory.types';
 export * from '../services/accounting/accounting.types';
 export * from '../services/core/core.types';
 export * from './onboarding.types';
+export * from './dtos/sales.dto';
 
 
 // Backward compatibility for any remaining direct references

@@ -5,9 +5,10 @@ import { getLookupValues, seedDefaultLookupValues } from '@/actions/core/lookups
 export default async function NewIncomePage() {
   // Seed default categories if needed
   await seedDefaultLookupValues();
-  
+
   // Fetch categories from DB
-  const categories = await getLookupValues('INCOME_CATEGORY');
+  const categoriesRes = await getLookupValues('INCOME_CATEGORY');
+  const categories = categoriesRes.data || [];
 
   return (
     <div>

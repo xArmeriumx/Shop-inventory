@@ -15,22 +15,26 @@ import { Guard } from '@/components/core/auth/guard';
 async function TeamContent() {
   await requirePermission('SETTINGS_ROLES');
 
-  const [members, roles, shopInfo] = await Promise.all([
+  const [membersRes, rolesRes, shopInfoRes] = await Promise.all([
     getTeamMembers(),
     getRoles(),
     getShopTeamInfo(),
   ]);
 
+  const members = membersRes.success ? membersRes.data : [];
+  const roles = rolesRes.success ? rolesRes.data : [];
+  const shopInfo = shopInfoRes.success ? shopInfoRes.data : null;
+
   const stats = [
     {
       label: 'สมาชิกทั้งหมด',
-      value: `${shopInfo?._count.members || 0}`,
+      value: `${(shopInfo as any)?._count.members || 0}`,
       hint: 'คนในทีม',
       icon: <Users className="h-4 w-4" />,
     },
     {
       label: 'Roles',
-      value: `${shopInfo?._count.roles || 0}`,
+      value: `${(shopInfo as any)?._count.roles || 0}`,
       hint: 'ระดับสิทธิ์',
       icon: <ShieldCheck className="h-4 w-4" />,
       href: '/settings/roles',
@@ -48,11 +52,11 @@ async function TeamContent() {
             <CardDescription>จัดการสมาชิกและสิทธิ์การเข้าถึง</CardDescription>
           </div>
           <Guard permission="SETTINGS_ROLES">
-            <InviteMemberDialog roles={roles} />
+            <InviteMemberDialog roles={roles as any} />
           </Guard>
         </CardHeader>
         <CardContent>
-          <TeamMembersTable members={members} roles={roles} />
+          <TeamMembersTable members={members as any} roles={roles as any} />
         </CardContent>
       </Card>
     </div>
@@ -62,11 +66,6 @@ async function TeamContent() {
 export default function TeamPage() {
   return (
     <div className="space-y-6">
-      <BackPageHeader
-        backHref="/settings"
-        title="จัดการทีม"
-        description="เพิ่มและจัดการสมาชิกในร้านของคุณ"
-      />
       <Suspense fallback={<Loading />}>
         <TeamContent />
       </Suspense>

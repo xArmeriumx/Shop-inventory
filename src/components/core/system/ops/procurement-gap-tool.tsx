@@ -24,12 +24,13 @@ export function ProcurementGapTool() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [requests, supplierList] = await Promise.all([
+      const [requestsRes, supplierListRes] = await Promise.all([
         getIncompleteRequests(),
         getSuppliersForSelect()
       ]);
-      setData(requests.items);
-      setSuppliers(supplierList);
+
+      setData(requestsRes.success && requestsRes.data ? requestsRes.data.items : []);
+      setSuppliers(supplierListRes.success && supplierListRes.data ? supplierListRes.data : []);
     } catch (error) {
       console.error('Failed to load procurement gaps', error);
       toast.error('ไม่สามารถโหลดข้อมูลใบขอซื้อได้');
@@ -120,10 +121,10 @@ export function ProcurementGapTool() {
                 ))}
               </SelectContent>
             </Select>
-            <Button 
-                onClick={handleBatchAssign} 
-                disabled={processing || !targetSupplierId || selectedIds.length === 0}
-                className="whitespace-nowrap"
+            <Button
+              onClick={handleBatchAssign}
+              disabled={processing || !targetSupplierId || selectedIds.length === 0}
+              className="whitespace-nowrap"
             >
               {processing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Truck className="h-4 w-4 mr-2" />}
               มอบหมายผู้ขาย
@@ -137,8 +138,8 @@ export function ProcurementGapTool() {
           <thead className="bg-muted/50 border-b">
             <tr>
               <th className="p-3 text-left w-10">
-                <Checkbox 
-                  checked={selectedIds.length === data.length && data.length > 0} 
+                <Checkbox
+                  checked={selectedIds.length === data.length && data.length > 0}
                   onCheckedChange={(checked) => handleSelectAll(!!checked)}
                 />
               </th>
@@ -153,19 +154,19 @@ export function ProcurementGapTool() {
             {data.length === 0 ? (
               <tr>
                 <td colSpan={6} className="p-12 text-center text-muted-foreground">
-                    <div className="flex flex-col items-center gap-2">
-                        <ShoppingCart className="h-12 w-12 opacity-20" />
-                        ไม่มีใบขอซื้อที่ค้างข้อมูลผู้ขาย
-                    </div>
+                  <div className="flex flex-col items-center gap-2">
+                    <ShoppingCart className="h-12 w-12 opacity-20" />
+                    ไม่มีใบขอซื้อที่ค้างข้อมูลผู้ขาย
+                  </div>
                 </td>
               </tr>
             ) : (
               data.map((pr) => (
                 <tr key={pr.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors">
                   <td className="p-3">
-                    <Checkbox 
-                        checked={selectedIds.includes(pr.id)} 
-                        onCheckedChange={(checked) => handleSelectOne(pr.id, !!checked)}
+                    <Checkbox
+                      checked={selectedIds.includes(pr.id)}
+                      onCheckedChange={(checked) => handleSelectOne(pr.id, !!checked)}
                     />
                   </td>
                   <td className="p-3">

@@ -33,16 +33,10 @@ function formatThaiDate(date: Date | string) {
 }
 
 export default async function SupplierProfilePage({ params }: { params: { id: string } }) {
-  let data;
+  const result = await getSupplierProfile(params.id);
 
-  try {
-    data = await getSupplierProfile(params.id);
-  } catch {
-    notFound();
-  }
-
-  if (!data) notFound();
-  const { supplier, purchases, stats, topProducts } = data as any;
+  if (!result.success || !result.data) notFound();
+  const { supplier, purchases, stats, topProducts } = result.data;
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">

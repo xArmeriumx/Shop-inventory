@@ -4,31 +4,34 @@ import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/auth-guard';
 import { purchaseSchema, type PurchaseInput } from '@/schemas/purchases/purchase.schema';
 import { handleActionError } from '@/lib/error-handler';
-import {
-  PurchaseService,
-  type GetPurchasesParams,
-  type CancelPurchaseInput,
-} from '@/services';
-import { serialize } from '@/lib/utils';
-import type { ActionResponse } from '@/types/domain';
+import { PurchaseService, type GetPurchasesParams, type CancelPurchaseInput } from '@/services';
+import { ActionResponse } from '@/types/common';
 import { SerializedPurchase } from '@/types/serialized';
 
+import { PerformanceCollector } from '@/lib/debug/measurement';
+import { handleAction } from '@/lib/action-handler';
 
 // =============================================================================
 // PURCHASE LIST & DETAIL
 // =============================================================================
 
-export async function getPurchases(params: GetPurchasesParams = {}) {
-  const ctx = await requirePermission('PURCHASE_VIEW');
-  const result = await PurchaseService.getList(params, ctx);
-  return serialize(result);
+export async function getPurchases(params: GetPurchasesParams = {}): Promise<ActionResponse<any>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('PURCHASE_VIEW');
+      return PurchaseService.getList(params, ctx);
+    }, 'purchases:getPurchases');
+  }, { context: { action: 'getPurchases' } });
 }
 
 
-export async function getPurchase(id: string) {
-  const ctx = await requirePermission('PURCHASE_VIEW');
-  const result = await PurchaseService.getById(id, ctx);
-  return serialize(result);
+export async function getPurchase(id: string): Promise<ActionResponse<any>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('PURCHASE_VIEW');
+      return PurchaseService.getById(id, ctx);
+    }, 'purchases:getPurchase');
+  }, { context: { action: 'getPurchase', id } });
 }
 
 
@@ -37,91 +40,91 @@ export async function getPurchase(id: string) {
 // =============================================================================
 
 export async function createPurchase(input: PurchaseInput): Promise<ActionResponse<SerializedPurchase>> {
-  const ctx = await requirePermission('PURCHASE_CREATE');
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('PURCHASE_CREATE');
+      const validated = purchaseSchema.parse(input);
 
-  const validated = purchaseSchema.safeParse(input);
-  if (!validated.success) {
-    return {
-      success: false,
-      errors: validated.error.flatten().fieldErrors,
-      message: 'ข้อมูลการสั่งซื้อไม่ถูกต้อง',
-    };
-  }
-
-  try {
-    const purchase = await PurchaseService.create(ctx, validated.data);
-    revalidatePath('/purchases');
-    revalidatePath('/products');
-    revalidatePath('/dashboard');
-    return serialize({ success: true, message: 'บันทึกการสั่งซื้อสำเร็จ', data: purchase });
-  } catch (error: unknown) {
-
-    return handleActionError(error, 'เกิดข้อผิดพลาดในการบันทึกการสั่งซื้อ', { path: 'createPurchase', userId: ctx.userId });
-  }
+      const purchase = await PurchaseService.create(ctx, validated);
+      revalidatePath('/purchases');
+      revalidatePath('/products');
+      revalidatePath('/dashboard');
+      return purchase;
+    }, 'purchases:createPurchase');
+  }, { context: { action: 'createPurchase' } });
 }
 
 export async function createPurchaseRequest(input: PurchaseInput): Promise<ActionResponse<{ id: string; requestNumber: string }>> {
-  const ctx = await requirePermission('PURCHASE_CREATE');
-  const validated = purchaseSchema.safeParse(input);
-  if (!validated.success) {
-    return { success: false, errors: validated.error.flatten().fieldErrors, message: 'ข้อมูลใบขอซื้อไม่ถูกต้อง' };
-  }
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('PURCHASE_CREATE');
+      const validated = purchaseSchema.parse(input);
 
-  try {
-    const result = await PurchaseService.createRequest(validated.data, ctx);
-    revalidatePath('/purchases');
-    return { success: true, message: 'สร้างใบขอซื้อสำเร็จ', data: result };
-  } catch (error: unknown) {
-    return handleActionError(error, 'เกิดข้อผิดพลาดในการสร้างใบขอซื้อ', { path: 'createPurchaseRequest', userId: ctx.userId });
-  }
+      const result = await PurchaseService.createRequest(validated, ctx);
+      revalidatePath('/purchases');
+      return result;
+    }, 'purchases:createPurchaseRequest');
+  }, { context: { action: 'createPurchaseRequest' } });
 }
 
 export async function approvePurchaseRequest(id: string): Promise<ActionResponse> {
-  const ctx = await requirePermission('APPROVAL_ACTION');
-  try {
-    await PurchaseService.approveRequest(id, ctx);
-    revalidatePath('/purchases');
-    revalidatePath(`/purchases/${id}`);
-    return { success: true, message: 'อนุมัติใบขอซื้อสำเร็จ' };
-  } catch (error: unknown) {
-    return handleActionError(error, 'เกิดข้อผิดพลาดในการอนุมัติใบขอซื้อ', { path: 'approvePurchaseRequest', userId: ctx.userId, prId: id });
-  }
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('APPROVAL_ACTION');
+      await PurchaseService.approveRequest(id, ctx);
+      revalidatePath('/purchases');
+      revalidatePath(`/purchases/${id}`);
+    }, 'purchases:approvePurchaseRequest');
+  }, { context: { action: 'approvePurchaseRequest', prId: id } });
 }
 
 export async function convertToPurchaseOrder(id: string): Promise<ActionResponse<{ id: string; poNumber: string }>> {
-  const ctx = await requirePermission('PURCHASE_CREATE');
-  try {
-    const result = await PurchaseService.convertToPO(id, ctx);
-    revalidatePath('/purchases');
-    revalidatePath('/products');
-    return { success: true, message: `แปลงเป็นใบสั่งซื้อสำเร็จ: ${result.poNumber}`, data: result };
-  } catch (error: unknown) {
-    return handleActionError(error, 'เกิดข้อผิดพลาดในการแปลงเป็นใบสั่งซื้อ', { path: 'convertToPurchaseOrder', userId: ctx.userId, prId: id });
-  }
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('PURCHASE_CREATE');
+      const result = await PurchaseService.convertToPO(id, ctx);
+      revalidatePath('/purchases');
+      revalidatePath('/products');
+      return result;
+    }, 'purchases:convertToPurchaseOrder');
+  }, { context: { action: 'convertToPurchaseOrder', prId: id } });
 }
 
 export async function cancelPurchase(input: CancelPurchaseInput): Promise<ActionResponse> {
-  const ctx = await requirePermission('PURCHASE_VOID');
-  try {
-    await PurchaseService.cancel(input, ctx);
-    revalidatePath('/purchases');
-    revalidatePath('/products');
-    revalidatePath('/dashboard');
-    return { success: true, message: 'ยกเลิกรายการซื้อสำเร็จ' };
-  } catch (error: unknown) {
-    return handleActionError(error, 'เกิดข้อผิดพลาดในการยกเลิกรายการซื้อ', { path: 'cancelPurchase', userId: ctx.userId, purchaseId: input.id });
-  }
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('PURCHASE_VOID');
+      await PurchaseService.cancel(input, ctx);
+      revalidatePath('/purchases');
+      revalidatePath('/products');
+      revalidatePath('/dashboard');
+    }, 'purchases:cancelPurchase');
+  }, { context: { action: 'cancelPurchase', purchaseId: input.id } });
 }
 
 export async function receivePurchase(id: string): Promise<ActionResponse> {
-  const ctx = await requirePermission('PURCHASE_CREATE');
-  try {
-    await PurchaseService.receivePurchase(id, ctx);
-    revalidatePath('/purchases');
-    revalidatePath('/products');
-    revalidatePath('/dashboard');
-    return { success: true, message: 'รับสินค้าเข้าคลังสำเร็จ' };
-  } catch (error: unknown) {
-    return handleActionError(error, 'เกิดข้อผิดพลาดในการรับสินค้า', { path: 'receivePurchase', userId: ctx.userId, purchaseId: id });
-  }
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('PURCHASE_CREATE');
+      await PurchaseService.receivePurchase(id, ctx);
+      revalidatePath('/purchases');
+      revalidatePath('/products');
+      revalidatePath('/dashboard');
+    }, 'purchases:receivePurchase');
+  }, { context: { action: 'receivePurchase', purchaseId: id } });
+}
+
+/**
+ * Bulk create draft PRs from suggested reorder items (Merged from purchase.actions.ts)
+ */
+export async function createPRFromSuggestions(entries: { productId: string, quantity: number, supplierId?: string }[]): Promise<ActionResponse<{ createdCount: number }>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('PURCHASE_CREATE');
+      const result = await PurchaseService.createBulkDraftPRs(entries, ctx);
+      revalidatePath('/purchases');
+      revalidatePath('/intelligence');
+      return result;
+    }, 'purchases:createPRFromSuggestions');
+  }, { context: { action: 'createPRFromSuggestions', entryCount: entries.length } });
 }

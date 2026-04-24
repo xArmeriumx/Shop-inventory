@@ -24,8 +24,8 @@ export default async function NewOrderRequestPage() {
 
             <div className="max-w-5xl mx-auto">
                 <OrderRequestForm
-                    requesters={requesters}
-                    products={products}
+                    requesters={requesters.data || []}
+                    products={products.data || []}
                 />
             </div>
         </div>

@@ -9,25 +9,24 @@ interface EditExpensePageProps {
 }
 
 export default async function EditExpensePage({ params }: EditExpensePageProps) {
-  let expense;
-
-  try {
-    expense = await getExpense(params.id);
-  } catch {
+  const result = await getExpense(params.id);
+  if (!result.success || !result.data) {
     notFound();
   }
+  const expense = result.data;
 
   // Seed default categories if needed
   await seedDefaultLookupValues();
-  
+
   // Fetch categories from DB
-  const categories = await getLookupValues('EXPENSE_CATEGORY');
+  const categoriesRes = await getLookupValues('EXPENSE_CATEGORY');
+  const categories = categoriesRes.success ? categoriesRes.data : [];
 
   return (
     <div>
       <PageHeader title="แก้ไขค่าใช้จ่าย" description={expense.description || undefined} />
       <div className="max-w-2xl">
-        <ExpenseForm expense={expense} categories={categories} />
+        <ExpenseForm expense={expense} categories={categories as any} />
       </div>
     </div>
   );

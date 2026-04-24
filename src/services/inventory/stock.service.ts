@@ -11,6 +11,7 @@ import { SequenceService } from '@/services/core/system/sequence.service';
 import { AuditService } from '@/services/core/system/audit.service';
 import { STOCK_AUDIT_POLICIES } from '@/policies/inventory/stock.policy';
 import { Prisma } from '@prisma/client';
+import { DEFAULT_LOW_STOCK_THRESHOLD } from '@/lib/constants';
 
 export interface CreateStockMovementParams {
   productId: string;
@@ -55,7 +56,7 @@ export const StockService: IStockService = {
         // ดึงข้อมูลสินค้าและสต็อกล่าสุด (Lock for update ถ้าอยู่ใน transaction)
         const product = await executor.product.findUnique({
           where: { id: productId },
-          select: { stock: true, reservedStock: true, shopId: true },
+          select: { stock: true, reservedStock: true, minStock: true, shopId: true, version: true },
         });
 
         if (!product) throw new ServiceError('ไม่พบสินค้า');
@@ -108,15 +109,23 @@ export const StockService: IStockService = {
             }
         }
 
-        // อัปเดตสต็อกที่สินค้า
-        await executor.product.update({
-          where: { id: productId },
-          data: {
-            stock: newStock,
-            reservedStock: newReserved,
-            isLowStock: newStock <= 5, // Simple threshold logic
-          },
-        });
+        // Pillar 6.3: Optimistic Locking
+        try {
+          await executor.product.update({
+            where: { id: productId, version: product.version },
+            data: {
+              stock: newStock,
+              reservedStock: newReserved,
+              isLowStock: newStock <= (product.minStock ?? DEFAULT_LOW_STOCK_THRESHOLD),
+              version: { increment: 1 },
+            },
+          });
+        } catch (e) {
+          if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {
+            throw new ServiceError('ข้อมูลสินค้ามีการเปลี่ยนแปลงโดยผู้ใช้อื่น กรุณาลองใหม่อีกครั้ง (Concurrency Conflict)');
+          }
+          throw e;
+        }
 
         // บันทึก Log
         const logData = {
@@ -210,6 +219,27 @@ export const StockService: IStockService = {
     };
   },
 
+  async bulkReserveStock(items: Array<{ productId: string; quantity: number }>, ctx: RequestContext, tx: Prisma.TransactionClient) {
+    const sortedItems = [...items].sort((a, b) => a.productId.localeCompare(b.productId));
+    for (const item of sortedItems) {
+      await this.reserveStock(item.productId, item.quantity, ctx, tx);
+    }
+  },
+
+  async bulkReleaseStock(items: Array<{ productId: string; quantity: number }>, ctx: RequestContext, tx: Prisma.TransactionClient) {
+    const sortedItems = [...items].sort((a, b) => a.productId.localeCompare(b.productId));
+    for (const item of sortedItems) {
+      await this.releaseStock(item.productId, item.quantity, ctx, tx);
+    }
+  },
+
+  async bulkDeductStock(items: Array<{ productId: string; quantity: number }>, ctx: RequestContext, tx: Prisma.TransactionClient, docRef?: { saleId?: string; deliveryOrderId?: string }) {
+    const sortedItems = [...items].sort((a, b) => a.productId.localeCompare(b.productId));
+    for (const item of sortedItems) {
+      await this.deductStock(item.productId, item.quantity, ctx, tx, docRef);
+    }
+  },
+
   async recordMovements(ctx: RequestContext, movements: any[], tx: Prisma.TransactionClient) {
     const created = await (tx as any).stockLog.createMany({
       data: movements.map(l => ({ ...l, memberId: ctx.memberId || null, shopId: ctx.shopId, userId: ctx.userId })) as any,
@@ -218,11 +248,11 @@ export const StockService: IStockService = {
     // Simple bulk update for low stock flag (could be optimized)
     const productIds = Array.from(new Set(movements.map(l => l.productId)));
     for (const pid of productIds) {
-      const p = await tx.product.findUnique({ where: { id: pid }, select: { stock: true } });
+      const p = await tx.product.findUnique({ where: { id: pid }, select: { stock: true, minStock: true } });
       if (p) {
         await tx.product.update({
           where: { id: pid },
-          data: { isLowStock: p.stock <= 5 }
+          data: { isLowStock: p.stock <= (p.minStock ?? DEFAULT_LOW_STOCK_THRESHOLD) }
         });
       }
     }

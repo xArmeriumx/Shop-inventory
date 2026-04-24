@@ -10,13 +10,15 @@ interface PurchaseDetailsPageProps {
 }
 
 async function PurchaseDetails({ id }: { id: string }) {
-  let purchase, shop;
-  try {
-    [purchase, shop] = await Promise.all([getPurchase(id), getShop()]);
-  } catch {
-    notFound();
-  }
-  if (!purchase) notFound();
+  const [purchaseRes, shopRes] = await Promise.all([
+    getPurchase(id),
+    getShop()
+  ]);
+
+  if (!purchaseRes.success) notFound();
+
+  const purchase = purchaseRes.data;
+  const shop = shopRes.success ? shopRes.data : null;
 
   return <PurchaseDetailView purchase={purchase} shop={shop} />;
 }

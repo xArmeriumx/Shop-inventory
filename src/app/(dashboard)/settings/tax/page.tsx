@@ -25,16 +25,10 @@ export default async function TaxSettingsPage() {
 
     const profile = profileRes.success ? profileRes.data : null;
     const codes = codesRes.success ? (codesRes.data as any[]) : [];
+    const whtData = whtCodes.success ? (whtCodes.data as any[]) : [];
 
     return (
-        <div className="flex-1 space-y-8 p-8 max-w-7xl mx-auto">
-            <div>
-                <h1 className="text-3xl font-bold tracking-tight">การตั้งค่าภาษี (Tax Settings)</h1>
-                <p className="text-muted-foreground mt-1">
-                    กำหนดโครงสร้างภาษี ข้อมูลผู้เสียภาษี และผังรหัสภาษีที่ถูกต้องตามกฎหมาย
-                </p>
-            </div>
-
+        <div className="space-y-6">
             <Tabs defaultValue="profile" className="space-y-6">
                 <TabsList className="bg-muted/60 p-1">
                     <TabsTrigger value="profile" className="flex items-center gap-2">
@@ -48,14 +42,6 @@ export default async function TaxSettingsPage() {
                     <TabsTrigger value="wht" className="flex items-center gap-2">
                         <ShieldCheck className="w-4 h-4" />
                         รหัสภาษีหัก ณ ที่จ่าย
-                    </TabsTrigger>
-                    <TabsTrigger value="ledger" className="flex items-center gap-2">
-                        <ClipboardList className="w-4 h-4" />
-                        บัญชีภาษีหัก ณ ที่จ่าย (50 ทวิ)
-                    </TabsTrigger>
-                    <TabsTrigger value="reports" className="flex items-center gap-2">
-                        <FilePieChart className="w-4 h-4" />
-                        รายงานภาษีนำส่ง (Filings)
                     </TabsTrigger>
                     <TabsTrigger value="engine" className="flex items-center gap-2">
                         <Calculator className="w-4 h-4" />
@@ -72,18 +58,7 @@ export default async function TaxSettingsPage() {
                 </TabsContent>
 
                 <TabsContent value="wht" className="space-y-4 focus-visible:outline-none">
-                    <WhtCodeTable data={whtCodes} />
-                </TabsContent>
-
-                <TabsContent value="ledger" className="space-y-4 focus-visible:outline-none">
-                    <WhtLedger
-                        initialData={ledgerRes.success ? ledgerRes.data : { data: [], totalGross: 0, totalWht: 0 }}
-                        shop={profile || {}}
-                    />
-                </TabsContent>
-
-                <TabsContent value="reports" className="space-y-4 focus-visible:outline-none">
-                    <WhtReport />
+                    <WhtCodeTable data={whtData} />
                 </TabsContent>
 
                 <TabsContent value="engine" className="space-y-4 focus-visible:outline-none text-center py-20 border rounded-xl border-dashed bg-muted/5">

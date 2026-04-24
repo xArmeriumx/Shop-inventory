@@ -1,7 +1,7 @@
 import { db } from '@/lib/db';
 import { RequestContext, ServiceError } from '@/types/domain';
 import { Security } from '@/services/core/iam/security.service';
-import { Prisma } from '@prisma/client';
+import { Permission, Prisma } from '@prisma/client';
 
 /**
  * AccountingService — จัดการระบบการบัญชีรวม (General Ledger)
@@ -46,7 +46,7 @@ export const AccountingService = {
         parentId?: string;
         isPostable?: boolean;
     }) {
-        Security.requirePermission(ctx, 'FINANACE_CONFIG' as any); //UC: Accounting config
+        Security.requirePermission(ctx, Permission.FINANCE_CONFIG);
 
         // Check for duplicate code
         const existing = await (db as any).account.findFirst({
@@ -175,7 +175,7 @@ export const AccountingService = {
      * ปิดงวดบัญชี (Close Month)
      */
     async closePeriod(ctx: RequestContext, periodId: string) {
-        Security.requirePermission(ctx, 'FINANACE_CONFIG' as any);
+        Security.requirePermission(ctx, Permission.FINANCE_CONFIG);
 
         return await (db as any).accountingPeriod.update({
             where: { id: periodId, shopId: ctx.shopId },
@@ -197,7 +197,7 @@ export const AccountingService = {
      * เปิดงวดบัญชีที่ปิดไปแล้วอีกครั้ง (Re-open)
      */
     async reopenPeriod(ctx: RequestContext, periodId: string, reason: string) {
-        Security.requirePermission(ctx, 'FINANACE_CONFIG' as any); // Should use a higher permission in reality
+        Security.requirePermission(ctx, Permission.FINANCE_CONFIG); // Requires Finance Manager level
 
         if (!reason) throw new ServiceError('กรุณาระบุเหตุผลในการเปิดงวดบัญชีใหม่');
 

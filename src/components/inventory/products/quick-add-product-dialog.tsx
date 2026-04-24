@@ -69,13 +69,11 @@ export function QuickAddProductDialog({
 
   // Load categories on mount
   useEffect(() => {
-    getLookupValues('PRODUCT_CATEGORY').then((values) => {
+    getLookupValues('PRODUCT_CATEGORY').then((result) => {
+      const values = result.success && result.data ? result.data : [];
       setCategories(values as Category[]);
-      // Set default category if available
       const defaultCat = values.find((v: any) => v.isDefault);
-      if (defaultCat) {
-        setCategory(defaultCat.name);
-      }
+      if (defaultCat) setCategory(defaultCat.name);
     });
   }, []);
 

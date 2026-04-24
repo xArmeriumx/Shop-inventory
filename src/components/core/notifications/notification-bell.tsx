@@ -45,25 +45,29 @@ export function NotificationBell() {
     if (typeof document !== 'undefined' && document.hidden) return;
 
     try {
-      const summary = await getNotificationSummary(15);
+      const result = await getNotificationSummary(15);
 
-      setNotifications(summary.recentNotifications);
-      setUnreadCount(summary.unreadCount);
+      if (result.success && result.data) {
+        const { recentNotifications, unreadCount } = result.data;
 
-      // 3. Simple Backoff: If no changes for 3 cycles, slow down polling
-      if (summary.unreadCount === lastCountRef.current) {
-        consecutiveSameRef.current += 1;
-        if (consecutiveSameRef.current >= 3 && pollInterval < 300000) {
-          setPollInterval(prev => Math.min(prev * 1.5, 300000)); // Max 5 mins
+        setNotifications(recentNotifications);
+        setUnreadCount(unreadCount);
+
+        // 3. Simple Backoff: If no changes for 3 cycles, slow down polling
+        if (unreadCount === lastCountRef.current) {
+          consecutiveSameRef.current += 1;
+          if (consecutiveSameRef.current >= 3 && pollInterval < 300000) {
+            setPollInterval(prev => Math.min(prev * 1.5, 300000)); // Max 5 mins
+            consecutiveSameRef.current = 0;
+          }
+        } else {
+          // Reset interval on change
+          setPollInterval(60000);
           consecutiveSameRef.current = 0;
         }
-      } else {
-        // Reset interval on change
-        setPollInterval(60000);
-        consecutiveSameRef.current = 0;
-      }
 
-      lastCountRef.current = summary.unreadCount;
+        lastCountRef.current = unreadCount;
+      }
     } catch (error) {
       console.error('Failed to fetch notifications', error);
     }

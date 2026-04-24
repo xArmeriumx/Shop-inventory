@@ -49,9 +49,18 @@ export function ProfitLossReport({ startDate, endDate }: ProfitLossReportProps) 
     );
   }
 
-  if (!data) return null;
+  if (!data?.success) {
+    return (
+      <Card>
+        <CardContent className="py-10 text-center">
+          <p className="text-muted-foreground">{data?.message || 'ไม่สามารถดึงข้อมูลรายงานได้'}</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
-  const isNetProfitPositive = data.netProfit >= 0;
+  const reportData = data.data;
+  const isNetProfitPositive = reportData.netProfit >= 0;
 
   return (
     <div className="space-y-4">
@@ -63,8 +72,8 @@ export function ProfitLossReport({ startDate, endDate }: ProfitLossReportProps) 
             <Coins className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="text-lg sm:text-2xl font-bold">{formatCurrency(data.revenue.total)}</div>
-            <ChangeIndicator value={data.revenue.change} />
+            <div className="text-lg sm:text-2xl font-bold">{formatCurrency(reportData.revenue.total)}</div>
+            <ChangeIndicator value={reportData.revenue.change} />
           </CardContent>
         </Card>
 
@@ -74,8 +83,8 @@ export function ProfitLossReport({ startDate, endDate }: ProfitLossReportProps) 
             <TrendingUp className="h-4 w-4 text-emerald-600" />
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="text-lg sm:text-2xl font-bold text-emerald-600">{formatCurrency(data.grossProfit)}</div>
-            <p className="text-xs text-muted-foreground">Margin {data.grossMargin}%</p>
+            <div className="text-lg sm:text-2xl font-bold text-emerald-600">{formatCurrency(reportData.grossProfit)}</div>
+            <p className="text-xs text-muted-foreground">Margin {reportData.grossMargin}%</p>
           </CardContent>
         </Card>
 
@@ -85,8 +94,8 @@ export function ProfitLossReport({ startDate, endDate }: ProfitLossReportProps) 
             <Receipt className="h-4 w-4 text-orange-600" />
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="text-lg sm:text-2xl font-bold text-orange-600">{formatCurrency(data.expenses.total)}</div>
-            <ChangeIndicator value={data.expenses.change} />
+            <div className="text-lg sm:text-2xl font-bold text-orange-600">{formatCurrency(reportData.expenses.total)}</div>
+            <ChangeIndicator value={reportData.expenses.change} />
           </CardContent>
         </Card>
 
@@ -97,9 +106,9 @@ export function ProfitLossReport({ startDate, endDate }: ProfitLossReportProps) 
           </CardHeader>
           <CardContent className="pt-0">
             <div className={`text-lg sm:text-2xl font-bold ${isNetProfitPositive ? 'text-green-600' : 'text-red-600'}`}>
-              {formatCurrency(data.netProfit)}
+              {formatCurrency(reportData.netProfit)}
             </div>
-            <ChangeIndicator value={data.netProfitChange} />
+            <ChangeIndicator value={reportData.netProfitChange} />
           </CardContent>
         </Card>
       </div>
@@ -116,24 +125,24 @@ export function ProfitLossReport({ startDate, endDate }: ProfitLossReportProps) 
               <h3 className="text-sm font-semibold text-blue-800 dark:text-blue-300 mb-2">รายรับ</h3>
               <div className="space-y-1.5">
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">ยอดขายสุทธิ ({data.salesCount} บิล)</span>
-                  <span className="font-medium">{formatCurrency(data.revenue.sales)}</span>
+                  <span className="text-muted-foreground">ยอดขายสุทธิ ({reportData.salesCount} บิล)</span>
+                  <span className="font-medium">{formatCurrency(reportData.revenue.sales)}</span>
                 </div>
-                {data.revenue.discount > 0 && (
+                {reportData.revenue.discount > 0 && (
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">ส่วนลดรวม</span>
-                    <span className="text-red-500">-{formatCurrency(data.revenue.discount)}</span>
+                    <span className="text-red-500">-{formatCurrency(reportData.revenue.discount)}</span>
                   </div>
                 )}
-                {data.revenue.otherIncome > 0 && (
+                {reportData.revenue.otherIncome > 0 && (
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">รายรับอื่น ({data.incomeCount} รายการ)</span>
-                    <span className="font-medium">{formatCurrency(data.revenue.otherIncome)}</span>
+                    <span className="text-muted-foreground">รายรับอื่น ({reportData.incomeCount} รายการ)</span>
+                    <span className="font-medium">{formatCurrency(reportData.revenue.otherIncome)}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-sm font-bold border-t border-blue-200 dark:border-blue-800 pt-1.5 mt-1.5">
                   <span>รายรับรวม</span>
-                  <span>{formatCurrency(data.revenue.total)}</span>
+                  <span>{formatCurrency(reportData.revenue.total)}</span>
                 </div>
               </div>
             </div>
@@ -144,24 +153,24 @@ export function ProfitLossReport({ startDate, endDate }: ProfitLossReportProps) 
                 <ShoppingCart className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm font-medium">ต้นทุนขาย (COGS)</span>
               </div>
-              <span className="text-sm font-bold text-red-600">-{formatCurrency(data.cogs)}</span>
+              <span className="text-sm font-bold text-red-600">-{formatCurrency(reportData.cogs)}</span>
             </div>
 
             {/* Gross Profit Line */}
             <div className="flex justify-between items-center p-3 sm:p-4 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg">
               <div>
                 <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">กำไรขั้นต้น</span>
-                <span className="text-xs text-emerald-600 dark:text-emerald-500 ml-2">({data.grossMargin}%)</span>
+                <span className="text-xs text-emerald-600 dark:text-emerald-500 ml-2">({reportData.grossMargin}%)</span>
               </div>
-              <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400">{formatCurrency(data.grossProfit)}</span>
+              <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400">{formatCurrency(reportData.grossProfit)}</span>
             </div>
 
             {/* Expenses Breakdown */}
-            {data.expenses.byCategory.length > 0 && (
+            {reportData.expenses.byCategory.length > 0 && (
               <div className="bg-orange-50 dark:bg-orange-950/30 rounded-lg p-3 sm:p-4">
                 <h3 className="text-sm font-semibold text-orange-800 dark:text-orange-300 mb-2">ค่าใช้จ่าย</h3>
                 <div className="space-y-1.5">
-                  {data.expenses.byCategory.map((cat) => (
+                  {reportData.expenses.byCategory.map((cat: any) => (
                     <div key={cat.category} className="flex justify-between text-sm">
                       <div className="flex items-center gap-2">
                         <span className="text-muted-foreground">{cat.category}</span>
@@ -172,7 +181,7 @@ export function ProfitLossReport({ startDate, endDate }: ProfitLossReportProps) 
                   ))}
                   <div className="flex justify-between text-sm font-bold border-t border-orange-200 dark:border-orange-800 pt-1.5 mt-1.5">
                     <span>ค่าใช้จ่ายรวม</span>
-                    <span className="text-orange-600">-{formatCurrency(data.expenses.total)}</span>
+                    <span className="text-orange-600">-{formatCurrency(reportData.expenses.total)}</span>
                   </div>
                 </div>
               </div>
@@ -190,15 +199,15 @@ export function ProfitLossReport({ startDate, endDate }: ProfitLossReportProps) 
                     ★ กำไรสุทธิ
                   </span>
                   <span className={`text-sm ${isNetProfitPositive ? 'text-green-600 dark:text-green-500' : 'text-red-600 dark:text-red-500'}`}>
-                    ({data.netMargin}%)
+                    ({reportData.netMargin}%)
                   </span>
                 </div>
                 <span className={`text-lg sm:text-2xl font-bold ${isNetProfitPositive ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
-                  {formatCurrency(data.netProfit)}
+                  {formatCurrency(reportData.netProfit)}
                 </span>
               </div>
               <div className="mt-1">
-                <ChangeIndicator value={data.netProfitChange} />
+                <ChangeIndicator value={reportData.netProfitChange} />
               </div>
             </div>
           </div>
@@ -217,18 +226,18 @@ export function ProfitLossReport({ startDate, endDate }: ProfitLossReportProps) 
           <div className="grid grid-cols-3 gap-3 sm:gap-4">
             <div className="text-center p-3 bg-green-50 dark:bg-green-950/30 rounded-lg">
               <p className="text-xs text-muted-foreground mb-1">เงินเข้า</p>
-              <p className="text-sm sm:text-lg font-bold text-green-600">{formatCurrency(data.cashIn)}</p>
+              <p className="text-sm sm:text-lg font-bold text-green-600">{formatCurrency(reportData.cashIn)}</p>
               <p className="text-[10px] text-muted-foreground">ขาย + รายรับอื่น</p>
             </div>
             <div className="text-center p-3 bg-red-50 dark:bg-red-950/30 rounded-lg">
               <p className="text-xs text-muted-foreground mb-1">เงินออก</p>
-              <p className="text-sm sm:text-lg font-bold text-red-600">{formatCurrency(data.cashOut)}</p>
+              <p className="text-sm sm:text-lg font-bold text-red-600">{formatCurrency(reportData.cashOut)}</p>
               <p className="text-[10px] text-muted-foreground">ซื้อสินค้า + ค่าใช้จ่าย</p>
             </div>
-            <div className={`text-center p-3 rounded-lg ${data.netCashFlow >= 0 ? 'bg-blue-50 dark:bg-blue-950/30' : 'bg-orange-50 dark:bg-orange-950/30'}`}>
+            <div className={`text-center p-3 rounded-lg ${reportData.netCashFlow >= 0 ? 'bg-blue-50 dark:bg-blue-950/30' : 'bg-orange-50 dark:bg-orange-950/30'}`}>
               <p className="text-xs text-muted-foreground mb-1">เงินสดสุทธิ</p>
-              <p className={`text-sm sm:text-lg font-bold ${data.netCashFlow >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>
-                {data.netCashFlow >= 0 ? '+' : ''}{formatCurrency(data.netCashFlow)}
+              <p className={`text-sm sm:text-lg font-bold ${reportData.netCashFlow >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>
+                {reportData.netCashFlow >= 0 ? '+' : ''}{formatCurrency(reportData.netCashFlow)}
               </p>
               <p className="text-[10px] text-muted-foreground">เงินเข้า − เงินออก</p>
             </div>

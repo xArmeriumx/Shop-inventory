@@ -4,188 +4,141 @@ import { PurchaseTaxService } from '@/services/tax/purchase-tax.service';
 import { TaxSettingsService } from '@/services/tax/tax-settings.service';
 import { ExportService } from '@/services/core/intelligence/export.service';
 import { requirePermission } from '@/lib/auth-guard';
-import { ActionResponse } from '@/types/domain';
+import { handleAction, type ActionResponse } from '@/lib/action-handler';
 import { revalidatePath } from 'next/cache';
+import { Permission } from '@prisma/client';
+import {
+    purchaseTaxPostSchema,
+    upsertCompanyTaxProfileSchema,
+    createTaxCodeSchema,
+    updateTaxCodeSchema
+} from '@/schemas/tax/tax.schema';
 
 /**
  * Register a Purchase Order as a Tax Document (Draft)
  */
-export async function registerPurchaseTax(purchaseId: string): Promise<ActionResponse> {
-    try {
-        const ctx = await requirePermission('TAX_REPORT_POST' as any);
+export async function registerPurchaseTax(purchaseId: string): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        const ctx = await requirePermission(Permission.TAX_REPORT_POST);
         const doc = await PurchaseTaxService.registerFromPurchase(purchaseId, ctx);
 
         revalidatePath(`/purchases/${purchaseId}`);
         revalidatePath('/tax/purchase-tax');
 
-        return {
-            success: true,
-            message: 'สร้างเอกสารภาษีซื้อร่างสำเร็จ',
-            data: doc
-        };
-    } catch (error: any) {
-        return {
-            success: false,
-            message: error.message || 'เกิดข้อผิดพลาดในการสร้างเอกสารภาษีซื้อ'
-        };
-    }
+        return doc;
+    }, { context: { action: 'registerPurchaseTax', purchaseId } });
 }
 
 /**
  * Post a Purchase Tax Document
  */
-export async function postPurchaseTax(docId: string, input: any): Promise<ActionResponse> {
-    try {
-        const ctx = await requirePermission('TAX_REPORT_POST' as any);
+export async function postPurchaseTax(docId: string, input: any): Promise<ActionResponse<null>> {
+    return handleAction(async () => {
+        const ctx = await requirePermission(Permission.TAX_REPORT_POST);
         await PurchaseTaxService.post(docId, input, ctx);
 
         revalidatePath(`/tax/purchase-tax/${docId}`);
         revalidatePath('/tax/purchase-tax');
 
-        return {
-            success: true,
-            message: 'ลงบัญชีภาษีซื้อสำเร็จ'
-        };
-    } catch (error: any) {
-        return {
-            success: false,
-            message: error.message || 'เกิดข้อผิดพลาดในการลงบัญชี'
-        };
-    }
+        return null;
+    }, { context: { action: 'postPurchaseTax', docId } });
 }
 
 /**
  * Void a Purchase Tax Document
  */
-export async function voidPurchaseTax(docId: string): Promise<ActionResponse> {
-    try {
-        const ctx = await requirePermission('TAX_REPORT_POST' as any);
+export async function voidPurchaseTax(docId: string): Promise<ActionResponse<null>> {
+    return handleAction(async () => {
+        const ctx = await requirePermission(Permission.TAX_REPORT_POST);
         await PurchaseTaxService.void(docId, ctx);
 
         revalidatePath(`/tax/purchase-tax/${docId}`);
         revalidatePath('/tax/purchase-tax');
 
-        return {
-            success: true,
-            message: 'ยกเลิกเอกสารภาษีซื้อสำเร็จ'
-        };
-    } catch (error: any) {
-        return {
-            success: false,
-            message: error.message || 'เกิดข้อผิดพลาดในการยกเลิกเอกสาร'
-        };
-    }
+        return null;
+    }, { context: { action: 'voidPurchaseTax', docId } });
 }
 
 /**
  * Get list of Purchase Tax Documents
  */
-export async function getPurchaseTaxes(params: any = {}): Promise<ActionResponse> {
-    try {
-        const ctx = await requirePermission('TAX_REPORT_VIEW' as any);
-        const result = await PurchaseTaxService.getList(params, ctx);
-        return {
-            success: true,
-            data: result
-        };
-    } catch (error: any) {
-        return {
-            success: false,
-            message: error.message || 'เกิดข้อผิดพลาดในการดึงข้อมูล'
-        };
-    }
+export async function getPurchaseTaxes(params: any = {}): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        const ctx = await requirePermission(Permission.TAX_REPORT_VIEW);
+        return await PurchaseTaxService.getList(params, ctx);
+    }, { context: { action: 'getPurchaseTaxes' } });
 }
 
 /**
  * Get single Purchase Tax Document
  */
-export async function getPurchaseTax(id: string): Promise<ActionResponse> {
-    try {
-        const ctx = await requirePermission('TAX_REPORT_VIEW' as any);
-        const doc = await PurchaseTaxService.getById(id, ctx);
-        return {
-            success: true,
-            data: doc
-        };
-    } catch (error: any) {
-        return {
-            success: false,
-            message: error.message || 'ไม่พบข้อมูลเอกสาร'
-        };
-    }
+export async function getPurchaseTax(id: string): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        const ctx = await requirePermission(Permission.TAX_REPORT_VIEW);
+        return await PurchaseTaxService.getById(id, ctx);
+    }, { context: { action: 'getPurchaseTax', id } });
 }
 
 // ==================== Tax Settings Actions ====================
 
-export async function getCompanyTaxProfile(): Promise<ActionResponse> {
-    try {
-        const ctx = await requirePermission('TAX_REPORT_VIEW' as any);
-        const profile = await TaxSettingsService.getCompanyTaxProfile(ctx);
-        return { success: true, data: profile };
-    } catch (error: any) {
-        return { success: false, message: error.message };
-    }
+export async function getCompanyTaxProfile(): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        const ctx = await requirePermission(Permission.TAX_REPORT_VIEW);
+        return await TaxSettingsService.getCompanyTaxProfile(ctx);
+    }, { context: { action: 'getCompanyTaxProfile' } });
 }
 
-export async function upsertCompanyTaxProfile(input: any): Promise<ActionResponse> {
-    try {
-        const ctx = await requirePermission('TAX_REPORT_POST' as any);
-        const profile = await TaxSettingsService.upsertCompanyTaxProfile(input, ctx);
+export async function upsertCompanyTaxProfile(input: any): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        const ctx = await requirePermission(Permission.TAX_REPORT_POST);
+        const validated = upsertCompanyTaxProfileSchema.parse(input);
+        const profile = await TaxSettingsService.upsertCompanyTaxProfile(validated, ctx);
         revalidatePath('/settings/tax');
-        return { success: true, data: profile, message: 'บันทึกข้อมูลภาษีบริษัทสำเร็จ' };
-    } catch (error: any) {
-        return { success: false, message: error.message };
-    }
+        return profile;
+    }, { context: { action: 'upsertCompanyTaxProfile' } });
 }
 
-export async function listTaxCodes(): Promise<ActionResponse> {
-    try {
-        const ctx = await requirePermission('TAX_REPORT_VIEW' as any);
-        const codes = await TaxSettingsService.listTaxCodes(ctx);
-        return { success: true, data: codes };
-    } catch (error: any) {
-        return { success: false, message: error.message };
-    }
+export async function listTaxCodes(): Promise<ActionResponse<any[]>> {
+    return handleAction(async () => {
+        const ctx = await requirePermission(Permission.TAX_REPORT_VIEW);
+        return await TaxSettingsService.listTaxCodes(ctx);
+    }, { context: { action: 'listTaxCodes' } });
 }
 
-export async function createTaxCode(input: any): Promise<ActionResponse> {
-    try {
-        const ctx = await requirePermission('TAX_REPORT_POST' as any);
-        const code = await TaxSettingsService.createTaxCode(input, ctx);
+export async function createTaxCode(input: any): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        const ctx = await requirePermission(Permission.TAX_REPORT_POST);
+        const validated = createTaxCodeSchema.parse(input);
+        const code = await TaxSettingsService.createTaxCode(validated, ctx);
         revalidatePath('/settings/tax');
-        return { success: true, data: code, message: 'สร้างรหัสภาษีสำเร็จ' };
-    } catch (error: any) {
-        return { success: false, message: error.message };
-    }
+        return code;
+    }, { context: { action: 'createTaxCode' } });
 }
 
-export async function updateTaxCode(code: string, input: any): Promise<ActionResponse> {
-    try {
-        const ctx = await requirePermission('TAX_REPORT_POST' as any);
-        const updated = await TaxSettingsService.updateTaxCode(code, input, ctx);
+export async function updateTaxCode(code: string, input: any): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        const ctx = await requirePermission(Permission.TAX_REPORT_POST);
+        const validated = updateTaxCodeSchema.parse(input);
+        const updated = await TaxSettingsService.updateTaxCode(code, validated, ctx);
         revalidatePath('/settings/tax');
-        return { success: true, data: updated, message: 'แก้ไขรหัสภาษีสำเร็จ' };
-    } catch (error: any) {
-        return { success: false, message: error.message };
-    }
+        return updated;
+    }, { context: { action: 'updateTaxCode', code } });
 }
 
-export async function toggleTaxCode(code: string, isActive: boolean): Promise<ActionResponse> {
-    try {
-        const ctx = await requirePermission('TAX_REPORT_POST' as any);
+export async function toggleTaxCode(code: string, isActive: boolean): Promise<ActionResponse<null>> {
+    return handleAction(async () => {
+        const ctx = await requirePermission(Permission.TAX_REPORT_POST);
         await TaxSettingsService.toggleTaxCode(code, isActive, ctx);
         revalidatePath('/settings/tax');
-        return { success: true, message: isActive ? 'เปิดใช้งานสำเร็จ' : 'ปิดใช้งานสำเร็จ' };
-    } catch (error: any) {
-        return { success: false, message: error.message };
-    }
+        return null;
+    }, { context: { action: 'toggleTaxCode', code, isActive } });
 }
 
 // ==================== Statutory Reporting Actions ====================
 
-export async function getVatReport(month: number, year: number): Promise<ActionResponse> {
-    try {
-        const ctx = await requirePermission('TAX_REPORT_VIEW' as any);
+export async function getVatReport(month: number, year: number): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        const ctx = await requirePermission(Permission.TAX_REPORT_VIEW);
         const salesReport = await TaxSettingsService.getSalesTaxReport(month, year, ctx);
         const purchaseReport = await TaxSettingsService.getPurchaseTaxReport(month, year, ctx);
 
@@ -205,24 +158,19 @@ export async function getVatReport(month: number, year: number): Promise<ActionR
         };
 
         return {
-            success: true,
-            data: {
-                summary,
-                salesEntries: salesReport.entries,
-                purchaseEntries: purchaseReport.entries,
-            }
+            summary,
+            salesEntries: salesReport.entries,
+            purchaseEntries: purchaseReport.entries,
         };
-    } catch (error: any) {
-        return { success: false, message: error.message };
-    }
+    }, { context: { action: 'getVatReport', month, year } });
 }
 
 /**
  * Export VAT Report (Sales + Purchases) to CSV
  */
-export async function exportVatReportAction(params: { month: number, year: number }): Promise<ActionResponse> {
-    try {
-        const ctx = await requirePermission('TAX_REPORT_VIEW' as any);
+export async function exportVatReportAction(params: { month: number, year: number }): Promise<ActionResponse<string>> {
+    return handleAction(async () => {
+        const ctx = await requirePermission(Permission.TAX_REPORT_VIEW);
         const salesReport = await TaxSettingsService.getSalesTaxReport(params.month, params.year, ctx);
         const purchaseReport = await TaxSettingsService.getPurchaseTaxReport(params.month, params.year, ctx);
 
@@ -237,9 +185,6 @@ export async function exportVatReportAction(params: { month: number, year: numbe
             ...purchaseRows
         ];
 
-        const csv = ExportService.toCSV(rows);
-        return { success: true, data: csv };
-    } catch (error: any) {
-        return { success: false, message: error.message };
-    }
+        return ExportService.toCSV(rows);
+    }, { context: { action: 'exportVatReportAction', params } });
 }

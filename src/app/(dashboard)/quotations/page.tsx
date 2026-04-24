@@ -34,6 +34,15 @@ export default async function QuotationsPage({ searchParams }: PageProps) {
         status: searchParams.status as QuotationStatus,
     });
 
+    if (!result.success) {
+        return (
+            <div className="flex flex-col items-center justify-center py-20 bg-card rounded-lg border border-dashed">
+                <h3 className="text-lg font-semibold">ไม่สามารถดึงข้อมูลใบเสนอราคาได้</h3>
+                <p className="text-muted-foreground">{result.message}</p>
+            </div>
+        );
+    }
+
     const columns: Column<any>[] = [
         {
             header: 'เลขที่ใบเสนอราคา',
@@ -84,8 +93,8 @@ export default async function QuotationsPage({ searchParams }: PageProps) {
         <div className="space-y-4 p-6">
             <TableView
                 title="ใบเสนอราคา (Quotations)"
-                description="จัดการใบเสนอราคาและเปลี่ยนเป็นรายการขาย"
-                items={result.data}
+                description="จัดการใบเสนอราคาและติดตามสถานะ"
+                items={result.data?.data || []}
                 columns={columns}
                 keyExtractor={(item) => item.id}
                 actionButton={

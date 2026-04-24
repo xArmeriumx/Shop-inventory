@@ -24,7 +24,7 @@ export default async function PurchasesPage({ searchParams }: PurchasesPageProps
   const paymentMethod = searchParams.paymentMethod || '';
   const status = searchParams.status as PurchaseStatus | undefined;
 
-  const { data: purchases, pagination } = await getPurchases({
+  const result = await getPurchases({
     page,
     search,
     startDate,
@@ -32,6 +32,17 @@ export default async function PurchasesPage({ searchParams }: PurchasesPageProps
     paymentMethod,
     status,
   });
+
+  if (!result.success) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 bg-card rounded-lg border border-dashed">
+        <h3 className="text-lg font-semibold">ไม่สามารถดึงข้อมูลรายการซื้อได้</h3>
+        <p className="text-muted-foreground">{result.message}</p>
+      </div>
+    );
+  }
+
+  const { data: purchases = [], pagination = { page: 1, limit: 10, total: 0, totalPages: 0, hasNextPage: false, hasPrevPage: false } } = result.data || {};
 
   return (
     <div>

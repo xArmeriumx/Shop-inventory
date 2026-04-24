@@ -50,7 +50,11 @@ function SaleSelectionSection({
     setIsSearching(true);
     try {
       const resp = await getSales({ page: 1, limit: 10, search: saleSearch.trim() });
-      setSaleResults(resp.data.filter((s: any) => s.status !== 'CANCELLED'));
+      if (resp.success) {
+        setSaleResults(resp.data.filter((s: any) => s.status !== 'CANCELLED'));
+      } else {
+        toast.error(resp.message);
+      }
     } finally {
       setIsSearching(false);
     }
@@ -107,7 +111,16 @@ function ReturnItemsSection() {
   useEffect(() => {
     if (saleId) {
       setIsLoading(true);
-      getReturnableSaleItems(saleId).then(items => setReturnablePool(items || [])).finally(() => setIsLoading(false));
+      getReturnableSaleItems(saleId)
+        .then(res => {
+          if (res.success) {
+            setReturnablePool(res.data || []);
+          } else {
+            toast.error(res.message);
+            setReturnablePool([]);
+          }
+        })
+        .finally(() => setIsLoading(false));
     } else {
       setReturnablePool([]);
     }

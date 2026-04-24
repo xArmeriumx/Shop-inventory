@@ -5,7 +5,7 @@ import { getProduct } from '@/actions/inventory/products.actions';
 import { getLookupValues, seedDefaultLookupValues } from '@/actions/core/lookups.actions';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ProductBarcodeTab } from '@/components/inventory/products/product-barcode-tab';
-import { ProductHistoryTab } from '@/components/shared/intelligence/product-history-tab';
+import { ProductHistoryTab } from '@/components/inventory/intelligence/product-history-tab';
 
 interface EditProductPageProps {
   params: {
@@ -17,19 +17,20 @@ interface EditProductPageProps {
 }
 
 export default async function EditProductPage({ params }: EditProductPageProps) {
-  let product;
-
-  try {
-    product = await getProduct(params.id);
-  } catch {
-    notFound();
-  }
-
   // Seed default categories if needed
   await seedDefaultLookupValues();
 
-  // Fetch categories from DB
-  const categories = await getLookupValues('PRODUCT_CATEGORY');
+  const [response, categoriesRes] = await Promise.all([
+    getProduct(params.id),
+    getLookupValues('PRODUCT_CATEGORY'),
+  ]);
+
+  if (!response.success || !response.data) {
+    notFound();
+  }
+
+  const product = response.data;
+  const categories = categoriesRes.success ? categoriesRes.data : [];
 
   return (
     <div>
@@ -48,7 +49,7 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
 
           <TabsContent value="edit" className="space-y-4">
             <div className="max-w-2xl">
-              <ProductForm product={product} categories={categories} />
+              <ProductForm product={product} categories={categories as any} />
             </div>
           </TabsContent>
 

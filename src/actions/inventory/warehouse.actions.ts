@@ -5,73 +5,77 @@ import { revalidatePath } from 'next/cache';
 import { WarehouseService } from '@/services/inventory/warehouse.service';
 import { warehouseSchema } from '@/schemas/inventory/warehouse-form.schema';
 import { requireShop, requirePermission } from '@/lib/auth-guard';
-import { ActionResponse } from '@/types/domain';
+import { ActionResponse } from '@/types/common';
+import { PerformanceCollector } from '@/lib/debug/measurement';
+import { handleAction } from '@/lib/action-handler';
 
-export async function createWarehouseAction(data: any): Promise<ActionResponse> {
-  try {
-    const context = await requireShop();
-    await requirePermission('PRODUCT_UPDATE');
+export async function createWarehouseAction(data: any): Promise<ActionResponse<any>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const context = await requireShop();
+      await requirePermission('PRODUCT_UPDATE');
 
-    const validatedData = warehouseSchema.parse(data);
+      const validatedData = warehouseSchema.parse(data);
+      const warehouse = await WarehouseService.createWarehouse(context as any, validatedData);
 
-    await WarehouseService.createWarehouse(context as any, validatedData);
-
-    revalidatePath('/inventory/warehouses');
-    return { success: true, message: 'สร้างคลังสินค้าสำเร็จ' };
-  } catch (error: any) {
-    return { success: false, errors: { root: [error.message] } };
-  }
+      revalidatePath('/inventory/warehouses');
+      return warehouse;
+    });
+  }, { context: { action: 'createWarehouse' } });
 }
 
-export async function getWarehousesAction() {
-  try {
-    const context = await requireShop();
-    const warehouses = await WarehouseService.getWarehouses(context as any);
-    return { success: true, data: warehouses };
-  } catch (error: any) {
-    return { success: false, errors: { root: [error.message] } };
-  }
+export async function getWarehousesAction(): Promise<ActionResponse<any>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const context = await requireShop();
+      const warehouses = await WarehouseService.getWarehouses(context as any);
+      return warehouses;
+    });
+  }, { context: { action: 'getWarehouses' } });
 }
 
 /**
  * Mobile Lookup: Search product by SKU or Name
  */
-export async function quickSearchProduct(query: string) {
-  const ctx = await requireShop();
+export async function quickSearchProduct(query: string): Promise<ActionResponse<any>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requireShop();
 
-  const product = await db.product.findFirst({
-    where: {
-      shopId: ctx.shopId,
-      deletedAt: null,
-      OR: [
-        { sku: { equals: query, mode: 'insensitive' } },
-        { name: { contains: query, mode: 'insensitive' } },
-      ]
-    },
-    include: {
-      categoryRef: true,
-      warehouseStocks: { include: { warehouse: true } }
-    }
-  });
+      const product = await db.product.findFirst({
+        where: {
+          shopId: ctx.shopId,
+          deletedAt: null,
+          OR: [
+            { sku: { equals: query, mode: 'insensitive' } },
+            { name: { contains: query, mode: 'insensitive' } },
+          ]
+        },
+        include: {
+          categoryRef: true,
+          warehouseStocks: { include: { warehouse: true } }
+        }
+      });
 
-  if (!product) return null;
+      if (!product) return null;
 
-  // Calculate reserved stock from Sales that are CONFIRMED but not shipped
-  // Optimized for mobile quick view
-  const reserved = await db.saleItem.aggregate({
-    where: {
-      productId: product.id,
-      sale: { status: 'CONFIRMED', shopId: ctx.shopId }
-    },
-    _sum: { quantity: true }
-  });
+      // Calculate reserved stock from Sales that are CONFIRMED but not shipped
+      const reserved = await db.saleItem.aggregate({
+        where: {
+          productId: product.id,
+          sale: { status: 'CONFIRMED', shopId: ctx.shopId }
+        },
+        _sum: { quantity: true }
+      });
 
-  return {
-    ...product,
-    category: (product as any).categoryRef?.name || product.category,
-    reservedStock: reserved._sum.quantity || 0,
-    isLowStock: product.stock <= (product.minStock || 0)
-  };
+      return {
+        ...product,
+        category: (product as any).categoryRef?.name || product.category,
+        reservedStock: reserved._sum.quantity || 0,
+        isLowStock: product.stock <= (product.minStock || 0)
+      };
+    }, 'inventory:quickSearchProduct');
+  }, { context: { action: 'quickSearchProduct', query } });
 }
 
 /**
@@ -82,88 +86,95 @@ export async function quickAdjustStock(
   type: 'ADD' | 'REMOVE' | 'SET',
   quantity: number,
   note: string
-) {
-  const ctx = await requireShop();
-  await requirePermission('PRODUCT_UPDATE');
+): Promise<ActionResponse<null>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requireShop();
+      await requirePermission('PRODUCT_UPDATE');
 
-  const defaultWh = await WarehouseService.getDefaultWarehouse(ctx as any);
-  if (!defaultWh) throw new Error('ไม่พบคลังสินค้าหลัก');
+      const defaultWh = await WarehouseService.getDefaultWarehouse(ctx as any);
+      if (!defaultWh) throw new Error('ไม่พบคลังสินค้าหลัก');
 
-  const product = await db.product.findUnique({ where: { id: productId } });
-  if (!product) throw new Error('ไม่พบสินค้า');
+      const product = await db.product.findUnique({ where: { id: productId } });
+      if (!product) throw new Error('ไม่พบสินค้า');
 
-  let delta = quantity;
-  if (type === 'REMOVE') delta = -quantity;
-  if (type === 'SET') delta = quantity - product.stock;
+      let delta = quantity;
+      if (type === 'REMOVE') delta = -quantity;
+      if (type === 'SET') delta = quantity - product.stock;
 
-  await db.$transaction(async (tx) => {
-    await WarehouseService.adjustWarehouseStock(ctx as any, {
-      warehouseId: defaultWh.id,
-      productId,
-      delta
-    }, tx);
+      await db.$transaction(async (tx) => {
+        await WarehouseService.adjustWarehouseStock(ctx as any, {
+          warehouseId: defaultWh.id,
+          productId,
+          delta
+        }, tx);
+      });
 
-    // Track in Inventory Log if needed (Audit handled by WarehouseService if implemented)
-  });
-
-  revalidatePath('/inventory');
-  return { success: true };
+      revalidatePath('/inventory');
+      return null;
+    });
+  }, { context: { action: 'quickAdjustStock' } });
 }
 
 /**
  * Mobile Receive: List pending Purchase Orders
  */
-export async function getPendingDeliveries() {
-  const ctx = await requireShop();
-
-  return await db.purchase.findMany({
-    where: {
-      shopId: ctx.shopId,
-      status: 'ORDERED'
-    },
-    include: {
-      supplier: true,
-      items: { include: { product: true } }
-    },
-    orderBy: { date: 'desc' }
-  });
+export async function getPendingDeliveries(): Promise<ActionResponse<any>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requireShop();
+      return await db.purchase.findMany({
+        where: {
+          shopId: ctx.shopId,
+          status: 'ORDERED'
+        },
+        include: {
+          supplier: true,
+          items: { include: { product: true } }
+        },
+        orderBy: { date: 'desc' }
+      });
+    });
+  }, { context: { action: 'getPendingDeliveries' } });
 }
 
 /**
  * Mobile Receive: Confirm PO Receipt
  */
-export async function confirmReceipt(purchaseId: string) {
-  const ctx = await requireShop();
-  await requirePermission('PRODUCT_UPDATE');
+export async function confirmReceipt(purchaseId: string): Promise<ActionResponse<null>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requireShop();
+      await requirePermission('PRODUCT_UPDATE');
 
-  const po = await db.purchase.findUnique({
-    where: { id: purchaseId, shopId: ctx.shopId },
-    include: { items: true }
-  });
+      const po = await db.purchase.findUnique({
+        where: { id: purchaseId, shopId: ctx.shopId },
+        include: { items: true }
+      });
 
-  if (!po) throw new Error('ไม่พบใบสั่งซื้อ');
-  if (po.status !== 'ORDERED') throw new Error('ใบสั่งซื้อไม่ได้อยู่ในสถานะรอรับของ');
+      if (!po) throw new Error('ไม่พบใบสั่งซื้อ');
+      if (po.status !== 'ORDERED') throw new Error('ใบสั่งซื้อไม่ได้อยู่ในสถานะรอรับของ');
 
-  const defaultWh = await WarehouseService.getDefaultWarehouse(ctx as any);
-  if (!defaultWh) throw new Error('ไม่พบคลังสินค้าหลัก');
+      const defaultWh = await WarehouseService.getDefaultWarehouse(ctx as any);
+      if (!defaultWh) throw new Error('ไม่พบคลังสินค้าหลัก');
 
-  await db.$transaction(async (tx) => {
-    // 1. Update PO Status
-    await tx.purchase.update({
-      where: { id: purchaseId },
-      data: { status: 'RECEIVED' }
+      await db.$transaction(async (tx) => {
+        await tx.purchase.update({
+          where: { id: purchaseId },
+          data: { status: 'RECEIVED' }
+        });
+
+        for (const item of po.items) {
+          await WarehouseService.adjustWarehouseStock(ctx as any, {
+            warehouseId: defaultWh.id,
+            productId: item.productId,
+            delta: item.quantity
+          }, tx);
+        }
+      });
+
+      revalidatePath('/inventory/purchases');
+      return null;
     });
-
-    // 2. Add stock for each item
-    for (const item of po.items) {
-      await WarehouseService.adjustWarehouseStock(ctx as any, {
-        warehouseId: defaultWh.id,
-        productId: item.productId,
-        delta: item.quantity
-      }, tx);
-    }
-  });
-
-  revalidatePath('/inventory/purchases');
-  return { success: true };
+  }, { context: { action: 'confirmReceipt' } });
 }

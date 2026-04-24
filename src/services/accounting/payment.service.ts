@@ -3,7 +3,7 @@ import { RequestContext, ServiceError } from '@/types/domain';
 import { AuditService } from '@/services/core/system/audit.service';
 import { toNumber, money } from '@/lib/money';
 import { Security } from '@/services/core/iam/security.service';
-import { type Permission } from '@prisma/client';
+import { Permission } from '@prisma/client';
 import { WhtService } from '@/services/tax/wht.service';
 import { SequenceService } from '@/services/core/system/sequence.service';
 import { PostingService } from '@/services/accounting/posting-engine.service';
@@ -36,7 +36,7 @@ export const PaymentService = {
      * Atomic operation that updates the parent document's financial snapshots.
      */
     async recordPayment(data: PaymentInput, ctx: RequestContext) {
-        Security.require(ctx, 'INVOICE_CREATE' as any); // Logic: recording payment is usually part of billing
+        Security.require(ctx, Permission.INVOICE_CREATE); // Recording payment is part of billing flow
 
         // 1. Validation: Parent XOR Check (exactly one parent)
         const parents = [data.invoiceId, data.saleId, data.purchaseId, data.expenseId].filter(Boolean);
@@ -170,7 +170,7 @@ export const PaymentService = {
      * Updates balance to reflect the removal of this payment.
      */
     async voidPayment(paymentId: string, ctx: RequestContext) {
-        Security.require(ctx, 'FINANCE_PAYMENT_VOID' as any);
+        Security.require(ctx, Permission.FINANCE_PAYMENT_VOID);
         const existing = await (db as any).payment.findFirst({
             where: { id: paymentId, shopId: ctx.shopId },
         });
@@ -327,7 +327,7 @@ export const PaymentService = {
      * Get payment history for a specific document.
      */
     async getPaymentHistory(target: { invoiceId?: string; saleId?: string }, ctx: RequestContext) {
-        Security.requireAny(ctx, ['INVOICE_VIEW', 'FINANCE_VIEW_LEDGER'] as any[]);
+        Security.requireAny(ctx, [Permission.INVOICE_VIEW, Permission.FINANCE_VIEW_LEDGER]);
         const where = {
             shopId: ctx.shopId,
             ...(target.invoiceId ? { invoiceId: target.invoiceId } : { saleId: target.saleId }),

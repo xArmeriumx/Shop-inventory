@@ -63,7 +63,7 @@ export function FinancialTimeline({
             if (result.success) {
                 toast.success('ยกเลิกรายการชำระเงินสำเร็จ');
             } else {
-                toast.error(result.error);
+                toast.error(result.message || 'เกิดข้อผิดพลาดในการยกเลิกรายการ');
             }
         } catch (error) {
             toast.error('เกิดข้อผิดพลาดในการเชื่อมต่อ');

@@ -52,10 +52,10 @@ export async function uploadToStorage(
   file: File,
   bucket: string,
   folder: string
-): Promise<{ url: string; path: string } | { error: string }> {
+): Promise<{ url: string; path: string } | { error: string; message: string }> {
   try {
     const client = getSupabaseBrowser();
-    
+
     // Generate unique filename
     const timestamp = Date.now();
     const random = Math.random().toString(36).substring(2, 8);
@@ -72,7 +72,7 @@ export async function uploadToStorage(
 
     if (error) {
       console.error('Supabase upload error:', error);
-      return { error: error.message };
+      return { error: error.message, message: error.message };
     }
 
     // Get public URL
@@ -86,7 +86,8 @@ export async function uploadToStorage(
     };
   } catch (err) {
     console.error('Upload error:', err);
-    return { error: err instanceof Error ? err.message : 'Upload failed' };
+    const errMsg = err instanceof Error ? err.message : 'Upload failed';
+    return { error: errMsg, message: errMsg };
   }
 }
 

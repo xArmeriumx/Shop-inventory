@@ -29,12 +29,23 @@ async function ProductsContent({ searchParams }: ProductsPageProps) {
   const search = params.search || '';
   const category = params.category || '';
 
-  const { data: products, pagination } = await getProducts({ page, search, category });
+  const result = await getProducts({ page, search, category });
+
+  if (!result.success || !result.data) {
+    return (
+      <div className="p-4 border border-red-200 bg-red-50 rounded-md text-red-600 flex items-center gap-2">
+        <AlertTriangle className="h-4 w-4" />
+        ไม่สามารถโหลดข้อมูลสินค้าได้: {result.success === false ? result.message : 'Unknown error'}
+      </div>
+    );
+  }
+
+  const { data: products, pagination } = result.data;
 
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <StartStockTakeButton productIds={products.map(p => p.id)} />
+        <StartStockTakeButton productIds={(products as any[]).map((p: any) => p.id)} />
       </div>
       <ProductsToolbar search={search} category={category} />
       <ProductsTable products={products} pagination={pagination} />

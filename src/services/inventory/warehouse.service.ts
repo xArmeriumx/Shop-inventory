@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { RequestContext, ServiceError } from '@/types/domain';
 import { Security } from '@/services/core/iam/security.service';
+import { Permission } from '@prisma/client';
 
 /**
  * WarehouseService — Manage physical storage locations
@@ -28,7 +29,7 @@ export const WarehouseService = {
         address?: string;
         isDefault?: boolean;
     }) {
-        Security.requirePermission(ctx, 'PRODUCT_UPDATE' as any); // Or a specific warehouse perm
+        Security.requirePermission(ctx, Permission.WAREHOUSE_MANAGE);
 
         // Check for duplicate code
         const existing = await (db as any).warehouse.findFirst({

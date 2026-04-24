@@ -4,8 +4,11 @@ import { revalidatePath } from 'next/cache';
 import { requirePermission } from '@/lib/auth-guard';
 import { z } from 'zod';
 import { ReturnService } from '@/services';
-import type { ActionResponse } from '@/types/domain';
+import { ActionResponse } from '@/types/common';
 import { handleActionError } from '@/lib/error-handler';
+
+import { PerformanceCollector } from '@/lib/debug/measurement';
+import { handleAction } from '@/lib/action-handler';
 
 // =============================================================================
 // G3: Partial Returns (คืนสินค้าบางส่วน)
@@ -32,37 +35,33 @@ type CreateReturnInput = z.infer<typeof createReturnSchema>;
 /**
  * ดูรายการสินค้าที่คืนได้จากบิลขาย
  */
-export async function getReturnableSaleItems(saleId: string) {
-  const ctx = await requirePermission('RETURN_CREATE');
-  return ReturnService.getReturnableSaleItems(saleId, ctx);
+export async function getReturnableSaleItems(saleId: string): Promise<ActionResponse<any>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('RETURN_CREATE' as any);
+      return ReturnService.getReturnableSaleItems(saleId, ctx);
+    }, 'returns:getReturnableSaleItems');
+  }, { context: { action: 'getReturnableSaleItems', saleId } });
 }
 
 /**
  * สร้างรายการคืนสินค้า
  */
-export async function createReturn(input: CreateReturnInput): Promise<ActionResponse> {
-  const ctx = await requirePermission('RETURN_CREATE');
+export async function createReturn(input: CreateReturnInput): Promise<ActionResponse<any>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('RETURN_CREATE');
+      const data = createReturnSchema.parse(input);
+      const result = await ReturnService.create(data, ctx);
 
-  try {
-    const data = createReturnSchema.parse(input);
-    const result = await ReturnService.create(data, ctx);
+      revalidatePath('/sales');
+      revalidatePath(`/sales/${data.saleId}`);
+      revalidatePath('/returns');
+      revalidatePath('/dashboard');
 
-    revalidatePath('/sales');
-    revalidatePath(`/sales/${data.saleId}`);
-    revalidatePath('/returns');
-    revalidatePath('/dashboard');
-
-    return {
-      success: true,
-      message: `บันทึกการคืนสินค้า ${result.returnNumber} สำเร็จ (คืนเงิน ${result.refundAmount} บาท)`,
-      data: result,
-    };
-  } catch (error: unknown) {
-    if (error instanceof z.ZodError) {
-      return { success: false, message: error.errors[0].message };
-    }
-    return handleActionError(error, 'เกิดข้อผิดพลาดในการบันทึกการคืนสินค้า', { path: 'createReturn', userId: ctx.userId });
-  }
+      return result;
+    });
+  }, { context: { action: 'createReturn', saleId: input.saleId } });
 }
 
 /**
@@ -72,15 +71,23 @@ export async function getReturns(options?: {
   page?: number;
   limit?: number;
   search?: string;
-}) {
-  const ctx = await requirePermission('RETURN_VIEW');
-  return ReturnService.getList(options || {}, ctx);
+}): Promise<ActionResponse<any>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('RETURN_VIEW' as any);
+      return ReturnService.getList(options || {}, ctx);
+    }, 'returns:getReturns');
+  }, { context: { action: 'getReturns' } });
 }
 
 /**
  * ดูรายละเอียดการคืนสินค้า
  */
-export async function getReturnById(returnId: string) {
-  const ctx = await requirePermission('RETURN_VIEW');
-  return ReturnService.getById(returnId, ctx);
+export async function getReturnById(returnId: string): Promise<ActionResponse<any>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('RETURN_VIEW' as any);
+      return ReturnService.getById(returnId, ctx);
+    }, 'returns:getReturnById');
+  }, { context: { action: 'getReturnById', returnId } });
 }

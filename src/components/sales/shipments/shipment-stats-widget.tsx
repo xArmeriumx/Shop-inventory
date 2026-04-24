@@ -21,7 +21,13 @@ export function ShipmentStatsWidget() {
 
   useEffect(() => {
     getShipmentStats()
-      .then((data) => setStats(data))
+      .then((result) => {
+        if (result.success) {
+          setStats(result.data);
+        } else {
+          setStats(null);
+        }
+      })
       .catch(() => setStats(null));
   }, []);
 

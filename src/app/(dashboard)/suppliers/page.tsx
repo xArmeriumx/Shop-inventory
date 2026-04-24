@@ -14,7 +14,17 @@ async function SuppliersContent({ searchParams }: PageProps) {
   const page = Number(searchParams.page) || 1;
   const search = searchParams.search || '';
   const view = searchParams.view || 'grid';
-  const { data: suppliers, pagination } = await getSuppliers({ page, search, limit: 20 });
+  const result = await getSuppliers({ page, search, limit: 20 });
+
+  if (!result.success || !result.data) {
+    return (
+      <div className="space-y-6 text-center py-20">
+        <p className="text-muted-foreground">ไม่พบข้อมูลผู้จำหน่าย</p>
+      </div>
+    );
+  }
+
+  const { data: suppliers, pagination } = result.data;
 
   return (
     <div className="space-y-6">

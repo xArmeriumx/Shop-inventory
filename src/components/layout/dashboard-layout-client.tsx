@@ -30,7 +30,7 @@ export function DashboardLayoutClient({ children, user }: ClientLayoutProps) {
     <PermissionProvider>
       <div className="flex h-screen overflow-hidden">
         {/* Desktop Sidebar */}
-        <div className="hidden lg:block h-full">
+        <div className="hidden lg:block h-full border-r">
           <SafeBoundary variant="compact" componentName="Sidebar:Desktop">
             <Sidebar />
           </SafeBoundary>
@@ -46,9 +46,9 @@ export function DashboardLayoutClient({ children, user }: ClientLayoutProps) {
             />
 
             {/* Drawer */}
-            <div className="relative flex h-full w-72 flex-col bg-background shadow-xl border-r transition-transform animate-in slide-in-from-left duration-300">
+            <div className="relative flex h-full w-72 flex-col bg-background shadow-xl transition-transform animate-in slide-in-from-left duration-300">
               <SafeBoundary variant="compact" componentName="Sidebar:Mobile">
-                <Sidebar onClose={() => setIsMobileOpen(false)} />
+                <Sidebar className="w-full" onClose={() => setIsMobileOpen(false)} />
               </SafeBoundary>
             </div>
           </div>

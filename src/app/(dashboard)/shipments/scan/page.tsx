@@ -6,14 +6,14 @@ export const metadata = {
 };
 
 export default async function ScanShipmentPage() {
-  const sales = await getSalesWithoutShipment();
+  const result = await getSalesWithoutShipment();
 
-  const availableSales = sales.map((s) => ({
+  const availableSales = result.success ? result.data.map((s: any) => ({
     id: s.id,
     invoiceNumber: s.invoiceNumber,
     customerName: s.customer?.name || s.customerName || null,
     totalAmount: s.totalAmount,
-  }));
+  })) : [];
 
   return <ShipmentScanner availableSales={availableSales} />;
 }

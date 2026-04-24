@@ -6,6 +6,8 @@ import { requireAuth, requirePermission } from '@/lib/auth-guard';
 import { logger } from '@/lib/logger';
 import { LookupTypeCode } from '@prisma/client';
 import { LookupService, ServiceError } from '@/services';
+import { handleAction, type ActionResponse } from '@/lib/action-handler';
+import { PerformanceCollector } from '@/lib/debug/measurement';
 
 // ==================== Schemas ====================
 
@@ -23,26 +25,36 @@ const updateLookupValueSchema = z.object({
 
 // ==================== Types ====================
 
-export type LookupValueState = {
-  success?: boolean;
-  error?: string;
-  fieldErrors?: Record<string, string[]>;
-};
+// Removed LookupValueState as we use standard ActionResponse<T>
 
 // ==================== Read Operations ====================
 
-export async function getLookupTypes() {
-  return LookupService.getLookupTypes();
+// ==================== Read Operations ====================
+
+export async function getLookupTypes(): Promise<ActionResponse<any[]>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      return LookupService.getLookupTypes();
+    }, 'lookups:getLookupTypes');
+  }, { context: { action: 'getLookupTypes' } });
 }
 
-export async function getLookupValues(typeCode: LookupTypeCode) {
-  const ctx = await requireAuth();
-  return LookupService.getLookupValues(typeCode, ctx as unknown as import('@/types/domain').RequestContext);
+export async function getLookupValues(typeCode: LookupTypeCode): Promise<ActionResponse<any[]>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requireAuth();
+      return LookupService.getLookupValues(typeCode, ctx as unknown as import('@/types/domain').RequestContext);
+    }, 'lookups:getLookupValues');
+  }, { context: { action: 'getLookupValues', typeCode } });
 }
 
-export async function getLookupValuesForSettings(typeCode: LookupTypeCode) {
-  const ctx = await requirePermission('SETTINGS_SHOP');
-  return LookupService.getLookupValuesForSettings(typeCode, ctx);
+export async function getLookupValuesForSettings(typeCode: LookupTypeCode): Promise<ActionResponse<any[]>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('SETTINGS_SHOP' as any);
+      return LookupService.getLookupValuesForSettings(typeCode, ctx);
+    }, 'lookups:getLookupValuesForSettings');
+  }, { context: { action: 'getLookupValuesForSettings', typeCode } });
 }
 
 // ==================== Quick Add (for inline dropdowns) ====================
@@ -50,108 +62,86 @@ export async function getLookupValuesForSettings(typeCode: LookupTypeCode) {
 export async function quickAddCategory(
   typeCode: LookupTypeCode,
   name: string
-): Promise<{ success: boolean; data?: { id: string; name: string }; error?: string }> {
-  const ctx = await requireAuth();
-  
-  try {
-    const created = await LookupService.quickAddCategory(typeCode, name, ctx as unknown as import('@/types/domain').RequestContext);
-    return { success: true, data: { id: created.id, name: created.name } };
-  } catch (error: unknown) {
-    if (error instanceof ServiceError) return { success: false, error: error.message };
-    const typedError = error as Error;
-    await logger.error('Quick add category error', typedError, { path: 'quickAddCategory', typeCode });
-    return { success: false, error: 'เกิดข้อผิดพลาดในการบันทึก' };
-  }
+): Promise<ActionResponse<{ id: string; name: string }>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requireAuth();
+      const created = await LookupService.quickAddCategory(
+        typeCode,
+        name,
+        ctx as unknown as import('@/types/domain').RequestContext
+      );
+      return { id: created.id, name: created.name };
+    }, 'lookups:quickAddCategory');
+  }, { context: { action: 'quickAddCategory', typeCode } });
 }
 
 // ==================== Write Operations ====================
 
 export async function createLookupValue(
   typeCode: LookupTypeCode,
-  prevState: LookupValueState,
+  prevState: any,
   formData: FormData
-): Promise<LookupValueState> {
-  const ctx = await requirePermission('SETTINGS_SHOP');
+): Promise<ActionResponse<null>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('SETTINGS_SHOP');
 
-  const rawData = {
-    name: formData.get('name') as string,
-    color: formData.get('color') as string || undefined,
-    icon: formData.get('icon') as string || undefined,
-  };
+      const rawData = {
+        name: formData.get('name') as string,
+        color: formData.get('color') as string || undefined,
+        icon: formData.get('icon') as string || undefined,
+      };
 
-  const validated = createLookupValueSchema.safeParse(rawData);
-  if (!validated.success) {
-    return { error: 'ข้อมูลไม่ถูกต้อง', fieldErrors: validated.error.flatten().fieldErrors };
-  }
-
-  try {
-    await LookupService.createLookupValue(typeCode, validated.data, ctx);
-    revalidatePath('/settings');
-    return { success: true };
-  } catch (error: unknown) {
-    if (error instanceof ServiceError) return { error: error.message };
-    const typedError = error as Error;
-    await logger.error('Create lookup value error', typedError, { path: 'createLookupValue', typeCode });
-    return { error: 'เกิดข้อผิดพลาดในการบันทึก' };
-  }
+      const validated = createLookupValueSchema.parse(rawData);
+      await LookupService.createLookupValue(typeCode, validated, ctx);
+      revalidatePath('/settings');
+      return null;
+    }, 'lookups:createLookupValue');
+  }, { context: { action: 'createLookupValue', typeCode } });
 }
 
 export async function updateLookupValue(
   id: string,
-  prevState: LookupValueState,
+  prevState: any,
   formData: FormData
-): Promise<LookupValueState> {
-  const ctx = await requirePermission('SETTINGS_SHOP');
+): Promise<ActionResponse<null>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('SETTINGS_SHOP');
 
-  const rawData = {
-    name: formData.get('name') as string || undefined,
-    color: formData.get('color') as string || undefined,
-    icon: formData.get('icon') as string || undefined,
-  };
+      const rawData = {
+        name: formData.get('name') as string || undefined,
+        color: formData.get('color') as string || undefined,
+        icon: formData.get('icon') as string || undefined,
+      };
 
-  const validated = updateLookupValueSchema.safeParse(rawData);
-  if (!validated.success) {
-    return { error: 'ข้อมูลไม่ถูกต้อง', fieldErrors: validated.error.flatten().fieldErrors };
-  }
-
-  try {
-    await LookupService.updateLookupValue(id, validated.data, ctx);
-    revalidatePath('/settings');
-    return { success: true };
-  } catch (error: unknown) {
-    if (error instanceof ServiceError) return { error: error.message };
-    const typedError = error as Error;
-    await logger.error('Update lookup value error', typedError, { path: 'updateLookupValue', lookupId: id });
-    return { error: 'เกิดข้อผิดพลาดในการบันทึก' };
-  }
+      const validated = updateLookupValueSchema.parse(rawData);
+      await LookupService.updateLookupValue(id, validated, ctx);
+      revalidatePath('/settings');
+      return null;
+    }, 'lookups:updateLookupValue');
+  }, { context: { action: 'updateLookupValue', id } });
 }
 
-export async function deleteLookupValue(id: string): Promise<LookupValueState> {
-  const ctx = await requirePermission('SETTINGS_SHOP');
-
-  try {
-    await LookupService.deleteLookupValue(id, ctx);
-    revalidatePath('/settings');
-    return { success: true };
-  } catch (error: unknown) {
-    if (error instanceof ServiceError) return { error: error.message };
-    const typedError = error as Error;
-    await logger.error('Delete lookup value error', typedError, { path: 'deleteLookupValue', lookupId: id });
-    return { error: 'เกิดข้อผิดพลาดในการลบ' };
-  }
+export async function deleteLookupValue(id: string): Promise<ActionResponse<null>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('SETTINGS_SHOP');
+      await LookupService.deleteLookupValue(id, ctx);
+      revalidatePath('/settings');
+      return null;
+    }, 'lookups:deleteLookupValue');
+  }, { context: { action: 'deleteLookupValue', id } });
 }
 
-export async function seedDefaultLookupValues() {
-  const ctx = await requirePermission('SETTINGS_SHOP');
-
-  try {
-    await LookupService.seedDefaultLookupValues(ctx);
-    revalidatePath('/settings');
-    return { success: true };
-  } catch (error: unknown) {
-    if (error instanceof ServiceError) return { error: error.message };
-    const typedError = error as Error;
-    await logger.error('Seed default values error', typedError, { path: 'seedDefaultLookupValues' });
-    return { error: 'เกิดข้อผิดพลาด' };
-  }
+export async function seedDefaultLookupValues(): Promise<ActionResponse<null>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('SETTINGS_SHOP' as any);
+      await LookupService.seedDefaultLookupValues(ctx);
+      revalidatePath('/settings');
+      return null;
+    }, 'lookups:seedDefaultLookupValues');
+  }, { context: { action: 'seedDefaultLookupValues' } });
 }

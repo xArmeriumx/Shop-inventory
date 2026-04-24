@@ -10,17 +10,13 @@ interface EditCustomerPageProps {
 }
 
 export default async function EditCustomerPage({ params }: EditCustomerPageProps) {
-  let customer;
+  const result = await getCustomer(params.id);
 
-  try {
-    customer = await getCustomer(params.id);
-  } catch (error) {
+  if (!result.success || !result.data) {
     notFound();
   }
 
-  if (!customer) {
-    notFound();
-  }
+  const customer = result.data;
 
   return (
     <div className="space-y-6">

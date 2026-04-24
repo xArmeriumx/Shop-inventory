@@ -28,15 +28,17 @@ export function ShipmentsToolbar({ defaultSearch, defaultStatus }: ShipmentsTool
   >([]);
 
   const handleOpenScan = async () => {
-    try {
-      const sales = await getSalesWithoutShipment();
-      setAvailableSales(sales.map((s) => ({
+    const result = await getSalesWithoutShipment();
+    if (result.success) {
+      setAvailableSales(result.data.map((s: any) => ({
         id: s.id,
         invoiceNumber: s.invoiceNumber,
         customerName: s.customer?.name || s.customerName || null,
         totalAmount: s.totalAmount,
       })));
-    } catch { setAvailableSales([]); }
+    } else {
+      setAvailableSales([]);
+    }
     setScanOpen(true);
   };
 

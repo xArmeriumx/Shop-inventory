@@ -25,13 +25,15 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
   const startDate = searchParams.startDate;
   const endDate = searchParams.endDate;
 
-  const { data: expenses, pagination } = await getExpenses({
+  const result = await getExpenses({
     page,
     search,
     category,
     startDate,
     endDate,
   });
+
+  const { data: expenses = [], pagination = { page: 1, limit: 10, total: 0, totalPages: 0, hasNextPage: false, hasPrevPage: false } } = result.data || {};
 
   return (
     <div>

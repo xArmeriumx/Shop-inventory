@@ -19,18 +19,15 @@ import { PAYMENT_METHODS } from '@/lib/constants';
 import { XCircle, Eye } from 'lucide-react';
 import { cancelSale } from '@/actions/sales/sales.actions';
 import { useState } from 'react';
-import { CancelDialog } from '@/components/shared/cancel-dialog';
+import { CancelDialog } from '@/components/ui/cancel-dialog';
 import { usePermissions } from '@/hooks/use-permissions';
 import { Guard } from '@/components/core/auth/guard';
 import { PaginationControl } from '@/components/ui/pagination-control';
 
-type SaleWithCustomer = SerializedSale & {
-  customer: Pick<Customer, 'name'> | null;
-  status?: string;
-};
+import type { SaleListDTO } from '@/types/dtos/sales.dto';
 
 interface SalesTableProps {
-  sales: SaleWithCustomer[];
+  sales: SaleListDTO[];
   pagination: {
     total: number;
     page: number;
@@ -44,7 +41,7 @@ interface SalesTableProps {
 export function SalesTable({ sales, pagination }: SalesTableProps) {
   const router = useRouter();
   const [cancellingId, setCancellingId] = useState<string | null>(null);
-  const [cancelDialogSale, setCancelDialogSale] = useState<SaleWithCustomer | null>(null);
+  const [cancelDialogSale, setCancelDialogSale] = useState<SaleListDTO | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
   // RBAC: Check permissions for sensitive columns and actions
@@ -128,8 +125,8 @@ export function SalesTable({ sales, pagination }: SalesTableProps) {
                     {/* Mobile: show date + customer inline */}
                     <div className="sm:hidden text-[10px] text-muted-foreground mt-0.5 font-medium">
                       {formatDate(sale.date)}
-                      {(sale.customer?.name || sale.customerName) && (
-                        <span> · {sale.customer?.name || sale.customerName}</span>
+                      {sale.customerName && (
+                        <span> · {sale.customerName}</span>
                       )}
                     </div>
                     <div className="sm:hidden mt-1">
@@ -142,7 +139,7 @@ export function SalesTable({ sales, pagination }: SalesTableProps) {
                     {formatDate(sale.date)}
                   </TableCell>
                   <TableCell className="hidden md:table-cell text-sm font-medium">
-                    {sale.customer?.name || sale.customerName || (
+                    {sale.customerName || (
                       <span className="text-muted-foreground italic">ลูกค้าทั่วไป</span>
                     )}
                   </TableCell>
@@ -152,12 +149,12 @@ export function SalesTable({ sales, pagination }: SalesTableProps) {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right font-bold text-primary">
-                    {formatCurrency(((sale as any).netAmount || sale.totalAmount).toString())}
+                    {formatCurrency(sale.netAmount.toString())}
                   </TableCell>
                   {canViewProfit && (
                     <TableCell className="text-right hidden lg:table-cell font-bold">
-                      <span className={Number(sale.profit) >= 0 ? 'text-green-600' : 'text-destructive'}>
-                        {formatCurrency(sale.profit.toString())}
+                      <span className={Number(sale.profit || 0) >= 0 ? 'text-green-600' : 'text-destructive'}>
+                        {formatCurrency((sale.profit || 0).toString())}
                       </span>
                     </TableCell>
                   )}

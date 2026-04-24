@@ -144,6 +144,12 @@ export const IamService: IIamService = {
             isDefault: input.isDefault ?? false,
           },
         });
+
+        // Invalidate all members having this role to trigger session refresh
+        await db.shopMember.updateMany({
+          where: { roleId: id },
+          data: { permissionVersion: { increment: 1 } },
+        });
       }
     );
   },
@@ -358,8 +364,8 @@ export const IamService: IIamService = {
   async getPermissionVersion(userId: string, shopId?: string) {
     // Priority 1: Unique lookup if shopId is provided (O(1))
     if (shopId) {
-      const membership = await db.shopMember.findUnique({
-        where: { userId_shopId: { userId, shopId } },
+      const membership = await db.shopMember.findFirst({
+        where: { userId, shopId },
         select: { permissionVersion: true },
       });
       return membership ? { version: membership.permissionVersion } : null;

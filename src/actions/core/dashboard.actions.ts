@@ -1,95 +1,51 @@
 "use server";
 
 import { requirePermission } from "@/lib/auth-guard";
-import { serialize } from "@/lib/utils";
 import { DashboardService } from "@/services";
-
-import { logger } from "@/lib/logger";
-import { isDynamicServerError } from "@/lib/next-utils";
+import { handleAction } from "@/lib/action-handler";
+import { PerformanceCollector } from "@/lib/debug/measurement";
 
 /**
  * Get core dashboard statistics
  * Contract: Returns a full stats object even on failure (Selective UI hardening)
  */
 export async function getDashboardStats() {
-  try {
-    const ctx = await requirePermission("SALE_VIEW");
-    const [stats, operational] = await Promise.all([
-      DashboardService.getDashboardStats(ctx),
-      DashboardService.getOperationalMetrics(ctx),
-    ]);
-    return serialize({ ...stats, operational });
-  } catch (error) {
-
-    if (!isDynamicServerError(error) && !(error instanceof Error && error.message.includes('NEXT_REDIRECT'))) {
-      console.error('[Action: getDashboardStats] Failed:', error);
-    }
-
-    // Return safe default shape for UI
-    return {
-      todaySales: { revenue: 0, salesRevenue: 0, incomeRevenue: 0, profit: 0, count: 0, incomeCount: 0 },
-      totalProducts: 0,
-      lowStockCount: 0,
-      recentSales: [],
-      lowStockProducts: [],
-      pendingPayments: { count: 0, amount: 0 },
-      pendingShipments: 0,
-      todayExpenses: { total: 0, count: 0 },
-      stockValue: { total: 0, itemCount: 0 },
-      governanceHealth: {
-        auditWriteFailures: 0,
-        permissionDeniedCount: 0,
-        rateLimitExceededCount: 0,
-        lastIncidentAt: null,
-        status: 'HEALTHY'
-      },
-      operational: {
-        sme: { pendingSales: 0, pendingProcurement: 0, pendingShipments: 0, recentStockMoves: [] },
-        advanced: { prToOrder: 0, incompleteShipments: 0, stuckDocs: 0, governanceIncidents: 0 }
-      }
-    };
-  }
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission("SALE_VIEW");
+      const [stats, operational] = await Promise.all([
+        DashboardService.getDashboardStats(ctx),
+        DashboardService.getOperationalMetrics(ctx),
+      ]);
+      return { ...stats, operational };
+    }, 'core:getDashboardStats');
+  }, {
+    context: { action: 'getDashboardStats' },
+    // Dashboard is complex, we use handleAction but we should still be safe
+  });
 }
 
 /**
  * Get monthly summary stats
  */
 export async function getMonthlyStats() {
-  try {
-    const ctx = await requirePermission("SALE_VIEW" as any);
-    const result = await DashboardService.getMonthlyStats(ctx);
-    return serialize(result);
-  } catch (error) {
-
-    if (!isDynamicServerError(error) && !(error instanceof Error && error.message.includes('NEXT_REDIRECT'))) {
-      console.error('[Action: getMonthlyStats] Failed:', error);
-    }
-
-    return {
-      revenue: 0,
-      salesRevenue: 0,
-      incomeRevenue: 0,
-      profit: 0,
-      count: 0,
-      incomeCount: 0
-    };
-  }
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission("SALE_VIEW" as any);
+      return DashboardService.getMonthlyStats(ctx);
+    }, 'core:getMonthlyStats');
+  }, { context: { action: 'getMonthlyStats' } });
 }
 
 /**
  * Get sales chart data
  */
 export async function getSalesChartData(days = 7) {
-  try {
-    const ctx = await requirePermission("SALE_VIEW" as any);
-    const result = await DashboardService.getSalesChartData(days, ctx);
-    return serialize(result);
-  } catch (error) {
-
-    if (!isDynamicServerError(error) && !(error instanceof Error && error.message.includes('NEXT_REDIRECT'))) {
-      console.error('[Action: getSalesChartData] Failed:', error);
-    }
-    return [];
-  }
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission("SALE_VIEW" as any);
+      return DashboardService.getSalesChartData(days, ctx);
+    }, 'core:getSalesChartData');
+  }, { context: { action: 'getSalesChartData', days } });
 }
 

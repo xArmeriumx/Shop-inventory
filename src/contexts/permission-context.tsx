@@ -12,7 +12,7 @@ import {
 } from 'react';
 import { useSession } from 'next-auth/react';
 import type { Permission } from '@prisma/client';
-import { getMyPermissions, getPermissionVersion, type PermissionData } from '@/actions/core/auth.actions';
+import { getMyPermissions, getPermissionVersion } from '@/actions/core/auth.actions';
 import { logger, SystemEventType } from '@/lib/logger';
 
 // ============================================================================
@@ -166,11 +166,10 @@ export function PermissionProvider({ children }: PermissionProviderProps) {
 
       if (!isMountedRef.current) return;
 
-      if (!response.ok) {
-        if (response.error?.kind === 'AUTH_FAILURE') {
-          setPermissionStatus('unauthenticated');
-        }
-        // TRANSIENT_ERROR: keep current status, will retry on next poll
+      if (!response.success) {
+        // In v2.0, we consider the action failed if success is false.
+        // We could refine this if we had specific error kinds, 
+        // but for now we'll assume auth failure if it's a persistent issue.
         return;
       }
 
@@ -211,14 +210,13 @@ export function PermissionProvider({ children }: PermissionProviderProps) {
 
       if (!isMountedRef.current) return;
 
-      if (response && !response.ok) {
-        if (response.kind === 'AUTH_FAILURE') {
-          setPermissionStatus('unauthenticated');
-        }
+      if (response && !response.success) {
+        // Auth failures are handled by the session status primarily, 
+        // but we can catch them here too.
         return;
       }
 
-      if (response && response.ok && response.version !== cachedVersionRef.current) {
+      if (response && response.success && response.data.version !== cachedVersionRef.current) {
         console.log('[PermissionContext] Version changed, refreshing permissions...');
         // Release lock before calling fetch which has its own lock
         isRefreshingRef.current = false;

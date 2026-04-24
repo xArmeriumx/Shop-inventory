@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PurchaseScannerButton } from './purchase-scanner-button';
-import { DataExportPanel } from '@/components/shared/data-export-panel';
+import { DataExportPanel } from '@/components/ui/data-export-panel';
 import { exportPurchasesData } from '@/actions/core/export.actions';
 
 /**
