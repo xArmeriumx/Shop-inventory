@@ -125,6 +125,23 @@ model Shop {
   latitude  Float? // พิกัดละติจูด
   longitude Float? // พิกัดลองจิจูด
 
+  // ==================== Onboarding & Identity (Phase OB1) ====================
+  // Genesis Wizard tracking
+  industryType          String?   // RETAIL | MANUFACTURE | FOOD | SERVICE | OTHER
+  onboardingMode        String?   // DEMO | IMPORT | EMPTY
+  genesisStep           Int       @default(1)    // Resume wizard from this step (1-5)
+  onboardingCompletedAt DateTime? // Wizard completed timestamp
+  setupCompletedAt      DateTime? // Go-Live readiness achieved (≠ wizard done)
+
+  // Financial Defaults (from Genesis Step 3)
+  defaultCurrency   String  @default("THB")
+  fiscalYearStart   Int     @default(1)    // Month number: 1 = January
+
+  // Company Signatory — required for WHT Certificates, 50ทวิ, Tax Docs
+  signatoryName     String? // ชื่อผู้มีอำนาจลงนาม
+  signatoryTitle    String? // ตำแหน่ง เช่น กรรมการผู้จัดการ
+  legalEntityName   String? // ชื่อนิติบุคคลตามเอกสาร (อาจต่างจาก shop name)
+
   // Original owner (for billing, cannot be removed)
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
@@ -191,6 +208,36 @@ model Shop {
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
   purchaseReturns PurchaseReturn[]
+
+  // Onboarding
+  onboardingProgress OnboardingProgress?
+}
+
+// ==================== Onboarding Progress (Phase OB1) ====================
+// Stores ONLY wizard draft state, tutorial progress, and dismissed UI hints.
+// "Readiness" (checklist completion) is DERIVED from real system counts — never stored here.
+model OnboardingProgress {
+  id     String @id @default(cuid())
+  shopId String @unique
+  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  // Genesis Wizard Autosave (JSON draft per step — allows resume on reconnect)
+  wizardDraft   Json?  // { step1: {...}, step2: {...}, ... }
+  wizardVersion Int    @default(1) // Bump on schema change to invalidate stale drafts
+
+  // Tutorial Progress (Track 1 only in v1)
+  tutorialTrack     Int     @default(0) // 0=not started, 1=track1, 2=track2, 3=track3
+  tutorialStep      Int     @default(0) // Step within current track
+  tutorialDismissed Boolean @default(false)
+
+  // Setup Progress UX State (user preferences only — actual readiness is computed)
+  dismissedSetupItems  String[]  // Item keys user chose to ignore (e.g. ["bank", "signatory"])
+  lastSetupViewedAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([shopId])
 }
 
 // ==================== RBAC (Role-Based Access Control) ====================
@@ -382,6 +429,8 @@ model ShopMember {
   whtEntries             WhtEntry[]
   createdPurchaseReturns PurchaseReturn[] @relation("PurchaseReturnToMember")
 
+  @@unique([userId, shopId]) // Guarantees 1:1 user-shop membership
+  @@index([userId, permissionVersion]) // Accelerates session/permission polling
   @@index([userId])
 }
 
@@ -1362,7 +1411,8 @@ model Notification {
 
   @@unique([shopId, groupKey])
   @@index([shopId, userId, isRead, createdAt])
-  @@index([shopId, createdAt])
+  @@index([shopId, isRead, createdAt(sort: Desc)]) // Optimized for dashboard unread + recent fetch
+  @@index([shopId, createdAt(sort: Desc)])
 }
 
 // ==================== ERP: Document Sequence (SSOT) ====================

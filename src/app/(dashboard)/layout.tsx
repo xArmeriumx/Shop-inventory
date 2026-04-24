@@ -1,5 +1,6 @@
 import { getSessionContext } from '@/lib/auth-guard';
 import { DashboardLayoutClient } from '@/components/layout/dashboard-layout-client';
+import { TutorialWrapper } from '@/components/onboarding/tutorial-wrapper';
 
 export default async function DashboardLayout({
   children,
@@ -10,6 +11,7 @@ export default async function DashboardLayout({
 
   return (
     <DashboardLayoutClient user={ctx ? { name: ctx.userName, email: ctx.userEmail } : undefined}>
+      <TutorialWrapper />
       {children}
     </DashboardLayoutClient>
   );

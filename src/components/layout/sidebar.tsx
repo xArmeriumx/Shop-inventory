@@ -41,6 +41,7 @@ const navItems = [
     title: 'Dashboard',
     href: '/dashboard',
     icon: LayoutDashboard,
+    id: 'sidebar-dashboard',
   },
   // --- Sales & Logistics ---
   {
@@ -54,6 +55,7 @@ const navItems = [
     href: '/sales',
     icon: ShoppingCart,
     permission: 'SALE_VIEW' as Permission,
+    id: 'sidebar-sales',
   },
   {
     title: 'จัดส่งสินค้า',
@@ -86,6 +88,7 @@ const navItems = [
     href: '/products',
     icon: Package,
     permission: 'PRODUCT_VIEW' as Permission,
+    id: 'sidebar-products',
   },
   {
     title: 'คลังสินค้า',
@@ -130,6 +133,7 @@ const navItems = [
     href: '/customers',
     icon: Users,
     permission: 'CUSTOMER_VIEW' as Permission,
+    id: 'sidebar-customers',
   },
   {
     title: 'ค่าใช้จ่าย',
@@ -165,6 +169,7 @@ const navItems = [
     title: 'AI ผู้ช่วย',
     href: '/ai',
     icon: Sparkles,
+    id: 'sidebar-ai',
   },
 ];
 
@@ -278,6 +283,7 @@ export function Sidebar({ isCollapsed = false, onToggle, onClose, className }: S
             <Link
               key={item.href}
               href={item.href}
+              id={item.id}
               className={cn(
                 'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                 isActive

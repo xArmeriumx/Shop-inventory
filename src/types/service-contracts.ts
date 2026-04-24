@@ -604,7 +604,7 @@ export interface IIamService {
   getRole(id: string, ctx: RequestContext): Promise<any>;
   getTeamMembers(ctx: RequestContext): Promise<any[]>;
   getShopTeamInfo(ctx: RequestContext): Promise<any>;
-  getPermissionVersion(userId: string): Promise<{ version: number } | null>;
+  getPermissionVersion(userId: string, shopId?: string): Promise<{ version: number } | null>;
   getMyPermissions(userId: string): Promise<any>;
   getProfile(userId: string): Promise<any>;
 

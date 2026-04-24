@@ -15,6 +15,8 @@ export * from '../services/purchases/purchases.types';
 export * from '../services/inventory/inventory.types';
 export * from '../services/accounting/accounting.types';
 export * from '../services/core/core.types';
+export * from './onboarding.types';
+
 
 // Backward compatibility for any remaining direct references
 export * from './serialized';

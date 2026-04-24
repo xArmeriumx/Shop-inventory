@@ -19,7 +19,7 @@ export async function getPermissionVersion(): Promise<PermissionVersionResponse>
     }
 
     const versionData = await QueryMetrics.measure('db:getPermissionVersion', () =>
-      IamService.getPermissionVersion(ctx.userId)
+      IamService.getPermissionVersion(ctx.userId, ctx.shopId)
     );
     return { ok: true, version: versionData?.version ?? 0 };
   } catch (error) {

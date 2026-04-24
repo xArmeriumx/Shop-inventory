@@ -4,6 +4,7 @@ import { refreshOperationalAlerts } from '@/actions/core/notifications.actions';
 import { requireAuth } from '@/lib/auth-guard';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { DashboardTemplate, DashboardSkeleton } from '@/components/core/dashboard/dashboard-template';
+import { SetupProgressCard } from '@/components/onboarding/setup-progress-card';
 
 // ─── Data Fetcher ─────────────────────────────────────────────────────────────
 
@@ -19,13 +20,20 @@ async function DashboardContent() {
   const isAdmin = ctx.permissions.includes('REPORT_VIEW_SALES' as any);
 
   return (
-    <DashboardTemplate
-      stats={stats}
-      monthlyStats={monthlyStats}
-      isAdmin={isAdmin}
-      formatCurrency={formatCurrency}
-      formatDate={formatDate}
-    />
+    <>
+      {isAdmin && (
+        <div className="mb-6">
+          <SetupProgressCard />
+        </div>
+      )}
+      <DashboardTemplate
+        stats={stats}
+        monthlyStats={monthlyStats}
+        isAdmin={isAdmin}
+        formatCurrency={formatCurrency}
+        formatDate={formatDate}
+      />
+    </>
   );
 }
 

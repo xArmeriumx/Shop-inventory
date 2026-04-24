@@ -355,10 +355,21 @@ export const IamService: IIamService = {
     );
   },
 
-  async getPermissionVersion(userId: string) {
+  async getPermissionVersion(userId: string, shopId?: string) {
+    // Priority 1: Unique lookup if shopId is provided (O(1))
+    if (shopId) {
+      const membership = await db.shopMember.findUnique({
+        where: { userId_shopId: { userId, shopId } },
+        select: { permissionVersion: true },
+      });
+      return membership ? { version: membership.permissionVersion } : null;
+    }
+
+    // Priority 2: Fallback to first membership (Index Scan)
     const membership = await db.shopMember.findFirst({
       where: { userId },
       select: { permissionVersion: true },
+      orderBy: { joinedAt: 'asc' },
     });
     return membership ? { version: membership.permissionVersion } : null;
   },
