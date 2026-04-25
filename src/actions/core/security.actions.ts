@@ -11,9 +11,20 @@ import { ServiceError } from '@/types/common';
 // SELF REVOKE — ผู้ใช้ออกจากระบบทุกอุปกรณ์
 // ============================================================================
 
-// ============================================================================
-// SELF REVOKE — ผู้ใช้ออกจากระบบทุกอุปกรณ์
-// ============================================================================
+import { changePasswordSchema } from '@/schemas/core/security.schema';
+
+export async function changePassword(input: any): Promise<ActionResponse<null>> {
+  return handleAction(async () => {
+    const ctx = await requireAuth();
+    const validated = changePasswordSchema.parse(input);
+
+    await IamService.updatePassword(ctx as any, validated);
+
+    // After password change, we usually force logout but here we just return success
+    // The service already incremented sessionVersion which will trigger re-auth
+    return null;
+  }, { context: { action: 'changePassword' } });
+}
 
 /**
  * Revoke all sessions for the current user, then sign out immediately.
@@ -21,17 +32,10 @@ import { ServiceError } from '@/types/common';
 export async function revokeAllMySessions(): Promise<ActionResponse<null>> {
   return handleAction(async () => {
     const ctx = await requireAuth();
-    // 1. Centralized session revocation via service
     await IamService.revokeSessions(ctx.userId, ctx as any);
-    // 2. Sign out current session immediately
-    await signOut({ redirect: false });
     return null;
   }, { context: { action: 'revokeAllMySessions' } });
 }
-
-// ============================================================================
-// ADMIN REVOKE MEMBER — Admin เตะ session ของ member คนอื่น
-// ============================================================================
 
 /**
  * Admin revokes all sessions for a target team member.
@@ -44,7 +48,6 @@ export async function revokeUserSessionsByAdmin(targetUserId: string): Promise<A
       throw new ServiceError('ใช้ "ออกจากระบบทุกอุปกรณ์" สำหรับตัวเองแทน');
     }
 
-    // 1. Centralized session revocation via service
     await IamService.revokeSessions(targetUserId, ctx);
     return null;
   }, { context: { action: 'revokeUserSessionsByAdmin', targetUserId } });

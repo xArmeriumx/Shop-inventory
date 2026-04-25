@@ -650,6 +650,7 @@ export interface IIamService {
   updateUserActivity(userId: string): Promise<void>;
   registerUser(data: any): Promise<any>;
   revokeSessions(targetUserId: string, ctx: RequestContext): Promise<void>;
+  updatePassword(ctx: RequestContext, input: any): Promise<void>;
 }
 
 // ============================================================================

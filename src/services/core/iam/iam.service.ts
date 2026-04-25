@@ -448,5 +448,38 @@ export const IamService: IIamService = {
         password: data.passwordHash,
       },
     });
-  }
+  },
+
+  async updatePassword(ctx: RequestContext, input: { currentPassword: string; newPassword: string }): Promise<void> {
+    const user = await db.user.findUnique({
+      where: { id: ctx.userId },
+    });
+
+    if (!user || !user.password) throw new ServiceError('ไม่พบข้อมูลผู้ใช้งาน');
+
+    const bcrypt = await import('bcryptjs');
+    const isValid = await bcrypt.compare(input.currentPassword, user.password);
+    if (!isValid) throw new ServiceError('รหัสผ่านปัจจุบันไม่ถูกต้อง');
+
+    const hashedPassword = await bcrypt.hash(input.newPassword, 12);
+
+    await AuditService.runWithAudit(
+      ctx,
+      {
+        action: 'IAM_PASSWORD_CHANGE',
+        targetType: 'User',
+        targetId: ctx.userId,
+        note: 'ผู้ใช้เปลี่ยนรหัสผ่านด้วยตนเอง',
+      },
+      async () => {
+        await db.user.update({
+          where: { id: ctx.userId },
+          data: { 
+            password: hashedPassword,
+            sessionVersion: { increment: 1 }, // Logout other devices for security
+          },
+        });
+      }
+    );
+  },
 };
