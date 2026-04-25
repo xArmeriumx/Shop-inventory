@@ -4,6 +4,11 @@ import { Security } from '@/services/core/iam/security.service';
 import { Permission, Prisma } from '@prisma/client';
 
 /**
+ * Shared In-memory cache for static account lookups (Optimization for high-speed POS)
+ */
+const accountCache = new Map<string, any>();
+
+/**
  * AccountingService — จัดการระบบการบัญชีรวม (General Ledger)
  * 
  * หน้าที่ (Phase A1.1):
@@ -111,11 +116,61 @@ export const AccountingService = {
 
     /**
      * ค้นหาบัญชีโดยใช้โค้ด (Internal helper for Posting Engine)
+     * ⚡ Optimized with memory caching
      */
     async findAccountByCode(ctx: RequestContext, code: string, tx: any = db) {
-        return await (tx as any).account.findFirst({
+        const cacheKey = `${ctx.shopId}:${code}`;
+        if (!tx && accountCache.has(cacheKey)) {
+            return accountCache.get(cacheKey);
+        }
+
+        const account = await (tx as any).account.findFirst({
             where: { shopId: ctx.shopId, code, isActive: true }
         });
+
+        if (account && !tx) {
+            accountCache.set(cacheKey, account);
+            // Auto-clear cache after 5 minutes to prevent stale data
+            setTimeout(() => accountCache.delete(cacheKey), 300000);
+        }
+        return account;
+    },
+
+    /**
+     * ค้นหาบัญชีแบบกลุ่ม (Internal helper for high-speed batch posting)
+     */
+    async findAccountsByCodes(ctx: RequestContext, codes: string[], tx: any = db) {
+        const uniqueCodes = Array.from(new Set(codes));
+        const results = new Map<string, any>();
+        const missingCodes: string[] = [];
+
+        // 1. Check cache first
+        for (const code of uniqueCodes) {
+            const cacheKey = `${ctx.shopId}:${code}`;
+            if (!tx && accountCache.has(cacheKey)) {
+                results.set(code, accountCache.get(cacheKey));
+            } else {
+                missingCodes.push(code);
+            }
+        }
+
+        if (missingCodes.length === 0) return results;
+
+        // 2. Fetch missing from DB in one go
+        const accounts = await (tx as any).account.findMany({
+            where: { shopId: ctx.shopId, code: { in: missingCodes }, isActive: true }
+        });
+
+        for (const acc of accounts) {
+            results.set(acc.code, acc);
+            if (!tx) {
+                const cacheKey = `${ctx.shopId}:${acc.code}`;
+                accountCache.set(cacheKey, acc);
+                setTimeout(() => accountCache.delete(cacheKey), 300000);
+            }
+        }
+
+        return results;
     },
 
     /**

@@ -14,11 +14,16 @@ export class PostingService {
      */
     static async previewInvoice(ctx: RequestContext, invoice: any) {
         // 1. Get required accounts using the mapping master
-        const [arAcc, salesAcc, vatAcc] = await Promise.all([
-            AccountingService.findAccountByCode(ctx, ACCOUNT_MAPPING.INVOICE_AR),
-            AccountingService.findAccountByCode(ctx, ACCOUNT_MAPPING.INVOICE_REVENUE),
-            AccountingService.findAccountByCode(ctx, ACCOUNT_MAPPING.INVOICE_VAT),
+        // ⚡ Turbo Lookups: Fetch all required accounts in ONE DB call
+        const accounts = await AccountingService.findAccountsByCodes(ctx, [
+            ACCOUNT_MAPPING.INVOICE_AR,
+            ACCOUNT_MAPPING.INVOICE_REVENUE,
+            ACCOUNT_MAPPING.INVOICE_VAT
         ]);
+
+        const arAcc = accounts.get(ACCOUNT_MAPPING.INVOICE_AR);
+        const salesAcc = accounts.get(ACCOUNT_MAPPING.INVOICE_REVENUE);
+        const vatAcc = accounts.get(ACCOUNT_MAPPING.INVOICE_VAT);
 
         if (!arAcc || !salesAcc) {
             throw new Error('ยังไม่ได้ตั้งค่าบัญชีสำหรับเหตุการณ์การขาย (Missing Invoice Account Mapping)');
@@ -71,10 +76,14 @@ export class PostingService {
     }
 
     static async previewPayment(ctx: RequestContext, payment: any) {
-        const [cashAcc, arAcc] = await Promise.all([
-            AccountingService.findAccountByCode(ctx, ACCOUNT_MAPPING.PAYMENT_CASH_BANK),
-            AccountingService.findAccountByCode(ctx, ACCOUNT_MAPPING.PAYMENT_AR_OFFSET),
+        // ⚡ Turbo Lookups
+        const accounts = await AccountingService.findAccountsByCodes(ctx, [
+            ACCOUNT_MAPPING.PAYMENT_CASH_BANK,
+            ACCOUNT_MAPPING.PAYMENT_AR_OFFSET
         ]);
+
+        const cashAcc = accounts.get(ACCOUNT_MAPPING.PAYMENT_CASH_BANK);
+        const arAcc = accounts.get(ACCOUNT_MAPPING.PAYMENT_AR_OFFSET);
 
         if (!cashAcc || !arAcc) {
             throw new Error('ยังไม่ได้ตั้งค่าบัญชีสำหรับเหตุการณ์รับชำระ (Missing Payment Account Mapping)');
@@ -175,10 +184,14 @@ export class PostingService {
         const existing = await this.checkExistingEntry(ctx, 'SALE_INVOICE', sale.id, 'COGS_POST', tx);
         if (existing) return; // Silent guard for COGS
 
-        const [cogsAcc, invAcc] = await Promise.all([
-            AccountingService.findAccountByCode(ctx, ACCOUNT_MAPPING.COGS_EXPENSE),
-            AccountingService.findAccountByCode(ctx, ACCOUNT_MAPPING.INVENTORY_ASSET),
-        ]);
+        // ⚡ Turbo Lookups
+        const accounts = await AccountingService.findAccountsByCodes(ctx, [
+            ACCOUNT_MAPPING.COGS_EXPENSE,
+            ACCOUNT_MAPPING.INVENTORY_ASSET
+        ], tx);
+
+        const cogsAcc = accounts.get(ACCOUNT_MAPPING.COGS_EXPENSE);
+        const invAcc = accounts.get(ACCOUNT_MAPPING.INVENTORY_ASSET);
 
         if (!cogsAcc || !invAcc) {
             console.warn('Skipping COGS posting: Missing account mapping for COGS/Inventory');
