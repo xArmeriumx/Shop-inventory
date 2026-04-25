@@ -1,8 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useFormState, useFormStatus } from 'react-dom';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { useState } from 'react';
+import { Plus, Pencil, Trash2, Palette } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -13,7 +12,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   AlertDialog,
@@ -24,10 +22,16 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { createLookupValue, updateLookupValue, deleteLookupValue } from '@/actions/core/lookups.actions';
+import { 
+  createLookupValue, 
+  updateLookupValue, 
+  deleteLookupValue 
+} from '@/actions/core/lookups.actions';
 import { LookupTypeCode } from '@prisma/client';
+import { runActionWithToast } from '@/lib/mutation-utils';
+import { useRouter } from 'next/navigation';
+import { useTransition } from 'react';
 
 interface LookupValue {
   id: string;
@@ -43,165 +47,196 @@ interface CategoryManagerProps {
   values: LookupValue[];
 }
 
-const initialState = {};
-
-function SubmitButton({ text = 'บันทึก' }: { text?: string }) {
-  const { pending } = useFormStatus();
-  return (
-    <Button type="submit" disabled={pending}>
-      {pending ? 'กำลังบันทึก...' : text}
-    </Button>
-  );
-}
-
-function AddCategoryDialog({ typeCode, onSuccess }: { typeCode: LookupTypeCode; onSuccess: () => void }) {
-  const [open, setOpen] = useState(false);
-  const [state, formAction] = useFormState(createLookupValue.bind(null, typeCode), { success: false } as any);
-
-  // Handle success with useEffect to avoid setState during render
-  useEffect(() => {
-    if (state.success) {
-      setOpen(false);
-      onSuccess();
-    }
-  }, [state.success, onSuccess]);
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
-          <Plus className="h-4 w-4 mr-1" />
-          เพิ่ม
-        </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>เพิ่มหมวดหมู่ใหม่</DialogTitle>
-          <DialogDescription>กรอกชื่อหมวดหมู่ที่ต้องการเพิ่ม</DialogDescription>
-        </DialogHeader>
-        <form action={formAction} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">ชื่อหมวดหมู่</Label>
-            <Input id="name" name="name" required placeholder="เช่น อาหาร, เครื่องดื่ม" />
-            {state.fieldErrors?.name && (
-              <p className="text-sm text-red-500">{state.fieldErrors.name[0]}</p>
-            )}
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="color">สี (optional)</Label>
-            <div className="flex gap-2">
-              <Input id="color" name="color" type="color" className="w-16 h-10 p-1" defaultValue="#6b7280" />
-            </div>
-          </div>
-          {state.error && (
-            <p className="text-sm text-red-500 bg-red-50 p-2 rounded">{state.error}</p>
-          )}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-              ยกเลิก
-            </Button>
-            <SubmitButton />
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-
-function DeleteCategoryDialog({
-  item,
-  onSuccess
-}: {
-  item: LookupValue;
-  onSuccess: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState(false);
-
-  const handleDelete = async () => {
-    setDeleting(true);
-    setError(null);
-    const result = await deleteLookupValue(item.id);
-    setDeleting(false);
-
-    if (!result.success) {
-      setError(result.message || 'เกิดข้อผิดพลาด');
-      return;
-    }
-    setOpen(false);
-    onSuccess();
-  };
-
-  return (
-    <AlertDialog open={open} onOpenChange={setOpen}>
-      <AlertDialogTrigger asChild>
-        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>ยืนยันการลบ</AlertDialogTitle>
-          <AlertDialogDescription>
-            ต้องการลบหมวดหมู่ &ldquo;{item.name}&rdquo; หรือไม่?
-            {error && (
-              <span className="block mt-2 text-red-500">{error}</span>
-            )}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={deleting}>ยกเลิก</AlertDialogCancel>
-          <AlertDialogAction onClick={handleDelete} disabled={deleting} className="bg-destructive hover:bg-destructive/90">
-            {deleting ? 'กำลังลบ...' : 'ลบ'}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
-}
-
 export function CategoryManager({ title, typeCode, values }: CategoryManagerProps) {
-  const [refreshKey, setRefreshKey] = useState(0);
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [isAddOpen, setIsAddOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<LookupValue | null>(null);
+  const [deletingItem, setDeletingItem] = useState<LookupValue | null>(null);
 
-  const handleRefresh = () => {
-    setRefreshKey((k) => k + 1);
-    // Force revalidation - the page will refresh from server
-    window.location.reload();
+  // Form State for Add/Edit
+  const [formData, setFormData] = useState({ name: '', color: '#6b7280' });
+
+  const handleOpenAdd = () => {
+    setFormData({ name: '', color: '#6b7280' });
+    setIsAddOpen(true);
+  };
+
+  const handleOpenEdit = (item: LookupValue) => {
+    setFormData({ name: item.name, color: item.color || '#6b7280' });
+    setEditingItem(item);
+  };
+
+  const handleSave = () => {
+    startTransition(async () => {
+      const action = editingItem 
+        ? updateLookupValue(editingItem.id, formData)
+        : createLookupValue(typeCode, formData);
+
+      await runActionWithToast(action, {
+        successMessage: editingItem ? 'แก้ไขหมวดหมู่เรียบร้อยแล้ว' : 'เพิ่มหมวดหมู่เรียบร้อยแล้ว',
+        onSuccess: () => {
+          setIsAddOpen(false);
+          setEditingItem(null);
+          router.refresh();
+        }
+      });
+    });
+  };
+
+  const handleDelete = () => {
+    if (!deletingItem) return;
+    startTransition(async () => {
+      await runActionWithToast(deleteLookupValue(deletingItem.id), {
+        successMessage: 'ลบหมวดหมู่เรียบร้อยแล้ว',
+        onSuccess: () => {
+          setDeletingItem(null);
+          router.refresh();
+        }
+      });
+    });
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="font-medium">{title}</h3>
-        <AddCategoryDialog typeCode={typeCode} onSuccess={handleRefresh} />
+        <h3 className="text-sm font-semibold text-muted-foreground">{title}</h3>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="h-8 border-dashed"
+          onClick={handleOpenAdd}
+        >
+          <Plus className="h-4 w-4 mr-1" />
+          เพิ่มหมวดหมู่
+        </Button>
       </div>
 
       {values.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-4 text-center">
-          ยังไม่มีข้อมูล กดปุ่ม &ldquo;เพิ่ม&rdquo; เพื่อสร้างหมวดหมู่
-        </p>
+        <div className="text-center py-8 border rounded-xl border-dashed bg-muted/5">
+          <p className="text-sm text-muted-foreground">ยังไม่มีข้อมูล กดปุ่ม &ldquo;เพิ่ม&rdquo; เพื่อเริ่มจัดการ</p>
+        </div>
       ) : (
-        <div className="border rounded-lg divide-y">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {values.map((item) => (
-            <div key={item.id} className="flex items-center justify-between px-4 py-2">
-              <span className="flex items-center gap-2">
-                {item.color && (
-                  <span
-                    className="h-3 w-3 rounded-full shrink-0"
-                    style={{ backgroundColor: item.color }}
-                  />
+            <div 
+              key={item.id} 
+              className="group flex items-center justify-between p-3 rounded-xl border bg-card hover:border-primary/30 hover:shadow-sm transition-all"
+            >
+              <div className="flex items-center gap-3">
+                <div 
+                  className="h-3 w-3 rounded-full flex-shrink-0 shadow-inner"
+                  style={{ backgroundColor: item.color || '#6b7280' }}
+                />
+                <span className="text-sm font-medium">{item.name}</span>
+                {item.isSystem && (
+                  <span className="text-[9px] uppercase tracking-tighter bg-muted px-1.5 py-0.5 rounded text-muted-foreground">System</span>
                 )}
-                <span className="text-sm">{item.name}</span>
-              </span>
+              </div>
+              
               {!item.isSystem && (
-                <DeleteCategoryDialog item={item} onSuccess={handleRefresh} />
+                <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-8 w-8 text-muted-foreground hover:text-primary"
+                    onClick={() => handleOpenEdit(item)}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                    onClick={() => setDeletingItem(item)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
               )}
             </div>
           ))}
         </div>
       )}
+
+      {/* Add/Edit Modal */}
+      <Dialog 
+        open={isAddOpen || !!editingItem} 
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsAddOpen(false);
+            setEditingItem(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>{editingItem ? 'แก้ไขหมวดหมู่' : 'เพิ่มหมวดหมู่ใหม่'}</DialogTitle>
+            <DialogDescription>
+              กำหนดชื่อและสีที่ต้องการใช้แสดงผลในรายงานและหน้าขาย
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">ชื่อหมวดหมู่</Label>
+              <Input 
+                id="name" 
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="เช่น สินค้าโปรโมชั่น, อาหารสด"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="color" className="flex items-center gap-2">
+                <Palette className="h-4 w-4" />
+                สีประจำหมวดหมู่
+              </Label>
+              <div className="flex items-center gap-3">
+                <Input 
+                  id="color" 
+                  type="color" 
+                  className="w-16 h-10 p-1 rounded-lg cursor-pointer"
+                  value={formData.color}
+                  onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                />
+                <span className="text-xs text-muted-foreground font-mono">{formData.color}</span>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => { setIsAddOpen(false); setEditingItem(null); }}>ยกเลิก</Button>
+            <Button onClick={handleSave} disabled={isPending || !formData.name}>
+              {isPending ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deletingItem} onOpenChange={(open) => !open && setDeletingItem(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>ยืนยันการลบหมวดหมู่</AlertDialogTitle>
+            <AlertDialogDescription>
+              คุณต้องการลบหมวดหมู่ &ldquo;{deletingItem?.name}&rdquo; ใช่หรือไม่? 
+              <br />
+              <span className="text-destructive font-semibold text-xs text-balance">
+                การกระทำนี้ไม่สามารถย้อนกลับได้ และจะไม่สามารถลบได้หากยังมีสินค้าหรือรายการบัญชีอ้างอิงอยู่
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isPending}>ยกเลิก</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={(e) => { e.preventDefault(); handleDelete(); }} 
+              disabled={isPending}
+              className="bg-destructive hover:bg-destructive/90 text-white"
+            >
+              {isPending ? 'กำลังลบ...' : 'ลบข้อมูล'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

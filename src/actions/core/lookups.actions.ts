@@ -1,33 +1,14 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { z } from 'zod';
 import { requireAuth, requirePermission } from '@/lib/auth-guard';
 import { logger } from '@/lib/logger';
 import { LookupTypeCode } from '@prisma/client';
-import { LookupService, ServiceError } from '@/services';
+import { LookupService } from '@/services';
 import { handleAction, type ActionResponse } from '@/lib/action-handler';
 import { PerformanceCollector } from '@/lib/debug/measurement';
-
-// ==================== Schemas ====================
-
-const createLookupValueSchema = z.object({
-  name: z.string().min(1, 'กรุณาระบุชื่อ'),
-  color: z.string().optional(),
-  icon: z.string().optional(),
-});
-
-const updateLookupValueSchema = z.object({
-  name: z.string().min(1, 'กรุณาระบุชื่อ').optional(),
-  color: z.string().optional(),
-  icon: z.string().optional(),
-});
-
-// ==================== Types ====================
-
-// Removed LookupValueState as we use standard ActionResponse<T>
-
-// ==================== Read Operations ====================
+import { lookupValueSchema } from '@/schemas/core/lookup.schema';
+import { AuditService } from '@/services/core/system/audit.service';
 
 // ==================== Read Operations ====================
 
@@ -43,7 +24,7 @@ export async function getLookupValues(typeCode: LookupTypeCode): Promise<ActionR
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
       const ctx = await requireAuth();
-      return LookupService.getLookupValues(typeCode, ctx as unknown as import('@/types/domain').RequestContext);
+      return LookupService.getLookupValues(typeCode, ctx as any);
     }, 'lookups:getLookupValues');
   }, { context: { action: 'getLookupValues', typeCode } });
 }
@@ -64,84 +45,112 @@ export async function quickAddCategory(
   name: string
 ): Promise<ActionResponse<{ id: string; name: string }>> {
   return handleAction(async () => {
-    return PerformanceCollector.run(async () => {
-      const ctx = await requireAuth();
-      const created = await LookupService.quickAddCategory(
-        typeCode,
-        name,
-        ctx as unknown as import('@/types/domain').RequestContext
-      );
-      return { id: created.id, name: created.name };
-    }, 'lookups:quickAddCategory');
+    // FIX: Tighten permission for quick add to prevent data pollution
+    const ctx = await requirePermission('SETTINGS_SHOP' as any);
+    
+    const created = await LookupService.quickAddCategory(typeCode, name, ctx);
+    
+    // Audit
+    AuditService.record({
+        action: 'QUICK_ADD_CATEGORY',
+        targetType: 'LookupValue',
+        targetId: created.id,
+        note: `Quick added category: ${name} (${typeCode})`,
+        after: created,
+        actorId: ctx.userId,
+        shopId: ctx.shopId
+    }).catch(err => logger.error('[Audit] QUICK_ADD_CATEGORY failed', err));
+
+    return { id: created.id, name: created.name };
   }, { context: { action: 'quickAddCategory', typeCode } });
 }
 
-// ==================== Write Operations ====================
+// ==================== Write Operations (Modern Pattern) ====================
 
 export async function createLookupValue(
   typeCode: LookupTypeCode,
-  prevState: any,
-  formData: FormData
-): Promise<ActionResponse<null>> {
+  input: any
+): Promise<ActionResponse<any>> {
   return handleAction(async () => {
-    return PerformanceCollector.run(async () => {
-      const ctx = await requirePermission('SETTINGS_SHOP');
+    const ctx = await requirePermission('SETTINGS_SHOP' as any);
+    const validated = lookupValueSchema.parse(input);
+    
+    const result = await LookupService.createLookupValue(typeCode, validated, ctx);
 
-      const rawData = {
-        name: formData.get('name') as string,
-        color: formData.get('color') as string || undefined,
-        icon: formData.get('icon') as string || undefined,
-      };
+    // Audit
+    AuditService.record({
+        action: 'CREATE_LOOKUP',
+        targetType: 'LookupValue',
+        targetId: result.id,
+        note: `Created lookup: ${result.name} (${typeCode})`,
+        after: result,
+        actorId: ctx.userId,
+        shopId: ctx.shopId
+    }).catch(err => logger.error('[Audit] CREATE_LOOKUP failed', err));
 
-      const validated = createLookupValueSchema.parse(rawData);
-      await LookupService.createLookupValue(typeCode, validated, ctx);
-      revalidatePath('/settings');
-      return null;
-    }, 'lookups:createLookupValue');
-  }, { context: { action: 'createLookupValue', typeCode } });
+    revalidatePath('/settings/categories');
+    return result;
+  }, { context: { action: 'createLookup', typeCode } });
 }
 
 export async function updateLookupValue(
   id: string,
-  prevState: any,
-  formData: FormData
-): Promise<ActionResponse<null>> {
+  input: any
+): Promise<ActionResponse<any>> {
   return handleAction(async () => {
-    return PerformanceCollector.run(async () => {
-      const ctx = await requirePermission('SETTINGS_SHOP');
+    const ctx = await requirePermission('SETTINGS_SHOP' as any);
+    
+    const before = await LookupService.getLookupValueById(id, ctx);
+    const validated = lookupValueSchema.partial().parse(input);
+    
+    const result = await LookupService.updateLookupValue(id, validated, ctx);
 
-      const rawData = {
-        name: formData.get('name') as string || undefined,
-        color: formData.get('color') as string || undefined,
-        icon: formData.get('icon') as string || undefined,
-      };
+    // Audit
+    AuditService.record({
+        action: 'UPDATE_LOOKUP',
+        targetType: 'LookupValue',
+        targetId: id,
+        note: `Updated lookup: ${result.name}`,
+        before,
+        after: result,
+        actorId: ctx.userId,
+        shopId: ctx.shopId
+    }).catch(err => logger.error('[Audit] UPDATE_LOOKUP failed', err));
 
-      const validated = updateLookupValueSchema.parse(rawData);
-      await LookupService.updateLookupValue(id, validated, ctx);
-      revalidatePath('/settings');
-      return null;
-    }, 'lookups:updateLookupValue');
-  }, { context: { action: 'updateLookupValue', id } });
+    revalidatePath('/settings/categories');
+    return result;
+  }, { context: { action: 'updateLookup', id } });
 }
 
 export async function deleteLookupValue(id: string): Promise<ActionResponse<null>> {
   return handleAction(async () => {
-    return PerformanceCollector.run(async () => {
-      const ctx = await requirePermission('SETTINGS_SHOP');
-      await LookupService.deleteLookupValue(id, ctx);
-      revalidatePath('/settings');
-      return null;
-    }, 'lookups:deleteLookupValue');
-  }, { context: { action: 'deleteLookupValue', id } });
+    const ctx = await requirePermission('SETTINGS_SHOP' as any);
+    
+    const before = await LookupService.getLookupValueById(id, ctx);
+    await LookupService.deleteLookupValue(id, ctx);
+
+    // Audit
+    AuditService.record({
+        action: 'DELETE_LOOKUP',
+        targetType: 'LookupValue',
+        targetId: id,
+        note: `Deleted lookup: ${before?.name}`,
+        before,
+        actorId: ctx.userId,
+        shopId: ctx.shopId
+    }).catch(err => logger.error('[Audit] DELETE_LOOKUP failed', err));
+
+    revalidatePath('/settings/categories');
+    return null;
+  }, { context: { action: 'deleteLookup', id } });
 }
 
 export async function seedDefaultLookupValues(): Promise<ActionResponse<null>> {
   return handleAction(async () => {
-    return PerformanceCollector.run(async () => {
-      const ctx = await requirePermission('SETTINGS_SHOP' as any);
-      await LookupService.seedDefaultLookupValues(ctx);
-      revalidatePath('/settings');
-      return null;
-    }, 'lookups:seedDefaultLookupValues');
-  }, { context: { action: 'seedDefaultLookupValues' } });
+    const ctx = await requirePermission('SETTINGS_SHOP' as any);
+    await LookupService.seedDefaultLookupValues(ctx);
+    
+    revalidatePath('/settings/categories');
+    return null;
+  }, { context: { action: 'seedDefaultLookup' } });
 }

@@ -4,8 +4,8 @@ import { LookupTypeCode } from '@prisma/client';
 
 export interface CreateLookupValueInput {
   name: string;
-  color?: string;
-  icon?: string;
+  color?: string | null;
+  icon?: string | null;
 }
 
 export const LookupService = {
@@ -186,12 +186,18 @@ export const LookupService = {
     });
   },
 
+  async getLookupValueById(id: string, ctx: RequestContext) {
+    return await db.lookupValue.findFirst({
+      where: { id, shopId: ctx.shopId, deletedAt: null },
+    });
+  },
+
   async deleteLookupValue(id: string, ctx: RequestContext) {
     const existing = await db.lookupValue.findFirst({
       where: { id, shopId: ctx.shopId, deletedAt: null },
       include: {
         _count: {
-          select: { products: true, expenses: true },
+          select: { products: true, expenses: true, incomes: true },
         },
       },
     });
@@ -199,7 +205,7 @@ export const LookupService = {
     if (!existing) throw new ServiceError('ไม่พบข้อมูล หรือไม่มีสิทธิ์ลบ');
     if (existing.isSystem) throw new ServiceError('ไม่สามารถลบข้อมูลระบบได้');
 
-    const inUseCount = existing._count.products + existing._count.expenses;
+    const inUseCount = existing._count.products + existing._count.expenses + existing._count.incomes;
     if (inUseCount > 0) {
       throw new ServiceError(`ไม่สามารถลบได้ เนื่องจากมีข้อมูล ${inUseCount} รายการใช้หมวดหมู่นี้อยู่`);
     }
