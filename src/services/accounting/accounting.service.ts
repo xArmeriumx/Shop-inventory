@@ -187,14 +187,29 @@ export const AccountingService = {
      * ดึงรายการงวดบัญชีทั้งหมด
      */
     async getAccountingPeriods(ctx: RequestContext) {
-        return await (db as any).accountingPeriod.findMany({
-            where: { shopId: ctx.shopId },
-            orderBy: { startDate: 'desc' },
-            include: {
-                closedBy: { select: { user: { select: { name: true } } } },
-                reopenedBy: { select: { user: { select: { name: true } } } }
-            }
-        });
+        try {
+            // Use findMany with direct relations to avoid nested select issues on nulls
+            const periods = await (db as any).accountingPeriod.findMany({
+                where: { shopId: ctx.shopId },
+                orderBy: { startDate: 'desc' },
+                include: {
+                    closedBy: {
+                        include: { user: { select: { name: true } } }
+                    },
+                    reopenedBy: {
+                        include: { user: { select: { name: true } } }
+                    }
+                }
+            });
+            return periods;
+        } catch (error) {
+            console.error('[AccountingService] getAccountingPeriods failure:', error);
+            // Fallback to basic query if relation includes fail
+            return await (db as any).accountingPeriod.findMany({
+                where: { shopId: ctx.shopId },
+                orderBy: { startDate: 'desc' }
+            });
+        }
     },
 
     /**

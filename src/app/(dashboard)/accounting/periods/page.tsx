@@ -40,6 +40,24 @@ export default function AccountingPeriodsPage() {
         fetchData();
     }, [fetchData]);
 
+    const [isInitializing, setIsInitializing] = useState(false);
+
+    const handleInitialize = async () => {
+        setIsInitializing(true);
+        try {
+            const { initializePeriodsAction } = await import('@/actions/accounting/accounting.actions');
+            const res = await initializePeriodsAction();
+            if (res.success) {
+                toast.success("ตั้งค่างวดบัญชีเริ่มต้นสำเร็จ");
+                fetchData();
+            } else {
+                toast.error(res.message);
+            }
+        } finally {
+            setIsInitializing(false);
+        }
+    };
+
     const activePeriods = periods.filter(p => p.status === 'OPEN').length;
     const closedPeriods = periods.filter(p => p.status === 'CLOSED').length;
 
@@ -60,6 +78,16 @@ export default function AccountingPeriodsPage() {
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
+                    {periods.length === 0 && !isLoading && (
+                        <Button 
+                            className="bg-emerald-600 hover:bg-emerald-700 rounded-full px-8 h-12 font-black shadow-lg shadow-emerald-600/20"
+                            onClick={handleInitialize}
+                            disabled={isInitializing}
+                        >
+                            {isInitializing ? <RefreshCw size={16} className="animate-spin mr-2" /> : <ClipboardList size={16} className="mr-2" />}
+                            เริ่มต้นตั้งค่างวดบัญชี
+                        </Button>
+                    )}
                     <Button 
                         variant="outline" 
                         className="rounded-full px-6 h-12 gap-2 font-black shadow-sm" 
