@@ -12,14 +12,14 @@ export class PostingService {
      * Generates a "Preview" of the accounting entries for a given business document.
      * This does NOT create anything in the DB.
      */
-    static async previewInvoice(ctx: RequestContext, invoice: any) {
+    static async previewInvoice(ctx: RequestContext, invoice: any, tx?: any) {
         // 1. Get required accounts using the mapping master
         // ⚡ Turbo Lookups: Fetch all required accounts in ONE DB call
         const accounts = await AccountingService.findAccountsByCodes(ctx, [
             ACCOUNT_MAPPING.INVOICE_AR,
             ACCOUNT_MAPPING.INVOICE_REVENUE,
             ACCOUNT_MAPPING.INVOICE_VAT
-        ]);
+        ], tx);
 
         const arAcc = accounts.get(ACCOUNT_MAPPING.INVOICE_AR);
         const salesAcc = accounts.get(ACCOUNT_MAPPING.INVOICE_REVENUE);
@@ -75,12 +75,12 @@ export class PostingService {
         };
     }
 
-    static async previewPayment(ctx: RequestContext, payment: any) {
+    static async previewPayment(ctx: RequestContext, payment: any, tx?: any) {
         // ⚡ Turbo Lookups
         const accounts = await AccountingService.findAccountsByCodes(ctx, [
             ACCOUNT_MAPPING.PAYMENT_CASH_BANK,
             ACCOUNT_MAPPING.PAYMENT_AR_OFFSET
-        ]);
+        ], tx);
 
         const cashAcc = accounts.get(ACCOUNT_MAPPING.PAYMENT_CASH_BANK);
         const arAcc = accounts.get(ACCOUNT_MAPPING.PAYMENT_AR_OFFSET);
@@ -131,7 +131,7 @@ export class PostingService {
             throw new Error('เอกสารค้านี้ถูกลงบัญชีไปแล้ว (Duplicate Posting Guard)');
         }
 
-        const preview = await this.previewInvoice(ctx, invoice);
+        const preview = await this.previewInvoice(ctx, invoice, tx);
 
         return await JournalService.createEntry(ctx, {
             journalDate: preview.journalDate,
@@ -157,7 +157,7 @@ export class PostingService {
             throw new Error('รายการรับชำระนี้ถูกลงบัญชีไปแล้ว (Duplicate Posting Guard)');
         }
 
-        const preview = await this.previewPayment(ctx, payment);
+        const preview = await this.previewPayment(ctx, payment, tx);
 
         return await JournalService.createEntry(ctx, {
             journalDate: preview.journalDate,
@@ -225,8 +225,8 @@ export class PostingService {
         if (existing) return;
 
         const [invAcc, apAcc] = await Promise.all([
-            AccountingService.findAccountByCode(ctx, ACCOUNT_MAPPING.INVENTORY_ASSET),
-            AccountingService.findAccountByCode(ctx, ACCOUNT_MAPPING.PURCHASE_AP),
+            AccountingService.findAccountByCode(ctx, ACCOUNT_MAPPING.INVENTORY_ASSET, tx),
+            AccountingService.findAccountByCode(ctx, ACCOUNT_MAPPING.PURCHASE_AP, tx),
         ]);
 
         if (!invAcc || !apAcc) return;
@@ -257,10 +257,10 @@ export class PostingService {
         if (existing) return;
 
         const [retAcc, arAcc, invAcc, cogsAcc] = await Promise.all([
-            AccountingService.findAccountByCode(ctx, ACCOUNT_MAPPING.SALES_RETURN),
-            AccountingService.findAccountByCode(ctx, ACCOUNT_MAPPING.INVOICE_AR),
-            AccountingService.findAccountByCode(ctx, ACCOUNT_MAPPING.INVENTORY_ASSET),
-            AccountingService.findAccountByCode(ctx, ACCOUNT_MAPPING.COGS_EXPENSE),
+            AccountingService.findAccountByCode(ctx, ACCOUNT_MAPPING.SALES_RETURN, tx),
+            AccountingService.findAccountByCode(ctx, ACCOUNT_MAPPING.INVOICE_AR, tx),
+            AccountingService.findAccountByCode(ctx, ACCOUNT_MAPPING.INVENTORY_ASSET, tx),
+            AccountingService.findAccountByCode(ctx, ACCOUNT_MAPPING.COGS_EXPENSE, tx),
         ]);
 
         if (!retAcc || !arAcc || !invAcc || !cogsAcc) return;
@@ -294,8 +294,8 @@ export class PostingService {
         if (existing) return;
 
         const [apAcc, invAcc] = await Promise.all([
-            AccountingService.findAccountByCode(ctx, ACCOUNT_MAPPING.PURCHASE_AP),
-            AccountingService.findAccountByCode(ctx, ACCOUNT_MAPPING.INVENTORY_ASSET),
+            AccountingService.findAccountByCode(ctx, ACCOUNT_MAPPING.PURCHASE_AP, tx),
+            AccountingService.findAccountByCode(ctx, ACCOUNT_MAPPING.INVENTORY_ASSET, tx),
         ]);
 
         if (!apAcc || !invAcc) return;

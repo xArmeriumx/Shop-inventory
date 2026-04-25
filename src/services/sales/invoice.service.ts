@@ -155,7 +155,7 @@ export const InvoiceService = {
                         direction: 'OUTPUT',
                         productId: item.productId,
                         customerId: sale.customerId ?? undefined,
-                    })
+                    }, tx)
                 )
             );
 
