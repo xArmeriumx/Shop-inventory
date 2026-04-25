@@ -118,7 +118,11 @@ export function Sidebar({ isCollapsed = false, onToggle, onClose, className }: S
                   </p>
                 )}
                 <div className="space-y-0.5">
-                  {visibleItems.map((item) => {
+                  {visibleItems.map((item, itemIdx) => {
+                    if (item.isDivider) {
+                      return <div key={`divider-${itemIdx}`} className="h-px bg-muted/30 mx-3 my-2" />;
+                    }
+
                     const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
                     return (
                       <Link
@@ -134,7 +138,7 @@ export function Sidebar({ isCollapsed = false, onToggle, onClose, className }: S
                         )}
                         title={isCollapsed ? item.title : undefined}
                       >
-                        <item.icon className="h-5 w-5 shrink-0" />
+                        {item.icon && <item.icon className="h-5 w-5 shrink-0" />}
                         {!isCollapsed && <span>{item.title}</span>}
                       </Link>
                     );

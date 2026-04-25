@@ -40,6 +40,7 @@ export interface NavItem {
     permission?: Permission;
     id?: string;
     salesFlowMode?: 'ERP' | 'RETAIL';
+    isDivider?: boolean;
 }
 
 export interface NavGroup {
@@ -63,12 +64,14 @@ export const mainNavGroups: NavGroup[] = [
         items: [
         { title: 'ใบเสนอราคา', href: '/quotations', icon: FileText, permission: 'QUOTATION_VIEW' },
         { title: 'ใบสั่งขาย (Sales Orders)', href: '/sales?salesFlowMode=ERP', icon: ShoppingCart, permission: 'SALE_VIEW', id: 'sidebar-sales-orders', salesFlowMode: 'ERP' },
+        { isDivider: true, title: '', href: '', icon: null },
         { title: 'จัดส่งสินค้า (Shipments)', href: '/shipments', icon: Send, permission: 'SHIPMENT_VIEW' },
         { title: 'ใบส่งของ (Deliveries)', href: '/deliveries', icon: PackageCheck, permission: 'DELIVERY_VIEW' },
         { title: 'ใบแจ้งหนี้ (Invoices)', href: '/invoices', icon: Receipt, permission: 'SALE_VIEW' },
+        { isDivider: true, title: '', href: '', icon: null },
         { title: 'ประวัติการขาย (Retail)', href: '/sales?salesFlowMode=RETAIL', icon: History, permission: 'SALE_VIEW', id: 'sidebar-sales-history', salesFlowMode: 'RETAIL' },
         { title: 'คืนสินค้า (Returns)', href: '/returns', icon: RotateCcw, permission: 'RETURN_VIEW' },
-            { title: 'ลูกค้า (Customers)', href: '/customers', icon: Users, permission: 'CUSTOMER_VIEW', id: 'sidebar-customers' },
+        { title: 'ลูกค้า (Customers)', href: '/customers', icon: Users, permission: 'CUSTOMER_VIEW', id: 'sidebar-customers' },
         ]
     },
     {
