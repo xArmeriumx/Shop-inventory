@@ -26,8 +26,11 @@ export default function POSPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let isMounted = true;
+    
     async function loadData() {
       try {
+        // 🚀 Parallel Boot: Fetch all subsystems concurrently for high speed
         const [productsRes, categoriesRes, shopRes, customersRes] = await Promise.all([
           getProductsForPOS(),
           getCategories(),
@@ -35,22 +38,38 @@ export default function POSPage() {
           getPOSCustomers()
         ]);
 
+        if (!isMounted) return;
+
+        // 🛡️ Multi-point Failure Check
         if (productsRes.success && categoriesRes.success && shopRes.success) {
           setData({
-            products: productsRes.data,
-            categories: categoriesRes.data,
+            products: productsRes.data || [],
+            categories: categoriesRes.data || [],
             shop: shopRes.data,
-            customers: customersRes.success ? customersRes.data : []
+            customers: customersRes.success ? (customersRes.data || []) : []
           });
         } else {
-          setError(productsRes.message || 'ไม่สามารถดึงข้อมูลพื้นฐานระบบ POS ได้');
+          // Identify which subsystem failed
+          const failedRes = [productsRes, categoriesRes, shopRes].find(r => !r.success);
+          setError(failedRes?.message || 'ระบบ POS ไม่สามารถเตรียมข้อมูลเบื้องต้นได้ครบถ้วน');
         }
-      } catch (err) {
-        console.error('POS Bootstrap Error:', err);
-        setError('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+      } catch (err: any) {
+        if (!isMounted) return;
+        console.error('POS Bootstrap Critical failure:', err);
+        
+        // Next.js Redirects are not errors, but if we catch them here, something is wrong with the flow
+        if (err?.digest?.startsWith('NEXT_REDIRECT') || err?.message === 'NEXT_REDIRECT') {
+            setError('SESSION_EXPIRED: กำลังนำคุณกลับไปหน้า Login...');
+            window.location.href = '/login';
+            return;
+        }
+
+        setError(`เกิดข้อผิดพลาดในการบูตระบบ: ${err?.message || 'Unknown Server Error'}`);
       }
     }
+    
     loadData();
+    return () => { isMounted = false; };
   }, []);
 
   if (error) {
@@ -79,8 +98,7 @@ export default function POSPage() {
     <POSInterface
       initialProducts={data.products}
       categories={data.categories}
-      initialCustomers={data.customers}
-      shopData={data.shop}
+      promptPayId={data.shop?.promptPayId}
     />
   );
 }

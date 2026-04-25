@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
-import { CheckCircle2, CheckCircle, Loader2, CreditCard, Wallet, Smartphone, QrCode, Settings, Camera, ImageIcon, X, ShieldCheck } from 'lucide-react';
+import { CheckCircle, Loader2, CreditCard, Wallet, Smartphone, QrCode, Settings, Camera, ImageIcon, X, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -187,32 +187,32 @@ export function POSPaymentDialog({
           </div>
 
           {/* Payment Method Selection */}
-          <div className="space-y-4">
-            <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Payment method</Label>
-            <div className="grid grid-cols-3 gap-3">
+          <div className="space-y-3">
+            <Label className="text-base font-medium">เลือกวิธีชำระเงิน</Label>
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
               {PAYMENT_OPTIONS.map((option) => (
                 <button
                   key={option.value}
                   type="button"
                   onClick={() => setSelectedMethod(option.value)}
                   className={cn(
-                    'flex flex-col items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all duration-300',
-                    'focus:outline-none focus:ring-4 focus:ring-primary/10',
-                    'touch-manipulation active:scale-95',
+                    'flex flex-col items-center justify-center gap-2 p-3 sm:p-4 rounded-lg border-2 transition-all min-h-[80px]',
+                    'focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2',
+                    'touch-manipulation active:scale-[0.97]',
                     selectedMethod === option.value
-                      ? 'border-primary bg-primary/5 shadow-md shadow-primary/5'
-                      : 'border-slate-100 bg-slate-50 hover:border-slate-200 text-slate-400'
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:border-primary/50 active:bg-muted/50'
                   )}
                 >
                   <div className={cn(
-                    'p-2.5 rounded-full transition-colors',
-                    selectedMethod === option.value ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-white text-slate-300 border border-slate-200'
+                    'p-2 rounded-full',
+                    selectedMethod === option.value ? 'bg-primary/10 text-primary' : 'bg-muted'
                   )}>
                     {option.icon}
                   </div>
                   <span className={cn(
-                    'text-xs font-bold uppercase tracking-tight',
-                    selectedMethod === option.value ? 'text-primary' : 'text-slate-400'
+                    'text-xs sm:text-sm font-medium',
+                    selectedMethod === option.value && 'text-primary'
                   )}>
                     {option.label}
                   </span>
@@ -223,32 +223,28 @@ export function POSPaymentDialog({
 
           {/* Cash Amount Input - Only show for CASH */}
           {selectedMethod === 'CASH' && (
-            <div className="space-y-4 border-t border-slate-100 pt-5">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Amount Received</Label>
-                <div className="flex gap-2">
-                    <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleExactAmount}
-                    className="h-7 px-3 text-[10px] font-bold uppercase bg-slate-100 hover:bg-primary/10 hover:text-primary transition-colors"
-                    >
-                    Exact
-                    </Button>
-                </div>
-              </div>
+            <div className="space-y-3 border-t pt-4">
+              <Label className="text-base font-medium">รับเงิน</Label>
 
               {/* Quick Amount Buttons */}
               <div className="flex flex-wrap gap-2">
-                {QUICK_AMOUNTS.filter(a => a >= cart.totalAmount).slice(0, 5).map((amount) => (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExactAmount}
+                  className="text-xs"
+                >
+                  พอดี
+                </Button>
+                {QUICK_AMOUNTS.filter(a => a >= cart.totalAmount).slice(0, 4).map((amount) => (
                   <Button
                     key={amount}
                     type="button"
                     variant="outline"
                     size="sm"
                     onClick={() => handleQuickAmount(amount)}
-                    className="h-10 px-4 rounded-xl font-black text-slate-600 border-slate-200 hover:border-primary hover:text-primary transition-all active:scale-90"
+                    className="text-xs"
                   >
                     ฿{amount.toLocaleString()}
                   </Button>
@@ -256,14 +252,14 @@ export function POSPaymentDialog({
               </div>
 
               {/* Amount Input */}
-              <div className="relative group">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-black text-slate-300 group-focus-within:text-primary transition-colors">฿</span>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">฿</span>
                 <Input
                   type="number"
                   value={amountReceived}
                   onChange={(e) => setAmountReceived(e.target.value)}
                   placeholder={cart.totalAmount.toString()}
-                  className="pl-10 text-3xl h-16 text-right font-black bg-slate-50 border-none focus-visible:ring-4 focus-visible:ring-primary/10 transition-all rounded-2xl tabular-nums"
+                  className="pl-8 text-lg h-12 text-right font-medium"
                   min={0}
                   step="0.01"
                 />
@@ -271,25 +267,17 @@ export function POSPaymentDialog({
 
               {/* Change Display */}
               {change > 0 && (
-                <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 flex justify-between items-center animate-in zoom-in duration-300">
-                  <div className="flex flex-col">
-                    <span className="text-[10px] text-emerald-600 font-black uppercase tracking-widest">Change Return</span>
-                    <span className="text-3xl font-black text-emerald-600 tabular-nums">
-                        {formatCurrency(change)}
-                    </span>
-                  </div>
-                  <div className="h-12 w-12 bg-emerald-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-emerald-200">
-                    <CheckCircle2 className="h-6 w-6" />
-                  </div>
+                <div className="bg-green-50 dark:bg-green-950/30 rounded-lg p-3 flex justify-between items-center">
+                  <span className="text-green-700 dark:text-green-400 font-medium">เงินทอน</span>
+                  <span className="text-2xl font-bold text-green-600 dark:text-green-400">
+                    ฿{change.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </span>
                 </div>
               )}
 
               {/* Warning if not enough */}
               {amountReceived && parseFloat(amountReceived) < cart.totalAmount && (
-                <div className="bg-rose-50 border border-rose-100 rounded-xl p-3 text-rose-600 text-sm font-bold flex items-center gap-2 animate-in slide-in-from-top-2">
-                   <X className="h-4 w-4" />
-                   Insufficient amount received
-                </div>
+                <p className="text-sm text-destructive">เงินไม่พอ</p>
               )}
             </div>
           )}

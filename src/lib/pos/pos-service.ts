@@ -1,20 +1,3 @@
-'use server';
-
-/**
- * POS Service Layer - Abstraction over Server Actions
- * 
- * SEPARATION-READY ARCHITECTURE:
- * - UI components only import from this file
- * - To separate POS into its own project, replace these implementations
- *   with fetch() calls to an external API
- * 
- * Example future change:
- *   getProducts: async () => {
- *     const res = await fetch('https://api.myshop.com/pos/products');
- *     return res.json();
- *   }
- */
-
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth-guard';
 import { posCheckout } from '@/actions/sales/pos.actions';
@@ -26,12 +9,14 @@ import type {
 } from './types';
 import { handleAction, type ActionResponse } from '@/lib/action-handler';
 
+/**
+ * ⚡ POS SEPARATION-READY SERVICES (Hardened)
+ * 
+ * ทุกฟังก์ชันถูกหุ้มด้วย handleAction เพื่อความเสถียรสูงสุด
+ */
+
 // ==================== Customer Operations ====================
 
-/**
- * Get all active customers for POS selection
- * Optimized query: only fetches id, name, phone
- */
 export async function getPOSCustomers(): Promise<ActionResponse<POSCustomer[]>> {
   return handleAction(async () => {
     const ctx = await requirePermission('POS_ACCESS');
@@ -56,16 +41,19 @@ export async function getPOSCustomers(): Promise<ActionResponse<POSCustomer[]>> 
       name: c.name,
       phone: c.phone,
     }));
-  });
+  }, { context: { service: 'getPOSCustomers' } });
 }
 
-/**
- * Get all active products for POS display
- * Optimized query: only fetches fields needed for POS
- */
+// ==================== Product Operations ====================
+
 export async function getProductsForPOS(): Promise<ActionResponse<POSProduct[]>> {
   return handleAction(async () => {
     const ctx = await requirePermission('POS_ACCESS');
+
+    // ตรวจสอบว่า shopId มีอยู่จริงเพื่อความปลอดภัย (Defensive Coding)
+    if (!ctx.shopId) {
+        throw new Error('SHOP_ID_NOT_FOUND: กรุณาตั้งค่าร้านค้าก่อนใช้งาน POS');
+    }
 
     const products = await db.product.findMany({
       where: {
@@ -90,23 +78,21 @@ export async function getProductsForPOS(): Promise<ActionResponse<POSProduct[]>>
       ],
     });
 
+    // 🛡️ Safe Transform: ป้องกันปัญหา BigInt หรือ Decimal ที่ Client อ่านไม่ได้
     return products.map((p) => ({
       id: p.id,
       name: p.name,
-      sku: p.sku,
-      category: p.category,
-      salePrice: Number(p.salePrice),
-      costPrice: Number(p.costPrice),
-      stock: p.stock,
-      reservedStock: p.reservedStock,
-      image: p.images[0] || null,
+      sku: p.sku || '',
+      category: p.category || 'Uncategorized',
+      salePrice: Number(p.salePrice || 0),
+      costPrice: Number(p.costPrice || 0),
+      stock: p.stock ?? 0,
+      reservedStock: p.reservedStock ?? 0,
+      image: (p.images && p.images.length > 0) ? p.images[0] : null,
     }));
-  });
+  }, { context: { service: 'getProductsForPOS' } });
 }
 
-/**
- * Search product by SKU (for barcode scanning)
- */
 export async function getProductBySKU(sku: string): Promise<ActionResponse<POSProduct | null>> {
   return handleAction(async () => {
     const ctx = await requirePermission('POS_ACCESS');
@@ -136,27 +122,25 @@ export async function getProductBySKU(sku: string): Promise<ActionResponse<POSPr
     return {
       id: product.id,
       name: product.name,
-      sku: product.sku,
-      category: product.category,
-      salePrice: Number(product.salePrice),
-      costPrice: Number(product.costPrice),
-      stock: product.stock,
-      reservedStock: product.reservedStock,
-      image: product.images[0] || null,
+      sku: product.sku || '',
+      category: product.category || 'Uncategorized',
+      salePrice: Number(product.salePrice || 0),
+      costPrice: Number(product.costPrice || 0),
+      stock: product.stock ?? 0,
+      reservedStock: product.reservedStock ?? 0,
+      image: (product.images && product.images.length > 0) ? product.images[0] : null,
     };
-  });
+  }, { context: { service: 'getProductBySKU', sku } });
 }
 
 // ==================== Category Operations ====================
 
-/**
- * Get unique product categories for filter tabs
- */
 export async function getCategories(): Promise<ActionResponse<POSCategory[]>> {
   return handleAction(async () => {
     const ctx = await requirePermission('POS_ACCESS');
 
-    const categories = await db.product.groupBy({
+    // 🚀 Performance Optimization: ใช้ groupBy เพื่อดึงหมวดหมู่ที่ใช้จริงเท่านั้น
+    const categoriesGroups = await db.product.groupBy({
       by: ['category'],
       where: {
         shopId: ctx.shopId,
@@ -168,20 +152,16 @@ export async function getCategories(): Promise<ActionResponse<POSCategory[]>> {
       },
     });
 
-    return categories.map((c, index) => ({
-      id: `cat-${index}`,
-      name: c.category,
-      code: c.category,
+    return categoriesGroups.map((c, index) => ({
+      id: `cat-${index}-${c.category}`,
+      name: c.category || 'General',
+      code: c.category || 'general',
     }));
-  });
+  }, { context: { service: 'getCategories' } });
 }
 
 // ==================== Sale Operations ====================
 
-/**
- * Create a new sale from POS
- * Now uses the optimized POS atomic service flow
- */
 export async function createPOSSale(input: POSCreateSaleInput): Promise<ActionResponse<any>> {
   return posCheckout({
     customerId: input.customerId ?? undefined,
