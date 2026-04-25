@@ -16,9 +16,9 @@ import { Switch } from '@/components/ui/switch';
 import { FormField } from '@/components/ui/form-field';
 import {
     taxCodeSchema,
-    TaxCodeFormValues,
+    TaxCodeInput as TaxCodeFormValues,
     getDefaultTaxCodeValues
-} from '@/schemas/tax/tax-form.schema';
+} from '@/schemas/tax/tax-code.schema';
 import { createTaxCode, updateTaxCode } from '@/actions/tax/tax.actions';
 import { toast } from 'sonner';
 import { runActionWithToast, mapActionErrorsToForm } from '@/lib/mutation-utils';

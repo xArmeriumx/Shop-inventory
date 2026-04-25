@@ -10,10 +10,12 @@ import { handleAction, type ActionResponse } from '@/lib/action-handler';
 import { revalidatePath } from 'next/cache';
 import { Permission } from '@prisma/client';
 import {
-    upsertCompanyTaxProfileSchema,
-    createTaxCodeSchema,
+    taxCodeSchema,
     updateTaxCodeSchema
-} from '@/schemas/tax/tax.schema';
+} from '@/schemas/tax/tax-code.schema';
+import {
+    upsertCompanyTaxProfileSchema
+} from '@/schemas/tax/company-tax-profile.schema';
 
 /**
  * Register a Purchase Order as a Tax Document (Draft)
@@ -94,6 +96,18 @@ export async function upsertCompanyTaxProfile(input: any): Promise<ActionRespons
         const ctx = await requirePermission(Permission.TAX_REPORT_POST);
         const validated = upsertCompanyTaxProfileSchema.parse(input);
         const profile = await TaxSettingsService.upsertCompanyTaxProfile(validated, ctx);
+
+        // Audit (Non-blocking)
+        AuditService.record({
+            action: 'UPDATE_COMPANY_TAX_PROFILE',
+            targetType: 'CompanyTaxProfile',
+            targetId: ctx.shopId,
+            note: 'Updated company tax profile',
+            after: profile,
+            actorId: ctx.userId,
+            shopId: ctx.shopId
+        }).catch(err => logger.error('[Audit] UPDATE_COMPANY_TAX_PROFILE log failed', err));
+
         revalidatePath('/settings/tax');
         return profile;
     }, { context: { action: 'upsertCompanyTaxProfile' } });
@@ -109,17 +123,17 @@ export async function listTaxCodes(): Promise<ActionResponse<any[]>> {
 export async function createTaxCode(input: any): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         const ctx = await requirePermission(Permission.TAX_REPORT_POST);
-        const validated = createTaxCodeSchema.parse(input);
+        const validated = taxCodeSchema.parse(input);
         const code = await TaxSettingsService.createTaxCode(validated, ctx);
         
-        // Audit logging
+        // Audit logging (Non-blocking)
         AuditService.record({
             action: 'CREATE_TAX_CODE',
             targetType: 'TaxCode',
             targetId: code.code,
             note: `Created tax code: ${code.name}`,
             after: code,
-            userId: ctx.userId,
+            actorId: ctx.userId,
             shopId: ctx.shopId
         }).catch(err => logger.error('[Audit] CREATE_TAX_CODE log failed', err));
 
@@ -132,9 +146,11 @@ export async function updateTaxCode(code: string, input: any): Promise<ActionRes
     return handleAction(async () => {
         const ctx = await requirePermission(Permission.TAX_REPORT_POST);
         
-        // Get before snapshot for diffing
-        const allCodes = await TaxSettingsService.listTaxCodes(ctx);
-        const before = allCodes.find((c: any) => c.code === code);
+        // Efficient Before Snapshot
+        const before = await TaxSettingsService.getTaxCodeByCode(code, ctx);
+        if (!before) {
+            throw new Error('ไม่พบรหัสภาษีที่ต้องการแก้ไข');
+        }
         
         const validated = updateTaxCodeSchema.parse(input);
         const updated = await TaxSettingsService.updateTaxCode(code, validated, ctx);
@@ -159,7 +175,24 @@ export async function updateTaxCode(code: string, input: any): Promise<ActionRes
 export async function toggleTaxCode(code: string, isActive: boolean): Promise<ActionResponse<null>> {
     return handleAction(async () => {
         const ctx = await requirePermission(Permission.TAX_REPORT_POST);
+        
+        // Snapshot for audit
+        const before = await TaxSettingsService.getTaxCodeByCode(code, ctx);
+        
         await TaxSettingsService.toggleTaxCode(code, isActive, ctx);
+        
+        // Audit
+        AuditService.record({
+            action: 'TOGGLE_TAX_CODE',
+            targetType: 'TaxCode',
+            targetId: code,
+            note: `${isActive ? 'Enabled' : 'Disabled'} tax code: ${code}`,
+            before: before,
+            after: { ...before, isActive },
+            actorId: ctx.userId,
+            shopId: ctx.shopId
+        }).catch(err => logger.error('[Audit] TOGGLE_TAX_CODE log failed', err));
+
         revalidatePath('/settings/tax');
         return null;
     }, { context: { action: 'toggleTaxCode', code, isActive } });

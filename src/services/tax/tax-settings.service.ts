@@ -16,19 +16,19 @@ import type { RequestContext } from '@/types/domain';
 export interface UpsertCompanyTaxProfileInput {
     isVatRegistered: boolean;
     legalName: string;
-    taxPayerId?: string;
-    branchCode?: string;
-    registeredAddress?: string;
-    vatRegistrationDate?: Date;
-    vatThreshold?: number;
-    defaultSalesTaxCode?: string;
-    defaultPurchaseTaxCode?: string;
-    taxInvoicePrefix?: string;
-    creditNotePrefix?: string;
-    debitNotePrefix?: string;
-    isTaxInvoiceFull?: boolean;
-    authorizedPerson?: string;
-    authorizedPosition?: string;
+    taxPayerId?: string | null;
+    branchCode?: string | null;
+    registeredAddress?: string | null;
+    vatRegistrationDate?: Date | null;
+    vatThreshold?: number | null;
+    defaultSalesTaxCode?: string | null;
+    defaultPurchaseTaxCode?: string | null;
+    taxInvoicePrefix?: string | null;
+    creditNotePrefix?: string | null;
+    debitNotePrefix?: string | null;
+    isTaxInvoiceFull?: boolean | null;
+    authorizedPerson?: string | null;
+    authorizedPosition?: string | null;
 }
 
 async function getCompanyTaxProfile(ctx: RequestContext) {
@@ -56,14 +56,14 @@ async function upsertCompanyTaxProfile(
 export interface CreateTaxCodeInput {
     code: string;
     name: string;
-    description?: string;
+    description?: string | null;
     direction: 'OUTPUT' | 'INPUT';
     kind: 'VAT' | 'ZERO_RATED' | 'EXEMPT' | 'NO_VAT';
     rate: number;
-    calculationMode?: 'EXCLUSIVE' | 'INCLUSIVE';
+    calculationMode?: 'EXCLUSIVE' | 'INCLUSIVE' | null;
     effectiveFrom: Date;
-    effectiveTo?: Date;
-    reportBucket?: string;
+    effectiveTo?: Date | null;
+    reportBucket?: string | null;
 }
 
 async function listTaxCodes(ctx: RequestContext) {
@@ -87,6 +87,12 @@ async function listActiveTaxCodes(
             OR: [{ effectiveTo: null }, { effectiveTo: { gte: new Date() } }],
         },
         orderBy: [{ direction: 'asc' }, { rate: 'desc' }],
+    });
+}
+
+async function getTaxCodeByCode(code: string, ctx: RequestContext) {
+    return (db as any).taxCode.findUnique({
+        where: { shopId_code: { shopId: ctx.shopId, code } },
     });
 }
 
@@ -334,6 +340,7 @@ export const TaxSettingsService = {
     // Tax Codes
     listTaxCodes,
     listActiveTaxCodes,
+    getTaxCodeByCode,
     createTaxCode,
     updateTaxCode,
     toggleTaxCode,

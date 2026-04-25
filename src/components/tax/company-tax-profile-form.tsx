@@ -7,12 +7,12 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { FormField } from '@/components/ui/form-field';
 import {
-    companyTaxProfileSchema,
-    CompanyTaxProfileValues,
+    upsertCompanyTaxProfileSchema as companyTaxProfileSchema,
+    CompanyTaxProfileInput as CompanyTaxProfileValues,
     getDefaultCompanyTaxValues
-} from '@/schemas/tax/tax-form.schema';
+} from '@/schemas/tax/company-tax-profile.schema';
 import { upsertCompanyTaxProfile } from '@/actions/tax/tax.actions';
-import { toast } from 'sonner';
+import { runActionWithToast } from '@/lib/mutation-utils';
 import { useTransition } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -31,12 +31,9 @@ export function CompanyTaxProfileForm({ initialData }: CompanyTaxProfileFormProp
 
     const onSubmit = (values: CompanyTaxProfileValues) => {
         startTransition(async () => {
-            const res = await upsertCompanyTaxProfile(values);
-            if (res.success) {
-                toast.success(res.message);
-            } else {
-                toast.error(res.message);
-            }
+            await runActionWithToast(upsertCompanyTaxProfile(values), {
+                successMessage: 'บันทึกข้อมูลภาษีนิติบุคคลเรียบร้อยแล้ว',
+            });
         });
     };
 
