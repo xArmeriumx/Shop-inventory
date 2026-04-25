@@ -22,6 +22,7 @@ export interface TaxResolutionInput {
     customerId?: string;
     supplierId?: string;
     lineOverrideCode?: string; // ถ้า user override เอง
+    tx?: any;
 }
 
 export interface ResolvedTaxCode {
@@ -49,12 +50,13 @@ const NO_TAX_RESULT: ResolvedTaxCode = {
     explanation: 'ไม่พบ Tax Code — รายการนี้ไม่คิด VAT',
 };
 
-async function resolve(input: TaxResolutionInput): Promise<ResolvedTaxCode> {
+async function resolve(input: TaxResolutionInput, tx?: any): Promise<ResolvedTaxCode> {
     const { shopId, direction, productId, customerId, supplierId, lineOverrideCode } = input;
+    const client = tx || input.tx || db;
 
     // Step 1: Line Override
     if (lineOverrideCode) {
-        const tc = await db.taxCode.findUnique({
+        const tc = await client.taxCode.findUnique({
             where: { shopId_code: { shopId, code: lineOverrideCode } },
         });
         if (tc && tc.isActive) {
@@ -72,13 +74,13 @@ async function resolve(input: TaxResolutionInput): Promise<ResolvedTaxCode> {
 
     // Step 2: Product Tax Profile
     if (productId) {
-        const pp = await db.productTaxProfile.findUnique({
+        const pp = await client.productTaxProfile.findUnique({
             where: { productId },
         });
         if (pp) {
             const taxCodeValue = direction === 'OUTPUT' ? pp.salesTaxCode : pp.purchaseTaxCode;
             if (taxCodeValue) {
-                const tc = await db.taxCode.findUnique({
+                const tc = await client.taxCode.findUnique({
                     where: { shopId_code: { shopId, code: taxCodeValue } },
                 });
                 if (tc && tc.isActive) {
@@ -119,12 +121,12 @@ async function resolve(input: TaxResolutionInput): Promise<ResolvedTaxCode> {
     const partnerId = customerId || supplierId;
     if (partnerId) {
         const where = customerId ? { customerId } : { supplierId };
-        const pp = await (db.partnerTaxProfile as any).findUnique({ where });
+        const pp = await (client.partnerTaxProfile as any).findUnique({ where });
         if (pp) {
             const taxCodeValue =
                 direction === 'OUTPUT' ? pp.defaultSalesTaxCode : pp.defaultPurchaseTaxCode;
             if (taxCodeValue) {
-                const tc = await db.taxCode.findUnique({
+                const tc = await client.taxCode.findUnique({
                     where: { shopId_code: { shopId, code: taxCodeValue } },
                 });
                 if (tc && tc.isActive) {
@@ -150,7 +152,7 @@ async function resolve(input: TaxResolutionInput): Promise<ResolvedTaxCode> {
     }
 
     // Step 4: Company Default
-    const companyProfile = await db.companyTaxProfile.findUnique({
+    const companyProfile = await client.companyTaxProfile.findUnique({
         where: { shopId },
     });
     if (companyProfile) {
@@ -166,7 +168,7 @@ async function resolve(input: TaxResolutionInput): Promise<ResolvedTaxCode> {
                 ? companyProfile.defaultSalesTaxCode
                 : companyProfile.defaultPurchaseTaxCode;
         if (taxCodeValue) {
-            const tc = await db.taxCode.findUnique({
+            const tc = await client.taxCode.findUnique({
                 where: { shopId_code: { shopId, code: taxCodeValue } },
             });
             if (tc && tc.isActive) {
@@ -191,9 +193,10 @@ async function resolve(input: TaxResolutionInput): Promise<ResolvedTaxCode> {
  * Resolve หลาย lines พร้อมกัน (batch)
  */
 async function resolveMany(
-    inputs: TaxResolutionInput[]
+    inputs: TaxResolutionInput[],
+    tx?: any
 ): Promise<ResolvedTaxCode[]> {
-    return Promise.all(inputs.map(resolve));
+    return Promise.all(inputs.map(input => resolve(input, tx)));
 }
 
 export const TaxResolutionService = {

@@ -154,7 +154,8 @@ export const StockService: IStockService = {
         });
 
         return log;
-      }
+      },
+      tx
     );
   },
 
@@ -327,7 +328,8 @@ export const StockService: IStockService = {
             balance: productMap.get(m.productId)!.stock // Note: legacy balance might be slightly off in createMany for same-product bulk
           })) as any,
         });
-      }
+      },
+      tx // ⚡ PROPAGATE TRANSACTION CLIENT HERE
     );
   },
 
