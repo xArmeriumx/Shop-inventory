@@ -23,7 +23,7 @@ export const SettingsService = {
     Security.requirePermission(ctx, 'SETTINGS_SHOP');
 
     // allowlist for shop settings (Rule 12.1 - Flat + Allowlist Policy)
-    const allowlist = ['name', 'address', 'phone', 'taxId', 'promptPayId', 'latitude', 'longitude'];
+    const allowlist = ['name', 'address', 'phone', 'taxId', 'promptPayId', 'latitude', 'longitude', 'salesFlowMode'];
 
     return AuditService.runWithAudit(
       ctx,
@@ -50,6 +50,7 @@ export const SettingsService = {
             promptPayId: data.promptPayId,
             latitude: data.latitude,
             longitude: data.longitude,
+            salesFlowMode: data.salesFlowMode,
           },
           create: {
             userId: ctx.userId,
@@ -61,6 +62,7 @@ export const SettingsService = {
             promptPayId: data.promptPayId,
             latitude: data.latitude,
             longitude: data.longitude,
+            salesFlowMode: data.salesFlowMode,
           },
         });
       }

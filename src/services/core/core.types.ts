@@ -3,6 +3,7 @@ import { PurchaseType } from '../purchases/purchases.types';
 
 export const DocumentType = {
     SALE_INVOICE: 'INV',
+    SALE_ORDER: 'SO',
     PURCHASE_ORDER: 'PO',
     PURCHASE_REQUEST: 'PR',
     SHIPMENT: 'SHP',

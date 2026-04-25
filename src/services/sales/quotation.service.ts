@@ -11,6 +11,7 @@ import {
 } from '@/types/domain';
 import { AuditService } from '@/services/core/system/audit.service';
 import { ComputationEngine, CalculationItemInput } from '@/services/core/finance/computation.service';
+import { toNumber } from '@/lib/money';
 import { Prisma } from '@prisma/client';
 
 /**
@@ -122,7 +123,8 @@ export const QuotationService = {
             // 2. Generate Sequence
             const quotationNo = await SequenceService.generate(ctx, DocumentType.QUOTATION, tx);
 
-            // 3. Create Quotation
+            // 3. Create Quotation - Full Principle Snapshot
+            const { totals } = calculation;
             const quotation = await tx.quotation.create({
                 data: {
                     shopId: ctx.shopId,
@@ -133,7 +135,11 @@ export const QuotationService = {
                     date: input.date || new Date(),
                     validUntil: input.validUntil,
                     currencyCode: input.currencyCode || 'THB',
-                    totalAmount: calculation.totals.netAmount,
+                    totalAmount: totals.subtotalAmount,
+                    taxAmount: totals.taxAmount,
+                    taxableAmount: totals.taxableBaseAmount,
+                    taxMode: input.taxMode || 'INCLUSIVE',
+                    taxRate: input.taxRate || 7,
                     notes: input.notes,
                     items: {
                         create: input.items.map((item, index) => {
@@ -145,6 +151,8 @@ export const QuotationService = {
                                 unitPrice: item.unitPrice,
                                 discount: item.discount || 0,
                                 subtotal: lineRes.lineNet,
+                                taxAmount: lineRes.taxAmount,
+                                taxableAmount: lineRes.taxableBase,
                                 sortOrder: index,
                             };
                         }),
@@ -191,36 +199,63 @@ export const QuotationService = {
             });
 
             // 3. Create Sale (Sales Order) - Map accurate costs and totals
-            const invoiceNumber = await SequenceService.generate(ctx, DocumentType.SALE_INVOICE, tx);
+            const orderNumber = await SequenceService.generate(ctx, DocumentType.SALE_ORDER, tx);
             
-            const totalCost = quotation.items.reduce((sum, item) => 
-                sum + (item.quantity * (Number(item.product.costPrice) || 0)), 0
-            );
+            // Recalculate totals professionally to ensure all fields (taxAmount, netAmount) are synced
+            const products = await tx.product.findMany({
+                where: { id: { in: quotation.items.map(i => i.productId) } }
+            });
+
+            const computationItems: CalculationItemInput[] = quotation.items.map(item => {
+                const product = products.find(p => p.id === item.productId);
+                return {
+                    qty: item.quantity,
+                    unitPrice: toNumber(item.unitPrice),
+                    costPrice: product ? toNumber(product.costPrice) : 0,
+                    lineDiscount: toNumber(item.discount || 0)
+                };
+            });
+
+            // Note: Currently QT doesn't store taxMode, we infer from Inclusive (Default)
+            const calculation = ComputationEngine.calculateTotals(computationItems, { type: 'FIXED', value: 0 }, {
+                rate: toNumber(quotation.taxRate),
+                mode: (quotation.taxMode as any) || 'INCLUSIVE',
+                kind: quotation.taxMode === 'NO_VAT' ? 'NO_VAT' : 'VAT' as any
+            });
+
+            const { totals } = calculation;
 
             const sale = await tx.sale.create({
                 data: {
                     shopId: ctx.shopId,
                     userId: ctx.userId,
                     memberId: ctx.memberId,
-                    invoiceNumber,
+                    invoiceNumber: orderNumber,
                     customerId: quotation.customerId,
-                    quotationId: quotation.id, // Linking
+                    quotationId: quotation.id,
                     date: new Date(),
                     status: SaleStatus.CONFIRMED,
-                    totalAmount: Number(quotation.totalAmount),
-                    totalCost: totalCost,
-                    profit: Number(quotation.totalAmount) - totalCost,
+                    totalAmount: totals.subtotalAmount,
+                    totalCost: totals.totalCost,
+                    netAmount: totals.netAmount,
+                    profit: totals.totalProfit,
+                    taxMode: quotation.taxMode,
+                    taxRate: quotation.taxRate,
+                    taxAmount: totals.taxAmount,
+                    taxableAmount: totals.taxableBaseAmount,
                     paymentMethod: 'TRANSFER', 
                     bookingStatus: 'RESERVED',   
                     items: {
-                        create: quotation.items.map((item) => ({
-                            product: { connect: { id: item.productId } },
-                            quantity: item.quantity,
-                            salePrice: item.unitPrice,
-                            costPrice: Number(item.product.costPrice),
-                            discountAmount: item.discount,
-                            subtotal: item.subtotal,
-                            profit: Number(item.subtotal) - (item.quantity * Number(item.product.costPrice)),
+                        create: calculation.lines.map((line, index) => ({
+                            product: { connect: { id: quotation.items[index].productId } },
+                            quantity: line.qty,
+                            salePrice: line.unitPrice,
+                            costPrice: line.costPrice,
+                            discountAmount: line.lineDiscount,
+                            subtotal: line.lineNet,
+                            profit: line.lineProfit,
+                            taxAmount: line.taxAmount,
+                            taxableAmount: line.taxableBase,
                         })),
                     },
                 },

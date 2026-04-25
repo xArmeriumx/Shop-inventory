@@ -33,6 +33,7 @@ import { SaleMapper } from '@/lib/mappers/sales.mapper';
 import { SALE_CANCEL_REASONS, resolveReasonLabel, validateReason } from '@/config/reason-codes';
 
 import { ComputationEngine, CalculationItemInput } from '@/services/core/finance/computation.service';
+import { InvoiceService } from './invoice.service';
 
 export interface CancelSaleInput {
   id: string;
@@ -126,12 +127,24 @@ export const SaleService: ISaleService = {
             packagingQty: productDataMap.get(items[idx].productId)!.packagingQty || 1,
             salePrice: res.unitPrice,
             costPrice: res.costPrice,
-            subtotal: res.lineSubtotal,
+            subtotal: res.lineNet,
             profit: res.lineProfit,
             discountAmount: res.lineDiscount,
+            taxAmount: res.taxAmount,
+            taxableAmount: res.taxableBase,
           }));
 
+          // 3.5. Resolve Document Number & flow Mode
+          const shop = await prisma.shop.findUnique({
+            where: { id: ctx.shopId },
+            select: { salesFlowMode: true }
+          });
+
+          // SSOT: Use SALE_ORDER (SO) as the primary identifier for Sales (Orders)
+          const orderNumber = await SequenceService.generate(ctx, DocumentType.SALE_ORDER, prisma);
+
           const { totals } = calculation;
+          // SSOT: Use netAmount as the final bill total for UI list consistency
           const netAmount = totals.netAmount;
           const totalAmount = totals.subtotalAmount;
           const totalCost = totals.totalCost;
@@ -152,7 +165,7 @@ export const SaleService: ISaleService = {
               userId: ctx.userId,
               memberId: ctx.memberId || null,
               shopId: ctx.shopId,
-              invoiceNumber,
+              invoiceNumber: orderNumber,
               date: saleData.date ? new Date(saleData.date) : new Date(),
               paymentMethod: saleData.paymentMethod,
               notes: saleData.notes || null,
@@ -160,11 +173,13 @@ export const SaleService: ISaleService = {
               totalAmount,
               totalCost,
               profit: totals.totalProfit,
+              taxMode: saleData.taxMode,
+              taxRate: saleData.taxRate,
+              taxAmount: totals.taxAmount,
+              taxableAmount: totals.taxableBaseAmount,
               discountType: saleData.discountType,
               discountValue: saleData.discountValue,
               discountAmount: billDiscountAmount,
-              taxAmount,
-              taxableAmount,
               netAmount,
               paymentStatus: (saleData.paymentMethod === 'CREDIT' ? 'UNPAID' : 'PAID') as DocPaymentStatus,
               items: { create: saleItemsToCreate },
@@ -178,6 +193,18 @@ export const SaleService: ISaleService = {
           await Promise.all((sale.items || []).map((item: any) =>
             StockService.reserveStock(item.productId, item.quantity, ctx, prisma)
           ));
+
+          // 7. Hybrid Flow Execution (Retail vs ERP)
+          if (shop?.salesFlowMode === 'RETAIL') {
+            // Auto-Invoicing Logic
+            const invoice = await InvoiceService.createFromSale(ctx, sale.id, prisma);
+            await InvoiceService.post(ctx, invoice.id, prisma);
+            
+            // Mark Paid if not CREDIT
+            if (sale.paymentMethod !== 'CREDIT') {
+              await InvoiceService.markPaid(ctx, invoice.id, prisma);
+            }
+          }
 
           return SaleMapper.toDetailDTO(sale, ctx);
         }, { timeout: DB_TIMEOUTS.EXTENDED }).then(async (result) => {

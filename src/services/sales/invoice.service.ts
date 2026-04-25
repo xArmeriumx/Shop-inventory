@@ -1,4 +1,5 @@
 import { db } from '@/lib/db';
+import { Prisma } from '@prisma/client';
 import { SequenceService } from '@/services/core/system/sequence.service';
 import { DB_TIMEOUTS } from '@/lib/constants';
 import { Security } from '@/services/core/iam/security.service';
@@ -92,14 +93,14 @@ export const InvoiceService = {
      * 4. payment ห้ามแตะ taxAmount / taxableBase
      * 5. หลัง POSTED → สร้าง SalesTaxEntry
      */
-    async createFromSale(ctx: RequestContext, saleId: string) {
+    async createFromSale(ctx: RequestContext, saleId: string, tx?: Prisma.TransactionClient) {
         Security.require(ctx, 'INVOICE_CREATE' as Permission);
 
         if (!ctx.memberId) {
             throw new ServiceError('ไม่สามารถสร้างใบแจ้งหนี้ได้เนื่องจากไม่พบรหัสสมาชิก (memberId)');
         }
 
-        return await db.$transaction(async (tx) => {
+        const execute = async (tx: Prisma.TransactionClient) => {
             // 1. Validate Sale State & Existing Invoice
             const sale = await tx.sale.findUnique({
                 where: { id: saleId },
@@ -310,17 +311,20 @@ export const InvoiceService = {
             });
 
             return invoice;
-        }, { timeout: DB_TIMEOUTS.EXTENDED });
+        };
+
+        if (tx) return await execute(tx);
+        return await db.$transaction(async (tx) => await execute(tx), { timeout: DB_TIMEOUTS.EXTENDED });
     },
 
     /**
      * post — เปลี่ยน status เป็น POSTED และสร้าง SalesTaxEntry
      * Rule: ห้ามแก้ tax snapshot หลัง POSTED
      */
-    async post(ctx: RequestContext, id: string) {
+    async post(ctx: RequestContext, id: string, tx?: Prisma.TransactionClient) {
         Security.require(ctx, 'INVOICE_POST' as Permission);
 
-        return await db.$transaction(async (tx) => {
+        const execute = async (tx: Prisma.TransactionClient) => {
             const invoice = await (tx as any).invoice.findUnique({
                 where: { id },
                 include: { items: true }
@@ -363,15 +367,19 @@ export const InvoiceService = {
                     postedAt: now,
                 },
             });
-        }, { timeout: DB_TIMEOUTS.EXTENDED });
+        };
+
+        if (tx) return await execute(tx);
+        return await db.$transaction(async (tx) => await execute(tx), { timeout: DB_TIMEOUTS.EXTENDED });
     },
 
-    async markPaid(ctx: RequestContext, id: string) {
-        const invoice = await (db as any).invoice.findUnique({ where: { id } });
+    async markPaid(ctx: RequestContext, id: string, tx?: Prisma.TransactionClient) {
+        const client = tx || db;
+        const invoice = await (client as any).invoice.findUnique({ where: { id } });
         if (!invoice || invoice.shopId !== ctx.shopId) throw new ServiceError('ไม่พบใบแจ้งหนี้');
         if (invoice.status !== 'POSTED') throw new ServiceError('ชำระเฉพาะ Invoice ที่ Post แล้วเท่านั้น');
-        // Rule: payment ห้ามแตะ taxAmount / taxableBase / taxCodeSnapshot
-        return (db as any).invoice.update({
+
+        return (client as any).invoice.update({
             where: { id },
             data: {
                 status: 'PAID',
