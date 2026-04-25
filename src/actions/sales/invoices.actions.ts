@@ -83,3 +83,12 @@ export async function getInvoiceStats(): Promise<ActionResponse<any>> {
         }, 'sales:getInvoiceStats');
     }, { context: { action: 'getInvoiceStats' } });
 }
+
+export async function bulkPostInvoices(): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requirePermission('INVOICE_POST' as any);
+            return InvoiceService.bulkPost(ctx);
+        }, 'sales:bulkPostInvoices');
+    }, { context: { action: 'bulkPostInvoices' } });
+}

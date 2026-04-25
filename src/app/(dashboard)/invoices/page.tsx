@@ -5,13 +5,14 @@ import { TableView, Column } from '@/components/ui/table-view';
 import { StatusBadge, StatusConfig } from '@/components/ui/status-badge';
 import { ClientDate } from '@/components/ui/client-date';
 import { Button } from '@/components/ui/button';
-import { Eye, Receipt, AlertCircle, FileEdit } from 'lucide-react';
+import { Eye, Receipt, AlertCircle, FileEdit, BookOpen } from 'lucide-react';
 import Link from 'next/link';
 import { SectionHeader } from '@/components/ui/section-header';
 import { formatCurrency } from '@/lib/utils';
 import { MetricGrid } from '@/components/ui/metric-card';
 import { InvoiceFilters } from '@/components/sales/invoices/invoice-filters';
 import { PaginationControl } from '@/components/ui/pagination-control';
+import { BulkPostButton } from '@/components/sales/invoices/bulk-post-button';
 
 export const metadata: Metadata = {
     title: 'ใบแจ้งหนี้ | ERP System',
@@ -51,12 +52,14 @@ export default async function InvoicesPage({ searchParams }: InvoicesPageProps) 
         );
     }
 
-    // Metrics data extraction with ActionResponse wrapper
     const statsData = stats.success ? stats.data : {
         draft: { count: 0 },
         unpaid: { amount: 0, count: 0 },
-        overdue: { amount: 0, count: 0 }
+        overdue: { amount: 0, count: 0 },
+        pendingPost: { count: 0 },
     };
+
+    const pendingPostCount = statsData.pendingPost?.count || 0;
 
     const metrics = [
         {
@@ -79,6 +82,13 @@ export default async function InvoicesPage({ searchParams }: InvoicesPageProps) 
             icon: <AlertCircle className="h-4 w-4" />,
             iconClassName: 'text-red-500',
             hint: `${statsData.overdue?.count || 0} ใบที่เกินวันครบกำหนด`,
+        },
+        {
+            label: 'รอลงบัญชี (POS)',
+            value: pendingPostCount.toString(),
+            icon: <BookOpen className="h-4 w-4" />,
+            iconClassName: pendingPostCount > 0 ? 'text-amber-500' : 'text-gray-400',
+            hint: pendingPostCount > 0 ? 'ขายแล้วแต่ยังไม่ได้ Post ลง Ledger' : 'ลงบัญชีครบแล้ว',
         },
     ];
 
@@ -123,7 +133,18 @@ export default async function InvoicesPage({ searchParams }: InvoicesPageProps) 
         },
         {
             header: 'สถานะ',
-            accessor: (row) => <StatusBadge status={row.status} config={INVOICE_STATUS_CONFIG} />,
+            accessor: (row) => (
+                <div className="flex flex-col gap-1">
+                    <StatusBadge status={row.status} config={INVOICE_STATUS_CONFIG} />
+                    {/* Badge: PAID แต่ยังไม่ได้ Post ลงบัญชี */}
+                    {row.status === 'PAID' && row.taxPostingStatus === 'DRAFT' && (
+                        <span className="inline-flex items-center gap-1 text-[10px] text-amber-600 font-medium">
+                            <BookOpen className="h-2.5 w-2.5" />
+                            รอลงบัญชี
+                        </span>
+                    )}
+                </div>
+            ),
         },
         {
             header: '',
@@ -141,12 +162,17 @@ export default async function InvoicesPage({ searchParams }: InvoicesPageProps) 
 
     return (
         <div className="space-y-6">
-            <SectionHeader
-                title="ใบแจ้งหนี้ (Billing)"
-                description="จัดการใบแจ้งหนี้ ติดตามยอดค้างชำระ และตรวจสอบสถานะทางภาษี"
-            />
+            <div className="flex items-start justify-between">
+                <SectionHeader
+                    title="ใบแจ้งหนี้ (Billing)"
+                    description="จัดการใบแจ้งหนี้ ติดตามยอดค้างชำระ และตรวจสอบสถานะทางภาษี"
+                />
+                {pendingPostCount > 0 && (
+                    <BulkPostButton pendingCount={pendingPostCount} />
+                )}
+            </div>
 
-            <MetricGrid items={metrics} columns={3} />
+            <MetricGrid items={metrics} columns={4} />
 
             <InvoiceFilters search={params.search} status={params.status} />
 
@@ -164,4 +190,3 @@ export default async function InvoicesPage({ searchParams }: InvoicesPageProps) 
         </div>
     );
 }
-

@@ -455,7 +455,7 @@ export const InvoiceService = {
     async getStats(ctx: RequestContext) {
         Security.require(ctx, 'INVOICE_VIEW' as Permission);
 
-        const [totalUnpaid, totalDraft, totalOverdue] = await Promise.all([
+        const [totalUnpaid, totalDraft, totalOverdue, totalPendingPost] = await Promise.all([
             db.invoice.aggregate({
                 where: { shopId: ctx.shopId, status: { in: ['POSTED'] }, paymentStatus: { in: ['UNPAID', 'PARTIAL'] } },
                 _sum: { residualAmount: true },
@@ -473,7 +473,15 @@ export const InvoiceService = {
                 },
                 _sum: { residualAmount: true },
                 _count: true
-            })
+            }),
+            // 🚨 Backlog: นับ Invoice ที่ PAID แล้วแต่ยังไม่ได้ Post ลงบัญชี (PAID but taxPostingStatus = DRAFT)
+            db.invoice.count({
+                where: {
+                    shopId: ctx.shopId,
+                    status: 'PAID',
+                    taxPostingStatus: 'DRAFT',
+                }
+            }),
         ]);
 
         return {
@@ -487,7 +495,46 @@ export const InvoiceService = {
             overdue: {
                 amount: Number(totalOverdue._sum.residualAmount || 0),
                 count: totalOverdue._count
+            },
+            // 🚨 รายการที่จำเป็นต้อง Post ลงบัญชี (POS ขายแล้ว แต่ CoA ยังไม่ได้ตั้งค่าตอนขาย)
+            pendingPost: {
+                count: totalPendingPost
             }
         };
+    },
+
+    /**
+     * bulkPost — Post รายการ Invoice ค้างทั้งหมดเข้า Ledger
+     * ใช้โดย Accountant หลังจากตั้งค่า CoA เรียบร้อยแล้ว
+     */
+    async bulkPost(ctx: RequestContext): Promise<{ success: number; failed: number; errors: string[] }> {
+        Security.require(ctx, 'INVOICE_POST' as Permission);
+
+        // ดึงรายการ Invoice ที่ PAID แต่ยังไม่ได้ Post
+        const pendingInvoices = await (db as any).invoice.findMany({
+            where: {
+                shopId: ctx.shopId,
+                status: 'PAID',
+                taxPostingStatus: 'DRAFT',
+            },
+            select: { id: true, invoiceNo: true },
+            take: 100, // ทำทีละ 100 เพื่อป้องกัน timeout
+        });
+
+        let success = 0;
+        let failed = 0;
+        const errors: string[] = [];
+
+        for (const invoice of pendingInvoices) {
+            try {
+                await this.post(ctx, invoice.id);
+                success++;
+            } catch (e: any) {
+                failed++;
+                errors.push(`${invoice.invoiceNo}: ${e.message}`);
+            }
+        }
+
+        return { success, failed, errors };
     }
 };
