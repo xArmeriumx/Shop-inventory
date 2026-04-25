@@ -44,7 +44,6 @@ interface TaxCodeTableProps {
 
 export function TaxCodeTable({ initialData }: TaxCodeTableProps) {
     const router = useRouter();
-    const [data, setData] = useState(initialData);
     const [isPending, startTransition] = useTransition();
     const [editingCode, setEditingCode] = useState<any>(null);
     const [isFormOpen, setIsFormOpen] = useState(false);
@@ -98,14 +97,14 @@ export function TaxCodeTable({ initialData }: TaxCodeTableProps) {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {data.length === 0 ? (
+                        {initialData.length === 0 ? (
                             <TableRow>
                                 <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
                                     ยังไม่มีรหัสภาษีในระบบ
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            data.map((item) => (
+                            initialData.map((item) => (
                                 <TableRow key={item.code} className="hover:bg-muted/30 transition-colors">
                                     <TableCell className="font-mono font-medium text-primary">
                                         {item.code}

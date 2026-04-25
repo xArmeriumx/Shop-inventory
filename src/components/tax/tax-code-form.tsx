@@ -22,7 +22,7 @@ import {
 import { createTaxCode, updateTaxCode } from '@/actions/tax/tax.actions';
 import { toast } from 'sonner';
 import { runActionWithToast, mapActionErrorsToForm } from '@/lib/mutation-utils';
-import { useTransition } from 'react';
+import { useTransition, useEffect } from 'react';
 
 interface TaxCodeFormProps {
     initialData?: any;
@@ -37,6 +37,10 @@ export function TaxCodeForm({ initialData, onSuccess }: TaxCodeFormProps) {
         resolver: zodResolver(taxCodeSchema),
         defaultValues: getDefaultTaxCodeValues(initialData),
     });
+
+    useEffect(() => {
+        methods.reset(getDefaultTaxCodeValues(initialData));
+    }, [initialData, methods]);
 
     const onSubmit = (values: TaxCodeFormValues) => {
         startTransition(async () => {
@@ -154,7 +158,15 @@ export function TaxCodeForm({ initialData, onSuccess }: TaxCodeFormProps) {
                     </div>
                 </div>
 
-                <div className="flex justify-end space-x-2 pt-4">
+                <div className="flex justify-end space-x-3 pt-6 border-t mt-6">
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => onSuccess?.()}
+                        className="px-6"
+                    >
+                        ยกเลิก
+                    </Button>
                     <Button type="submit" disabled={isPending} className="px-8 shadow-md">
                         {isPending ? 'กำลังบันทึก...' : isEdit ? 'แก้ไขข้อมูล' : 'บันทึกข้อมูล'}
                     </Button>

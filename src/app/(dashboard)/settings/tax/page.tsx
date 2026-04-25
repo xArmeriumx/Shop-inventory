@@ -14,7 +14,12 @@ export const metadata: Metadata = {
     description: 'จัดการผังภาษีและข้อมูลนิติบุคคล',
 };
 
-export default async function TaxSettingsPage() {
+export default async function TaxSettingsPage({
+    searchParams
+}: {
+    searchParams: { tab?: string }
+}) {
+    const currentTab = searchParams.tab || 'profile';
     const now = new Date();
     const [profileRes, codesRes, whtCodes, ledgerRes] = await Promise.all([
         getCompanyTaxProfile(),
@@ -29,7 +34,7 @@ export default async function TaxSettingsPage() {
 
     return (
         <div className="space-y-6">
-            <Tabs defaultValue="profile" className="space-y-6">
+            <Tabs defaultValue={currentTab} className="space-y-6">
                 <TabsList className="bg-muted/60 p-1">
                     <TabsTrigger value="profile" className="flex items-center gap-2">
                         <Building2 className="w-4 h-4" />
