@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import { getPurchaseTax } from '@/actions/tax/tax.actions';
-import { PurchaseTaxDetail } from '@/components/tax/purchase-tax-detail';
+import { PurchaseTaxFeature } from '@/components/features/tax/purchase-tax';
 import Loading from '@/app/(dashboard)/loading';
 
 interface PurchaseTaxDetailPageProps {
@@ -15,7 +15,7 @@ async function DetailWrapper({ id }: { id: string }) {
         notFound();
     }
 
-    return <PurchaseTaxDetail doc={res.data} />;
+    return <PurchaseTaxFeature initialData={res.data} />;
 }
 
 export default function PurchaseTaxDetailPage(props: PurchaseTaxDetailPageProps) {

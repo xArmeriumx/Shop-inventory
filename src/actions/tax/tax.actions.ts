@@ -38,7 +38,28 @@ export async function registerPurchaseTax(purchaseId: string): Promise<ActionRes
 export async function postPurchaseTax(docId: string, input: any): Promise<ActionResponse<null>> {
     return handleAction(async () => {
         const ctx = await requirePermission(Permission.TAX_REPORT_POST);
-        await PurchaseTaxService.post(docId, input, ctx);
+        
+        // 1. Before Snapshot
+        const before = await PurchaseTaxService.getById(docId, ctx);
+        if (!before) throw new Error('ไม่พบเอกสารภาษีซื้อที่ต้องการจัดเก็บ');
+
+        // 2. Perform Mutation
+        const result = await PurchaseTaxService.post(docId, input, ctx);
+
+        // 3. After Snapshot (From result or re-fetch)
+        const after = await PurchaseTaxService.getById(docId, ctx);
+
+        // 4. Record Deep Audit
+        AuditService.record({
+            action: 'PURCHASE_TAX_POST',
+            targetType: 'PurchaseTaxDocument',
+            targetId: docId,
+            note: `ลงบัญชีภาษีซื้อ: ${before.internalDocNo}`,
+            before,
+            after,
+            actorId: ctx.userId,
+            shopId: ctx.shopId
+        }).catch(err => logger.error('[Audit] PURCHASE_TAX_POST log failed', err));
 
         revalidatePath(`/tax/purchase-tax/${docId}`);
         revalidatePath('/tax/purchase-tax');
@@ -53,7 +74,28 @@ export async function postPurchaseTax(docId: string, input: any): Promise<Action
 export async function voidPurchaseTax(docId: string): Promise<ActionResponse<null>> {
     return handleAction(async () => {
         const ctx = await requirePermission(Permission.TAX_REPORT_POST);
+        
+        // 1. Before Snapshot
+        const before = await PurchaseTaxService.getById(docId, ctx);
+        if (!before) throw new Error('ไม่พบเอกสารภาษีซื้อที่ต้องการยกเลิก');
+
+        // 2. Perform Mutation
         await PurchaseTaxService.void(docId, ctx);
+
+        // 3. After Snapshot
+        const after = await PurchaseTaxService.getById(docId, ctx);
+
+        // 4. Record Deep Audit
+        AuditService.record({
+            action: 'PURCHASE_TAX_VOID',
+            targetType: 'PurchaseTaxDocument',
+            targetId: docId,
+            note: `ยกเลิกเอกสารภาษีซื้อ: ${before.internalDocNo}`,
+            before,
+            after,
+            actorId: ctx.userId,
+            shopId: ctx.shopId
+        }).catch(err => logger.error('[Audit] PURCHASE_TAX_VOID log failed', err));
 
         revalidatePath(`/tax/purchase-tax/${docId}`);
         revalidatePath('/tax/purchase-tax');
