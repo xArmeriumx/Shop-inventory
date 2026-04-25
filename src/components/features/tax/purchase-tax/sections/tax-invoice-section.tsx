@@ -12,7 +12,7 @@ import {
   SelectValue
 } from '@/components/ui/select';
 import { FileText, Calendar, ShieldCheck } from 'lucide-react';
-import { FormField } from '@/components/shared/form-field'; // Standard wrapper
+import { FormField } from '@/components/ui/form-field';
 import { PurchaseTaxFormValues } from '@/schemas/purchase-tax-form';
 
 interface TaxInvoiceSectionProps {
@@ -21,7 +21,7 @@ interface TaxInvoiceSectionProps {
 }
 
 export function TaxInvoiceSection({ isReadOnly, isPending }: TaxInvoiceSectionProps) {
-  const { register, setValue, watch, formState: { errors } } = useFormContext<PurchaseTaxFormValues>();
+  const { register, setValue, watch } = useFormContext<PurchaseTaxFormValues>();
 
   const claimStatus = watch('claimStatus');
 
@@ -39,9 +39,9 @@ export function TaxInvoiceSection({ isReadOnly, isPending }: TaxInvoiceSectionPr
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div className="space-y-4">
             <FormField
+              name="vendorDocNo"
               label="เลขที่ใบกำกับภาษี (Tax Invoice No.)"
               icon={<FileText className="h-3 w-3" />}
-              error={errors.vendorDocNo?.message}
               required
             >
               <Input
@@ -53,6 +53,7 @@ export function TaxInvoiceSection({ isReadOnly, isPending }: TaxInvoiceSectionPr
             </FormField>
 
             <FormField
+              name="vendorDocDate"
               label="วันที่ในใบกำกับภาษี (Issue Date)"
               icon={<Calendar className="h-3 w-3" />}
             >
@@ -67,6 +68,7 @@ export function TaxInvoiceSection({ isReadOnly, isPending }: TaxInvoiceSectionPr
 
           <div className="space-y-4 bg-muted/20 p-6 rounded-[1.5rem] border border-primary/10">
             <FormField
+              name="claimStatus"
               label="สิทธิการขอคืนภาษี (Claim Policy)"
               icon={<ShieldCheck className="h-3 w-3" />}
             >
