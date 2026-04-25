@@ -161,40 +161,44 @@ export default function AuditLogsPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <History className="h-8 w-8 text-primary" />
-            Audit Log Explorer
-          </h1>
-          <p className="text-muted-foreground">
-            ตรวจสอบประวัติการใช้งานและการเปลี่ยนแปลงข้อมูลในระบบ (System Governance)
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" disabled={isExporting}>
-                <Download className={`h-4 w-4 mr-2 ${isExporting ? 'animate-pulse' : ''}`} />
-                Export logs
-                <ChevronDown className="h-3 w-3 ml-2 opacity-50" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => handleExport('CSV')}>Export as CSV (Flattened)</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExport('JSON')}>Export as JSON (Full Snapshots)</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => fetchLogs(pagination.page)}
-            disabled={isPending}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isPending ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
+    <div className="space-y-10 pb-10">
+      <div className="relative group overflow-hidden rounded-[2.5rem] border-2 border-primary/10 bg-primary/5 p-8 shadow-2xl shadow-primary/5">
+        <div className="absolute -top-24 -right-24 w-64 h-64 bg-primary/10 rounded-full blur-3xl opacity-50" />
+        <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="space-y-2 text-center md:text-left">
+            <h1 className="text-4xl font-black tracking-tighter flex items-center justify-center md:justify-start gap-3">
+              <History className="h-10 w-10 text-primary" />
+              Audit Log Explorer
+            </h1>
+            <p className="text-muted-foreground font-medium max-w-xl">
+              ศูนย์ควบคุมการตรวจสอบประวัติการใช้งานและการเปลี่ยนแปลงข้อมูลในระบบ (Advanced System Governance) 
+              พร้อมเทคโนโลยี Deep State Snapshots
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" disabled={isExporting}>
+                  <Download className={`h-4 w-4 mr-2 ${isExporting ? 'animate-pulse' : ''}`} />
+                  Export logs
+                  <ChevronDown className="h-3 w-3 ml-2 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleExport('CSV')}>Export as CSV (Flattened)</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport('JSON')}>Export as JSON (Full Snapshots)</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchLogs(pagination.page)}
+              disabled={isPending}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isPending ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -257,7 +261,7 @@ export default function AuditLogsPage() {
         </Button>
       </div>
 
-      <Card className="border-primary/10 shadow-lg bg-card/50 backdrop-blur-sm relative overflow-hidden">
+      <Card className="border-primary/10 shadow-xl bg-card/50 backdrop-blur-sm relative overflow-hidden rounded-[2rem]">
         {activePreset && (
           <div className="absolute top-0 right-0 p-1">
             <Button
@@ -452,16 +456,16 @@ export default function AuditLogsPage() {
       </Card>
 
       {/* Security Best Practices Warning (Governance ERP Rule 18) */}
-      <div className="bg-primary/5 border border-primary/20 rounded-xl p-6 flex flex-col md:flex-row items-center gap-6 shadow-sm">
-        <div className="h-12 w-12 rounded-2xl bg-primary/20 flex items-center justify-center flex-shrink-0 animate-pulse">
-          <ShieldCheck className="h-6 w-6 text-primary" />
+      <div className="bg-primary/5 border-2 border-primary/20 rounded-[2rem] p-8 flex flex-col md:flex-row items-center gap-8 shadow-xl">
+        <div className="h-16 w-16 rounded-2xl bg-foreground text-background flex items-center justify-center flex-shrink-0 shadow-2xl">
+          <ShieldCheck className="h-8 w-8" />
         </div>
         <div>
-          <h3 className="text-lg font-bold text-primary mb-1 tracking-tight">System Integrity & Audit Trail</h3>
-          <p className="text-sm text-muted-foreground leading-relaxed">
+          <h3 className="text-xl font-black text-primary mb-2 tracking-tight uppercase">System Integrity & Audit Trail</h3>
+          <p className="text-sm text-balance text-muted-foreground font-medium leading-relaxed">
             This audit trail is tamper-evident and captures deep state snapshots of all critical operations.
             It is used for troubleshooting, compliance auditing, and security forensics.
-            All read and write operations on this log are themselves audited for maximum governance.
+            All operations on this log are themselves independently audited for maximum corporate governance.
           </p>
         </div>
       </div>

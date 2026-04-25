@@ -13,9 +13,15 @@ import {
   FileWarning,
   Bug,
   ShieldCheck,
-  History
+  History,
+  Lock,
+  Globe,
+  Terminal,
+  ChevronRight,
+  Wifi,
+  ShieldAlert
 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { Progress } from '@/components/ui/progress';
@@ -28,7 +34,7 @@ import {
   TableHeader,
   TableRow
 } from '@/components/ui/table';
-import { getSystemMetrics, generateTestLog, type SystemMetrics } from '@/actions/core/system.actions'; // Import generateTestLog
+import { getSystemMetrics, getHardeningHealth, type SystemMetrics } from '@/actions/core/system.actions';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   LineChart,
@@ -41,7 +47,23 @@ import {
   AreaChart,
   Area
 } from 'recharts';
+import { cn } from '@/lib/utils';
 
+
+function MetricIndicator({ status }: { status: 'online' | 'degraded' | 'offline' }) {
+  return (
+    <div className="relative flex items-center justify-center h-4 w-4">
+      <span className={cn(
+        "absolute h-full w-full rounded-full animate-ping opacity-75",
+        status === 'online' ? "bg-emerald-400" : status === 'degraded' ? "bg-orange-400" : "bg-red-400"
+      )} />
+      <span className={cn(
+        "relative inline-flex h-2.5 w-2.5 rounded-full",
+        status === 'online' ? "bg-emerald-500" : status === 'degraded' ? "bg-orange-500" : "bg-red-500"
+      )} />
+    </div>
+  );
+}
 
 function StatusCard({
   title,
@@ -49,7 +71,8 @@ function StatusCard({
   subValue,
   icon: Icon,
   status = 'default',
-  progress
+  progress,
+  className
 }: {
   title: string;
   value: string;
@@ -57,44 +80,48 @@ function StatusCard({
   icon: any;
   status?: 'default' | 'success' | 'warning' | 'error';
   progress?: number;
+  className?: string;
 }) {
   const statusColor = {
     default: 'text-muted-foreground',
-    success: 'text-green-600',
-    warning: 'text-orange-600',
-    error: 'text-red-600',
+    success: 'text-emerald-500',
+    warning: 'text-orange-500',
+    error: 'text-red-500',
   };
 
   const bgStatus = {
     default: 'bg-muted/50',
-    success: 'bg-green-500/10',
+    success: 'bg-emerald-500/10',
     warning: 'bg-orange-500/10',
     error: 'bg-red-500/10',
   };
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        <div className={`p-2 rounded-full ${bgStatus[status]}`}>
-          <Icon className={`h-4 w-4 ${statusColor[status]}`} />
+    <Card className={cn("overflow-hidden border-2 transition-all hover:border-primary/20", className)}>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+        <p className="text-xs font-black uppercase tracking-widest text-muted-foreground/70">{title}</p>
+        <div className={cn("p-2 rounded-xl transition-colors", bgStatus[status])}>
+          <Icon className={cn("h-4 w-4", statusColor[status])} />
         </div>
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold">{value}</div>
+        <div className="text-3xl font-black tracking-tighter">{value}</div>
         {subValue && (
-          <p className="text-xs text-muted-foreground mt-1">
+          <p className="text-[11px] font-medium text-muted-foreground/60 mt-1 flex items-center gap-1">
             {subValue}
           </p>
         )}
         {progress !== undefined && (
-          <Progress value={progress} className="h-2 mt-3"
-            indicatorClassName={
-              status === 'warning' ? 'bg-orange-500' :
-                status === 'error' ? 'bg-red-500' :
-                  status === 'success' ? 'bg-green-500' : ''
-            }
-          />
+          <div className="mt-4 space-y-2">
+            <Progress value={progress} className="h-1.5"
+                indicatorClassName={cn(
+                    "transition-all duration-1000",
+                    status === 'warning' ? 'bg-orange-500' :
+                    status === 'error' ? 'bg-red-500' :
+                    status === 'success' ? 'bg-emerald-500' : 'bg-primary'
+                )}
+            />
+          </div>
         )}
       </CardContent>
     </Card>
@@ -104,12 +131,12 @@ function StatusCard({
 
 function SystemDashboard() {
   const [metrics, setMetrics] = useState<SystemMetrics | null>(null);
+  const [hardening, setHardening] = useState<any>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [isPaused, setIsPaused] = useState(false);
-  const [isTesting, setIsTesting] = useState(false); // State for test button
 
   // Refs for calculating QPS delta
   const lastQueriesRef = useRef<{ total: number; time: number } | null>(null);
@@ -118,91 +145,73 @@ function SystemDashboard() {
   const fetchMetrics = useCallback(() => {
     startTransition(async () => {
       try {
-        const result = await getSystemMetrics();
-        if (!result.success) {
-          setError(result.message);
+        const [metricsRes, hardeningRes] = await Promise.all([
+          getSystemMetrics(),
+          getHardeningHealth()
+        ]);
+
+        if (!metricsRes.success) {
+          setError(metricsRes.message);
           setLoading(false);
           return;
         }
 
-        const data = result.data;
+        const data = metricsRes.data;
         setMetrics(data);
+        if (hardeningRes.success) setHardening(hardeningRes.data);
+        
         setError(null);
 
         // Calculate QPS
         const now = Date.now();
         let currentQps = 0;
-
         if (lastQueriesRef.current) {
           const deltaSeconds = (now - lastQueriesRef.current.time) / 1000;
           const deltaQueries = data.totalQueries - lastQueriesRef.current.total;
-
           if (deltaSeconds > 0 && deltaQueries >= 0) {
             currentQps = Math.round(deltaQueries / deltaSeconds);
           }
         }
-
         setQps(currentQps);
         lastQueriesRef.current = { total: data.totalQueries, time: now };
 
-        // Add to history (keep last 30 points)
+        // Add to history
         setHistory(prev => {
           const date = new Date();
-          const timeLabel = date.getHours().toString().padStart(2, '0') + ':' +
-            date.getMinutes().toString().padStart(2, '0') + ':' +
-            date.getSeconds().toString().padStart(2, '0');
+          const timeLabel = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
           const newPoint = {
             time: timeLabel,
-            memory: (data.process.memory.rss / 1024 / 1024).toFixed(1), // MB
+            memory: (data.process.memory.rss / 1024 / 1024), // MB
             latency: data.db.latency,
-            requests: currentQps // Real QPS
+            requests: currentQps
           };
 
           const newHistory = [...prev, newPoint];
-          if (newHistory.length > 30) return newHistory.slice(newHistory.length - 30);
-          return newHistory;
+          return newHistory.slice(-30);
         });
 
       } catch (err) {
         console.error(err);
-        setError('ไม่สามารถดึงข้อมูลระบบได้ (ต้องการสิทธิ์ Shop Owner/Admin)');
+        setError('ไม่สามารถดึงข้อมูลระบบได้ (Authorization Required)');
       } finally {
         setLoading(false);
       }
     });
   }, []);
 
-  const handleTestError = async () => {
-    setIsTesting(true);
-    try {
-      await generateTestLog();
-      // Wait a bit for DB propagation then refresh
-      setTimeout(() => {
-        fetchMetrics();
-        setIsTesting(false);
-      }, 500);
-    } catch (e) {
-      console.error(e);
-      setIsTesting(false);
-    }
-  };
-
   useEffect(() => {
-    // Handle visibility change for Auto-Pause
     const handleVisibilityChange = () => {
-      if (document.hidden) {
-        setIsPaused(true);
-      } else {
+      if (document.hidden) setIsPaused(true);
+      else {
         setIsPaused(false);
-        fetchMetrics(); // Fetch immediately when visible
+        fetchMetrics();
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
-
     fetchMetrics();
-    // Auto refresh every 2 seconds (Real-time)
+    
     const interval = setInterval(() => {
       if (!isPaused && !document.hidden) fetchMetrics();
     }, 2000);
@@ -214,233 +223,209 @@ function SystemDashboard() {
   }, [isPaused, fetchMetrics]);
 
   if (loading && !metrics) {
-    // ... (Skeleton remains unchanged) ...
     return (
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 animate-pulse">
-        {[1, 2, 3, 4].map(i => (
-          <div key={i} className="h-32 bg-muted rounded-xl" />
-        ))}
+      <div className="space-y-6">
+        <div className="h-20 bg-muted animate-pulse rounded-3xl" />
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="h-32 bg-muted rounded-3xl animate-pulse" />
+          ))}
+        </div>
+        <div className="h-80 bg-muted rounded-3xl animate-pulse" />
       </div>
     );
   }
 
-  // ... (Error handling remains unchanged) ...
-
   if (error) {
     return (
-      <Alert variant="destructive">
-        <AlertTriangle className="h-4 w-4" />
-        <AlertTitle>Access Denied</AlertTitle>
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
+      <Card className="border-destructive/30 bg-destructive/5 rounded-3xl p-8 text-center max-w-2xl mx-auto">
+        <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-4" />
+        <h3 className="text-xl font-black mb-2">เข้าถึงข้อมูลถูกปฏิเสธ</h3>
+        <p className="text-muted-foreground font-medium mb-6">{error}</p>
+        <Button onClick={() => window.location.reload()} variant="outline" className="rounded-2xl border-2">
+            Try Re-Authentication
+        </Button>
+      </Card>
     );
   }
 
   if (!metrics) return null;
 
-  // ... (Helpers remain unchanged) ...
-  const formatBytes = (bytes: number) => (bytes / 1024 / 1024).toFixed(0) + ' MB';
-  const formatUptime = (sec: number) => {
-    const d = Math.floor(sec / 86400);
-    const h = Math.floor((sec % 86400) / 3600);
-    const m = Math.floor((sec % 3600) / 60);
-    if (d > 0) return `${d}d ${h}h ${m}m`;
-    if (h > 0) return `${h}h ${m}m`;
-    return `${m}m ${Math.floor(sec % 60)}s`;
-  };
+  // Calculate Resilience Score (0-100)
+  // Factors: DB Latency, CPU Load, Error Volume, Hardening Resilience
+  const latencyPenalty = Math.max(0, (metrics.db.latency - 50) / 10); // 1 point per 10ms above 50ms
+  const cpuPenalty = Math.max(0, (metrics.process.cpuUsage - 60) / 2); // 1 point per 2% above 60%
+  const logPenalty = (metrics.logs?.length || 0) * 2;
+  const healthScore = Math.max(0, 100 - latencyPenalty - cpuPenalty - logPenalty);
 
-  const dbStatus = metrics.db.latency < 200 ? 'success' : metrics.db.latency < 1000 ? 'warning' : 'error';
+  const formatBytes = (bytes: number) => (bytes / 1024 / 1024).toFixed(0) + ' MB';
+  const dbStatus = metrics.db.latency < 100 ? 'success' : metrics.db.latency < 300 ? 'warning' : 'error';
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-sm font-medium text-muted-foreground">System Health</h2>
-          <div className="flex items-center gap-2 mt-1">
-            <span className={`inline-flex h-2.5 w-2.5 rounded-full ${metrics.status === 'online' ? 'bg-green-500' : 'bg-red-500'}`} />
-            <span className="text-xl font-bold capitalize">{metrics.status}</span>
+    <div className="space-y-8 pb-10">
+      {/* Premium Header / Status Bar */}
+      <div className="relative group overflow-hidden rounded-[2.5rem] border-2 bg-foreground p-8 text-background shadow-2xl shadow-primary/10">
+        <div className="absolute top-0 right-0 w-1/2 h-full bg-gradient-to-l from-primary/20 to-transparent pointer-events-none" />
+        <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
+          <div className="space-y-2">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-2xl bg-primary/20 backdrop-blur-md flex items-center justify-center border border-primary/30">
+                <Globe className="h-6 w-6 text-primary animate-pulse" />
+              </div>
+              <h2 className="text-3xl font-black tracking-tighter">Command Center</h2>
+            </div>
+            <div className="flex items-center gap-3 font-bold text-background/60">
+                <div className="flex items-center gap-1.5 px-3 py-1 bg-white/5 rounded-full border border-white/10 text-xs">
+                    <Wifi className="h-3 w-3 text-emerald-400" />
+                    SYSTEM {metrics.status.toUpperCase()}
+                </div>
+                <span className="text-xs opacity-40">PID: {metrics.process.pid}</span>
+                <span className="text-xs opacity-40">Uptime: {Math.floor(metrics.process.uptime / 3600)}h {Math.floor((metrics.process.uptime % 3600) / 60)}m</span>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsPaused(!isPaused)}
+              className="rounded-2xl border-2 bg-transparent hover:bg-white/10 border-white/10 text-white font-bold h-11"
+            >
+              {isPaused ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  RESUME LIVE
+                </>
+              ) : (
+                <>
+                  <Activity className="h-4 w-4 mr-2 text-emerald-400" />
+                  PAUSE MONITOR
+                </>
+              )}
+            </Button>
+            
+            <Link href="/system/audit-logs">
+                <Button className="rounded-2xl bg-white text-black hover:bg-white/90 h-11 px-6 font-black shadow-none border-none">
+                    Security Audit
+                    <ChevronRight className="ml-2 h-4 w-4" />
+                </Button>
+            </Link>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={true} // Permanently disabled as per request
-            className="gap-2 text-muted-foreground opacity-50 cursor-not-allowed"
-          >
-            <Bug className="h-4 w-4" />
-            Test Error (Disabled)
-          </Button>
-          <Link href="/system/audit-logs">
-            <Button
-              variant="default"
-              size="sm"
-              className="gap-2 bg-primary/90 hover:bg-primary shadow-sm"
-            >
-              <History className="h-4 w-4" />
-              View Audit Logs
-            </Button>
-          </Link>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsPaused(!isPaused)}
-            className="gap-2"
-          >
-            {isPaused ? (
-              <>
-                <div className="h-2 w-2 rounded-full bg-gray-400" />
-                Resume
-              </>
-            ) : (
-              <>
-                <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                Live
-              </>
-            )}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => { setIsPaused(false); fetchMetrics(); }}
-            disabled={isPending}
-            className="gap-2"
-          >
-            <RefreshCw className={`h-4 w-4 ${isPending ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
+      </div>
+
+      {/* Resilience Gauge & Summary Indicators */}
+      <div className="grid gap-6 lg:grid-cols-12">
+        <Card className="lg:col-span-4 rounded-[2rem] border-2 shadow-xl shadow-primary/5 relative overflow-hidden bg-muted/20">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent pointer-events-none" />
+            <CardHeader>
+                <CardTitle className="text-sm font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4 text-primary" />
+                    System Resilience
+                </CardTitle>
+                <CardDescription>Composite server health index</CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-col items-center justify-center py-6 text-center">
+                <div className="relative h-40 w-40 flex items-center justify-center">
+                    <svg className="h-full w-full rotate-[-90deg]">
+                        <circle cx="80" cy="80" r="70" stroke="currentColor" strokeWidth="12" fill="transparent" className="text-muted/30" />
+                        <circle cx="80" cy="80" r="70" stroke="currentColor" strokeWidth="14" fill="transparent" 
+                            strokeDasharray={440} strokeDashoffset={440 - (440 * healthScore / 100)}
+                            className={cn(
+                                "transition-all duration-1000",
+                                healthScore > 90 ? "text-emerald-500" : healthScore > 75 ? "text-primary" : "text-orange-500"
+                            )}
+                        />
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <span className="text-4xl font-black tracking-tighter">{healthScore}</span>
+                        <span className="text-[10px] uppercase tracking-widest font-bold opacity-60">SCORE</span>
+                    </div>
+                </div>
+                <div className="mt-8 grid grid-cols-2 gap-8 w-full border-t-2 border-dashed pt-8">
+                    <div className="space-y-1">
+                        <p className="text-[10px] font-black text-muted-foreground uppercase">Hardening Hits</p>
+                        <p className="text-xl font-black">{hardening?.summary?.total24h || 0}</p>
+                    </div>
+                    <div className="space-y-1">
+                        <p className="text-[10px] font-black text-muted-foreground uppercase">Threat Hotspots</p>
+                        <p className="text-xl font-black">{hardening?.hotspots?.length || 0}</p>
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
+
+        {/* Real-time Dynamic Metrics */}
+        <div className="lg:col-span-8 grid gap-4 grid-cols-1 sm:grid-cols-2">
+            <StatusCard
+                title="Database Response"
+                value={`${metrics.db.latency} ms`}
+                subValue={`Throughput: ${qps} Queries/Sec`}
+                icon={Database}
+                status={dbStatus}
+                progress={Math.min((metrics.db.latency / 500) * 100, 100)}
+                className="rounded-3xl"
+            />
+            <StatusCard
+                title="Processing Power"
+                value={`${metrics.process.cpuUsage}%`}
+                subValue={`System Load: ${metrics.os.loadAvg[0]?.toFixed(2)}`}
+                icon={Cpu}
+                status={metrics.process.cpuUsage > 75 ? 'error' : metrics.process.cpuUsage > 50 ? 'warning' : 'success'}
+                progress={metrics.process.cpuUsage}
+                className="rounded-3xl"
+            />
+            <StatusCard
+                title="Memory Footprint"
+                value={formatBytes(metrics.process.memory.rss)}
+                subValue={`Free OS Memory: ${formatBytes(metrics.os.freeMemory)}`}
+                icon={Server}
+                status={metrics.process.memory.rss > 1024 * 1024 * 1024 ? 'warning' : 'success'}
+                progress={(metrics.process.memory.rss / (1024 * 1024 * 1024)) * 100}
+                className="rounded-3xl"
+            />
+            <StatusCard
+                title="Active Sessions"
+                value={`${metrics.onlineUsers}`}
+                subValue="Real-time traffic monitor"
+                icon={Users}
+                status="success"
+                className="rounded-3xl border-primary bg-primary/5"
+            />
         </div>
       </div>
 
-      {/* ... (Rest of dashboard remains unchanged) ... */}
-
-      {/* Primary Stats Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {/* DB Latency */}
-        <StatusCard
-          title="Database Latency"
-          value={`${metrics.db.latency} ms`}
-          subValue={metrics.db.status === 'connected' ? 'Connected' : 'Disconnected'}
-          icon={Database}
-          status={dbStatus}
-          progress={Math.min((metrics.db.latency / 500) * 100, 100)}
-        />
-
-        {/* Request Rate (NEW) - Replaces DB Pool if space needed, or typically Pool is better. 
-            User asked for Request Rate. Let's add it. 
-            Actually let's keep Pool and replace User Online? No, Online is requested.
-            Let's Add a 5th card? The grid layout is lg:grid-cols-4. 
-            Let's replace "Process Uptime" (less useful) or just add it to the grid. 
-            The grid is dynamic. */}
-        <StatusCard
-          title="Request Rate (DB)"
-          value={`${qps} QPS`}
-          subValue="Queries per second"
-          icon={Zap}
-          status={qps > 100 ? 'warning' : 'success'}
-          progress={Math.min((qps / 100) * 100, 100)}
-        />
-
-        {/* Process CPU */}
-        <StatusCard
-          title="Process CPU Usage"
-          value={`${metrics.process.cpuUsage}%`}
-          subValue={`System Load: ${metrics.os.loadAvg[0]?.toFixed(2) || '0.00'}`}
-          icon={Cpu}
-          status={metrics.process.cpuUsage > 70 ? 'warning' : 'success'}
-          progress={metrics.process.cpuUsage}
-        />
-
-        {/* Online Users */}
-        <StatusCard
-          title="Users Online"
-          value={`${metrics.onlineUsers}`}
-          subValue="Active in last 5m"
-          icon={Users}
-          status="success"
-        />
-
-        {/* Governance Summary (NEW) */}
-        <Link href="/system/audit-logs" className="block transition-transform hover:scale-[1.02]">
-          <Card className="bg-primary/5 border-primary/20 h-full">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-primary">System Governance</CardTitle>
-              <ShieldCheck className="h-4 w-4 text-primary" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">Audit Active</div>
-              <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                <History className="h-3 w-3" />
-                Deep snapshots enabled
-              </p>
-            </CardContent>
-          </Card>
-        </Link>
-      </div>
-
-      {/* Real-time Charts Section */}
+      {/* Trends & Analytics Section */}
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Activity className="h-4 w-4 text-blue-500" />
-              Memory Usage History (MB)
+        <Card className="rounded-[2rem] border-2 shadow-lg overflow-hidden">
+          <CardHeader className="bg-muted/30 pb-6">
+            <CardTitle className="text-base font-black flex items-center gap-2">
+              <Zap className="h-4 w-4 text-primary" />
+              Latency & Flow Velocity
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="h-[250px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={history}>
-                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                  <XAxis dataKey="time" hide />
-                  <YAxis domain={['auto', 'auto']} fontSize={12} />
-                  <Tooltip
-                    contentStyle={{ backgroundColor: 'var(--background)', borderRadius: '8px' }}
-                    itemStyle={{ fontSize: '12px' }}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="memory"
-                    stroke="#3b82f6"
-                    strokeWidth={2}
-                    dot={false}
-                    activeDot={{ r: 4 }}
-                    animationDuration={300}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Database className="h-4 w-4 text-orange-500" />
-              Database Latency (ms)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[250px] w-full">
+          <CardContent className="p-0">
+            <div className="h-[280px] w-full pt-8 px-4">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={history}>
                   <defs>
                     <linearGradient id="colorLatency" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#f97316" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2} />
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.1} />
                   <XAxis dataKey="time" hide />
-                  <YAxis fontSize={12} />
+                  <YAxis fontSize={10} axisLine={false} tickLine={false} />
                   <Tooltip
-                    contentStyle={{ backgroundColor: 'var(--background)', borderRadius: '8px' }}
-                    itemStyle={{ fontSize: '12px' }}
+                    contentStyle={{ backgroundColor: 'var(--background)', borderRadius: '16px', border: '2px solid var(--border)', fontSize: '12px', fontWeight: 'bold' }}
+                    itemStyle={{ padding: '0px' }}
                   />
                   <Area
                     type="monotone"
                     dataKey="latency"
-                    stroke="#f97316"
+                    stroke="#3b82f6"
+                    strokeWidth={3}
                     fillOpacity={1}
                     fill="url(#colorLatency)"
                     animationDuration={300}
@@ -450,48 +435,167 @@ function SystemDashboard() {
             </div>
           </CardContent>
         </Card>
+
+        <Card className="rounded-[2rem] border-2 shadow-lg overflow-hidden">
+          <CardHeader className="bg-muted/30 pb-6">
+            <CardTitle className="text-base font-black flex items-center gap-2">
+              <History className="h-4 w-4 text-emerald-500" />
+              Security Hardening History
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            {hardening?.recent?.length > 0 ? (
+                <div className="space-y-4">
+                    {hardening.recent.slice(0, 5).map((log: any) => (
+                        <div key={log.id} className="group flex items-start gap-3 p-3 rounded-2xl hover:bg-muted/50 transition-colors border border-transparent hover:border-border">
+                            <div className={cn(
+                                "h-8 w-8 rounded-xl flex items-center justify-center shrink-0 shadow-sm border",
+                                log.body?.type === 'IAM_BLOCKED' ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-600"
+                            )}>
+                                {log.body?.type === 'IAM_BLOCKED' ? <Lock className="h-4 w-4" /> : <ShieldAlert className="h-4 w-4" />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-xs font-black tracking-tight group-hover:text-primary transition-colors">{log.message}</p>
+                                <div className="flex items-center gap-2 mt-1">
+                                    <Badge variant="outline" className="text-[9px] px-1.5 h-4 font-mono font-bold">{log.body?.source || 'SYSTEM'}</Badge>
+                                    <span className="text-[10px] text-muted-foreground font-medium">{new Date(log.createdAt).toLocaleTimeString()}</span>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                    <Link href="/system/audit-logs" className="block text-center pt-2">
+                        <Button variant="ghost" className="text-[11px] font-black uppercase tracking-widest text-muted-foreground hover:text-primary">
+                            Analyze All Governance Events <ChevronRight className="ml-1 h-3 w-3" />
+                        </Button>
+                    </Link>
+                </div>
+            ) : (
+                <div className="flex flex-col items-center justify-center h-[200px] text-center space-y-4">
+                    <ShieldCheck className="h-12 w-12 text-muted/30" />
+                    <p className="text-sm font-medium text-muted-foreground italic">No hardening events recorded in the last 24h.</p>
+                </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
-      {/* System Logs Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <FileWarning className="h-4 w-4 text-red-500" />
-            Recent Error Logs
-          </CardTitle>
+      {/* Advanced Diagnostics (Admin Only feel) */}
+      <Card className="rounded-[2.5rem] border-2 shadow-2xl overflow-hidden bg-muted/10 border-dashed">
+        <CardHeader className="border-b-2 bg-background/50 px-8 py-6">
+            <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                    <CardTitle className="text-xl font-black flex items-center gap-2">
+                        <Terminal className="h-5 w-5 text-primary" />
+                        Infrastructure Diagnostics
+                    </CardTitle>
+                    <CardDescription>Direct server environment monitoring</CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="h-7 px-3 rounded-full font-mono bg-background">{metrics.environment.region}</Badge>
+                    <Badge className="h-7 px-3 rounded-full font-mono bg-foreground text-background uppercase tracking-tighter">{metrics.environment.nodeEnv}</Badge>
+                </div>
+            </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-8">
+            <div className="grid gap-8 md:grid-cols-3">
+                <div className="space-y-4">
+                    <div className="flex items-center gap-2 text-xs font-black text-muted-foreground uppercase">OS Environment</div>
+                    <div className="space-y-3">
+                        <div className="flex justify-between text-sm py-1 border-b">
+                            <span className="text-muted-foreground">Release</span>
+                            <span className="font-mono font-bold">{metrics.os.release}</span>
+                        </div>
+                        <div className="flex justify-between text-sm py-1 border-b">
+                            <span className="text-muted-foreground">Architecture</span>
+                            <span className="font-mono font-bold">{metrics.os.platform} ({metrics.os.arch})</span>
+                        </div>
+                        <div className="flex justify-between text-sm py-1">
+                            <span className="text-muted-foreground">CPU Cores</span>
+                            <span className="font-mono font-bold">{metrics.os.cpus} vCPU</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="space-y-4 md:border-l-2 md:pl-8 border-dashed">
+                    <div className="flex items-center gap-2 text-xs font-black text-muted-foreground uppercase">Runtime Process</div>
+                    <div className="space-y-3">
+                        <div className="flex justify-between text-sm py-1 border-b">
+                            <span className="text-muted-foreground">Version</span>
+                            <span className="font-mono font-bold">{metrics.process.nodeVersion}</span>
+                        </div>
+                        <div className="flex justify-between text-sm py-1 border-b">
+                            <span className="text-muted-foreground">Environment Time</span>
+                            <span className="font-mono font-bold">{new Date(metrics.timestamp).toLocaleTimeString()}</span>
+                        </div>
+                        <div className="flex justify-between text-sm py-1">
+                            <span className="text-muted-foreground">PID Trace</span>
+                            <span className="font-mono font-bold"># {metrics.process.pid}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="space-y-4 md:border-l-2 md:pl-8 border-dashed">
+                    <div className="flex items-center gap-2 text-xs font-black text-muted-foreground uppercase">Quick Tools</div>
+                    <div className="grid grid-cols-1 gap-2">
+                        <Link href="/system/ops">
+                            <Button variant="outline" className="w-full h-12 rounded-2xl justify-start font-black gap-3 border-2">
+                                <Bug className="h-5 w-5 text-orange-500" />
+                                Maintenance Hub
+                            </Button>
+                        </Link>
+                        <Button variant="outline" disabled className="w-full h-12 rounded-2xl justify-start font-black gap-3 border-2 opacity-50">
+                            <Terminal className="h-5 w-5 text-muted-foreground" />
+                            Debug Shell (Disabled)
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        </CardContent>
+      </Card>
+      
+      {/* Logs Table (Full Width) */}
+      <Card className="rounded-[2rem] border-2 shadow-lg">
+        <CardHeader className="px-8 py-6 border-b-2">
+            <CardTitle className="text-base font-black flex items-center gap-2">
+                <FileWarning className="h-5 w-5 text-red-500" />
+                Error & Warning Manifest
+            </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
           <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Time</TableHead>
-                <TableHead>Level</TableHead>
-                <TableHead>Message</TableHead>
-                <TableHead>Context (Path)</TableHead>
+            <TableHeader className="bg-muted/20">
+              <TableRow className="border-b-2">
+                <TableHead className="px-8 h-12 font-black text-[10px] uppercase tracking-widest">Time (System)</TableHead>
+                <TableHead className="h-12 font-black text-[10px] uppercase tracking-widest">Severity</TableHead>
+                <TableHead className="h-12 font-black text-[10px] uppercase tracking-widest">Diagnostic Message</TableHead>
+                <TableHead className="px-8 h-12 font-black text-[10px] uppercase tracking-widest text-right">Source Trace</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {metrics.logs && metrics.logs.length > 0 ? (
                 metrics.logs.map((log: any) => (
-                  <TableRow key={log.id}>
-                    <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                  <TableRow key={log.id} className="hover:bg-muted/30 transition-colors">
+                    <TableCell className="px-8 whitespace-nowrap text-xs font-mono text-muted-foreground">
                       {new Date(log.createdAt).toLocaleString()}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={log.level === 'ERROR' ? 'destructive' : 'secondary'}>
+                      <Badge variant={log.level === 'ERROR' ? 'destructive' : 'outline'} className="rounded-xl font-bold px-2 py-0.5">
                         {log.level}
                       </Badge>
                     </TableCell>
-                    <TableCell className="font-medium">{log.message}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {log.path || '-'}
+                    <TableCell className="font-bold text-sm max-w-md truncate">{log.message}</TableCell>
+                    <TableCell className="px-8 text-xs font-mono text-muted-foreground text-right italic">
+                      {log.path || 'SYSTEM_CORE'}
                     </TableCell>
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground h-24">
-                    No recent errors found. System is running smoothly.
+                  <TableCell colSpan={4} className="text-center font-bold text-muted-foreground h-32 italic">
+                    <div className="flex flex-col items-center gap-2">
+                        <ShieldCheck className="h-8 w-8 opacity-20" />
+                        Zero system anomalies detected. Infrastructure is stable.
+                    </div>
                   </TableCell>
                 </TableRow>
               )}
@@ -499,67 +603,13 @@ function SystemDashboard() {
           </Table>
         </CardContent>
       </Card>
-
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">System Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex justify-between border-b pb-2">
-              <span className="text-muted-foreground">Platform</span>
-              <span className="font-medium">{metrics.os.platform} ({metrics.os.arch})</span>
-            </div>
-            <div className="flex justify-between border-b pb-2">
-              <span className="text-muted-foreground">CPUs (Cores)</span>
-              <span className="font-medium">{metrics.os.cpus} Cores</span>
-            </div>
-            <div className="flex justify-between border-b pb-2">
-              <span className="text-muted-foreground">Free Memory (Host)</span>
-              <span className="font-medium">{formatBytes(metrics.os.freeMemory)}</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Application</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex justify-between border-b pb-2">
-              <span className="text-muted-foreground">Environment</span>
-              <Badge variant="outline">{metrics.environment.nodeEnv}</Badge>
-            </div>
-            <div className="flex justify-between border-b pb-2">
-              <span className="text-muted-foreground">Region</span>
-              <Badge variant="secondary">{metrics.environment.region}</Badge>
-            </div>
-            <div className="flex justify-between border-b pb-2">
-              <span className="text-muted-foreground">Process ID (PID)</span>
-              <span className="font-mono">{metrics.process.pid}</span>
-            </div>
-            <div className="flex justify-between border-b pb-2">
-              <span className="text-muted-foreground">Next.js Time</span>
-              <span className="font-medium">{new Date(metrics.timestamp).toLocaleTimeString()}</span>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 }
 
 export default function SystemStatusPage() {
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">System Status</h1>
-          <p className="text-muted-foreground">
-            Monitor server performance and database health
-          </p>
-        </div>
-      </div>
+    <div className="container mx-auto px-4 sm:px-6 py-6 lg:py-10">
       <SystemDashboard />
     </div>
   );
