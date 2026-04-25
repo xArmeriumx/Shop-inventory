@@ -377,7 +377,12 @@ export const InvoiceService = {
         const client = tx || db;
         const invoice = await (client as any).invoice.findUnique({ where: { id } });
         if (!invoice || invoice.shopId !== ctx.shopId) throw new ServiceError('ไม่พบใบแจ้งหนี้');
-        if (invoice.status !== 'POSTED') throw new ServiceError('ชำระเฉพาะ Invoice ที่ Post แล้วเท่านั้น');
+
+        // 🛡️ POS/RETAIL: อนุญาต DRAFT → PAID เพราะในร้านค้า การจ่ายเงินเกิดขึ้นทันที
+        // ต่างจาก ERP ที่ต้องรอ Post ก่อน
+        // บล็อกเฉพาะสถานะที่ไม่สอดคล้อง: ยกเลิกแล้ว หรือชำระแล้ว
+        if (invoice.status === 'CANCELLED') throw new ServiceError('ไม่สามารถชำระ Invoice ที่ยกเลิกแล้วได้');
+        if (invoice.status === 'PAID') throw new ServiceError('Invoice นี้ชำระแล้ว');
 
         return (client as any).invoice.update({
             where: { id },
