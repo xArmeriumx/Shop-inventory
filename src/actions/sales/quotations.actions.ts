@@ -8,6 +8,7 @@ import { QuotationService } from '@/services/sales/quotation.service';
 import { ActionResponse } from '@/types/common';
 import { PerformanceCollector } from '@/lib/debug/measurement';
 import { handleAction } from '@/lib/action-handler';
+import { AuditService } from '@/services/core/system/audit.service';
 
 
 export async function getQuotations(params: any = {}): Promise<ActionResponse<any>> {
@@ -36,7 +37,26 @@ export async function confirmQuotation(id: string): Promise<ActionResponse<null>
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
             const ctx = await requirePermission('QUOTATION_CONFIRM' as any);
+            
+            // 🛡️ Snapshot BEFORE
+            const before = await QuotationService.getById(ctx, id);
+            
             await QuotationService.confirm(ctx, id);
+
+            // 🛡️ Snapshot AFTER
+            const after = await QuotationService.getById(ctx, id);
+
+            AuditService.record({
+                action: 'QUOTATION_CONFIRM',
+                targetType: 'Quotation',
+                targetId: id,
+                note: `ยืนยันใบเสนอราคา QT: ${before.quotationNo} -> สร้างรายการขาย (SO)`,
+                before,
+                after,
+                actorId: ctx.userId,
+                shopId: ctx.shopId
+            }).catch(err => console.error('[Audit] Log failed', err));
+
             revalidatePath('/quotations');
             revalidatePath('/sales');
             return null;
@@ -48,7 +68,26 @@ export async function cancelQuotation(id: string): Promise<ActionResponse<null>>
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
             const ctx = await requirePermission('QUOTATION_EDIT' as any);
+            
+            // 🛡️ Snapshot BEFORE
+            const before = await QuotationService.getById(ctx, id);
+            
             await QuotationService.cancel(ctx, id);
+
+            // 🛡️ Snapshot AFTER
+            const after = await QuotationService.getById(ctx, id);
+
+            AuditService.record({
+                action: 'QUOTATION_CANCEL',
+                targetType: 'Quotation',
+                targetId: id,
+                note: `ยกเลิกใบเสนอราคา QT: ${before.quotationNo}`,
+                before,
+                after,
+                actorId: ctx.userId,
+                shopId: ctx.shopId
+            }).catch(err => console.error('[Audit] Log failed', err));
+
             revalidatePath('/quotations');
             return null;
         }, 'sales:cancelQuotation');

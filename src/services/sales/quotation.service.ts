@@ -7,8 +7,10 @@ import {
     type RequestContext,
     type CreateQuotationInput,
     type GetQuotationsParams,
-    SaleStatus
+    SaleStatus,
 } from '@/types/domain';
+import { AuditService } from '@/services/core/system/audit.service';
+import { ComputationEngine, CalculationItemInput } from '@/services/core/finance/computation.service';
 import { Prisma } from '@prisma/client';
 
 /**
@@ -84,41 +86,74 @@ export const QuotationService = {
     /**
      * Create — ออกใบเสนอราคาใหม่
      */
-    async create(ctx: RequestContext, input: CreateQuotationInput) {
-        return await db.$transaction(async (tx) => {
-            // 0. Ensure member exists (Self-healing/Verification from Context)
+    async create(ctx: RequestContext, input: CreateQuotationInput & { taxMode?: any; taxRate?: any }) {
+        return await AuditService.runWithAudit(ctx, {
+            action: 'QUOTATION_CREATE',
+            targetType: 'Quotation',
+        }, async () => {
+            return await db.$transaction(async (tx) => {
             if (!ctx.memberId) {
                 throw new ServiceError('ไม่พบข้อมูลพนักงานในระบบ (Member Identity Missing)');
             }
 
-            // 1. Generate Sequence Number
+            // 1. Calculate Totals (SSOT)
+            const products = await tx.product.findMany({
+                where: { id: { in: input.items.map(i => i.productId).filter(Boolean) } }
+            });
+
+            const computationItems: CalculationItemInput[] = input.items.map(item => {
+                const product = products.find(p => p.id === item.productId);
+                return {
+                    qty: item.quantity,
+                    unitPrice: item.unitPrice,
+                    costPrice: product ? Number(product.costPrice) : 0,
+                    lineDiscount: item.discount || 0
+                };
+            });
+
+            const taxConfig = {
+                rate: Number(input.taxRate) || 0,
+                mode: input.taxMode === 'NO_VAT' ? 'EXCLUSIVE' : (input.taxMode as any || 'INCLUSIVE'),
+                kind: input.taxMode === 'NO_VAT' ? 'NO_VAT' : 'VAT' as any
+            };
+
+            const calculation = ComputationEngine.calculateTotals(computationItems, { type: 'FIXED', value: 0 }, taxConfig);
+
+            // 2. Generate Sequence
             const quotationNo = await SequenceService.generate(ctx, DocumentType.QUOTATION, tx);
 
-            // 2. Create Quotation with Items
-            return await tx.quotation.create({
+            // 3. Create Quotation
+            const quotation = await tx.quotation.create({
                 data: {
                     shopId: ctx.shopId,
                     quotationNo,
                     customerId: input.customerId,
                     salespersonId: input.salespersonId || ctx.memberId,
+                    memberId: ctx.memberId,
                     date: input.date || new Date(),
                     validUntil: input.validUntil,
                     currencyCode: input.currencyCode || 'THB',
-                    totalAmount: input.items.reduce((sum, item) => sum + (item.quantity * item.unitPrice - (item.discount || 0)), 0),
+                    totalAmount: calculation.totals.netAmount,
                     notes: input.notes,
                     items: {
-                        create: input.items.map((item, index) => ({
-                            productId: item.productId,
-                            description: item.description,
-                            quantity: item.quantity,
-                            unitPrice: item.unitPrice,
-                            discount: item.discount || 0,
-                            subtotal: (item.quantity * item.unitPrice) - (item.discount || 0),
-                            sortOrder: index,
-                        })),
+                        create: input.items.map((item, index) => {
+                            const lineRes = calculation.lines[index];
+                            return {
+                                productId: item.productId,
+                                description: item.description,
+                                quantity: item.quantity,
+                                unitPrice: item.unitPrice,
+                                discount: item.discount || 0,
+                                subtotal: lineRes.lineNet,
+                                sortOrder: index,
+                            };
+                        }),
                     },
                 },
                 include: { items: true },
+            });
+
+            return quotation;
             });
         });
     },
@@ -127,11 +162,18 @@ export const QuotationService = {
      * Confirm — อนุมัติใบเสนอราคาและสร้าง Sale (SO)
      */
     async confirm(ctx: RequestContext, id: string) {
-        return await db.$transaction(async (tx) => {
-            // 1. Load Quotation
+        return await AuditService.runWithAudit(ctx, {
+            action: 'QUOTATION_CONFIRM',
+            targetType: 'Quotation',
+            targetId: id,
+        }, async () => {
+            return await db.$transaction(async (tx) => {
+            // 1. Load Quotation with details
             const quotation = await tx.quotation.findUnique({
                 where: { id },
-                include: { items: true },
+                include: { 
+                    items: { include: { product: true } }
+                },
             });
 
             if (!quotation || quotation.shopId !== ctx.shopId) {
@@ -148,38 +190,44 @@ export const QuotationService = {
                 data: { status: QuotationStatus.CONFIRMED },
             });
 
-            // 3. Create Sale (Sales Order)
-            // Note: We leverage SequenceService for Sale numbering
+            // 3. Create Sale (Sales Order) - Map accurate costs and totals
             const invoiceNumber = await SequenceService.generate(ctx, DocumentType.SALE_INVOICE, tx);
+            
+            const totalCost = quotation.items.reduce((sum, item) => 
+                sum + (item.quantity * (Number(item.product.costPrice) || 0)), 0
+            );
 
             const sale = await tx.sale.create({
                 data: {
                     shopId: ctx.shopId,
                     userId: ctx.userId,
+                    memberId: ctx.memberId,
                     invoiceNumber,
                     customerId: quotation.customerId,
+                    quotationId: quotation.id, // Linking
                     date: new Date(),
                     status: SaleStatus.CONFIRMED,
-                    totalAmount: quotation.totalAmount,
-                    totalCost: 0, // Placeholder, items will be handled
-                    profit: 0,
-                    paymentMethod: 'TRANSFER', // Default for SO
-                    bookingStatus: 'RESERVED',   // ERP: Auto reserve stock on SO
+                    totalAmount: Number(quotation.totalAmount),
+                    totalCost: totalCost,
+                    profit: Number(quotation.totalAmount) - totalCost,
+                    paymentMethod: 'TRANSFER', 
+                    bookingStatus: 'RESERVED',   
                     items: {
                         create: quotation.items.map((item) => ({
                             product: { connect: { id: item.productId } },
                             quantity: item.quantity,
                             salePrice: item.unitPrice,
-                            costPrice: 0,
-                            discountAmount: item.discount || 0,
+                            costPrice: Number(item.product.costPrice),
+                            discountAmount: item.discount,
                             subtotal: item.subtotal,
-                            profit: item.subtotal, // subtotal - (0 * quantity)
+                            profit: Number(item.subtotal) - (item.quantity * Number(item.product.costPrice)),
                         })),
                     },
                 },
             });
 
             return sale;
+            });
         });
     },
 
@@ -187,17 +235,25 @@ export const QuotationService = {
      * Cancel — ยกเลิกใบเสนอราคา
      */
     async cancel(ctx: RequestContext, id: string) {
-        const quotation = await db.quotation.findUnique({
-            where: { id },
-        });
+        return await AuditService.runWithAudit(ctx, {
+            action: 'QUOTATION_CANCEL',
+            targetType: 'Quotation',
+            targetId: id,
+        }, async () => {
+            return await db.$transaction(async (tx) => {
+            const quotation = await tx.quotation.findUnique({
+                where: { id },
+            });
 
-        if (!quotation || quotation.shopId !== ctx.shopId) {
-            throw new ServiceError('ไม่พบใบเสนอราคา');
-        }
+            if (!quotation || quotation.shopId !== ctx.shopId) {
+                throw new ServiceError('ไม่พบใบเสนอราคา');
+            }
 
-        return await db.quotation.update({
-            where: { id },
-            data: { status: QuotationStatus.CANCELLED },
+            return await tx.quotation.update({
+                where: { id },
+                data: { status: QuotationStatus.CANCELLED },
+            });
+            });
         });
     },
 };

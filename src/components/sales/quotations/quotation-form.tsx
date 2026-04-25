@@ -5,7 +5,11 @@ import { useRouter } from 'next/navigation';
 import { useForm, FormProvider, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
-import { Plus, Trash2, Calculator } from 'lucide-react';
+import { Plus, Trash2, Calculator, Tag, Percent } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { formatCurrency } from '@/lib/formatters';
+import { runActionWithToast, mapActionErrorsToForm } from '@/lib/mutation-utils';
+import { usePermissions } from '@/hooks/use-permissions';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 import { createQuotation } from '@/actions/sales/quotations.actions';
-import { quotationSchema, type QuotationInput } from '@/schemas/sales/quotation.schema';
+import { quotationSchema, computeQuotationTotals, type QuotationInput } from '@/schemas/sales/quotation.schema';
 
 interface QuotationFormProps {
     customers: any[];
@@ -33,6 +37,8 @@ export function QuotationForm({ customers, products, initialData }: QuotationFor
             customerId: '',
             items: [{ productId: '', quantity: 1, unitPrice: 0, discount: 0 }],
             currencyCode: 'THB',
+            taxMode: 'INCLUSIVE',
+            taxRate: 7,
         },
     });
 
@@ -42,35 +48,23 @@ export function QuotationForm({ customers, products, initialData }: QuotationFor
         name: 'items',
     });
 
-    // Watch items for total calculation
-    const items = useWatch({
-        control,
-        name: 'items',
-    });
-
-    const totalAmount = items.reduce((sum, item) => {
-        const qty = Number(item.quantity) || 0;
-        const price = Number(item.unitPrice) || 0;
-        const disc = Number(item.discount) || 0;
-        return sum + (qty * price - disc);
-    }, 0);
+    // Calculate accurate totals via SSOT Engine
+    const allValues = useWatch({ control });
+    const calculation = computeQuotationTotals(allValues, products);
+    const { totals } = calculation;
 
     async function onSubmit(data: QuotationInput) {
         startTransition(async () => {
-            const result = await createQuotation(data);
-            if (result.success) {
-                toast.success(result.message);
-                router.push('/quotations');
-                router.refresh();
-            } else {
-                if (result.errors && typeof result.errors === 'object') {
-                    Object.entries(result.errors).forEach(([field, messages]) => {
-                        setError(field as any, { message: (messages as string[])[0] });
-                    });
-                } else {
-                    toast.error(result.message);
+            await runActionWithToast(createQuotation(data), {
+                successMessage: 'บันทึกใบเสนอราคาสำเร็จ',
+                onSuccess: () => {
+                    router.push('/quotations');
+                    router.refresh();
+                },
+                onError: (res) => {
+                    if (res.errors) mapActionErrorsToForm(methods, res.errors);
                 }
-            }
+            });
         });
     }
 
@@ -105,6 +99,17 @@ export function QuotationForm({ customers, products, initialData }: QuotationFor
 
                         <FormField name="date" label="วันที่เอกสาร">
                             <Input type="date" {...register('date', { valueAsDate: true })} defaultValue={new Date().toISOString().split('T')[0]} />
+                        </FormField>
+
+                        <FormField name="taxMode" label="รูปแบบภาษี (VAT Mode)">
+                            <select
+                                {...register('taxMode')}
+                                className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm font-bold"
+                            >
+                                <option value="INCLUSIVE">ราคารวม VAT แล้ว (Inclusive)</option>
+                                <option value="EXCLUSIVE">ราคาแยก VAT ต่างหาก (Exclusive)</option>
+                                <option value="NO_VAT">ไม่มีภาษีมูลค่าเพิ่ม (No VAT)</option>
+                            </select>
                         </FormField>
 
                         <FormField name="validUntil" label="ยืนราคาถึงวันที่">
@@ -165,10 +170,8 @@ export function QuotationForm({ customers, products, initialData }: QuotationFor
                                         <TableCell>
                                             <Input type="number" {...register(`items.${index}.discount`, { valueAsNumber: true })} step="0.01" />
                                         </TableCell>
-                                        <TableCell className="text-right font-medium">
-                                            {new Intl.NumberFormat('th-TH').format(
-                                                (watch(`items.${index}.quantity`) || 0) * (watch(`items.${index}.unitPrice`) || 0) - (watch(`items.${index}.discount`) || 0)
-                                            )}
+                                        <TableCell className="text-right font-mono font-medium">
+                                            {formatCurrency(calculation.lines[index]?.lineNet.toString() || '0')}
                                         </TableCell>
                                         <TableCell>
                                             <Button type="button" variant="ghost" size="icon" onClick={() => remove(index)} disabled={fields.length === 1}>
@@ -183,15 +186,27 @@ export function QuotationForm({ customers, products, initialData }: QuotationFor
                 </Card>
 
                 <div className="flex flex-col items-end gap-4">
-                    <Card className="w-full max-w-[400px]">
-                        <CardContent className="pt-6 space-y-2">
+                    <Card className="w-full max-w-[400px] border-primary/20 shadow-md">
+                        <CardContent className="pt-6 space-y-3">
                             <div className="flex justify-between text-sm">
-                                <span>ราคารวม (Subtotal)</span>
-                                <span>{new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(totalAmount)}</span>
+                                <span className="text-muted-foreground flex items-center gap-1.5"><Plus className="h-3 w-3" /> ยอดรวมสินค้า (Gross)</span>
+                                <span className="font-mono font-bold">{formatCurrency(totals.subtotalAmount.toString())}</span>
                             </div>
-                            <div className="border-t pt-2 flex justify-between font-bold text-lg">
-                                <span>ยอดรวมสุทธิ</span>
-                                <span className="text-primary">{new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(totalAmount)}</span>
+
+                            <div className="pt-2 border-t border-dashed space-y-1">
+                                <div className="flex justify-between text-xs text-muted-foreground">
+                                    <span>ฐานภาษี (Taxable Base)</span>
+                                    <span className="font-mono">{formatCurrency(totals.taxableBaseAmount.toString())}</span>
+                                </div>
+                                <div className="flex justify-between text-xs text-muted-foreground">
+                                    <span>ภาษีมูลค่าเพิ่ม (VAT {allValues.taxRate}%) - {allValues.taxMode === 'INCLUSIVE' ? 'รวมในราคาแล้ว' : allValues.taxMode === 'EXCLUSIVE' ? 'แยกนอก' : 'ไม่มี'}</span>
+                                    <span className="font-mono">{formatCurrency(totals.taxAmount.toString())}</span>
+                                </div>
+                            </div>
+
+                            <div className="flex justify-between border-t pt-3 items-baseline">
+                                <span className="font-bold text-sm uppercase tracking-tighter opacity-70">ยอดรวมสุทธิ (Net Total)</span>
+                                <span className="text-3xl font-black tracking-tighter text-primary font-mono">{formatCurrency(totals.netAmount.toString())}</span>
                             </div>
                         </CardContent>
                     </Card>
