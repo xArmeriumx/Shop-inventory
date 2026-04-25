@@ -47,9 +47,14 @@ import {
 import { getAuditLogs, exportAuditLogsAction } from '@/actions/core/audit.actions';
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
-import { toast } from 'sonner';
 import { AuditDetailModal } from '@/components/core/audit/audit-detail-modal';
+import { runActionWithToast } from '@/lib/mutation-utils';
+import { cn } from '@/lib/utils';
 
+/**
+ * AuditLogsPage — Advanced System Governance.
+ * PATTERN: Uses runActionWithToast for operational flows like Export.
+ */
 export default function AuditLogsPage() {
   const [logs, setLogs] = useState<any[]>([]);
   const [pagination, setPagination] = useState({ page: 1, totalPages: 1, total: 0 });
@@ -63,28 +68,27 @@ export default function AuditLogsPage() {
   const [selectedLog, setSelectedLog] = useState<any | null>(null);
   const [activePreset, setActivePreset] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const [isExporting, setIsExporting] = useState(false);
 
   const { action, status: filterStatus } = filters;
+  
   const fetchLogs = useCallback(async (page = 1) => {
-    const result = await getAuditLogs({
-      page,
-      limit: 20,
-      action: action === 'ALL' ? undefined : action,
-      status: (filterStatus as any) === 'ALL' ? undefined : (filterStatus as any),
-      // Add more filter logic if backend supports it
-    });
-
-    if (result.success && result.data) {
-      setLogs(result.data.data);
-      setPagination({
-        page: result.data.page,
-        totalPages: result.data.totalPages,
-        total: result.data.total
+    startTransition(async () => {
+      const result = await getAuditLogs({
+        page,
+        limit: 20,
+        action: action === 'ALL' ? undefined : action,
+        status: (filterStatus as any) === 'ALL' ? undefined : (filterStatus as any),
       });
-    } else {
-      toast.error(result.message || 'ไม่สามารถโหลด Audit Log ได้');
-    }
+
+      if (result.success && result.data) {
+        setLogs(result.data.data);
+        setPagination({
+          page: result.data.page,
+          totalPages: result.data.totalPages,
+          total: result.data.total
+        });
+      }
+    });
   }, [action, filterStatus]);
 
   useEffect(() => {
@@ -111,39 +115,33 @@ export default function AuditLogsPage() {
     }));
   };
 
-  const handleExport = async (format: 'CSV' | 'JSON') => {
-    setIsExporting(true);
-    try {
-      // Use current month range for safety on first implement
-      const start = new Date();
-      start.setDate(start.getDate() - 30);
-      const end = new Date();
+  const handleExport = async (exportFormat: 'CSV' | 'JSON') => {
+    // Current month range simulation
+    const start = new Date();
+    start.setDate(start.getDate() - 30);
+    const end = new Date();
 
-      const result = await exportAuditLogsAction(start.toISOString(), end.toISOString(), format);
+    await runActionWithToast(exportAuditLogsAction(start.toISOString(), end.toISOString(), exportFormat), {
+      loadingMessage: `กำลังบีบอัดข้อมูล Audit Log (${exportFormat})...`,
+      successMessage: `ส่งออกข้อมูลสำเร็จ`,
+      onSuccess: (data) => {
+        if (!data) return;
+        
+        const content = exportFormat === 'JSON'
+          ? JSON.stringify(data, null, 2)
+          : convertToCSV(data);
 
-      if (result.success && result.data) {
-        const content = format === 'JSON'
-          ? JSON.stringify(result.data, null, 2)
-          : convertToCSV(result.data);
-
-        const blob = new Blob([content], { type: format === 'JSON' ? 'application/json' : 'text/csv' });
+        const blob = new Blob([content], { type: exportFormat === 'JSON' ? 'application/json' : 'text/csv' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `audit_logs_${format.toLowerCase()}_${new Date().toISOString().split('T')[0]}.${format.toLowerCase()}`;
+        link.download = `audit_logs_${exportFormat.toLowerCase()}_${new Date().toISOString().split('T')[0]}.${exportFormat.toLowerCase()}`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
-        toast.success(`Export ${format} สำเร็จ (${result.data.length} รายการ)`);
-      } else {
-        toast.error(result.message || 'Export ล้มเหลว');
       }
-    } catch (err) {
-      toast.error('เกิดข้อผิดพลาดในการ Export');
-    } finally {
-      setIsExporting(false);
-    }
+    });
   };
 
   function convertToCSV(data: any[]) {
@@ -178,8 +176,8 @@ export default function AuditLogsPage() {
           <div className="flex items-center gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" disabled={isExporting}>
-                  <Download className={`h-4 w-4 mr-2 ${isExporting ? 'animate-pulse' : ''}`} />
+                <Button variant="outline" size="sm" disabled={isPending}>
+                  <Download className={cn("h-4 w-4 mr-2", isPending && "animate-pulse")} />
                   Export logs
                   <ChevronDown className="h-3 w-3 ml-2 opacity-50" />
                 </Button>
@@ -195,21 +193,21 @@ export default function AuditLogsPage() {
               onClick={() => fetchLogs(pagination.page)}
               disabled={isPending}
             >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isPending ? 'animate-spin' : ''}`} />
+              <RefreshCw className={cn("h-4 w-4 mr-2", isPending && "animate-spin")} />
               Refresh
             </Button>
           </div>
         </div>
       </div>
 
-      {/* Smart Filter Presets (Governance Ops Enhancement) */}
+      {/* Smart Filter Presets */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <Button
           variant={activePreset === 'security' ? 'default' : 'outline'}
           className="h-auto py-3 justify-start gap-4 border-2"
           onClick={() => applyPreset('security', { action: 'ALL', status: 'DENIED' })}
         >
-          <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${activePreset === 'security' ? 'bg-primary-foreground/20' : 'bg-red-500/10'}`}>
+          <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center", activePreset === 'security' ? 'bg-primary-foreground/20' : 'bg-red-500/10')}>
             <ShieldAlert className={activePreset === 'security' ? 'text-primary-foreground' : 'text-red-600'} />
           </div>
           <div className="text-left flex flex-col">
@@ -223,7 +221,7 @@ export default function AuditLogsPage() {
           className="h-auto py-3 justify-start gap-4 border-2"
           onClick={() => applyPreset('iam', { action: 'TEAM_ROLE_UPDATE', targetType: 'Role' })}
         >
-          <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${activePreset === 'iam' ? 'bg-primary-foreground/20' : 'bg-blue-500/10'}`}>
+          <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center", activePreset === 'iam' ? 'bg-primary-foreground/20' : 'bg-blue-500/10')}>
             <LayoutGrid className={activePreset === 'iam' ? 'text-primary-foreground' : 'text-blue-600'} />
           </div>
           <div className="text-left flex flex-col">
@@ -237,7 +235,7 @@ export default function AuditLogsPage() {
           className="h-auto py-3 justify-start gap-4 border-2"
           onClick={() => applyPreset('stock', { action: 'STOCK_ADJUST', targetType: 'Product' })}
         >
-          <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${activePreset === 'stock' ? 'bg-primary-foreground/20' : 'bg-orange-500/10'}`}>
+          <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center", activePreset === 'stock' ? 'bg-primary-foreground/20' : 'bg-orange-500/10')}>
             <Archive className={activePreset === 'stock' ? 'text-primary-foreground' : 'text-orange-600'} />
           </div>
           <div className="text-left flex flex-col">
@@ -251,7 +249,7 @@ export default function AuditLogsPage() {
           className="h-auto py-3 justify-start gap-4 border-2"
           onClick={() => applyPreset('finance', { action: 'SALE_CANCEL', targetType: 'Sale' })}
         >
-          <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${activePreset === 'finance' ? 'bg-primary-foreground/20' : 'bg-purple-500/10'}`}>
+          <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center", activePreset === 'finance' ? 'bg-primary-foreground/20' : 'bg-purple-500/10')}>
             <AlertOctagon className={activePreset === 'finance' ? 'text-primary-foreground' : 'text-purple-600'} />
           </div>
           <div className="text-left flex flex-col">
@@ -344,7 +342,7 @@ export default function AuditLogsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {isPending ? (
+              {isPending && logs.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="h-32 text-center">
                     <RefreshCw className="h-8 w-8 animate-spin mx-auto text-muted-foreground mb-2" />
@@ -455,7 +453,7 @@ export default function AuditLogsPage() {
         </CardContent>
       </Card>
 
-      {/* Security Best Practices Warning (Governance ERP Rule 18) */}
+      {/* Security Best Practices Warning */}
       <div className="bg-primary/5 border-2 border-primary/20 rounded-[2rem] p-8 flex flex-col md:flex-row items-center gap-8 shadow-xl">
         <div className="h-16 w-16 rounded-2xl bg-foreground text-background flex items-center justify-center flex-shrink-0 shadow-2xl">
           <ShieldCheck className="h-8 w-8" />

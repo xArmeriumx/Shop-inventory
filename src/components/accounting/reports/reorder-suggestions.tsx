@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useTransition } from 'react';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
@@ -8,44 +8,39 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { getReorderSuggestions } from '@/actions/core/analytics.actions';
 import { createPRFromSuggestions } from '@/actions/purchases/purchases.actions';
-import { money } from '@/lib/money';
 import { Box, AlertCircle, ShoppingCart, Loader2, CheckCircle2, ChevronRight, Package, Truck } from 'lucide-react';
-import { toast } from 'sonner';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { runActionWithToast } from '@/lib/mutation-utils';
+import { cn } from '@/lib/utils';
 
+/**
+ * ReorderSuggestions — Interactive procurement heuristics.
+ * PATTERN: Uses runActionWithToast for all operational transitions.
+ */
 export default function ReorderSuggestions() {
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [processing, setProcessing] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  const loadSuggestions = async () => {
+    setLoading(true);
+    const result = await getReorderSuggestions();
+    if (result.success) {
+      const data = result.data;
+      setSuggestions(data);
+      // Default select high/critical urgency
+      const autoSelected = data
+        .filter((s: any) => s.urgency === 'CRITICAL' || s.urgency === 'HIGH')
+        .map((s: any) => s.productId);
+      setSelectedIds(new Set(autoSelected));
+    }
+    setLoading(false);
+  };
 
   useEffect(() => {
     loadSuggestions();
   }, []);
-
-  const loadSuggestions = async () => {
-    setLoading(true);
-    try {
-      const result = await getReorderSuggestions();
-      if (result.success) {
-        const data = result.data;
-        setSuggestions(data);
-        // Default select high/critical urgency
-        const autoSelected = data
-          .filter((s: any) => s.urgency === 'CRITICAL' || s.urgency === 'HIGH')
-          .map((s: any) => s.productId);
-        setSelectedIds(new Set(autoSelected));
-      } else {
-        toast.error(result.message);
-      }
-    } catch (error) {
-      toast.error('เกิดข้อผิดพลาด', {
-        description: 'ไม่สามารถโหลดข้อมูลข้อแนะนำการสั่งซื้อได้',
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const toggleSelect = (id: string) => {
     const next = new Set(selectedIds);
@@ -62,35 +57,27 @@ export default function ReorderSuggestions() {
     }
   };
 
-  const handleCreatePRs = async () => {
+  const handleCreatePRs = () => {
     if (selectedIds.size === 0) return;
 
-    setProcessing(true);
-    try {
-      const selectedItems = suggestions
-        .filter(s => selectedIds.has(s.productId))
-        .map(s => ({
-          productId: s.productId,
-          quantity: s.suggestedUnits,
-          supplierId: s.supplierId,
-        }));
+    const selectedItems = suggestions
+      .filter(s => selectedIds.has(s.productId))
+      .map(s => ({
+        productId: s.productId,
+        quantity: s.suggestedUnits,
+        supplierId: s.supplierId,
+      }));
 
-      const result = await createPRFromSuggestions(selectedItems);
-
-      toast.success('สร้างใบขอซื้อสำเร็จ', {
-        description: `สร้างใบขอซื้อ (Draft PR) จำนวน ${result.data?.createdCount ?? 0} ฉบับ เรียบร้อยแล้ว`,
+    startTransition(async () => {
+      await runActionWithToast(createPRFromSuggestions(selectedItems), {
+        successMessage: `สร้างใบขอซื้อ (Draft PR) ทั้งหมด ${selectedIds.size} รายการสำเร็จ`,
+        loadingMessage: "กำลังประมวลผลข้อแนะนำการสั่งซื้อ...",
+        onSuccess: () => {
+          loadSuggestions();
+          setSelectedIds(new Set());
+        }
       });
-
-      // Reload to refresh stock levels if any sync happened (though draft PR doesn't affect stock)
-      loadSuggestions();
-      setSelectedIds(new Set());
-    } catch (error: any) {
-      toast.error('เกิดข้อผิดพลาด', {
-        description: error.message || 'ไม่สามารถสร้างใบขอซื้อได้',
-      });
-    } finally {
-      setProcessing(false);
-    }
+    });
   };
 
   const getUrgencyBadge = (urgency: string) => {
@@ -146,10 +133,10 @@ export default function ReorderSuggestions() {
           </div>
           <Button
             onClick={handleCreatePRs}
-            disabled={selectedIds.size === 0 || processing}
+            disabled={selectedIds.size === 0 || isPending}
             className="bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-200"
           >
-            {processing ? (
+            {isPending ? (
               <Loader2 className="h-4 w-4 animate-spin mr-2" />
             ) : (
               <Package className="h-4 w-4 mr-2" />
