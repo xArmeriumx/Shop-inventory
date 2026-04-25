@@ -448,7 +448,7 @@ export const OnboardingService = {
   async getTutorialState(shopId: string) {
     return (db as any).onboardingProgress.findUnique({
       where: { shopId },
-      select: { tutorialTrack: true, tutorialStep: true, isTutorialDismissed: true },
+      select: { tutorialTrack: true, tutorialStep: true, tutorialDismissed: true },
     });
   },
 };

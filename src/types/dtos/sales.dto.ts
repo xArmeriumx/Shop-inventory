@@ -6,6 +6,7 @@ export interface SaleListDTO {
     date: Date;
     customerName: string | null;
     customerAddress?: string | null;
+    customerPhone?: string | null;
     customerTaxId?: string | null;
     status: SaleStatus;
     paymentStatus: DocPaymentStatus;

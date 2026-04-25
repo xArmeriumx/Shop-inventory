@@ -16,7 +16,6 @@ export interface BatchProductInput {
 }
 
 export interface BatchCreateResult {
-    success: boolean;
     created: Array<{ id: string; name: string; costPrice: number }>;
     failed: Array<{ name: string; error: string }>;
 }

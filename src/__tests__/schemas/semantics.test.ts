@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { productSchema } from '../../schemas/product';
-import { customerSchema } from '../../schemas/customer';
+import { productSchema } from '@/schemas/inventory/product.schema';
+import { customerSchema } from '@/schemas/sales/customer.schema';
 
 describe('Validation Semantics (Clean then Validate)', () => {
     describe('Product Schema', () => {

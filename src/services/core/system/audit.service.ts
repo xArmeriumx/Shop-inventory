@@ -329,8 +329,9 @@ export const AuditService = {
         afterSnapshot = pickAuditFields(result, allowlist);
       }
 
-      // 5. Success Log (Await to ensure it stays in transaction if provided)
-      await AuditService.log(ctx, {
+      // 5. Success Log (Non-blocking for performance)
+      // ERP Phase 7 Solution: Fire-and-forget business side-effects
+      AuditService.log(ctx, {
         action,
         status: AUDIT_STATUS.SUCCESS,
         targetType: targetTypeVal,
@@ -342,8 +343,8 @@ export const AuditService = {
 
       return result;
     } catch (error: any) {
-      // 6. Failure Log
-      await AuditService.log(ctx, {
+      // 6. Failure Log (Non-blocking)
+      AuditService.log(ctx, {
         action,
         status: AUDIT_STATUS.FAILED,
         targetType,

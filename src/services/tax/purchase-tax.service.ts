@@ -56,7 +56,7 @@ export const PurchaseTaxService = {
                     taxAmount: purchase.taxAmount || 0,
                     netAmount: purchase.totalAmount || 0,
                     claimStatus: 'CLAIMABLE',
-                    createdByMemberId: ctx.memberId,
+                    memberId: ctx.memberId,
                     // Link to source PO
                     links: {
                         create: {
@@ -201,7 +201,7 @@ export const PurchaseTaxService = {
             (db as any).purchaseTaxDocument.findMany({
                 where,
                 include: {
-                    postedByMember: { select: { firstName: true, lastName: true } },
+                    postedBy: { select: { firstName: true, lastName: true } },
                     supplier: { select: { name: true } }
                 },
                 orderBy: { createdAt: 'desc' },
@@ -227,7 +227,7 @@ export const PurchaseTaxService = {
                 links: {
                     include: { purchaseOrder: { select: { purchaseNumber: true } } }
                 },
-                postedByMember: { select: { firstName: true, lastName: true } }
+                postedBy: { select: { firstName: true, lastName: true } }
             }
         });
     }

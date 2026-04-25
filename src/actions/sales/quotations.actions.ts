@@ -54,3 +54,11 @@ export async function cancelQuotation(id: string): Promise<ActionResponse<null>>
         }, 'sales:cancelQuotation');
     }, { context: { action: 'cancelQuotation', id } });
 }
+export async function getQuotationDetail(id: string): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requirePermission('QUOTATION_VIEW' as any);
+            return QuotationService.getById(ctx, id);
+        }, `sales:getQuotationDetail:${id}`);
+    }, { context: { action: 'getQuotationDetail', id } });
+}

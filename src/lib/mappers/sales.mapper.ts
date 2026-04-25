@@ -17,6 +17,7 @@ export const SaleMapper = {
             date: sale.date,
             customerName: sale.customer?.name || sale.customerName || 'N/A',
             customerAddress: sale.customer?.address || sale.customerAddress || undefined,
+            customerPhone: sale.customer?.phone || sale.customerPhone || undefined,
             customerTaxId: sale.customer?.taxId || sale.customerTaxId || undefined,
             status: sale.status,
             paymentStatus: sale.paymentStatus,

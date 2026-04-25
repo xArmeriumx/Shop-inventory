@@ -1,4 +1,7 @@
+'use client';
+
 import React from 'react';
+import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -14,6 +17,7 @@ export interface WorkflowStep {
     label: string;
     action: string;
     onClick?: () => void;
+    href?: string;
     description: string;
     isPrimary?: boolean;
 }
@@ -54,21 +58,32 @@ export function WorkflowAssistant({ type, status, steps, className }: WorkflowAs
             </div>
 
             <div className="flex items-center gap-2 w-full md:w-auto">
-                {steps.map((step, idx) => (
-                    <Button
-                        key={idx}
-                        onClick={step.onClick}
-                        variant={step.isPrimary ? "default" : "outline"}
-                        size="sm"
-                        className={cn(
-                            "flex-1 md:flex-none rounded-xl gap-2",
-                            step.isPrimary && "bg-emerald-600 hover:bg-emerald-700 text-white border-none shadow-lg shadow-emerald-500/20"
-                        )}
-                    >
-                        {step.action}
-                        <ChevronRight className="w-4 h-4" />
-                    </Button>
-                ))}
+                {steps.map((step, idx) => {
+                    const button = (
+                        <Button
+                            onClick={step.onClick}
+                            variant={step.isPrimary ? "default" : "outline"}
+                            size="sm"
+                            className={cn(
+                                "flex-1 md:flex-none rounded-xl gap-2",
+                                step.isPrimary && "bg-emerald-600 hover:bg-emerald-700 text-white border-none shadow-lg shadow-emerald-500/20"
+                            )}
+                        >
+                            {step.action}
+                            <ChevronRight className="w-4 h-4" />
+                        </Button>
+                    );
+
+                    if (step.href) {
+                        return (
+                            <Link key={idx} href={step.href} className="flex-1 md:flex-none">
+                                {button}
+                            </Link>
+                        );
+                    }
+
+                    return <React.Fragment key={idx}>{button}</React.Fragment>;
+                })}
             </div>
         </div>
     );

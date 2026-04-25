@@ -38,7 +38,7 @@ export function ProfitByProductReport({ startDate, endDate }: ProfitByProductRep
         <Card><CardContent className="pt-6"><Skeleton className="h-64 w-full" /></CardContent></Card>
       </div>
     );
-  }
+  } 
 
   if (!data?.success) {
     return (

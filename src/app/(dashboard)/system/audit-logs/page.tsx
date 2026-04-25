@@ -44,7 +44,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { getAuditLogs, GetAuditLogsResult, exportAuditLogsAction } from '@/actions/core/audit.actions';
+import { getAuditLogs, exportAuditLogsAction } from '@/actions/core/audit.actions';
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -75,12 +75,12 @@ export default function AuditLogsPage() {
       // Add more filter logic if backend supports it
     });
 
-    if (result.success) {
-      setLogs(result.data);
+    if (result.success && result.data) {
+      setLogs(result.data.data);
       setPagination({
-        page: result.page,
-        totalPages: result.totalPages,
-        total: result.total
+        page: result.data.page,
+        totalPages: result.data.totalPages,
+        total: result.data.total
       });
     } else {
       toast.error(result.message || 'ไม่สามารถโหลด Audit Log ได้');

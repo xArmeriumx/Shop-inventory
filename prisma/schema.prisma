@@ -515,11 +515,15 @@ model Product {
   @@unique([shopId, sku])
   @@index([userId])
   @@index([userId, deletedAt])
-  @@index([shopId]) // RBAC index
+  @@index([shopId])                         // RBAC base index
   @@index([shopId, isLowStock])
   @@index([category])
   @@index([categoryId])
   @@index([name])
+  // ✅ P0 Performance Indexes: Composite indexes matching actual query WHERE clauses
+  @@index([shopId, deletedAt, isActive])    // getList: WHERE shopId=? AND deletedAt IS NULL AND isActive=?
+  @@index([shopId, deletedAt])              // getForSelect / getForPurchase: common compound
+  @@index([shopId, isActive, stock])        // getForSelect: only saleable products with stock
 }
 
 // ==================== Inventory Modules (Phase C) ====================

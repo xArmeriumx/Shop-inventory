@@ -243,12 +243,12 @@ export function SaleDetailView({ sale, shop, payments = [] }: SaleDetailViewProp
                     <div className="mb-8 grid grid-cols-2 gap-4">
                         <div>
                             <h3 className="font-semibold mb-2">ข้อมูลลูกค้า</h3>
-                            <p className="text-sm">{sale.customer?.name || sale.customerName || 'ลูกค้าทั่วไป'}</p>
-                            {sale.customer && (
-                                <>
-                                    <p className="text-sm text-muted-foreground">{sale.customer.address}</p>
-                                    <p className="text-sm text-muted-foreground">{sale.customer.phone}</p>
-                                </>
+                            <p className="text-sm">{sale.customerName || 'ลูกค้าทั่วไป'}</p>
+                            {sale.customerAddress && (
+                                <p className="text-sm text-muted-foreground">{sale.customerAddress}</p>
+                            )}
+                            {sale.customerPhone && (
+                                <p className="text-sm text-muted-foreground">{sale.customerPhone}</p>
                             )}
                         </div>
                         <div className="text-right">
@@ -343,7 +343,7 @@ export function SaleDetailView({ sale, shop, payments = [] }: SaleDetailViewProp
                                             <td className="p-3">{index + 1}</td>
                                             <td className="p-3">
                                                 <div className="max-w-[200px] sm:max-w-none">
-                                                    {item.product.name}
+                                                    {item.productName}
                                                     {Number(item.discountAmount) > 0 && (
                                                         <span className="text-xs text-orange-600 ml-1">
                                                             (ลด {formatCurrency(Number(item.discountAmount))}/ชิ้น)
@@ -351,7 +351,7 @@ export function SaleDetailView({ sale, shop, payments = [] }: SaleDetailViewProp
                                                     )}
                                                 </div>
                                             </td>
-                                            <td className="p-3 text-right">{formatCurrency(Number(item.salePrice))}</td>
+                                            <td className="p-3 text-right">{formatCurrency(Number(item.unitPrice))}</td>
                                             <td className="p-3 text-right font-medium">{item.quantity}</td>
                                             <td className="p-3 text-right text-muted-foreground">{item.packagingQty || 1}</td>
                                             <td className="p-3 text-right font-bold text-primary">

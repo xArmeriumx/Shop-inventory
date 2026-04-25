@@ -26,13 +26,18 @@ export default function ReorderSuggestions() {
   const loadSuggestions = async () => {
     setLoading(true);
     try {
-      const data = await getReorderSuggestions();
-      setSuggestions(data);
-      // Default select high/critical urgency
-      const autoSelected = data
-        .filter((s: any) => s.urgency === 'CRITICAL' || s.urgency === 'HIGH')
-        .map((s: any) => s.productId);
-      setSelectedIds(new Set(autoSelected));
+      const result = await getReorderSuggestions();
+      if (result.success) {
+        const data = result.data;
+        setSuggestions(data);
+        // Default select high/critical urgency
+        const autoSelected = data
+          .filter((s: any) => s.urgency === 'CRITICAL' || s.urgency === 'HIGH')
+          .map((s: any) => s.productId);
+        setSelectedIds(new Set(autoSelected));
+      } else {
+        toast.error(result.message);
+      }
     } catch (error) {
       toast.error('เกิดข้อผิดพลาด', {
         description: 'ไม่สามารถโหลดข้อมูลข้อแนะนำการสั่งซื้อได้',

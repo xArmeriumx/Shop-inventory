@@ -37,7 +37,9 @@ export function SalesHeatmap() {
     async function loadData() {
       try {
         const res = await getSalesHeatmap(30);
-        setHeatmap(res);
+        if (res.success) {
+          setHeatmap(res.data);
+        }
       } catch (err) {
         console.error(err);
       } finally {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
 import { useForm, FormProvider, useFormContext, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -23,6 +23,7 @@ import { createSale } from '@/actions/sales/sales.actions';
 import { getProductsForSelect } from '@/actions/inventory/products.actions';
 import { getCustomersForSelect } from '@/actions/sales/customers.actions';
 import { getMyProfile } from '@/actions/core/auth.actions';
+import { getQuotationDetail } from '@/actions/sales/quotations.actions';
 import { formatCurrency } from '@/lib/formatters';
 import { PAYMENT_METHODS } from '@/lib/constants';
 import { usePermissions } from '@/hooks/use-permissions';
@@ -271,6 +272,9 @@ function SalesItemsSection({
 
 export function SaleForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const quotationId = searchParams.get('quotationId');
+
   const [isPending, startTransition] = useTransition();
   const { hasPermission } = usePermissions();
   const [products, setProducts] = useState<any[]>([]);
@@ -294,6 +298,40 @@ export function SaleForm() {
       }
     });
   }, []);
+
+  // Pre-fill from quotation
+  useEffect(() => {
+    if (quotationId && products.length > 0 && customers.length > 0) {
+      getQuotationDetail(quotationId).then((res) => {
+        if (res.success && res.data) {
+          const q = res.data;
+          
+          // 1. Set Customer
+          if (q.customerId) {
+            setValue('customerId', q.customerId);
+            setValue('customerName', q.customer?.name || null);
+            if (q.customer?.address) {
+              setValue('customerAddress', q.customer.address);
+              setValue('showAddress', true);
+            }
+          }
+
+          // 2. Set Items
+          if (q.items && q.items.length > 0) {
+            const saleItems = q.items.map((qi: any) => ({
+              productId: qi.productId,
+              quantity: Number(qi.quantity),
+              salePrice: Number(qi.unitPrice),
+              discountAmount: Number(qi.discount) || 0
+            }));
+            setValue('items', saleItems);
+          }
+
+          toast.success(`ดึงข้อมูลจากใบเสนอราคา ${q.quotationNo} แล้ว`);
+        }
+      });
+    }
+  }, [quotationId, products.length, customers.length]);
 
   const items = watch('items');
   const showDiscount = watch('showDiscount');

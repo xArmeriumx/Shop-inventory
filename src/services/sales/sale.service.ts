@@ -72,7 +72,8 @@ export const SaleService: ISaleService = {
           const productIds = items.map(item => item.productId);
           const products = await prisma.product.findMany({
             where: { id: { in: productIds } },
-            select: { id: true, name: true, stock: true, reservedStock: true, costPrice: true, packagingQty: true },
+            // 🛡️ Bug #10 Fix: include isSaleable in select
+            select: { id: true, name: true, stock: true, reservedStock: true, costPrice: true, packagingQty: true, isSaleable: true },
           });
           const productDataMap = new Map<string, any>(products.map(p => [p.id, p]));
 
@@ -81,6 +82,11 @@ export const SaleService: ISaleService = {
             const product = productDataMap.get(item.productId);
             if (!product) {
               stockErrors.push(`ไม่พบสินค้า ID: ${item.productId}`);
+              continue;
+            }
+            // 🛡️ Bug #10 Fix: check isSaleable flag
+            if (product.isSaleable === false) {
+              stockErrors.push(`"${product.name}" ไม่ได้เปิดให้ขาย กรุณาติดต่อผู้ดูแลระบบ`);
               continue;
             }
             const available = Number(money.subtract(product.stock, product.reservedStock || 0));
@@ -321,7 +327,11 @@ export const SaleService: ISaleService = {
     if (canViewProfit) Security.require(ctx, Permission.SALE_VIEW_PROFIT);
 
     const sales = await db.sale.findMany({
-      where: { shopId: ctx.shopId },
+      where: {
+        shopId: ctx.shopId,
+        // 🛡️ Bug #8 Fix: exclude cancelled sales from dashboard recent list
+        status: { not: 'CANCELLED' },
+      },
       include: {
         customer: true,
       },
@@ -340,43 +350,67 @@ export const SaleService: ISaleService = {
     validateReason(SALE_CANCEL_REASONS, reasonCode, reasonDetail);
     const cancelReason = resolveReasonLabel(SALE_CANCEL_REASONS, reasonCode, reasonDetail);
 
-    const sale = await db.sale.findFirst({ where: { id, shopId: ctx.shopId } });
+    // Outer read: for audit label only (does not participate in cancel logic)
+    const sale = await db.sale.findFirst({
+      where: { id, shopId: ctx.shopId },
+      select: { invoiceNumber: true, status: true },
+    });
     if (!sale) throw new ServiceError('ไม่พบข้อมูลการขาย');
+    if (sale.status === 'CANCELLED') throw new ServiceError('รายการนี้ถูกยกเลิกไปแล้ว');
 
     await AuditService.runWithAudit(
       ctx,
       SALE_AUDIT_POLICIES.CANCEL(sale.invoiceNumber, cancelReason),
       async () => {
         return runInTransaction(undefined, async (prisma) => {
-          const relatedJournals = await prisma.journalEntry.findMany({
-            where: {
-              shopId: ctx.shopId,
-              sourceId: id,
-              status: 'POSTED'
-            }
+          // 🛡️ Bug #4 Fix: Atomic status flip as FIRST operation in transaction
+          // Only proceeds if status is NOT already CANCELLED — DB-level race condition guard
+          const userNameResult = await prisma.user.findUnique({ where: { id: ctx.userId }, select: { name: true } });
+          const claimResult = await prisma.sale.updateMany({
+            where: { id, shopId: ctx.shopId, status: { not: 'CANCELLED' } },
+            data: {
+              status: 'CANCELLED' as SaleStatus,
+              cancelledAt: new Date(),
+              cancelledBy: userNameResult?.name || 'System',
+              cancelReason,
+            },
           });
 
-          for (const journal of relatedJournals) {
-            await JournalService.reverseEntry(ctx, journal.id, prisma);
+          // If count === 0, another concurrent request already cancelled this sale
+          if (claimResult.count === 0) {
+            throw new ServiceError('รายการนี้ถูกยกเลิกไปแล้ว (Concurrent Cancel Conflict)');
           }
 
+          // --- All operations below are safe: we own the cancel ---
+          // Fetch full sale data for stock release
           const fullSale = await prisma.sale.findFirst({
             where: { id, shopId: ctx.shopId },
             include: { items: { include: { returnItems: { select: { quantity: true } } } } },
           });
-
           if (!fullSale) throw new ServiceError('ไม่พบข้อมูลการขาย');
-          if (fullSale.status === 'CANCELLED') throw new ServiceError('รายการนี้ถูกยกเลิกไปแล้ว');
 
           if ((fullSale as any).editLockStatus === EditLockStatus.LOCKED) {
+            // Undo the atomic flip — revert because cancel is not allowed
+            await prisma.sale.update({
+              where: { id, shopId: ctx.shopId },
+              data: { status: 'CONFIRMED' as SaleStatus, cancelledAt: null, cancelledBy: null, cancelReason: null },
+            });
             throw new ServiceError((fullSale as any).lockReason || 'เอกสารนี้ถูกล็อก ไม่สามารถยกเลิกได้');
           }
 
+          // Reverse related journal entries
+          const relatedJournals = await prisma.journalEntry.findMany({
+            where: { shopId: ctx.shopId, sourceId: id, status: 'POSTED' },
+          });
+          for (const journal of relatedJournals) {
+            await JournalService.reverseEntry(ctx, journal.id, prisma);
+          }
+
+          // Cancel linked shipments
           const linkedShipments = await prisma.shipment.findMany({
             where: { saleId: id, status: { not: 'CANCELLED' } },
             select: { id: true, shipmentNumber: true },
           });
-
           for (const linkedShipment of linkedShipments) {
             await prisma.shipment.update({
               where: { id: linkedShipment.id, shopId: ctx.shopId },
@@ -392,6 +426,7 @@ export const SaleService: ISaleService = {
             data: { status: 'CANCELLED' },
           });
 
+          // Stock release based on booking state
           if (fullSale.bookingStatus === BookingStatus.RESERVED) {
             await Promise.all(fullSale.items.map(item => {
               const alreadyReturned = item.returnItems.reduce((sum: number, ri: any) => sum + ri.quantity, 0);
@@ -417,12 +452,6 @@ export const SaleService: ISaleService = {
 
             if (movements.length > 0) await StockService.recordMovements(ctx, movements, prisma);
           }
-
-          const userNameResult = await prisma.user.findUnique({ where: { id: ctx.userId }, select: { name: true } });
-          await prisma.sale.update({
-            where: { id, shopId: ctx.shopId },
-            data: { status: 'CANCELLED' as SaleStatus, cancelledAt: new Date(), cancelledBy: userNameResult?.name || 'System', cancelReason },
-          });
         });
       }
     );
@@ -459,10 +488,12 @@ export const SaleService: ISaleService = {
   async uploadPaymentProof(saleId: string, proofUrl: string, ctx: RequestContext): Promise<void> {
     const sale = await db.sale.findFirst({ where: { id: saleId, shopId: ctx.shopId } });
     if (!sale) throw new ServiceError('ไม่พบรายการขาย');
+    if (sale.status === 'CANCELLED') throw new ServiceError('รายการนี้ถูกยกเลิกแล้ว');
 
     await db.sale.update({
       where: { id: saleId, shopId: ctx.shopId },
-      data: { paymentProof: proofUrl, paymentStatus: DocPaymentStatus.VOIDED as any },
+      // 🛡️ Bug #3 Fix: was incorrectly setting VOIDED — should be PENDING (awaiting verification)
+      data: { paymentProof: proofUrl, paymentStatusProof: 'PENDING' },
     });
   },
 

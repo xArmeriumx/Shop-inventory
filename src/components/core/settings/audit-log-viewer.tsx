@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, Fragment } from 'react';
-import { getAuditLogs, type GetAuditLogsResult } from '@/actions/core/audit.actions';
+import { getAuditLogs } from '@/actions/core/audit.actions';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -38,8 +38,8 @@ export function AuditLogViewer() {
       });
 
       if (result.success) {
-        setLogs(result.data);
-        setTotalPages(result.totalPages);
+        setLogs(result.data.data);
+        setTotalPages(result.data.totalPages);
       } else {
         toast.error(result.message);
       }

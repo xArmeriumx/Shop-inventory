@@ -106,6 +106,10 @@ export const StockService: IStockService = {
             // Custom types or adjustments
             if (type === 'ADJUSTMENT' as any) {
               newStock += quantity; // Positive or negative
+              // 🛡️ Bug #5 Fix: Guard against negative stock
+              if (newStock < 0) {
+                throw new ServiceError(`ไม่สามารถลดสต็อกได้ เนื่องจากสต็อกจะติดลบ (คงเหลือ: ${product.stock}, ต้องการลด: ${Math.abs(quantity)})`);
+              }
             }
         }
 
@@ -241,21 +245,58 @@ export const StockService: IStockService = {
   },
 
   async recordMovements(ctx: RequestContext, movements: any[], tx: Prisma.TransactionClient) {
-    const created = await (tx as any).stockLog.createMany({
+    // 🛡️ Bug #2 Fix: recordMovements MUST update actual stock, not just create logs
+    // Process each movement individually to correctly update stock balances
+    for (const movement of movements) {
+      const { productId, type, quantity, ...rest } = movement;
+      
+      const product = await tx.product.findUnique({
+        where: { id: productId },
+        select: { stock: true, reservedStock: true, minStock: true, shopId: true },
+      });
+      
+      if (!product) continue; // Skip missing products in bulk ops
+
+      let newStock = product.stock;
+      let newReserved = product.reservedStock;
+
+      // Mirror the switch logic from recordMovement
+      switch (type) {
+        case 'PURCHASE':
+        case 'RETURN':
+          newStock += quantity;
+          break;
+        case 'SALE':
+          newStock = Math.max(0, newStock - quantity);
+          if (product.reservedStock >= quantity) newReserved -= quantity;
+          break;
+        case 'SALE_CANCEL': // Custom type used when cancelling a DEDUCTED sale
+          newStock += quantity; // Restore the stock
+          break;
+        case 'CANCEL':
+          newStock = Math.max(0, newStock - quantity);
+          break;
+        case 'ADJUSTMENT':
+          newStock = Math.max(0, newStock + quantity);
+          break;
+        default:
+          newStock = Math.max(0, newStock + quantity);
+      }
+
+      await tx.product.update({
+        where: { id: productId },
+        data: {
+          stock: newStock,
+          reservedStock: Math.max(0, newReserved),
+          isLowStock: newStock <= (product.minStock ?? DEFAULT_LOW_STOCK_THRESHOLD),
+        },
+      });
+    }
+
+    // Create all logs at once after updating stock
+    await (tx as any).stockLog.createMany({
       data: movements.map(l => ({ ...l, memberId: ctx.memberId || null, shopId: ctx.shopId, userId: ctx.userId })) as any,
     });
-
-    // Simple bulk update for low stock flag (could be optimized)
-    const productIds = Array.from(new Set(movements.map(l => l.productId)));
-    for (const pid of productIds) {
-      const p = await tx.product.findUnique({ where: { id: pid }, select: { stock: true, minStock: true } });
-      if (p) {
-        await tx.product.update({
-          where: { id: pid },
-          data: { isLowStock: p.stock <= (p.minStock ?? DEFAULT_LOW_STOCK_THRESHOLD) }
-        });
-      }
-    }
   },
 
   async getProductHistory(ctx: RequestContext, productId: string, page: number = 1, limit: number = 10) {

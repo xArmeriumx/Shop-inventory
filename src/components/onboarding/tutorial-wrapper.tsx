@@ -11,13 +11,13 @@ export async function TutorialWrapper() {
     try {
         const state = await OnboardingService.getTutorialState(shopId);
 
-        if (!state || state.isTutorialDismissed) return null;
+        if (!state || state.tutorialDismissed) return null;
 
         return (
             <TutorialManager
                 initialTrack={state.tutorialTrack ?? 1}
                 initialStep={state.tutorialStep ?? 1}
-                isDismissed={state.isTutorialDismissed ?? false}
+                isDismissed={state.tutorialDismissed ?? false}
             />
         );
     } catch (error) {

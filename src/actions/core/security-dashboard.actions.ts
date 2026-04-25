@@ -6,14 +6,10 @@ import { db } from '@/lib/db';
 import { Security } from '@/services/core/iam/security.service';
 import { ServiceError } from '@/types/domain';
 
-export type SecurityDashboardResult = {
-  success: boolean;
-  message?: string;
-  data?: any;
-};
+import { handleAction, type ActionResponse } from '@/lib/action-handler';
 
-export async function getSecurityDashboardData(): Promise<SecurityDashboardResult> {
-  try {
+export async function getSecurityDashboardData(): Promise<ActionResponse<any>> {
+  return handleAction(async () => {
     const sessionCtx = await requireAuth();
     if (!sessionCtx.shopId) {
       throw new ServiceError('กรุณาเลือกร้านค้าเพื่อดูข้อมูล');
@@ -23,16 +19,6 @@ export async function getSecurityDashboardData(): Promise<SecurityDashboardResul
     // Only Owners or Admins (with SETTINGS_ROLES or SETTINGS_SHOP) should see full security dashboard
     Security.requireAnyPermission(ctx, ['SETTINGS_ROLES', 'SETTINGS_SHOP']);
 
-    const metrics = await AuditService.getSecurityDashboardMetrics(ctx.shopId);
-
-    return {
-      success: true,
-      data: metrics,
-    };
-  } catch (error: any) {
-    return {
-      success: false,
-      message: error instanceof ServiceError ? error.message : 'เกิดข้อผิดพลาดในการดึงข้อมูล Security Dashboard'
-    };
-  }
+    return await AuditService.getSecurityDashboardMetrics(ctx.shopId);
+  }, { context: { action: 'getSecurityDashboardData' } });
 }

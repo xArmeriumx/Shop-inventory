@@ -87,20 +87,13 @@ export default async function QuotationDetailPage({ params }: { params: { id: st
                         action: 'เปิดบิลขาย',
                         description: 'ใบเสนอราคานี้ได้รับการยืนยันแล้ว คุณสามารถสร้างรายการขาย (Sale) เพื่อตัดสต็อกและรับชำระเงินได้ทันที',
                         isPrimary: true,
-                        onClick: () => {
-                            // Re-navigate to POS or sale creation
-                            if (typeof window !== 'undefined') {
-                                window.location.href = `/sales/create?quotationId=${quotation.id}`;
-                            }
-                        }
+                        href: `/sales/new?quotationId=${quotation.id}`
                     }] : []),
                     ...(quotation.status === 'DRAFT' ? [{
                         label: 'เตรียมส่งให้ลูกค้า',
-                        action: 'ทำเครื่องหมายว่าส่งแล้ว',
+                        action: 'ส่งเอกสาร',
                         description: 'ตรวจสอบความถูกต้องของราคาและส่วนลด ก่อนส่งให้ลูกค้าพิจารณา',
-                        onClick: () => {
-                            alert('บันทึกสถานะ: ส่งแล้ว (Simulation)');
-                        }
+                        href: '#' // Placeholder or actual link to sharable URL
                     }] : [])
                 ]}
             />

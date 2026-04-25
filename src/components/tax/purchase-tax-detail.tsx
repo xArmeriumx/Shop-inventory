@@ -282,7 +282,7 @@ export function PurchaseTaxDetail({ doc }: PurchaseTaxDetailProps) {
                                 <History className="h-4 w-4 text-green-600 mt-1" />
                                 <div className="text-xs text-green-800">
                                     <p className="font-semibold">ตรวจสอบโดย</p>
-                                    <p>{doc.postedByMember?.firstName} {doc.postedByMember?.lastName}</p>
+                                    <p>{doc.postedBy?.firstName} {doc.postedBy?.lastName}</p>
                                     <p className="mt-1 opacity-70">{format(new Date(doc.postedAt), 'dd/MM/yyyy HH:mm')}</p>
                                 </div>
                             </CardContent>

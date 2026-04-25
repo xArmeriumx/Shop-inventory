@@ -82,68 +82,80 @@ export const ProductService: IProductService = {
    * แก้ไขข้อมูลสินค้า พร้อมจัดการประวัติสต็อกด้วย Optimistic Locking
    */
   async update(id: string, ctx: RequestContext, payload: Partial<ProductInput> & { version?: number }, tx?: Prisma.TransactionClient): Promise<SerializedProduct> {
-    const existingP = await db.product.findFirst({ where: { id, shopId: ctx.shopId } });
+    // Bug #9 Fix: Single read (SSOT) — existingP used for guard, audit, version check, and stock diff
+    const existingP = await (tx || db).product.findFirst({
+      where: { id, shopId: ctx.shopId, deletedAt: null },
+    });
     if (!existingP) throw new ServiceError('ไม่พบสินค้า');
+
+    // Validate version BEFORE entering transaction — fail fast
+    if (payload.version !== undefined && payload.version !== existingP.version) {
+      throw new ServiceError('ข้อมูลถูกแก้ไขโดยผู้ใช้อื่น กรุณารีเฟรชแล้วลองใหม่');
+    }
 
     return AuditService.runWithAudit(
       ctx,
       {
         ...PRODUCT_AUDIT_POLICIES.UPDATE(id, existingP.name),
         beforeSnapshot: () => existingP,
-        afterSnapshot: () => db.product.findFirst({ where: { id } }),
+        afterSnapshot: (data) => data, // use update result directly — no extra DB read
       },
       async () => {
         const product = await runInTransaction(tx, async (prisma) => {
-          const existing = await prisma.product.findFirst({ where: { id, shopId: ctx.shopId } });
-          if (!existing) throw new ServiceError('ไม่พบสินค้า');
-          if (payload.version !== undefined && payload.version !== existing.version) {
-            throw new ServiceError('ข้อมูลถูกแก้ไขโดยผู้ใช้อื่น กรุณารีเฟรชแล้วลองใหม่');
-          }
-
-          if (payload.sku && payload.sku !== existing.sku) {
-            const duplicate = await prisma.product.findFirst({ where: { sku: payload.sku, shopId: ctx.shopId, id: { not: id } } });
+          // SKU uniqueness (only check if SKU is actually changing)
+          if (payload.sku && payload.sku !== existingP.sku) {
+            const duplicate = await prisma.product.findFirst({
+              where: { sku: payload.sku, shopId: ctx.shopId, id: { not: id } },
+              select: { id: true },
+            });
             if (duplicate) throw new ServiceError('รหัสสินค้า (SKU) นี้มีอยู่แล้ว');
           }
 
-          if (payload.stock !== undefined && payload.stock !== existing.stock) {
-            const diff = payload.stock - existing.stock;
+          // Stock adjustment — diff from existingP (consistent snapshot)
+          if (payload.stock !== undefined && payload.stock !== existingP.stock) {
+            const diff = payload.stock - existingP.stock;
             await StockService.recordMovement(ctx, {
               productId: id,
               type: 'ADJUSTMENT',
               quantity: diff,
-              userId: ctx.userId,
-              shopId: ctx.shopId,
               note: 'ปรับปรุงสต็อก (แก้ไขสินค้า)',
               tx: prisma,
             });
           }
 
           const { stock, version, ...otherData } = payload;
-          const updatedProduct = await prisma.product.update({
-            where: { id },
-            data: {
-              ...otherData,
-              description: otherData.description || null,
-              ...(otherData.sku !== undefined ? { sku: otherData.sku || null } : {}),
-              isActive: otherData.isActive ?? (otherData.isSaleable !== undefined ? otherData.isSaleable : existing.isActive),
-              isSaleable: otherData.isSaleable ?? (otherData.isActive !== undefined ? otherData.isActive : existing.isSaleable),
-              metadata: otherData.metadata === null ? Prisma.JsonNull : (otherData.metadata as Prisma.InputJsonValue),
-              version: { increment: 1 },
-            },
-          });
+          const currentStock = payload.stock !== undefined ? payload.stock : existingP.stock;
+          const currentMinStock = otherData.minStock !== undefined ? otherData.minStock : existingP.minStock;
 
-          if (payload.minStock !== undefined) {
-            const isLow = updatedProduct.stock <= updatedProduct.minStock;
-            await prisma.product.update({ where: { id }, data: { isLowStock: isLow } });
-            updatedProduct.isLowStock = isLow;
+          try {
+            // 🛡️ Prisma Optimistic Lock: if another write changed version, this throws P2025
+            const updatedProduct = await prisma.product.update({
+              where: { id, version: existingP.version },
+              data: {
+                ...otherData,
+                description: otherData.description || null,
+                ...(otherData.sku !== undefined ? { sku: otherData.sku || null } : {}),
+                isActive: otherData.isActive ?? (otherData.isSaleable !== undefined ? otherData.isSaleable : existingP.isActive),
+                isSaleable: otherData.isSaleable ?? (otherData.isActive !== undefined ? otherData.isActive : existingP.isSaleable),
+                metadata: otherData.metadata === null ? Prisma.JsonNull : (otherData.metadata as Prisma.InputJsonValue),
+                // Merge low-stock flag into this update — eliminates a 2nd update round-trip
+                isLowStock: currentStock <= (currentMinStock ?? 0),
+                version: { increment: 1 },
+              },
+            });
+            return updatedProduct;
+          } catch (e) {
+            if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {
+              throw new ServiceError('ข้อมูลถูกแก้ไขพร้อมกันโดยผู้ใช้อื่น กรุณารีเฟรชแล้วลองใหม่ (Concurrent Conflict)');
+            }
+            throw e;
           }
-
-          return updatedProduct;
         });
         return serializeProduct(product);
       }
     );
   },
+
 
   /**
    * ดึงข้อมูลสินค้าโดยรหัส (Read)
@@ -314,12 +326,19 @@ export const ProductService: IProductService = {
               notePrefix = '[Manual Add]';
               break;
             case 'REMOVE':
-              change = -input.quantity;
+              // 🛡️ Bug #1 Fix: validate stock is sufficient BEFORE sending negative ADJUSTMENT
+              if (input.quantity > product.stock) {
+                throw new ServiceError(`สต็อกไม่เพียงพอ (คงเหลือ: ${product.stock}, ต้องการลด: ${input.quantity})`);
+              }
+              change = -input.quantity; // negative ADJUSTMENT — guard in StockService will catch if still negative
               notePrefix = '[Manual Remove]';
               break;
             case 'SET':
               change = input.quantity - product.stock;
               notePrefix = '[Manual Set]';
+              if (change < 0 && product.stock + change < 0) {
+                throw new ServiceError(`ค่าที่ตั้งต่ำกว่า 0 ไม่ได้รับอนุญาต`);
+              }
               break;
           }
 
@@ -372,7 +391,7 @@ export const ProductService: IProductService = {
           });
         }
 
-        if (validInputs.length === 0) return { success: true, created: [], failed };
+        if (validInputs.length === 0) return { created: [], failed };
 
         const created: BatchCreateResult['created'] = [];
         const seenSkus = new Set<string>();
@@ -404,6 +423,12 @@ export const ProductService: IProductService = {
               const existingProduct = skuKey ? existingSkuMap.get(skuKey) : null;
 
               if (existingProduct) {
+                // Fetch current stock for diff calculation (SSOT: stock only via StockService)
+                const current = await prisma.product.findUnique({
+                  where: { id: existingProduct.id },
+                  select: { stock: true },
+                });
+
                 const updated = await prisma.product.update({
                   where: { id: existingProduct.id },
                   data: {
@@ -411,14 +436,28 @@ export const ProductService: IProductService = {
                     category: input.category,
                     costPrice: input.costPrice,
                     salePrice: input.salePrice,
-                    ...(input.stock !== undefined && { stock: input.stock }),
+                    // Bug #6 Fix: do NOT write stock directly — StockService handles it below
                     ...(input.minStock !== undefined && { minStock: input.minStock }),
                     isActive: true,
                     deletedAt: null,
                   },
                 });
+
+                // Route stock change through StockService (SSOT — creates StockLog)
+                if (input.stock !== undefined && current && input.stock !== current.stock) {
+                  const diff = input.stock - current.stock;
+                  await StockService.recordMovement(ctx, {
+                    productId: updated.id,
+                    type: 'ADJUSTMENT',
+                    quantity: diff,
+                    note: `[Batch Import] ปรับสต็อก: ${input.name}`,
+                    tx: prisma,
+                  });
+                }
+
                 created.push({ id: updated.id, name: updated.name, costPrice: Number(updated.costPrice) });
               } else {
+                // Bug #6 Fix: create with stock=0, then set via StockService (mirrors regular create flow)
                 const createdP = await prisma.product.create({
                   data: {
                     name: input.name,
@@ -426,12 +465,25 @@ export const ProductService: IProductService = {
                     category: input.category,
                     costPrice: input.costPrice,
                     salePrice: input.salePrice,
-                    stock: input.stock ?? 0,
+                    stock: 0, // always start at 0
                     minStock: input.minStock ?? 5,
                     userId: ctx.userId,
                     shopId: ctx.shopId,
                   },
                 });
+
+                // Set initial stock via StockService (SSOT — creates StockLog)
+                const initialStock = input.stock ?? 0;
+                if (initialStock > 0) {
+                  await StockService.recordMovement(ctx, {
+                    productId: createdP.id,
+                    type: 'ADJUSTMENT',
+                    quantity: initialStock,
+                    note: `[Batch Import] สต็อกเริ่มต้น: ${input.name}`,
+                    tx: prisma,
+                  });
+                }
+
                 created.push({ id: createdP.id, name: createdP.name, costPrice: Number(createdP.costPrice) });
               }
             }
@@ -441,7 +493,7 @@ export const ProductService: IProductService = {
           throw error;
         }
 
-        return { success: true, created, failed };
+        return { created, failed };
       }
     );
   }
