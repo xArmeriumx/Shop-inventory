@@ -146,12 +146,6 @@ export const SaleService: ISaleService = {
             taxableAmount: res.taxableBase,
           }));
 
-          // 3.5. Resolve Document Number & flow Mode
-          const shop = await prisma.shop.findUnique({
-            where: { id: ctx.shopId },
-            select: { salesFlowMode: true }
-          });
-
           // SSOT: Use SALE_ORDER (SO) as the primary identifier for Sales (Orders)
           const orderNumber = await SequenceService.generate(ctx, DocumentType.SALE_ORDER, prisma);
 
@@ -203,26 +197,6 @@ export const SaleService: ISaleService = {
 
           // ⚡ Optimized Bulk Stock Reservation (Single process, single audit)
           await StockService.bulkReserveStock(sale.items, ctx, prisma);
-
-          // 7. Hybrid Flow Execution (Retail vs ERP)
-          if (shop?.salesFlowMode === 'RETAIL') {
-            // Auto-Invoicing Logic: สร้างใบแจ้งหนี้เสมอ — ไม่มีเหตุผลที่จะล้มเหลว
-            const invoice = await InvoiceService.createFromSale(ctx, sale.id, prisma);
-
-            // ⚡ Best Practice: ใช้ tryPost() สำหรับ RETAIL/POS เท่านั้น
-            // → ถ้า CoA ยังไม่ตั้งค่า: Invoice อยู่ใน DRAFT ไปก่อน (ไม่บล็อกการขาย)
-            // → ถ้าตั้งค่า CoA แล้ว: Invoice → POSTED ทันที
-            // → Accountant สามารถ Post ย้อนหลังได้จากหน้า /invoices
-            await InvoiceService.tryPost(ctx, invoice.id, prisma);
-
-            // Mark Paid if not CREDIT
-            if (sale.paymentMethod !== 'CREDIT') {
-              await InvoiceService.markPaid(ctx, invoice.id, prisma);
-            }
-
-            // ⚡ POS / Retail Standard: Finalize stock deduction and close the sale immediately
-            await this.completeSale(sale.id, ctx, prisma);
-          }
 
           // ⚡ Optimized Snapshot AFTER (Calculated in-memory to save DB round-trips)
           const afterSnapshot = products.map(p => {

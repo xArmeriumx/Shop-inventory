@@ -9,19 +9,20 @@ import { PerformanceCollector } from '@/lib/debug/measurement';
 import { ActionResponse } from '@/types/common';
 
 /**
- * Get delivery orders list
+ * getDeliveryOrders — รายการ DO พร้อม Filter
  */
 export async function getDeliveryOrders(params: any = {}): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
             const ctx = await requirePermission('DELIVERY_VIEW');
             return DeliveryOrderService.list(ctx, params);
-        }, 'sales:getDeliveryOrders');
+        }, 'delivery:getDeliveryOrders');
     }, { context: { action: 'getDeliveryOrders' } });
 }
 
 /**
- * Create a new delivery order
+ * createDeliveryOrder — สร้าง DO จาก SO
+ * ⚡ Auto-sets status: PROCESSING (มีสต็อก) หรือ WAITING (สต็อกไม่พอ)
  */
 export async function createDeliveryOrder(input: DeliveryOrderInput): Promise<ActionResponse<any>> {
     return handleAction(async () => {
@@ -32,12 +33,35 @@ export async function createDeliveryOrder(input: DeliveryOrderInput): Promise<Ac
             revalidatePath('/deliveries');
             revalidatePath(`/sales/${validated.saleId}`);
             return result;
-        }, 'sales:createDeliveryOrder');
+        }, 'delivery:createDeliveryOrder');
     }, { context: { action: 'createDeliveryOrder', saleId: input.saleId } });
 }
 
 /**
- * Validate/Confirm delivery order
+ * checkDOAvailability — ตรวจสต็อกใหม่ สำหรับ DO ที่ WAITING
+ *
+ * ถ้าสต็อกพอแล้ว: WAITING → PROCESSING (AVAILABLE)
+ * ถ้ายังไม่พอ: คืน shortages list ให้ UI แสดง
+ */
+export async function checkDOAvailability(id: string): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requirePermission('DELIVERY_VALIDATE');
+            const result = await DeliveryOrderService.checkAvailability(ctx, id);
+            if (result.available) {
+                revalidatePath('/deliveries');
+                revalidatePath(`/deliveries/${id}`);
+            }
+            return result;
+        }, 'delivery:checkDOAvailability');
+    }, { context: { action: 'checkDOAvailability', id } });
+}
+
+/**
+ * validateDelivery (= Done) — User ยืนยันจัดส่ง
+ *
+ * Flow: ตัดสต็อก + Auto Invoice + completeSale
+ * Guard: DO ต้องอยู่ใน PROCESSING (AVAILABLE) เท่านั้น
  */
 export async function validateDelivery(id: string): Promise<ActionResponse<any>> {
     return handleAction(async () => {
@@ -45,8 +69,25 @@ export async function validateDelivery(id: string): Promise<ActionResponse<any>>
             const ctx = await requirePermission('DELIVERY_VALIDATE');
             const result = await DeliveryOrderService.validate(ctx, id);
             revalidatePath('/deliveries');
+            revalidatePath(`/deliveries/${id}`);
             revalidatePath('/sales');
+            revalidatePath('/invoices');
             return result;
-        }, 'sales:validateDelivery');
+        }, 'delivery:validateDelivery');
     }, { context: { action: 'validateDelivery', id } });
+}
+
+/**
+ * cancelDeliveryOrder — ยกเลิก DO (ห้ามยกเลิก DELIVERED)
+ */
+export async function cancelDeliveryOrder(id: string): Promise<ActionResponse<any>> {
+    return handleAction(async () => {
+        return PerformanceCollector.run(async () => {
+            const ctx = await requirePermission('DELIVERY_VALIDATE');
+            await DeliveryOrderService.cancel(ctx, id);
+            revalidatePath('/deliveries');
+            revalidatePath(`/deliveries/${id}`);
+            return null;
+        }, 'delivery:cancelDeliveryOrder');
+    }, { context: { action: 'cancelDeliveryOrder', id } });
 }

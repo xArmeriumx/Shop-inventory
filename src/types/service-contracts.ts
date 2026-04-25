@@ -289,6 +289,16 @@ export interface IStockService {
   ): Promise<StockAvailability>;
 
   /**
+   * ตรวจสอบสต็อกทุก Item ใน 1 Query (O(n) product lookup)
+   * ใช้ใน DeliveryOrderService.create() และ POSSaleService
+   */
+  checkBulkAvailability(
+    items: Array<{ productId: string; quantity: number }>,
+    shopId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<{ allAvailable: boolean; shortages: Array<{ productId: string; required: number; available: number }> }>;
+
+  /**
    * บันทึกการเคลื่อนไหวสต็อก (Stock Movement) และปรับยอดคงเหลือจริง
    * ใช้สำหรับการปรับปรุงยอด (Adjustment), การเคลื่อนย้าย (Transfer), หรือการรับสินค้า
    */

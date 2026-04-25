@@ -224,6 +224,44 @@ export const StockService: IStockService = {
     };
   },
 
+  /**
+   * checkBulkAvailability — ตรวจสอบสต็อกทุก Item ใน 1 Query (O(n) product lookup)
+   * ใช้ใน DeliveryOrderService.create() เพื่อตั้ง Initial Status
+   *
+   * @returns { allAvailable: boolean, shortages: Array<{ productId, required, available }> }
+   */
+  async checkBulkAvailability(
+    items: Array<{ productId: string; quantity: number }>,
+    shopId: string,
+    tx?: Prisma.TransactionClient
+  ): Promise<{ allAvailable: boolean; shortages: Array<{ productId: string; required: number; available: number }> }> {
+    const executor = tx || db;
+    const productIds = Array.from(new Set(items.map(i => i.productId)));
+
+    // ⚡ 1 query สำหรับทุก product
+    const products = await executor.product.findMany({
+      where: { id: { in: productIds }, shopId },
+      select: { id: true, stock: true, reservedStock: true },
+    });
+
+    const productMap = new Map(products.map(p => [p.id, p]));
+    const shortages: Array<{ productId: string; required: number; available: number }> = [];
+
+    for (const item of items) {
+      const product = productMap.get(item.productId);
+      if (!product) {
+        shortages.push({ productId: item.productId, required: item.quantity, available: 0 });
+        continue;
+      }
+      const available = Number(product.stock) - Number(product.reservedStock || 0);
+      if (available < item.quantity) {
+        shortages.push({ productId: item.productId, required: item.quantity, available });
+      }
+    }
+
+    return { allAvailable: shortages.length === 0, shortages };
+  },
+
   async bulkReserveStock(items: Array<{ productId: string; quantity: number }>, ctx: RequestContext, tx: Prisma.TransactionClient) {
     const movements = items.map(item => ({
       productId: item.productId,
