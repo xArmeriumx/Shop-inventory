@@ -149,9 +149,9 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
         setScanInput('');
       } else {
         // Try server lookup (in case products list is stale)
-        const serverProduct = await getProductBySKU(sku);
-        if (serverProduct) {
-          addToCart(serverProduct);
+        const response = await getProductBySKU(sku);
+        if (response.success && response.data) {
+          addToCart(response.data);
           setScanInput('');
         } else {
           // Show error - could use toast in production
@@ -173,27 +173,27 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
     setIsProcessing(true);
 
     try {
-      const result = await createPOSSale({
-        paymentMethod,
+      const response = await createPOSSale({
+        paymentMethod: paymentMethod === 'CREDIT' ? 'CREDIT_CARD' : paymentMethod,
         items: cart.items.map((item) => ({
           productId: item.productId,
           quantity: item.quantity,
           salePrice: item.salePrice,
         })),
       });
-
-      if (result.success) {
+      
+      if (response.success) {
         // Success! Clear cart and close dialog
         clearCart();
         setIsPaymentOpen(false);
         
         // Show success message
-        alert(`บันทึกการขายสำเร็จ!\nเลขที่: ${result.invoiceNumber}`);
+        alert(`บันทึกการขายสำเร็จ!\nเลขที่: ${response.data.sale.invoiceNumber}`);
         
         // Refresh to update stock
         router.refresh();
       } else {
-        alert(result.error || 'เกิดข้อผิดพลาด');
+        alert(response.message || 'เกิดข้อผิดพลาด');
       }
     } catch (error) {
       console.error('Checkout error:', error);
