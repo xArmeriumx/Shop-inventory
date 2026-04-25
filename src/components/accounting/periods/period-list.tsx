@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatDate } from '@/lib/formatters';
-import { Lock, Unlock, History, Info, AlertTriangle } from 'lucide-react';
+import { Lock, Unlock, History, Info, AlertTriangle, UserCheck, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import { closePeriodAction, reopenPeriodAction } from '@/actions/accounting/accounting.actions';
 import {
@@ -17,152 +17,219 @@ import {
     DialogFooter
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { cn } from '@/lib/utils';
 
 interface PeriodListProps {
     periods: any[];
 }
 
+/**
+ * PeriodList — Logic-driven display of fiscal cycles.
+ * FOCUS: Reliability, Audit Integrity, and State Clarity.
+ */
 export const PeriodList: React.FC<PeriodListProps> = ({ periods }) => {
     const [selectedPeriod, setSelectedPeriod] = useState<any>(null);
     const [reopenReason, setReopenReason] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
+    const [isActionLoading, setIsActionLoading] = useState(false);
 
     const handleClosePeriod = async (id: string, name: string) => {
-        if (!confirm(`ยืนยันการปิดงวดบัญชี ${name}?\nเมื่อปิดแล้วจะไม่มีการอนุญาตให้บันทึกรายการในงวดนี้ เว้นแต่จะทำการเปิดงวดใหม่`)) return;
+        // Confirmation is also part of logic (Governance confirm)
+        if (!confirm(`LOCK PERIOD: ยืนยันการปิดงวดบัญชี ${name}?\nข้อมูลจะกลายเป็น Immutable และไม่สามารถแก้ไขได้จนกว่าจะทำ Re-open Protocol`)) return;
 
-        setIsLoading(true);
+        setIsActionLoading(true);
         try {
             const res = await closePeriodAction(id);
             if (res.success) {
-                toast.success(`ปิดงวดบัญชี ${name} สำเร็จ`);
+                toast.success(`งวดบัญชี ${name} ถูกล็อคเรียบร้อยแล้ว`);
             } else {
                 toast.error(res.message);
             }
+        } catch (err) {
+            toast.error("Security Service: ปิดงวดไม่สำเร็จ");
         } finally {
-            setIsLoading(false);
+            setIsActionLoading(false);
         }
     };
 
     const handleReopenPeriod = async () => {
-        if (!reopenReason.trim()) {
-            toast.error('กรุณาระบุเหตุผลในการเปิดงวดบัญชีใหม่');
+        if (!reopenReason.trim() || reopenReason.length < 5) {
+            toast.error('กรุณาระบุเหตุผลในการเปิดงวดอย่างเป็นทางการ (อย่างน้อย 5 ตัวอักษร)');
             return;
         }
 
-        setIsLoading(true);
+        setIsActionLoading(true);
         try {
             const res = await reopenPeriodAction({ periodId: selectedPeriod.id, reason: reopenReason });
             if (res.success) {
-                toast.success(`เปิดงวดบัญชี ${selectedPeriod.periodName} ใหม่สำเร็จ`);
+                toast.success(`งวดบัญชี ${selectedPeriod.periodName} ปลดล็อคสำเร็จ (Recorded)`);
                 setSelectedPeriod(null);
                 setReopenReason('');
             } else {
                 toast.error(res.message);
             }
+        } catch (err) {
+            toast.error("Security Service: ปลดล็อคไม่สำเร็จ");
         } finally {
-            setIsLoading(false);
+            setIsActionLoading(false);
         }
     };
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4">
+            {periods.length === 0 && (
+                <div className="p-20 text-center border-4 border-dashed rounded-[3rem] bg-muted/20">
+                    <AlertTriangle className="mx-auto text-muted-foreground/30 mb-6" size={64} />
+                    <div className="space-y-1">
+                        <p className="text-xl font-black text-muted-foreground">ระบบตรวจไม่พบงวดบัญชี</p>
+                        <p className="text-sm font-medium text-muted-foreground/60 italic">ยังไม่มีการตั้งค่า Fiscal Cycles ในระบบ</p>
+                    </div>
+                </div>
+            )}
+
             <div className="grid grid-cols-1 gap-4">
-                {periods.map((period) => (
-                    <Card key={period.id} className={`border-l-4 ${period.status === 'CLOSED' ? 'border-l-rose-500 bg-rose-50/30' : 'border-l-emerald-500'}`}>
-                        <CardContent className="p-6">
-                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                <div className="space-y-1">
-                                    <div className="flex items-center gap-3">
-                                        <h3 className="text-xl font-bold">{period.periodName}</h3>
-                                        <Badge variant={period.status === 'CLOSED' ? 'destructive' : 'default'} className="rounded-full">
-                                            {period.status === 'CLOSED' ? 'ปิดงวดแล้ว' : 'เปิดอยู่'}
-                                        </Badge>
-                                    </div>
-                                    <p className="text-sm text-muted-foreground italic">
-                                        ช่วงเวลา: {formatDate(period.startDate)} - {formatDate(period.endDate)}
-                                    </p>
-                                </div>
-
-                                <div className="flex items-center gap-2">
-                                    {period.status === 'OPEN' ? (
-                                        <Button
-                                            variant="destructive"
-                                            className="gap-2"
-                                            onClick={() => handleClosePeriod(period.id, period.periodName)}
-                                            disabled={isLoading}
-                                        >
-                                            <Lock size={16} />
-                                            ปิดงวดบัญชี / Close
-                                        </Button>
-                                    ) : (
-                                        <Button
-                                            variant="outline"
-                                            className="gap-2 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
-                                            onClick={() => setSelectedPeriod(period)}
-                                            disabled={isLoading}
-                                        >
-                                            <Unlock size={16} />
-                                            เปิดงวดใหม่ / Re-open
-                                        </Button>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Additional Info / Audit Trail */}
-                            {period.status === 'CLOSED' && (
-                                <div className="mt-4 p-3 rounded-lg bg-white/50 border border-rose-100 flex items-start gap-3">
-                                    <Info size={16} className="text-rose-500 mt-1" />
-                                    <div className="text-xs space-y-1">
-                                        <p className="font-semibold text-rose-700">Audit Information:</p>
-                                        <p>ปิดโดย: {period.closedBy?.user?.name || 'Unknown'}</p>
-                                        <p>เมื่อวันที่: {formatDate(period.closedAt)}</p>
-                                        {period.reopenReason && (
-                                            <p className="text-amber-700 mt-2 font-medium bg-amber-50 p-2 rounded border border-amber-100">
-                                                <History size={12} className="inline mr-1" />
-                                                ประวัติการเปิดใหม่: {period.reopenReason}
-                                                <span className="block opacity-70 mt-1">โดย {period.reopenedBy?.user?.name} เมื่อ {formatDate(period.reopenedAt)}</span>
+                {periods.map((period) => {
+                    const isClosed = period.status === 'CLOSED';
+                    return (
+                        <Card 
+                            key={period.id} 
+                            className={cn(
+                                "rounded-[2.5rem] border-2 transition-all duration-300 relative overflow-hidden group",
+                                isClosed ? "bg-muted/30 border-rose-500/10" : "bg-background border-emerald-500/10 shadow-lg hover:shadow-emerald-500/5 hover:-translate-y-1"
+                            )}
+                        >
+                            <CardContent className="p-8">
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 py-2">
+                                    <div className="flex items-center gap-6">
+                                        <div className={cn(
+                                            "h-16 w-16 rounded-2xl flex items-center justify-center shadow-inner shrink-0",
+                                            isClosed ? "bg-rose-100/50 text-rose-600" : "bg-emerald-100 text-emerald-600"
+                                        )}>
+                                            {isClosed ? <Lock size={28} /> : <Unlock size={28} />}
+                                        </div>
+                                        <div className="space-y-1">
+                                            <div className="flex items-center gap-3">
+                                                <h3 className="text-2xl font-black tracking-tighter">{period.periodName}</h3>
+                                                <Badge 
+                                                    variant={isClosed ? 'destructive' : 'default'} 
+                                                    className={cn(
+                                                        "rounded-full px-4 h-7 text-[10px] font-black uppercase tracking-widest border-none",
+                                                        !isClosed && "bg-emerald-500 hover:bg-emerald-600"
+                                                    )}
+                                                >
+                                                    {isClosed ? 'LOCKED' : 'ACTIVE'}
+                                                </Badge>
+                                            </div>
+                                            <p className="text-xs font-black text-muted-foreground opacity-60 uppercase tracking-widest">
+                                                Diag: {formatDate(period.startDate)} — {formatDate(period.endDate)}
                                             </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-3">
+                                        {!isClosed ? (
+                                            <Button
+                                                variant="destructive"
+                                                className="rounded-full h-12 px-8 font-black gap-2 shadow-xl shadow-rose-500/10"
+                                                onClick={() => handleClosePeriod(period.id, period.periodName)}
+                                                disabled={isActionLoading}
+                                            >
+                                                <ShieldAlert size={18} />
+                                                Lock Period
+                                            </Button>
+                                        ) : (
+                                            <Button
+                                                variant="outline"
+                                                className="rounded-full h-12 px-8 font-black gap-2 border-2 hover:bg-emerald-50 transition-all"
+                                                onClick={() => setSelectedPeriod(period)}
+                                                disabled={isActionLoading}
+                                            >
+                                                <Unlock size={18} />
+                                                Re-open Protocol
+                                            </Button>
                                         )}
                                     </div>
                                 </div>
-                            )}
-                        </CardContent>
-                    </Card>
-                ))}
-                {periods.length === 0 && (
-                    <div className="p-12 text-center border-2 border-dashed rounded-xl bg-slate-50">
-                        <AlertTriangle className="mx-auto text-muted-foreground mb-3" size={40} />
-                        <p className="text-muted-foreground">ยังไม่มีการตั้งค่างวดบัญชีในระบบ</p>
-                    </div>
-                )}
+
+                                {/* Audit & Evidence Section */}
+                                {isClosed && (
+                                    <div className="mt-8 p-6 rounded-[2rem] bg-background/50 border-2 border-dashed border-rose-500/10 space-y-4 animate-in fade-in slide-in-from-top-2">
+                                        <div className="flex flex-wrap items-center gap-x-10 gap-y-4">
+                                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                                <div className="p-2 rounded-lg bg-rose-50 shadow-inner">
+                                                    <UserCheck size={14} className="text-rose-500" />
+                                                </div>
+                                                <div className="space-y-0.5">
+                                                    <p className="font-black uppercase tracking-widest text-[10px] opacity-60">Locked By</p>
+                                                    <p className="font-bold text-foreground">{period.closedBy?.user?.name || 'Administrator'}</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                                <div className="p-2 rounded-lg bg-rose-50 shadow-inner">
+                                                    <History size={14} className="text-rose-500" />
+                                                </div>
+                                                <div className="space-y-0.5">
+                                                    <p className="font-black uppercase tracking-widest text-[10px] opacity-60">Lock Sequence</p>
+                                                    <p className="font-bold text-foreground">{formatDate(period.closedAt)}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {period.reopenReason && (
+                                            <div className="bg-amber-500/5 rounded-2xl p-5 border-2 border-amber-500/10 space-y-2">
+                                                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-600 flex items-center gap-2">
+                                                    <AlertTriangle size={12} />
+                                                    Re-open History / Justification
+                                                </p>
+                                                <p className="text-sm font-medium italic text-foreground/80 leading-relaxed">
+                                                    &quot;{period.reopenReason}&quot;
+                                                </p>
+                                                <div className="pt-2 border-t border-amber-500/10 flex items-center gap-2 text-[10px] font-bold text-muted-foreground">
+                                                     By {period.reopenedBy?.user?.name} at {formatDate(period.reopenedAt)}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    );
+                })}
             </div>
 
-            {/* Re-open Dialog */}
+            {/* Re-open Dialog — Logic Forced */}
             <Dialog open={!!selectedPeriod} onOpenChange={() => setSelectedPeriod(null)}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            <Unlock size={20} className="text-emerald-500" />
-                            ยืนยันการเปิดงวดบัญชีอีกครั้ง
+                <DialogContent className="rounded-[3rem] border-2 p-10 max-w-xl">
+                    <DialogHeader className="space-y-4">
+                        <div className="h-16 w-16 bg-emerald-500 text-white rounded-2xl flex items-center justify-center shadow-2xl shadow-emerald-500/20 mb-2">
+                             <Unlock size={32} />
+                        </div>
+                        <DialogTitle className="text-3xl font-black tracking-tighter">
+                            Re-open Protocol
                         </DialogTitle>
-                        <DialogDescription>
-                            การเปิดงวดบัญชี {selectedPeriod?.periodName} จะทำให้ระบบกลับมาอนุญาตการบันทึกรายการในงวดนี้ได้อีกครั้ง กรุณาระบุเหตุผลเพื่อการตรวจสอบ (Audit Log)
+                        <DialogDescription className="text-base font-medium leading-relaxed">
+                            คุณกำลังทำรายการปลดล็อคข้อมูลย้อนหลังสำหรับงวดบัญชี <span className="text-foreground font-black underline underline-offset-4 decoration-emerald-500">{selectedPeriod?.periodName}</span> กรุณาระบุเหตุผลประกอบการตรวจสอบ (Audit Log)
                         </DialogDescription>
                     </DialogHeader>
-                    <div className="py-4">
+                    
+                    <div className="py-6">
                         <Textarea
-                            placeholder="ระบุเหตุผลในการแก้ไขข้อมูลย้อนหลัง..."
+                            placeholder="ระบุเหตุผลในการแก้ไขข้อมูลย้อนหลังที่ชัดเจน (เช่น พบข้อผิดพลาดในการบันทึกค่าขนส่ง)..."
                             value={reopenReason}
                             onChange={(e) => setReopenReason(e.target.value)}
-                            rows={4}
+                            rows={5}
+                            className="rounded-[1.5rem] border-2 p-4 font-medium focus-visible:ring-emerald-500/20"
                         />
                     </div>
-                    <DialogFooter>
-                        <Button variant="ghost" onClick={() => setSelectedPeriod(null)}>ยกเลิก</Button>
+
+                    <DialogFooter className="gap-3">
+                        <Button variant="ghost" onClick={() => setSelectedPeriod(null)} className="rounded-full h-12 px-8 font-black">
+                            ยกเลิก
+                        </Button>
                         <Button
-                            className="bg-emerald-600 hover:bg-emerald-700"
+                            className="bg-emerald-600 hover:bg-emerald-700 rounded-full h-12 px-10 font-black shadow-xl shadow-emerald-600/20"
                             onClick={handleReopenPeriod}
-                            disabled={isLoading}
+                            disabled={isActionLoading}
                         >
                             ยืนยันการเปิดงวดใหม่
                         </Button>
