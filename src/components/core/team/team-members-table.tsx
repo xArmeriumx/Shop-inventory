@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -21,7 +21,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { updateMemberRole, removeMember } from '@/actions/core/team.actions';
-import { MoreHorizontal, Crown, Trash2 } from 'lucide-react';
+import { MoreHorizontal, Crown, Trash2, Shield, Mail } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,6 +29,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { usePermissions } from '@/hooks/use-permissions';
+import { runActionWithToast } from '@/lib/mutation-utils';
 
 interface TeamMember {
   id: string;
@@ -60,49 +61,32 @@ interface TeamMembersTableProps {
 export function TeamMembersTable({ members, roles }: TeamMembersTableProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [updatingId, setUpdatingId] = useState<string | null>(null);
   const { hasPermission } = usePermissions();
   
   const canEditTeam = hasPermission('SETTINGS_ROLES');
   const canRemoveMembers = hasPermission('SETTINGS_ROLES');
 
-  const handleRoleChange = async (memberId: string, roleId: string) => {
-    setUpdatingId(memberId);
-    try {
-      const result = await updateMemberRole(memberId, roleId);
-      if (!result.success) {
-        alert(result.message);
-      }
-      startTransition(() => {
-        router.refresh();
+  const handleRoleChange = (memberId: string, roleId: string) => {
+    startTransition(async () => {
+      await runActionWithToast(updateMemberRole(memberId, roleId), {
+        successMessage: 'เปลี่ยนบทบาทสมาชิกเรียบร้อยแล้ว',
+        onSuccess: () => router.refresh()
       });
-    } catch {
-      alert('เกิดข้อผิดพลาด');
-    } finally {
-      setUpdatingId(null);
-    }
+    });
   };
 
-  const handleRemove = async (member: TeamMember) => {
+  const handleRemove = (member: TeamMember) => {
     const name = member.user.name || member.user.email;
-    if (!confirm(`ต้องการลบ ${name} ออกจากทีมหรือไม่?`)) {
+    if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการนำ "${name}" ออกจากทีม?\nการกระทำนี้จะมีผลทันทีต่อการเข้าถึงระบบของพนักงาน`)) {
       return;
     }
 
-    setUpdatingId(member.id);
-    try {
-      const result = await removeMember(member.id);
-      if (!result.success) {
-        alert(result.message);
-      }
-      startTransition(() => {
-        router.refresh();
+    startTransition(async () => {
+      await runActionWithToast(removeMember(member.id), {
+        successMessage: 'ลบสมาชิกออกจากทีมเรียบร้อยแล้ว',
+        onSuccess: () => router.refresh()
       });
-    } catch {
-      alert('เกิดข้อผิดพลาด');
-    } finally {
-      setUpdatingId(null);
-    }
+    });
   };
 
   const getInitials = (name: string | null, email: string) => {
@@ -114,98 +98,107 @@ export function TeamMembersTable({ members, roles }: TeamMembersTableProps) {
 
   if (members.length === 0) {
     return (
-      <div className="text-center py-8 text-muted-foreground">
-        ยังไม่มีสมาชิกในทีม
+      <div className="text-center py-12 border rounded-xl border-dashed bg-muted/5">
+        <Mail className="h-8 w-8 mx-auto text-muted-foreground/30 mb-3" />
+        <p className="text-sm text-muted-foreground font-medium">ยังไม่มีสมาชิกในทีมของคุณ</p>
       </div>
     );
   }
 
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>สมาชิก</TableHead>
-          <TableHead>Role</TableHead>
-          <TableHead>สถานะ</TableHead>
-          <TableHead className="w-[50px]"></TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {members.map((member) => (
-          <TableRow key={member.id}>
-            <TableCell>
-              <div className="flex items-center gap-3">
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src={member.user.image || undefined} />
-                  <AvatarFallback>
-                    {getInitials(member.user.name, member.user.email)}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="font-medium text-sm">
-                    {member.user.name || member.user.email}
-                  </p>
-                  {member.user.name && (
-                    <p className="text-xs text-muted-foreground">{member.user.email}</p>
-                  )}
-                </div>
-              </div>
-            </TableCell>
-            <TableCell>
-              {member.isOwner ? (
-                <Badge variant="secondary" className="gap-1">
-                  <Crown className="h-3 w-3" />
-                  เจ้าของ
-                </Badge>
-              ) : canEditTeam ? (
-                <Select
-                  value={member.role.id}
-                  onValueChange={(value) => handleRoleChange(member.id, value)}
-                  disabled={updatingId === member.id || isPending}
-                >
-                  <SelectTrigger className="w-[130px] h-8">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {roles.map((role) => (
-                      <SelectItem key={role.id} value={role.id}>
-                        {role.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <span className="text-sm">{member.role.name}</span>
-              )}
-            </TableCell>
-            <TableCell>
-              <Badge variant="outline" className="text-green-600 border-green-600">
-                Active
-              </Badge>
-            </TableCell>
-            <TableCell>
-              {!member.isOwner && canRemoveMembers && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" disabled={updatingId === member.id}>
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem
-                      onClick={() => handleRemove(member)}
-                      className="text-destructive"
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      ลบออกจากทีม
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-            </TableCell>
+    <div className="relative rounded-xl border bg-card">
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-muted/50 hover:bg-muted/50">
+            <TableHead className="font-semibold">สมาชิก</TableHead>
+            <TableHead className="font-semibold">บทบาท (Role)</TableHead>
+            <TableHead className="font-semibold">สิทธิ์การเข้าใช้งาน</TableHead>
+            <TableHead className="w-[50px]"></TableHead>
           </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+        </TableHeader>
+        <TableBody>
+          {members.map((member) => (
+            <TableRow key={member.id} className="hover:bg-muted/30 transition-colors">
+              <TableCell>
+                <div className="flex items-center gap-3">
+                  <Avatar className="h-9 w-9 border shadow-sm">
+                    <AvatarImage src={member.user.image || undefined} />
+                    <AvatarFallback className="bg-primary/5 text-primary text-xs font-bold">
+                      {getInitials(member.user.name, member.user.email)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <p className="font-semibold text-sm">
+                      {member.user.name || 'ไม่ระบุชื่อ'}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                      <Mail className="h-3 w-3" />
+                      {member.user.email}
+                    </p>
+                  </div>
+                </div>
+              </TableCell>
+              <TableCell>
+                {member.isOwner ? (
+                  <Badge variant="secondary" className="gap-1 px-2 py-0.5 bg-amber-50 text-amber-700 border-amber-200">
+                    <Crown className="h-3 w-3" />
+                    Owner
+                  </Badge>
+                ) : canEditTeam ? (
+                  <Select
+                    value={member.role.id}
+                    onValueChange={(value) => handleRoleChange(member.id, value)}
+                    disabled={isPending}
+                  >
+                    <SelectTrigger className="w-[140px] h-8 text-xs font-medium bg-background">
+                      <Shield className="h-3 w-3 mr-1 text-muted-foreground" />
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {roles.map((role) => (
+                        <SelectItem key={role.id} value={role.id} className="text-xs">
+                          {role.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="flex items-center gap-1.5 text-sm font-medium">
+                    <Shield className="h-3.5 w-3.5 text-muted-foreground" />
+                    {member.role.name}
+                  </div>
+                )}
+              </TableCell>
+              <TableCell>
+                <Badge variant="outline" className="text-[10px] uppercase tracking-wider bg-emerald-50 text-emerald-700 border-emerald-200">
+                  Active
+                </Badge>
+              </TableCell>
+              <TableCell>
+                {!member.isOwner && canRemoveMembers && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-muted" disabled={isPending}>
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-40">
+                      <DropdownMenuItem
+                        onClick={() => handleRemove(member)}
+                        className="text-destructive focus:text-destructive focus:bg-destructive/5 cursor-pointer"
+                        disabled={isPending}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        ลบออกจากทีม
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   );
 }

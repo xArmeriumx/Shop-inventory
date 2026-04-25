@@ -29,11 +29,11 @@ export const IAM_AUDIT_POLICIES = {
   }),
 
   // --- Member Management ---
-  INVITE_MEMBER: (shopId: string): AuditPolicy => ({
+  INVITE_MEMBER: (shopId: string, email: string): AuditPolicy => ({
     action: 'IAM_MEMBER_INVITE',
     targetType: 'Shop',
     targetId: shopId,
-    note: `เชิญสมาชิกใหม่เข้าร้าน`,
+    note: `เชิญสมาชิกใหม่เข้าร้าน: ${email}`,
     allowlist: ['id', 'email', 'name', 'roleId'],
   }),
 

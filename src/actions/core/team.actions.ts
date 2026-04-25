@@ -6,6 +6,8 @@ import { IamService, type InviteMemberInput } from '@/services';
 import { handleAction, type ActionResponse } from '@/lib/action-handler';
 import { PerformanceCollector } from '@/lib/debug/measurement';
 
+import { inviteMemberSchema } from '@/schemas/core/team.schema';
+
 export async function getTeamMembers(): Promise<ActionResponse<any[]>> {
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
@@ -46,13 +48,13 @@ export async function removeMember(memberId: string): Promise<ActionResponse<nul
   }, { context: { action: 'removeMember', memberId } });
 }
 
-export async function inviteMember(input: InviteMemberInput): Promise<ActionResponse<null>> {
+export async function inviteMember(input: any): Promise<ActionResponse<null>> {
   return handleAction(async () => {
-    return PerformanceCollector.run(async () => {
-      const ctx = await requirePermission('SETTINGS_ROLES', { rateLimitPolicy: 'invite' });
-      await IamService.inviteMember(input, ctx);
-      revalidatePath('/settings/team');
-      return null;
-    }, 'iam:inviteMember');
+    const ctx = await requirePermission('SETTINGS_ROLES', { rateLimitPolicy: 'invite' });
+    const validated = inviteMemberSchema.parse(input);
+    
+    await IamService.inviteMember(validated, ctx);
+    revalidatePath('/settings/team');
+    return null;
   }, { context: { action: 'inviteMember', email: input.email } });
 }

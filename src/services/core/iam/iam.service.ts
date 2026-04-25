@@ -283,7 +283,12 @@ export const IamService: IIamService = {
 
     await AuditService.runWithAudit(
       ctx,
-      IAM_AUDIT_POLICIES.INVITE_MEMBER(ctx.shopId),
+      {
+        ...IAM_AUDIT_POLICIES.INVITE_MEMBER(ctx.shopId!, input.email),
+        afterSnapshot: () => db.shopMember.findFirst({
+          where: { shopId: ctx.shopId!, user: { email: input.email } },
+        }),
+      },
       async () => {
         const user = await db.user.findUnique({
           where: { email: input.email },
