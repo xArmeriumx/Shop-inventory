@@ -14,8 +14,21 @@ import { ExpenseCategoryReport } from './expense-category-report';
 import { SalesChannelReport } from './sales-channel-report';
 import { CustomerRankingReport } from './customer-ranking-report';
 import { getReportData } from '@/actions/accounting/reports.actions';
-import { BarChart3, Package, TrendingUp, GitCompare, LayoutDashboard, Wallet, PieChart, Store, Users, Sparkles } from 'lucide-react';
+import { 
+    BarChart3, 
+    Package, 
+    TrendingUp, 
+    GitCompare, 
+    LayoutDashboard, 
+    Wallet, 
+    PieChart, 
+    Store, 
+    Users, 
+    Sparkles,
+    ArrowRight
+} from 'lucide-react';
 import { IntelligenceDashboard } from './intelligence-dashboard';
+import { cn } from '@/lib/utils';
 
 type ReportData = Awaited<ReturnType<typeof getReportData>>;
 
@@ -26,6 +39,10 @@ interface ReportTabsProps {
   overviewData: ReportData | null;
 }
 
+/**
+ * ReportTabs — Orchestrator for the Premium Analytics Hub (Phase 3).
+ * Centralizes all business intelligence routes with high-fidelity UI.
+ */
 export function ReportTabs({ activeTab, startDate, endDate, overviewData }: ReportTabsProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -38,142 +55,159 @@ export function ReportTabs({ activeTab, startDate, endDate, overviewData }: Repo
     } else {
       params.set('tab', value);
     }
-    router.push(`${pathname}?${params.toString()}`);
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
+  const tabs = [
+    { id: 'intelligence', label: 'Intelligence', icon: Sparkles, color: 'text-primary' },
+    { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+    { id: 'profit-loss', label: 'P&L', icon: Wallet },
+    { id: 'channels', label: 'Channels', icon: Store },
+    { id: 'expense-category', label: 'Expenses', icon: PieChart },
+    { id: 'customers', label: 'Customers', icon: Users },
+    { id: 'stock-value', label: 'Stock Value', icon: Package },
+    { id: 'top-products', label: 'Best Sellers', icon: BarChart3 },
+    { id: 'profit', label: 'Profit/Item', icon: TrendingUp },
+    { id: 'comparison', label: 'Compare', icon: GitCompare },
+  ];
+
   return (
-    <Tabs value={activeTab} onValueChange={handleTabChange}>
+    <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-8">
+      {/* 1. Navigation Toolbar (SSOT) */}
       <div className="print:hidden">
-        <TabsList className="w-full justify-start overflow-x-auto flex-nowrap h-auto p-1 gap-1">
-          <TabsTrigger value="overview" className="gap-1.5 text-xs sm:text-sm shrink-0">
-            <LayoutDashboard className="h-3.5 w-3.5 hidden sm:block" />
-            ภาพรวม
-          </TabsTrigger>
-          <TabsTrigger value="profit-loss" className="gap-1.5 text-xs sm:text-sm shrink-0">
-            <Wallet className="h-3.5 w-3.5 hidden sm:block" />
-            กำไร-ขาดทุน
-          </TabsTrigger>
-          <TabsTrigger value="channels" className="gap-1.5 text-xs sm:text-sm shrink-0">
-            <Store className="h-3.5 w-3.5 hidden sm:block" />
-            ช่องทางขาย
-          </TabsTrigger>
-          <TabsTrigger value="expense-category" className="gap-1.5 text-xs sm:text-sm shrink-0">
-            <PieChart className="h-3.5 w-3.5 hidden sm:block" />
-            หมวดรายจ่าย
-          </TabsTrigger>
-          <TabsTrigger value="customers" className="gap-1.5 text-xs sm:text-sm shrink-0">
-            <Users className="h-3.5 w-3.5 hidden sm:block" />
-            ลูกค้า
-          </TabsTrigger>
-          <TabsTrigger value="stock-value" className="gap-1.5 text-xs sm:text-sm shrink-0">
-            <Package className="h-3.5 w-3.5 hidden sm:block" />
-            มูลค่าสต็อก
-          </TabsTrigger>
-          <TabsTrigger value="top-products" className="gap-1.5 text-xs sm:text-sm shrink-0">
-            <BarChart3 className="h-3.5 w-3.5 hidden sm:block" />
-            สินค้าขายดี
-          </TabsTrigger>
-          <TabsTrigger value="profit" className="gap-1.5 text-xs sm:text-sm shrink-0">
-            <TrendingUp className="h-3.5 w-3.5 hidden sm:block" />
-            กำไรรายสินค้า
-          </TabsTrigger>
-          <TabsTrigger value="intelligence" className="gap-1.5 text-xs sm:text-sm shrink-0 border-b-2 border-primary/50 data-[state=active]:bg-primary/5">
-            <Sparkles className="h-3.5 w-3.5 hidden sm:block text-primary" />
-            บทวิเคราะห์อัจฉริยะ
-          </TabsTrigger>
-          <TabsTrigger value="comparison" className="gap-1.5 text-xs sm:text-sm shrink-0">
-            <GitCompare className="h-3.5 w-3.5 hidden sm:block" />
-            เปรียบเทียบ
-          </TabsTrigger>
+        <TabsList className="w-full flex-wrap h-auto p-2 bg-muted/40 backdrop-blur-md rounded-[2.5rem] border-2 border-border gap-2 overflow-x-auto lg:overflow-visible">
+          {tabs.map((tab) => {
+              const Icon = tab.icon;
+              const isIntelligence = tab.id === 'intelligence';
+              return (
+                <TabsTrigger 
+                    key={tab.id}
+                    value={tab.id} 
+                    className={cn(
+                        "rounded-full px-6 py-2.5 data-[state=active]:bg-foreground data-[state=active]:text-background data-[state=active]:shadow-xl font-black text-xs transition-all gap-2 border border-transparent",
+                        isIntelligence && "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground border-primary/20 bg-primary/5"
+                    )}
+                >
+                    <Icon className={cn("h-4 w-4", tab.color || isIntelligence ? "text-primary" : "text-muted-foreground")} />
+                    {tab.label}
+                </TabsTrigger>
+              );
+          })}
         </TabsList>
       </div>
 
-      {/* 2. Content for each tab */}
+      {/* 2. Content Injection (Orchestration) */}
+      
+      <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+          {/* Intelligence Tab (The Star of Phase 3) */}
+          <TabsContent value="intelligence" className="mt-0 outline-none">
+            <IntelligenceDashboard startDate={startDate} endDate={endDate} />
+          </TabsContent>
 
-      {/* Intelligence Tab (Deep Analytics) */}
-      <TabsContent value="intelligence">
-        <IntelligenceDashboard startDate={startDate} endDate={endDate} />
-      </TabsContent>
-
-      {/* Overview Tab */}
-      <TabsContent value="overview">
-        <div className="space-y-6">
-          <ReportToolbar startDate={startDate} endDate={endDate} />
-          {overviewData && overviewData.success && (
-            <>
-              <div className="print:hidden">
-                <ReportCharts data={overviewData.data} />
+          {/* Overview Tab */}
+          <TabsContent value="overview" className="mt-0 outline-none space-y-6">
+            <ReportToolbar startDate={startDate} endDate={endDate} />
+            {overviewData && overviewData.success && (
+              <div className="space-y-8">
+                <div className="print:hidden bg-background rounded-[2.5rem] border-2 shadow-2xl p-8 relative overflow-hidden">
+                   <div className="absolute top-0 left-0 w-1 h-full bg-primary" />
+                   <h3 className="text-xl font-black mb-6 flex items-center gap-2">
+                       <BarChart3 className="h-5 w-5 text-primary" />
+                       Trend Visualizer
+                   </h3>
+                   <ReportCharts data={overviewData.data} />
+                </div>
+                <div className="bg-background rounded-[2.5rem] border-2 shadow-xl p-2 sm:p-6">
+                    <ReportView data={overviewData.data} />
+                </div>
               </div>
-              <ReportView data={overviewData.data} />
-            </>
-          )}
-          {overviewData && !overviewData.success && (
-            <div className="py-20 text-center border rounded-lg bg-destructive/5 text-destructive">
-              <p className="font-semibold">ไม่สามารถดึงข้อมูลรายงานได้</p>
-              <p className="text-sm">{overviewData.message}</p>
+            )}
+            {overviewData && !overviewData.success && (
+              <div className="py-24 text-center border-2 border-dashed rounded-[2.5rem] bg-destructive/5 text-destructive space-y-4">
+                <LayoutDashboard className="h-12 w-12 mx-auto opacity-20" />
+                <div className="space-y-1">
+                    <p className="text-xl font-black">Data Fetch Failure</p>
+                    <p className="text-sm font-medium opacity-70">{overviewData.message}</p>
+                </div>
+              </div>
+            )}
+          </TabsContent>
+
+          {/* P&L Tab */}
+          <TabsContent value="profit-loss" className="mt-0 outline-none">
+            <div className="space-y-6">
+              <ReportToolbar startDate={startDate} endDate={endDate} />
+              <div className="bg-background rounded-[2.5rem] border-2 shadow-xl p-2 sm:p-6 relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-emerald-500 to-primary" />
+                <ProfitLossReport startDate={startDate} endDate={endDate} />
+              </div>
             </div>
-          )}
-        </div>
-      </TabsContent>
+          </TabsContent>
 
-      {/* P&L Tab */}
-      <TabsContent value="profit-loss">
-        <div className="space-y-4">
-          <ReportToolbar startDate={startDate} endDate={endDate} />
-          <ProfitLossReport startDate={startDate} endDate={endDate} />
-        </div>
-      </TabsContent>
+          {/* Sales Channel Tab */}
+          <TabsContent value="channels" className="mt-0 outline-none">
+            <div className="space-y-6">
+              <ReportToolbar startDate={startDate} endDate={endDate} />
+              <div className="bg-background rounded-[3rem] border-2 shadow-2xl p-2 sm:p-8">
+                <SalesChannelReport startDate={startDate} endDate={endDate} />
+              </div>
+            </div>
+          </TabsContent>
 
-      {/* Sales Channel Tab */}
-      <TabsContent value="channels">
-        <div className="space-y-4">
-          <ReportToolbar startDate={startDate} endDate={endDate} />
-          <SalesChannelReport startDate={startDate} endDate={endDate} />
-        </div>
-      </TabsContent>
+          {/* Expense Category Tab */}
+          <TabsContent value="expense-category" className="mt-0 outline-none">
+            <div className="space-y-6">
+              <ReportToolbar startDate={startDate} endDate={endDate} />
+              <div className="bg-background rounded-[2.5rem] border-2 shadow-xl p-2 sm:p-6 overflow-hidden">
+                <ExpenseCategoryReport startDate={startDate} endDate={endDate} />
+              </div>
+            </div>
+          </TabsContent>
 
-      {/* Expense Category Tab */}
-      <TabsContent value="expense-category">
-        <div className="space-y-4">
-          <ReportToolbar startDate={startDate} endDate={endDate} />
-          <ExpenseCategoryReport startDate={startDate} endDate={endDate} />
-        </div>
-      </TabsContent>
+          {/* Customer Ranking Tab */}
+          <TabsContent value="customers" className="mt-0 outline-none">
+            <div className="space-y-6">
+              <ReportToolbar startDate={startDate} endDate={endDate} />
+              <div className="bg-background rounded-[2.5rem] border-2 shadow-2xl p-2 sm:p-6 overflow-hidden">
+                <CustomerRankingReport startDate={startDate} endDate={endDate} />
+              </div>
+            </div>
+          </TabsContent>
 
-      {/* Customer Ranking Tab */}
-      <TabsContent value="customers">
-        <div className="space-y-4">
-          <ReportToolbar startDate={startDate} endDate={endDate} />
-          <CustomerRankingReport startDate={startDate} endDate={endDate} />
-        </div>
-      </TabsContent>
+          {/* Stock Value Tab */}
+          <TabsContent value="stock-value" className="mt-0 outline-none">
+            <div className="bg-background rounded-[2.5rem] border-2 shadow-2xl p-2 sm:p-6 overflow-hidden">
+                <StockValueReport />
+            </div>
+          </TabsContent>
 
-      {/* Stock Value Tab */}
-      <TabsContent value="stock-value">
-        <StockValueReport />
-      </TabsContent>
+          {/* Top Products Tab */}
+          <TabsContent value="top-products" className="mt-0 outline-none">
+            <div className="space-y-6">
+              <ReportToolbar startDate={startDate} endDate={endDate} />
+              <div className="bg-background rounded-[2.5rem] border-2 shadow-2xl p-2 sm:p-6 overflow-hidden">
+                 <TopProductsReport startDate={startDate} endDate={endDate} />
+              </div>
+            </div>
+          </TabsContent>
 
-      {/* Top Products Tab */}
-      <TabsContent value="top-products">
-        <div className="space-y-4">
-          <ReportToolbar startDate={startDate} endDate={endDate} />
-          <TopProductsReport startDate={startDate} endDate={endDate} />
-        </div>
-      </TabsContent>
+          {/* Profit by Product Tab */}
+          <TabsContent value="profit" className="mt-0 outline-none">
+            <div className="space-y-6">
+              <ReportToolbar startDate={startDate} endDate={endDate} />
+              <div className="bg-background rounded-[2.5rem] border-2 shadow-2xl p-2 sm:p-6 overflow-hidden">
+                <ProfitByProductReport startDate={startDate} endDate={endDate} />
+              </div>
+            </div>
+          </TabsContent>
 
-      {/* Profit by Product Tab */}
-      <TabsContent value="profit">
-        <div className="space-y-4">
-          <ReportToolbar startDate={startDate} endDate={endDate} />
-          <ProfitByProductReport startDate={startDate} endDate={endDate} />
-        </div>
-      </TabsContent>
-
-      {/* Period Comparison Tab */}
-      <TabsContent value="comparison">
-        <PeriodComparisonReport />
-      </TabsContent>
+          {/* Period Comparison Tab */}
+          <TabsContent value="comparison" className="mt-0 outline-none">
+            <div className="bg-background rounded-[2.5rem] border-2 shadow-2xl p-2 sm:p-6 overflow-hidden">
+                <PeriodComparisonReport />
+            </div>
+          </TabsContent>
+      </div>
     </Tabs>
   );
 }
-
