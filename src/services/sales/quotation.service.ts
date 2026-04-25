@@ -13,6 +13,15 @@ import { AuditService } from '@/services/core/system/audit.service';
 import { ComputationEngine, CalculationItemInput } from '@/services/core/finance/computation.service';
 import { toNumber } from '@/lib/money';
 import { Prisma } from '@prisma/client';
+import { money } from '@/lib/money';
+
+/**
+ * Audit Allowlist for Quotation (ERP Rule 12.1)
+ */
+const QUOTATION_AUDIT_FIELDS = [
+    'quotationNo', 'status', 'customerId', 'totalAmount', 
+    'taxMode', 'taxRate', 'taxAmount', 'taxableAmount', 'netAmount'
+];
 
 /**
  * QuotationService — จัดการใบเสนอราคา (Sales Quotation Management)
@@ -91,6 +100,9 @@ export const QuotationService = {
         return await AuditService.runWithAudit(ctx, {
             action: 'QUOTATION_CREATE',
             targetType: 'Quotation',
+            allowlist: QUOTATION_AUDIT_FIELDS,
+            note: `สร้างใบเสนอราคาใหม่: ${input.items.length} รายการ`,
+            afterSnapshot: (res) => res
         }, async () => {
             return await db.$transaction(async (tx) => {
             if (!ctx.memberId) {
@@ -174,6 +186,10 @@ export const QuotationService = {
             action: 'QUOTATION_CONFIRM',
             targetType: 'Quotation',
             targetId: id,
+            allowlist: QUOTATION_AUDIT_FIELDS,
+            note: 'ยืนยันใบเสนอราคาและสร้างรายการขาย (SO)',
+            getBefore: async () => db.quotation.findUnique({ where: { id } }),
+            getAfter: async () => db.quotation.findUnique({ where: { id } })
         }, async () => {
             return await db.$transaction(async (tx) => {
             // 1. Load Quotation with details
@@ -274,6 +290,10 @@ export const QuotationService = {
             action: 'QUOTATION_CANCEL',
             targetType: 'Quotation',
             targetId: id,
+            allowlist: QUOTATION_AUDIT_FIELDS,
+            note: 'ยกเลิกใบเสนอราคา',
+            getBefore: async () => db.quotation.findUnique({ where: { id } }),
+            getAfter: async () => db.quotation.findUnique({ where: { id } })
         }, async () => {
             return await db.$transaction(async (tx) => {
             const quotation = await tx.quotation.findUnique({

@@ -10,11 +10,10 @@ export const SALE_AUDIT_POLICIES = {
     action: 'SALE_CREATE',
     targetType: 'Sale',
     note: `สร้างรายการขาย ${invoiceNumber}`,
+    allowlist: ['invoiceNumber', 'customerName', 'totalAmount', 'netAmount', 'status', 'paymentStatus', 'itemCount', 'items'],
     // Summary of items for quick view in audit logs
     afterSnapshot: (data: any) => ({
-      invoiceNumber: data.invoiceNumber,
-      customerName: data.customerName,
-      totalAmount: data.totalAmount,
+      ...data,
       itemCount: data.items?.length || 0,
     })
   }),
@@ -23,12 +22,14 @@ export const SALE_AUDIT_POLICIES = {
     action: 'SALE_UPDATE',
     targetType: 'Sale',
     note: `แก้ไขข้อมูลรายการขาย ${invoiceNumber}`,
+    allowlist: ['invoiceNumber', 'customerName', 'totalAmount', 'netAmount', 'status', 'paymentStatus', 'items'],
   }),
 
   CANCEL: (invoiceNumber: string, reason: string): AuditPolicy => ({
     action: 'SALE_CANCEL',
     targetType: 'Sale',
     note: `ยกเลิกรายการขาย ${invoiceNumber}${reason ? ` (สาเหตุ: ${reason})` : ''}`,
+    allowlist: ['id', 'status', 'bookingStatus', 'cancelReason'],
     afterSnapshot: (data: any) => ({
       id: data.id,
       status: SaleStatus.CANCELLED,
@@ -40,12 +41,14 @@ export const SALE_AUDIT_POLICIES = {
     action: 'SALE_CONFIRM',
     targetType: 'Sale',
     note: `ยืนยันรายการขาย ${invoiceNumber}`,
+    allowlist: ['id', 'status', 'bookingStatus'],
   }),
 
   COMPLETE: (invoiceNumber: string): AuditPolicy => ({
     action: 'SALE_COMPLETE',
     targetType: 'Sale',
     note: `จัดส่งและตัดสต็อกรายการขาย ${invoiceNumber}`,
+    allowlist: ['id', 'status', 'deliveryStatus'],
     afterSnapshot: (data: any) => ({
       id: data.id,
       status: SaleStatus.COMPLETED,

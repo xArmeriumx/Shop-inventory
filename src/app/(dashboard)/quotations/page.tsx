@@ -56,7 +56,7 @@ export default async function QuotationsPage({ searchParams }: PageProps) {
         },
         {
             header: 'วันที่',
-            accessor: (item) => <ClientDate date={item.date} />,
+            accessor: (item) => <ClientDate date={item.createdAt} />,
         },
         {
             header: 'ยอดรวม',
