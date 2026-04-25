@@ -23,6 +23,7 @@
 
 ## 🛡️ 4. Data Safety & Audit (Advanced Governance)
 - **Safeguard Access**: การเข้าถึงข้อมูลที่อาจเป็น Null (เช่น Nested Relations) ต้องใช้ Optional Chaining (`?.`) หรือ Null Check เสมอ ห้ามปล่อยให้หน้าเว็บขาว (White Screen)
+- **Deep State Audit**: ทุกการแก้ไขข้อมูล (Update Action) **ต้อง** มีการเก็บ Snapshot ข้อมูลเก่า (`before`) และข้อมูลใหม่ (`after`) เสมอ เพื่อใช้ในการเปรียบเทียบ (Diffing)
 - **Audit Justification**: การแก้ไขข้อมูลที่ล็อคไปแล้ว หรือข้อมูลสำคัญทางการเงิน ต้องมีการระบุ "เหตุผล" (Reason) ทุกครั้งเพื่อเก็บเป็นหลักฐานใน Audit Log
 - **No Magic Numbers**: ห้ามใช้ตัวเลขหรือ String ที่ไม่มีที่มาที่ไป ให้ใช้ Constants หรือ Enums เสมอเพื่อให้โค้ดอ่านง่ายและ SSOT ที่สุด
 - **Modular Components**: หน้าเว็บที่ยาวเกิน 300 บรรทัด ต้องแบ่งเป็น Modular Sections เพื่อให้ Maintenance ง่ายและลดความเสี่ยงจากการพังทั้งหน้า
