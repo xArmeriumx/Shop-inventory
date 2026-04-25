@@ -98,7 +98,6 @@ export default function POSPage() {
     <POSInterface
       initialProducts={data.products}
       categories={data.categories}
-      promptPayId={data.shop?.promptPayId}
     />
   );
 }
