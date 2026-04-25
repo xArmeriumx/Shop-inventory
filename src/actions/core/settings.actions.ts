@@ -8,25 +8,21 @@ import { SettingsService, ServiceError } from '@/services';
 import { handleAction, type ActionResponse } from '@/lib/action-handler';
 import { PerformanceCollector } from '@/lib/debug/measurement';
 
-const profileSchema = z.object({
-  name: z.string().min(1, 'กรุณากรอกชื่อ'),
-});
+import { profileFormSchema } from '@/schemas/core/settings-form.schema';
 
 // Removed ProfileState as we use standard ActionResponse<T>
 
-export async function updateProfile(data: { name: string }): Promise<ActionResponse<null>> {
+export async function updateProfile(data: any): Promise<ActionResponse<null>> {
   return handleAction(async () => {
-    return PerformanceCollector.run(async () => {
-      const ctx = await requireAuth();
-      const validated = profileSchema.parse(data);
+    const ctx = await requireAuth();
+    const validated = profileFormSchema.parse(data);
 
-      await SettingsService.updateUserProfile(ctx.userId, validated);
+    await SettingsService.updateUserProfile(ctx as unknown as import('@/types/domain').RequestContext, validated);
 
-      revalidatePath('/settings');
-      revalidatePath('/dashboard');
+    revalidatePath('/settings');
+    revalidatePath('/dashboard');
 
-      return null;
-    }, 'settings:updateProfile');
+    return null;
   }, { context: { action: 'updateProfile' } });
 }
 

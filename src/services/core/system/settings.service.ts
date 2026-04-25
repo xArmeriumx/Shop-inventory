@@ -81,10 +81,23 @@ export const SettingsService = {
     return user;
   },
 
-  async updateUserProfile(userId: string, data: { name: string }) {
-    return db.user.update({
-      where: { id: userId },
-      data: { name: data.name },
-    });
+  async updateUserProfile(ctx: RequestContext, data: { name: string }) {
+    return AuditService.runWithAudit(
+      ctx,
+      {
+        action: 'USER_PROFILE_UPDATE',
+        targetType: 'User',
+        targetId: ctx.userId,
+        allowlist: ['name'],
+        getBefore: async () => db.user.findUnique({ where: { id: ctx.userId }, select: { id: true, name: true } }),
+        note: `อัปเดตชื่อโปรไฟล์ผู้ใช้งาน: ${data.name}`,
+      },
+      async () => {
+        return db.user.update({
+          where: { id: ctx.userId },
+          data: { name: data.name },
+        });
+      }
+    );
   }
 };
