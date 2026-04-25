@@ -6,27 +6,35 @@
 
 ## 🚦 Phase 1: Research (การวิจัยและออกแบบ)
 1. **Analyze Schema**: ตรวจสอบ Prisma Schema ก่อนเริ่มเสมอ (ความสัมพันธ์ข้อมูลคือ SSOT)
-2. **Path Mapping**: กำหนดจุดเชื่อมต่อของข้อมูล (Service -> Action -> Component)
-3. **Draft Plan**: เขียนลำดับการแก้ไขก่อนเขียนโค้ด (เน้น logic stability)
+2. **Context Mapping**: กำหนดขอบเขตข้อมูล (Context) และความเสี่ยงของ Logic (เช่น งวดบัญชีติดล็อคหรือไม่)
+3. **Draft Implementation Plan**: เขียนลำดับการแก้ไขก่อนเขียนโค้ดจริง
 
 ## 🏗️ Phase 2: Implementation (การลงมือทำ)
-1. **Service Layer**: สร้าง/แก้ไข Service function (เน้น Logic ความปลอดภัย)
-2. **Action Layer**: หุ้ม Service ด้วย `handleAction` (ห้ามลืม!)
-3. **Standard UI**: 
-    - เรียกใช้ `useTransition` เพื่อจัดการสถานะการทำงาน
-    - ครอบการเรียก Action ด้วย `runActionWithToast`
-    - จัดการ `onSuccess` callback เพื่อล้างฟอร์มหรือรีเฟรชข้อมูล
+1. **Service Layer (The Heart)**: 
+    - เขียน Service function ที่จัดการข้อมูลดิบ
+    - ใช้ Safeguard Queries เพื่อป้องกัน Exception กรณีความสัมพันธ์เป็น Null
+2. **Action Layer (The Bridge)**: 
+    - หุ้ม Service ด้วย `handleAction`
+    - ตรวจสอบว่า Action สำคัญมี Parameter สำหรับ "เหตุผล" หรือ "Audit Metadata" หรือยัง
+3. **Modular UI (The Face)**: 
+    - แบ่งคอมโพเนนต์ออกเป็นส่วนเล็กๆ (Modular Sections)
+    - ใช้ `useFormContext` กรณีเป็นฟอร์มขนาดใหญ่เพื่อลด Prop Drilling
+    - เรียกใช้ `useTransition` และ `runActionWithToast` เป็นมาตรฐานเดียว
+    - จัดการ `onSuccess` callback เพื่อพาผู้ใช้ไปสู่สถานะที่สมบูรณ์เสมอ
 
 ```tsx
-// ลำดับขั้นตอนมาตรฐานใน UI
+// มาตรฐานการเรียกใช้ Action ในระดับ UI
 const [isPending, startTransition] = useTransition();
 
-const handleAction = () => {
+const handleOperation = () => {
     startTransition(async () => {
-        const result = await runActionWithToast(myServerAction(args), {
-            loadingMessage: "...",
+        await runActionWithToast(targetAction(params), {
+            loadingMessage: "กำลังประมวลผลระบบ...",
+            successMessage: "ดำเนินการสำเร็จ",
             onSuccess: () => {
-               // Update UI state / refresh data
+               // 1. ล้างสถานะเดิม
+               // 2. รีเฟรชข้อมูลล่าสุด
+               // 3. ปิดหน้าต่างหรือเปลี่ยนเส้นทาง
             }
         });
     });
@@ -34,9 +42,9 @@ const handleAction = () => {
 ```
 
 ## 🧪 Phase 3: Verification (การตรวจสอบ)
-1. **Build Test**: รัน `npm run build` เพื่อเช็ก Type Safety
-2. **Manual Audit**: ทดลองรัน Flow ทั้งหมด และตรวจสอบ Audit Log ใน Database
-3. **Commit & Push**: บันทึกงานพร้อมคำอธิบายที่ระบุถึงมาตรฐานที่ปฏิบัติ
+1. **Type & Build Check**: รัน `npm run build` เพื่อยืนยันว่าไม่มีจุดไหนที่โค้ดหลุด Type Safety
+2. **Audit Verification**: ทดสอบฟีเจอร์และดูว่า Audit Log หรือสถานะใน DB ถูกต้องตาม Logic หรือไม่
+3. **UI Polish**: เช็คสถานะ Loading (Skeleton) และการแสดงผลบน Mobile ว่าคลีนตามมาตรฐาน Phase 3
 
 ---
 *Logic ที่นิ่ง คือหัวใจของ ERP ที่ทรงพลัง*
