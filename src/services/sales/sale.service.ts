@@ -112,7 +112,12 @@ export const SaleService: ISaleService = {
 
           const calculation = ComputationEngine.calculateTotals(
             computationItems,
-            { type: saleData.discountType as any, value: saleData.discountValue || 0 }
+            { type: saleData.discountType as any, value: saleData.discountValue || 0 },
+            { 
+              rate: Number(saleData.taxRate) || 0,
+              mode: saleData.taxMode === 'NO_VAT' ? 'EXCLUSIVE' : (saleData.taxMode as any),
+              kind: saleData.taxMode === 'NO_VAT' ? 'NO_VAT' : 'VAT' as any
+            }
           );
 
           const saleItemsToCreate = calculation.lines.map((res, idx) => ({

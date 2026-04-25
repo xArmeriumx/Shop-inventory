@@ -104,6 +104,17 @@ function SalesInfoSection({
             )}
           </div>
 
+          <FormField name="taxMode" label="รูปแบบภาษี (VAT Mode)">
+            <select
+              {...register('taxMode')}
+              className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm font-bold"
+            >
+              <option value="INCLUSIVE">ราคารวม VAT แล้ว (Inclusive)</option>
+              <option value="EXCLUSIVE">ราคาแยก VAT ต่างหาก (Exclusive)</option>
+              <option value="NO_VAT">ไม่มีภาษีมูลค่าเพิ่ม (No VAT)</option>
+            </select>
+          </FormField>
+
           <FormField name="paymentMethod" label="วิธีชำระเงิน" required>
             <select
               {...register('paymentMethod')}
@@ -445,7 +456,7 @@ export function SaleForm() {
         <Card className="border-primary/20 shadow-md">
           <CardContent className="pt-6 space-y-3">
             <div className="flex justify-between text-sm">
-               <span className="text-muted-foreground flex items-center gap-1.5"><Plus className="h-3 w-3" /> ยอดรวมสินค้า (Gross)</span>
+               <span className="text-muted-foreground flex items-center gap-1.5"><Plus className="h-3 w-3" /> ยอดรวมสินค้า (ก่อนหักส่วนลดบิล)</span>
                <span className="font-mono font-bold">{formatCurrency(totalAmount.toString())}</span>
             </div>
             
@@ -473,15 +484,26 @@ export function SaleForm() {
               </div>
             )}
 
+            <div className="pt-2 border-t border-dashed space-y-1">
+               <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>ฐานภาษี (Taxable Base)</span>
+                  <span className="font-mono">{formatCurrency(totals.taxableBaseAmount.toString())}</span>
+               </div>
+               <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>ภาษีมูลค่าเพิ่ม (VAT {allValues.taxRate}%) - {allValues.taxMode === 'INCLUSIVE' ? 'รวมในราคาแล้ว' : allValues.taxMode === 'EXCLUSIVE' ? 'แยกนอก' : 'ไม่มี'}</span>
+                  <span className="font-mono">{formatCurrency(totals.taxAmount.toString())}</span>
+               </div>
+            </div>
+
             <div className="flex justify-between border-t pt-3 items-baseline">
-               <span className="font-bold text-sm uppercase tracking-tighter opacity-70">ยอดสุทธิ (Net Amount)</span>
+               <span className="font-bold text-sm uppercase tracking-tighter opacity-70">ยอดรวมสุทธิ (Net Total)</span>
                <span className="text-3xl font-black tracking-tighter text-primary font-mono">{formatCurrency(netAmount.toString())}</span>
             </div>
 
             {hasPermission('SALE_VIEW_PROFIT') && (
               <div className="mt-4 p-3 rounded-2xl bg-muted/40 space-y-1.5 border border-border/50">
                 <div className="flex justify-between text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                   <span>ต้นทุน (Total Cost)</span>
+                   <span>ต้นทุนรวม (Total Cost)</span>
                    <span className="font-mono">{formatCurrency(totalCost.toString())}</span>
                 </div>
                 <div className="flex justify-between items-center pt-1 border-t border-border/50 border-dashed">

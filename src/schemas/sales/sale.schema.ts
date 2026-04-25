@@ -42,6 +42,10 @@ export const saleSchema = z.object({
   discountType: z.enum(['PERCENT', 'FIXED']).optional().nullable(),
   discountValue: z.number().min(0, 'ส่วนลดต้องไม่ติดลบ').optional().nullable(),
   departmentCode: z.string().max(50).optional().nullable(),
+  
+  // Tax Mapping (G10/Phase 3 Standard)
+  taxMode: z.enum(['INCLUSIVE', 'EXCLUSIVE', 'NO_VAT']).default('INCLUSIVE'),
+  taxRate: z.number().min(0).default(7),
 });
 
 export type SaleInput = z.input<typeof saleSchema>;

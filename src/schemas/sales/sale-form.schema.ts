@@ -26,6 +26,10 @@ export const saleFormSchema = z.object({
     showDiscount: z.boolean().default(false),
     discountType: z.enum(['FIXED', 'PERCENT']).nullable().optional(),
     discountValue: z.coerce.number().min(0).nullable().optional(),
+    
+    // Tax Configuration (Situational Resolution)
+    taxMode: z.enum(['INCLUSIVE', 'EXCLUSIVE', 'NO_VAT']).default('INCLUSIVE'),
+    taxRate: z.coerce.number().min(0).default(7),
 });
 
 export type SaleFormValues = z.infer<typeof saleFormSchema>;
@@ -46,6 +50,8 @@ export function getSaleFormDefaults(): SaleFormValues {
         showDiscount: false,
         discountType: 'FIXED',
         discountValue: 0,
+        taxMode: 'INCLUSIVE', // Default to Inclusive for better retail UX
+        taxRate: 7,
     };
 }
 
@@ -68,5 +74,11 @@ export function computeSaleTotals(values: SaleFormValues, products: any[]) {
         value: values.showDiscount ? (Number(values.discountValue) || 0) : 0
     };
 
-    return ComputationEngine.calculateTotals(computationItems, config);
+    const taxConfig = {
+        rate: Number(values.taxRate) || 0,
+        mode: values.taxMode === 'NO_VAT' ? 'EXCLUSIVE' : (values.taxMode as any),
+        kind: values.taxMode === 'NO_VAT' ? 'NO_VAT' : 'VAT' as any
+    };
+
+    return ComputationEngine.calculateTotals(computationItems, config, taxConfig);
 }
