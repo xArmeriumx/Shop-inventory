@@ -20,7 +20,9 @@
  */
 import { db, runInTransaction } from '@/lib/db';
 import { ServiceError } from '@/types/common';
+import { AuditService } from './audit.service';
 import { LookupTypeCode } from '@prisma/client';
+import type { RequestContext } from '@/types/common';
 import {
   IndustryType,
   OnboardingMode,
@@ -150,7 +152,23 @@ export const OnboardingService = {
     const promptPay = step3.promptPayId?.trim() || null;
     const inviteEmail = step4.inviteEmail?.trim() || null;
 
-    return runInTransaction(undefined, async (tx) => {
+    const auditCtx: RequestContext = {
+      userId,
+      shopId: '',
+      permissions: OWNER_PERMISSIONS,
+      isOwner: true,
+    };
+
+    return AuditService.runWithAudit(
+      auditCtx,
+      {
+        action: 'IAM_SHOP_GENESIS',
+        targetType: 'Shop',
+        targetId: 'NEW',
+        note: `สร้างร้านค้าใหม่: ${step1.name} (${step1.industryType})`,
+      },
+      async () => {
+        return runInTransaction(undefined, async (tx) => {
 
       // ── Step A: Create the Shop ──────────────────────────────────────────
       const shop = await tx.shop.create({
@@ -287,7 +305,8 @@ export const OnboardingService = {
         },
       });
 
-      return shop;
+        return shop;
+      });
     });
   },
 

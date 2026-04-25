@@ -134,17 +134,13 @@ export function GenesisWizard() {
         form5.handleSubmit(async (step5) => {
             startTransition(async () => {
                 await runActionWithToast(completeGenesis(step1Data, step2Data, step3Data, step4Data, step5), {
-                    successMessage: 'สร้างร้านค้าสำเร็จ! เตรียมพบกับประสบการณ์ใหม่ของคุณ...',
+                    successMessage: 'สร้างร้านค้าสำเร็จ! กำลังปรับแต่งระบบให้พร้อมใช้งาน...',
                     onSuccess: async () => {
                         await update(); // Refresh JWT token
-                        // Give 2 seconds for user to see the success message
                         setTimeout(() => {
                             window.location.href = '/dashboard';
                         }, 2000);
                     },
-                    onError: (error) => {
-                        // We could map errors here if step5 has validation issues from server
-                    }
                 });
             });
         })();
@@ -154,48 +150,49 @@ export function GenesisWizard() {
     const isFirstStep = currentStep === 1;
 
     return (
-        <div className="w-full">
-            {/* ── Stepper ─────────────────────────────────────────────────────── */}
-            <div className="flex items-center mb-8 select-none">
-                {STEPS.map((step, idx) => {
-                    const isDone = step.id < currentStep;
-                    const isActive = step.id === currentStep;
-                    const isUpcoming = step.id > currentStep;
+        <div className="w-full max-w-4xl mx-auto">
+            {/* ── Stepper: Modern & Fluid ────────────────────────────────────────── */}
+            <div className="relative mb-12 select-none">
+                <div className="flex items-center justify-between">
+                    {STEPS.map((step, idx) => {
+                        const isDone = step.id < currentStep;
+                        const isActive = step.id === currentStep;
+                        const isUpcoming = step.id > currentStep;
 
-                    return (
-                        <div key={step.id} className="flex items-center flex-1 last:flex-none">
-                            {/* Circle */}
-                            <div className="flex flex-col items-center gap-1">
+                        return (
+                            <div key={step.id} className="relative z-10 flex flex-col items-center group">
                                 <div className={cn(
-                                    'h-8 w-8 rounded-full flex items-center justify-center text-xs font-bold transition-all duration-300',
-                                    isDone && 'bg-primary text-primary-foreground',
-                                    isActive && 'bg-primary text-primary-foreground ring-4 ring-primary/20',
-                                    isUpcoming && 'bg-muted text-muted-foreground',
+                                    'h-12 w-12 rounded-2xl flex items-center justify-center text-sm font-bold transition-all duration-500 shadow-sm border-2',
+                                    isDone && 'bg-primary border-primary text-primary-foreground transform scale-90 opacity-40',
+                                    isActive && 'bg-background border-primary text-primary ring-8 ring-primary/10 shadow-xl scale-110',
+                                    isUpcoming && 'bg-background border-border text-muted-foreground',
                                 )}>
-                                    {isDone ? <CheckCircle2 className="h-4 w-4" /> : step.id}
+                                    {isDone ? <CheckCircle2 className="h-6 w-6" /> : step.id}
                                 </div>
-                                <span className={cn(
-                                    'text-[10px] font-medium hidden sm:block',
-                                    isActive ? 'text-foreground' : 'text-muted-foreground',
-                                )}>
-                                    {step.short}
-                                </span>
+                                <div className="absolute -bottom-8 w-max">
+                                    <span className={cn(
+                                        'text-[11px] font-bold uppercase tracking-wider transition-colors duration-300',
+                                        isActive ? 'text-primary' : (isDone ? 'text-primary/60' : 'text-muted-foreground/50'),
+                                    )}>
+                                        {step.label}
+                                    </span>
+                                </div>
                             </div>
-
-                            {/* Connector */}
-                            {idx < STEPS.length - 1 && (
-                                <div className={cn(
-                                    'flex-1 h-[2px] mx-2 rounded transition-all duration-500',
-                                    step.id < currentStep ? 'bg-primary' : 'bg-border',
-                                )} />
-                            )}
-                        </div>
-                    );
-                })}
+                        );
+                    })}
+                </div>
+                
+                {/* Connector Line behind steps */}
+                <div className="absolute top-6 left-0 w-full h-[2px] bg-border -z-0">
+                    <div 
+                        className="h-full bg-primary transition-all duration-700 ease-in-out" 
+                        style={{ width: `${((currentStep - 1) / (STEPS.length - 1)) * 100}%` }}
+                    />
+                </div>
             </div>
 
-            {/* ── Step Content ─────────────────────────────────────────────────── */}
-            <div className="min-h-[340px]">
+            {/* ── Step Content: Rich & Focused ────────────────────────────────────── */}
+            <div className="bg-card/50 backdrop-blur-sm border rounded-3xl p-8 shadow-2xl shadow-primary/5 min-h-[450px] transition-all duration-500">
                 {currentStep === 1 && (
                     <FormProvider {...form1}>
                         <WizardStep1Identity />
@@ -223,38 +220,43 @@ export function GenesisWizard() {
                 )}
             </div>
 
-            {/* ── Navigation Buttons ───────────────────────────────────────────── */}
-            <div className="flex items-center justify-between mt-8 pt-6 border-t">
+            {/* ── Navigation Buttons: Elegant Control ────────────────────────────── */}
+            <div className="flex items-center justify-between mt-10">
                 <Button
                     type="button"
-                    variant="ghost"
+                    variant="outline"
                     onClick={handleBack}
                     disabled={isFirstStep || isPending}
-                    className="gap-2"
+                    className="h-12 px-8 rounded-2xl border-2 hover:bg-muted font-bold transition-all"
                 >
-                    <ChevronLeft className="h-4 w-4" />
+                    <ChevronLeft className="mr-2 h-4 w-4" />
                     ย้อนกลับ
                 </Button>
 
-                <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">
-                        ขั้นตอนที่ {currentStep} / {STEPS.length}
-                    </span>
+                <div className="flex items-center gap-6">
+                    <div className="hidden sm:flex flex-col items-end">
+                        <span className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest leading-none">Progress</span>
+                        <span className="text-xl font-black text-primary leading-tight">
+                            {Math.round(((currentStep) / STEPS.length) * 100)}%
+                        </span>
+                    </div>
+
                     {isLastStep ? (
                         <Button
                             type="button"
                             onClick={handleSubmit}
                             disabled={isPending}
-                            className="gap-2 min-w-[140px]"
+                            className="h-14 px-12 rounded-2xl bg-primary hover:bg-primary/90 text-primary-foreground font-black text-lg shadow-xl shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
                         >
                             {isPending ? (
                                 <>
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                    กำลังสร้าง...
+                                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                    กำลังเริ่มระบบ...
                                 </>
                             ) : (
                                 <>
-                                    เริ่มใช้งาน
+                                    ยันยันและเริ่มใช้งาน
+                                    <Rocket className="ml-3 h-5 w-5" />
                                 </>
                             )}
                         </Button>
@@ -263,10 +265,10 @@ export function GenesisWizard() {
                             type="button"
                             onClick={handleNext}
                             disabled={isPending}
-                            className="gap-2 min-w-[100px]"
+                            className="h-14 px-12 rounded-2xl bg-foreground text-background hover:bg-foreground/90 font-black text-lg shadow-xl transition-all hover:scale-[1.02] active:scale-[0.98]"
                         >
-                            ถัดไป
-                            <ChevronRight className="h-4 w-4" />
+                            ดำเนินการต่อ
+                            <ChevronRight className="ml-2 h-6 w-6" />
                         </Button>
                     )}
                 </div>
@@ -274,3 +276,6 @@ export function GenesisWizard() {
         </div>
     );
 }
+
+// Re-importing missing icons
+import { Rocket } from 'lucide-react';
