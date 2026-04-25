@@ -7,6 +7,7 @@ import { Library, FileText, BarChart3, Plus, RefreshCw } from 'lucide-react';
 import { AccountTable } from './account-table';
 import { JournalTable } from './journal-table';
 import { JournalFormModal } from './journal-form-modal';
+import { AccountFormModal } from './account-form-modal';
 import { TrialBalanceView } from './trial-balance-view';
 import { Badge } from '@/components/ui/badge';
 
@@ -16,7 +17,8 @@ interface AccountingBoardProps {
 }
 
 export function AccountingBoard({ initialAccounts, initialJournals }: AccountingBoardProps) {
-    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isJournalModalOpen, setIsJournalModalOpen] = useState(false);
+    const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
     const [activeTab, setActiveTab] = useState('coa');
     const [mode, setMode] = useState<'simple' | 'advanced'>('simple');
     const [selectedAccountId, setSelectedAccountId] = useState<string | undefined>();
@@ -61,15 +63,20 @@ export function AccountingBoard({ initialAccounts, initialJournals }: Accounting
                     </div>
 
                     {mode === 'advanced' && (
-                        <Button variant="outline" size="sm" className="gap-2 h-9 border-dashed">
-                            <RefreshCw className="w-4 h-4" />
-                            Repost Missing
+                        <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="gap-2 h-9 border-dashed text-primary hover:text-primary hover:bg-primary/5"
+                            onClick={() => setIsAccountModalOpen(true)}
+                        >
+                            <Plus className="w-4 h-4" />
+                            เพิ่มผังบัญชี
                         </Button>
                     )}
 
                     <Button
                         className="gap-2 shadow-md h-9 bg-primary hover:bg-primary/90"
-                        onClick={() => setIsModalOpen(true)}
+                        onClick={() => setIsJournalModalOpen(true)}
                     >
                         <Plus className="w-4 h-4" />
                         ลงรายการใหม่ (JV)
@@ -130,8 +137,14 @@ export function AccountingBoard({ initialAccounts, initialJournals }: Accounting
             </Tabs>
 
             <JournalFormModal
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
+                isOpen={isJournalModalOpen}
+                onClose={() => setIsJournalModalOpen(false)}
+                accounts={initialAccounts}
+            />
+
+            <AccountFormModal
+                isOpen={isAccountModalOpen}
+                onClose={() => setIsAccountModalOpen(false)}
                 accounts={initialAccounts}
             />
         </div>

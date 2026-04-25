@@ -36,23 +36,30 @@ export const AccountingService = {
     },
 
     /**
+     * ดึงข้อมูลบัญชีโดยใช้รหัส (Exact Match)
+     */
+    async getAccountByCode(ctx: RequestContext, code: string) {
+        return await (db as any).account.findUnique({
+            where: { shopId_code: { shopId: ctx.shopId, code } }
+        });
+    },
+
+    /**
      * สร้างบัญชีใหม่ในผังบัญชี
      */
     async createAccount(ctx: RequestContext, data: {
         code: string;
         name: string;
-        category: any;
-        normalBalance: any;
-        parentId?: string;
+        category: 'ASSET' | 'LIABILITY' | 'EQUITY' | 'REVENUE' | 'EXPENSE';
+        normalBalance: 'DEBIT' | 'CREDIT';
+        parentId?: string | null;
         isPostable?: boolean;
+        isActive?: boolean;
     }) {
         Security.requirePermission(ctx, Permission.FINANCE_CONFIG);
 
         // Check for duplicate code
-        const existing = await (db as any).account.findFirst({
-            where: { shopId: ctx.shopId, code: data.code }
-        });
-
+        const existing = await this.getAccountByCode(ctx, data.code);
         if (existing) throw new ServiceError(`รหัสบัญชี ${data.code} มีอยู่ในระบบแล้ว`);
 
         return await (db as any).account.create({
@@ -60,6 +67,25 @@ export const AccountingService = {
                 ...data,
                 shopId: ctx.shopId
             }
+        });
+    },
+
+    /**
+     * แก้ไขข้อมูลผังบัญชี
+     */
+    async updateAccount(ctx: RequestContext, id: string, data: Partial<{
+        name: string;
+        category: any;
+        normalBalance: any;
+        parentId: string | null;
+        isPostable: boolean;
+        isActive: boolean;
+    }>) {
+        Security.requirePermission(ctx, Permission.FINANCE_CONFIG);
+
+        return await (db as any).account.update({
+            where: { id, shopId: ctx.shopId },
+            data
         });
     },
 
