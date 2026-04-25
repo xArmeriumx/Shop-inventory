@@ -60,6 +60,7 @@ export interface GetSalesParams extends BaseQueryParams {
     channel?: string;
     status?: SaleStatus;
     customerId?: string;
+    salesFlowMode?: 'RETAIL' | 'ERP';
 }
 
 export interface GetQuotationsParams extends BaseQueryParams {

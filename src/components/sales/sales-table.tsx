@@ -108,7 +108,7 @@ export function SalesTable({ sales, pagination }: SalesTableProps) {
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50">
-                <TableHead className="font-bold">เลขที่ใบเสร็จ</TableHead>
+                <TableHead className="font-bold">เลขที่เอกสาร</TableHead>
                 <TableHead className="hidden sm:table-cell font-bold">วันที่</TableHead>
                 <TableHead className="hidden md:table-cell font-bold">ลูกค้า</TableHead>
                 <TableHead className="hidden sm:table-cell font-bold">วิธีชำระ</TableHead>

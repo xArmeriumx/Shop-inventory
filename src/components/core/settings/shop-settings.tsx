@@ -3,7 +3,7 @@
 import { useTransition } from 'react';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Store, Phone, MapPin, FileText, QrCode, Save, Info } from 'lucide-react';
+import { Store, Phone, MapPin, FileText, QrCode, Save, Info, ShoppingCart, TrendingUp } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -111,7 +111,47 @@ export function ShopSettings({ shopData }: ShopSettingsProps) {
                                 </div>
                             </FormField>
 
-                            <FormField name="promptPayId" label="PromptPay ID" hint="เบอร์มือถือ หรือ เลขบัตรประชาชน">
+                            <FormField name="salesFlowMode" label="โหมดการทำงานของระบบ (Operation Mode)" hint="เลือกโหมดที่เหมาะสมกับธุรกิจของคุณ">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <label className={`
+                                        flex flex-col items-center justify-center p-4 rounded-xl border-2 cursor-pointer transition-all
+                                        ${methods.watch('salesFlowMode') === 'RETAIL' 
+                                            ? 'border-primary bg-primary/5 text-primary' 
+                                            : 'border-muted bg-muted/10 grayscale hover:grayscale-0'}
+                                    `}>
+                                        <input 
+                                            type="radio" 
+                                            value="RETAIL" 
+                                            {...methods.register('salesFlowMode')} 
+                                            className="sr-only"
+                                        />
+                                        <ShoppingCart className="h-6 w-6 mb-2" />
+                                        <span className="font-bold text-sm">Retail Mode</span>
+                                        <span className="text-[10px] opacity-70 text-center">ขายปลีก/ส่ง เน้นออกบิลไว</span>
+                                    </label>
+                                    
+                                    <label className={`
+                                        flex flex-col items-center justify-center p-4 rounded-xl border-2 cursor-pointer transition-all
+                                        ${methods.watch('salesFlowMode') === 'ERP' 
+                                            ? 'border-primary bg-primary/5 text-primary' 
+                                            : 'border-muted bg-muted/10 grayscale hover:grayscale-0'}
+                                    `}>
+                                        <input 
+                                            type="radio" 
+                                            value="ERP" 
+                                            {...methods.register('salesFlowMode')} 
+                                            className="sr-only"
+                                        />
+                                        <TrendingUp className="h-6 w-6 mb-2" />
+                                        <span className="font-bold text-sm">ERP Mode</span>
+                                        <span className="text-[10px] opacity-70 text-center">ครบวงจร เน้นคุมสต็อก/ภาษี</span>
+                                    </label>
+                                </div>
+                            </FormField>
+                        </div>
+
+                        <div className="grid gap-6 md:grid-cols-2">
+                             <FormField name="promptPayId" label="PromptPay ID" hint="เบอร์มือถือ หรือ เลขบัตรประชาชน">
                                 <div className="relative group">
                                     <Input 
                                         id="shopPromptPayId" 

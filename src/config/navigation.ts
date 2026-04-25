@@ -39,6 +39,7 @@ export interface NavItem {
     icon: any;
     permission?: Permission;
     id?: string;
+    salesFlowMode?: 'ERP' | 'RETAIL';
 }
 
 export interface NavGroup {
@@ -60,12 +61,13 @@ export const mainNavGroups: NavGroup[] = [
     {
         groupName: 'Sales & CRM',
         items: [
-            { title: 'ใบเสนอราคา', href: '/quotations', icon: FileText, permission: 'QUOTATION_VIEW' },
-            { title: 'ขายสินค้า (Orders)', href: '/sales', icon: ShoppingCart, permission: 'SALE_VIEW', id: 'sidebar-sales' },
-            { title: 'จัดส่งสินค้า (Shipments)', href: '/shipments', icon: Send, permission: 'SHIPMENT_VIEW' },
-            { title: 'ใบส่งของ (Deliveries)', href: '/deliveries', icon: PackageCheck, permission: 'DELIVERY_VIEW' },
-            { title: 'ใบแจ้งหนี้ (Invoices)', href: '/invoices', icon: Receipt, permission: 'SALE_VIEW' },
-            { title: 'คืนสินค้า (Returns)', href: '/returns', icon: RotateCcw, permission: 'RETURN_VIEW' },
+        { title: 'ใบเสนอราคา', href: '/quotations', icon: FileText, permission: 'QUOTATION_VIEW' },
+        { title: 'ใบสั่งขาย (Sales Orders)', href: '/sales?salesFlowMode=ERP', icon: ShoppingCart, permission: 'SALE_VIEW', id: 'sidebar-sales-orders', salesFlowMode: 'ERP' },
+        { title: 'จัดส่งสินค้า (Shipments)', href: '/shipments', icon: Send, permission: 'SHIPMENT_VIEW' },
+        { title: 'ใบส่งของ (Deliveries)', href: '/deliveries', icon: PackageCheck, permission: 'DELIVERY_VIEW' },
+        { title: 'ใบแจ้งหนี้ (Invoices)', href: '/invoices', icon: Receipt, permission: 'SALE_VIEW' },
+        { title: 'ประวัติการขาย (Retail)', href: '/sales?salesFlowMode=RETAIL', icon: History, permission: 'SALE_VIEW', id: 'sidebar-sales-history', salesFlowMode: 'RETAIL' },
+        { title: 'คืนสินค้า (Returns)', href: '/returns', icon: RotateCcw, permission: 'RETURN_VIEW' },
             { title: 'ลูกค้า (Customers)', href: '/customers', icon: Users, permission: 'CUSTOMER_VIEW', id: 'sidebar-customers' },
         ]
     },

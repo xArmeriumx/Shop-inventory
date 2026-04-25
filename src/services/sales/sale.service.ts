@@ -284,6 +284,7 @@ export const SaleService: ISaleService = {
       ...(paymentMethod && { paymentMethod }),
       ...(channel && { channel }),
       ...(status && { status }),
+      ...(params.salesFlowMode && { salesFlowMode: params.salesFlowMode as any }),
     };
 
     const result = await paginatedQuery(db.sale, {

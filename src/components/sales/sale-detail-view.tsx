@@ -215,7 +215,9 @@ export function SaleDetailView({ sale, shop, payments = [] }: SaleDetailViewProp
                     <div className="flex justify-between items-start">
                         <div>
                             <div className="flex items-center gap-3">
-                                <CardTitle className="text-xl">ใบเสร็จรับเงิน / Receipt</CardTitle>
+                                <CardTitle className="text-xl">
+                                    {sale.invoiceNumber?.startsWith('SO-') ? 'ใบสั่งขาย / Sales Order' : 'ใบเสร็จรับเงิน / Receipt'}
+                                </CardTitle>
                                 <StatusBadgeGlass
                                     status={
                                         sale.status === 'COMPLETED' ? 'เสร็จสมบูรณ์' :
@@ -319,7 +321,7 @@ export function SaleDetailView({ sale, shop, payments = [] }: SaleDetailViewProp
                         onClose={() => setIsPaymentModalOpen(false)}
                         saleId={sale.id}
                         residualAmount={residualAmount}
-                        parentTitle={`บิลเลขที่ ${sale.invoiceNumber}`}
+                        parentTitle={sale.invoiceNumber?.startsWith('SO-') ? `ใบสั่งขายเลขที่ ${sale.invoiceNumber}` : `บิลเลขที่ ${sale.invoiceNumber}`}
                     />
 
                     {/* Items Table */}

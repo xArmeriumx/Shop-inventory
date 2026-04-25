@@ -21,7 +21,7 @@ export async function generateMetadata({ params }: SaleDetailsPageProps): Promis
     }
     const sale = result.data;
     return {
-      title: `บิลเลขที่ ${sale.invoiceNumber}`,
+      title: sale.invoiceNumber?.startsWith('SO-') ? `ใบสั่งขายเลขที่ ${sale.invoiceNumber}` : `บิลเลขที่ ${sale.invoiceNumber}`,
       description: `รายละเอียดการขาย ${sale.invoiceNumber} ลูกค้า ${sale.customerName || 'ทั่วไป'}`,
     };
   } catch {
