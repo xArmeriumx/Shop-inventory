@@ -36,7 +36,9 @@ interface SaleOption {
   customerName: string | null;
   totalAmount: number;
   date: Date | string;
-  customer: Pick<Customer, 'id' | 'name' | 'phone'> | null;
+  customerAddress: string | null;
+  customerPhone: string | null;
+  customer: Pick<Customer, 'id' | 'name' | 'phone' | 'address'> | null;
 }
 
 interface ShipmentFormProps {
@@ -56,8 +58,9 @@ function SaleSelectionSection({ sales }: { sales: SaleOption[] }) {
   useEffect(() => {
     const sale = sales.find((s) => s.id === selectedSaleId);
     if (sale) {
-      setValue('recipientName', sale.customer?.name || sale.customerName || '');
-      setValue('recipientPhone', sale.customer?.phone || '');
+      setValue('recipientName', sale.customerName || sale.customer?.name || '');
+      setValue('recipientPhone', sale.customerPhone || sale.customer?.phone || '');
+      setValue('shippingAddress', sale.customerAddress || sale.customer?.address || '');
     }
   }, [selectedSaleId, sales, setValue]);
 

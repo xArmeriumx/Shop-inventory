@@ -521,6 +521,8 @@ model Sale {
   date               DateTime           @default(now())
   customerId         String?
   customerName       String?
+  customerAddress    String?
+  customerPhone      String?
   totalAmount        Decimal            @db.Decimal(10, 2)
   totalCost          Decimal            @db.Decimal(10, 2)
   profit             Decimal            @db.Decimal(10, 2)
@@ -1086,7 +1088,9 @@ model DeliveryOrderLine {
 model Quotation {
   id            String          @id @default(cuid())
   quotationNo   String
-  customerId    String
+  customerId              String
+  customerAddressSnapshot String?
+  customerPhoneSnapshot   String?
   salespersonId String?
   status        QuotationStatus @default(DRAFT)
   date          DateTime        @default(now())

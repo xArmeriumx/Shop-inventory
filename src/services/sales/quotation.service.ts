@@ -109,7 +109,12 @@ export const QuotationService = {
                 throw new ServiceError('ไม่พบข้อมูลพนักงานในระบบ (Member Identity Missing)');
             }
 
-            // 1. Calculate Totals (SSOT)
+            // 1. Load Customer to get address snapshot
+            const customer = await tx.customer.findUnique({
+                where: { id: input.customerId, shopId: ctx.shopId }
+            });
+
+            // 2. Calculate Totals (SSOT)
             const products = await tx.product.findMany({
                 where: { id: { in: input.items.map(i => i.productId).filter(Boolean) } }
             });
@@ -142,6 +147,8 @@ export const QuotationService = {
                     shopId: ctx.shopId,
                     quotationNo,
                     customerId: input.customerId,
+                    customerAddressSnapshot: customer?.address || null,
+                    customerPhoneSnapshot: customer?.phone || null,
                     salespersonId: input.salespersonId || ctx.memberId,
                     memberId: ctx.memberId,
                     date: input.date || new Date(),
@@ -248,6 +255,8 @@ export const QuotationService = {
                     memberId: ctx.memberId,
                     invoiceNumber: orderNumber,
                     customerId: quotation.customerId,
+                    customerAddress: quotation.customerAddressSnapshot || (quotation as any).customer?.address || null,
+                    customerPhone: quotation.customerPhoneSnapshot || (quotation as any).customer?.phone || null,
                     quotationId: quotation.id,
                     date: new Date(),
                     status: SaleStatus.CONFIRMED,

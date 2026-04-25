@@ -169,16 +169,26 @@ export const ShipmentService: IShippingService = {
           { shipments: { every: { status: 'CANCELLED' } } },
         ],
       },
-      include: {
+      select: {
+        id: true,
+        invoiceNumber: true,
+        customerName: true,
+        customerAddress: true,
+        customerPhone: true,
+        totalAmount: true,
+        date: true,
         customer: {
-          select: { id: true, name: true, phone: true },
+          select: { id: true, name: true, phone: true, address: true },
         },
       },
       orderBy: { date: 'desc' },
       take: 100,
     });
 
-    return sales.map(sale => serializeSale(sale));
+    return sales.map(sale => ({
+      ...sale,
+      totalAmount: Number(sale.totalAmount),
+    }));
   },
 
   async create(data: any, ctx: RequestContext) {
