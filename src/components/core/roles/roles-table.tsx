@@ -17,6 +17,8 @@ import { deleteRole } from '@/actions/core/roles.actions';
 import { Edit, Trash2, Users, Shield } from 'lucide-react';
 import { usePermissions } from '@/hooks/use-permissions';
 
+import { runActionWithToast } from '@/lib/mutation-utils';
+
 interface Role {
   id: string;
   name: string;
@@ -34,35 +36,28 @@ interface RolesTableProps {
 export function RolesTable({ roles }: RolesTableProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [deletingId, setDeletingId] = useState<string | null>(null);
   const { hasPermission } = usePermissions();
   
   const canEditRoles = hasPermission('SETTINGS_ROLES');
 
   const handleDelete = async (role: Role) => {
     if (role._count.members > 0) {
-      alert(`ไม่สามารถลบได้ เนื่องจากมีสมาชิก ${role._count.members} คนใช้ Role นี้อยู่`);
+      // Still using a simple check for members to prevent unecessary server call
       return;
     }
 
+    // Usually we use AlertDialog for this, but for the hardening transition, 
+    // we focus on the Action layer consistency.
     if (!confirm(`ต้องการลบ Role "${role.name}" หรือไม่?`)) {
       return;
     }
 
-    setDeletingId(role.id);
-    try {
-      const result = await deleteRole(role.id);
-      if (!result.success) {
-        alert(result.message);
-      }
-      startTransition(() => {
-        router.refresh();
+    startTransition(async () => {
+      await runActionWithToast(deleteRole(role.id), {
+        successMessage: 'ลบ Role เรียบร้อยแล้ว',
+        onSuccess: () => router.refresh()
       });
-    } catch {
-      alert('เกิดข้อผิดพลาด');
-    } finally {
-      setDeletingId(null);
-    }
+    });
   };
 
   if (roles.length === 0) {
@@ -128,7 +123,7 @@ export function RolesTable({ roles }: RolesTableProps) {
                     variant="ghost"
                     size="icon"
                     onClick={() => handleDelete(role)}
-                    disabled={deletingId === role.id || isPending || role._count.members > 0}
+                    disabled={isPending || role._count.members > 0}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>

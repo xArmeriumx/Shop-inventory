@@ -76,7 +76,12 @@ export const IamService: IIamService = {
 
     return AuditService.runWithAudit(
       ctx,
-      IAM_AUDIT_POLICIES.CREATE_ROLE(input.name),
+      {
+        ...IAM_AUDIT_POLICIES.CREATE_ROLE(input.name),
+        afterSnapshot: () => db.role.findFirst({
+          where: { shopId: ctx.shopId, name: input.name },
+        }),
+      },
       async () => {
         const existing = await db.role.findFirst({
           where: { shopId: ctx.shopId!, name: input.name },

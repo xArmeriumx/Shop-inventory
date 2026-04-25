@@ -1,7 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { useForm, FormProvider } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -15,10 +17,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { createRole } from '@/actions/core/roles.actions';
-import { PERMISSION_PRESETS } from '@/lib/permissions';
-import { PlusCircle } from 'lucide-react';
-import { usePermissions } from '@/hooks/use-permissions';
+import { FormField } from '@/components/ui/form-field';
 import {
   Select,
   SelectContent,
@@ -26,132 +25,141 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { PlusCircle, ShieldCheck } from 'lucide-react';
+import { createRole } from '@/actions/core/roles.actions';
+import { PERMISSION_PRESETS } from '@/lib/permissions';
+import { roleFormSchema, getRoleFormDefaults, type RoleFormValues } from '@/schemas/core/role-form.schema';
+import { runActionWithToast, mapActionErrorsToForm } from '@/lib/mutation-utils';
+import { usePermissions } from '@/hooks/use-permissions';
 
 export function CreateRoleDialog() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [preset, setPreset] = useState('');
-  const [error, setError] = useState('');
+  const [isPending, startTransition] = useTransition();
   const { hasPermission } = usePermissions();
   
-  const canEditRoles = hasPermission('SETTINGS_ROLES');
+  const methods = useForm<RoleFormValues>({
+    resolver: zodResolver(roleFormSchema),
+    defaultValues: getRoleFormDefaults(),
+  });
 
-  if (!canEditRoles) {
-    return null;
-  }
+  const { register, handleSubmit, setValue, watch, reset } = methods;
+  const selectedPreset = watch('name'); // We can use Name to detect if preset was picked, or add a field.
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
+  if (!hasPermission('SETTINGS_ROLES')) return null;
 
-    if (!name.trim()) {
-      setError('กรุณากรอกชื่อ Role');
-      return;
-    }
-
-    if (!preset) {
-      setError('กรุณาเลือก Preset');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const permissions = [...(PERMISSION_PRESETS[preset as keyof typeof PERMISSION_PRESETS] || [])];
-      const result = await createRole({
-        name: name.trim(),
-        description: description.trim() || undefined,
-        permissions,
-      });
-      
-      if (result.success) {
-        setOpen(false);
-        setName('');
-        setDescription('');
-        setPreset('');
-        router.refresh();
-      } else {
-        setError(result.message || 'เกิดข้อผิดพลาด');
-      }
-    } catch {
-      setError('เกิดข้อผิดพลาด');
-    } finally {
-      setIsLoading(false);
+  const handleApplyPreset = (presetKey: string) => {
+    const permissions = PERMISSION_PRESETS[presetKey as keyof typeof PERMISSION_PRESETS] || [];
+    setValue('permissions', [...permissions] as any);
+    
+    // Auto-fill name if empty
+    if (!watch('name')) {
+        const labelMap: Record<string, string> = {
+            'MANAGER': 'ผู้จัดการ',
+            'CASHIER': 'แคชเชียร์',
+            'STOCK_KEEPER': 'เจ้าหน้าที่คลังสินค้า'
+        };
+        setValue('name', labelMap[presetKey] || presetKey);
     }
   };
 
+  const onSubmit = (data: RoleFormValues) => {
+    startTransition(async () => {
+      await runActionWithToast(createRole(data), {
+        successMessage: 'สร้าง Role ใหม่สำเร็จแล้ว',
+        onSuccess: () => {
+          setOpen(false);
+          reset();
+          router.refresh();
+        },
+        onError: (result) => {
+          if (result.errors) {
+            mapActionErrorsToForm(methods, result.errors);
+          }
+        }
+      });
+    });
+  };
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(val) => { setOpen(val); if(!val) reset(); }}>
       <DialogTrigger asChild>
-        <Button>
+        <Button className="shadow-sm">
           <PlusCircle className="mr-2 h-4 w-4" />
-          สร้าง Role
+          สร้าง Role ใหม่
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[450px]">
         <DialogHeader>
-          <DialogTitle>สร้าง Role ใหม่</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <ShieldCheck className="h-5 w-5 text-primary" />
+            สร้าง Role ใหม่
+          </DialogTitle>
           <DialogDescription>
-            กำหนดสิทธิ์สำหรับสมาชิกในทีม
+            กำหนดชื่อและชุดสิทธิ์เริ่มต้น (Presets) เพื่อความรวดเร็ว
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit}>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="name">ชื่อ Role</Label>
-              <Input
-                id="name"
-                placeholder="เช่น ผู้จัดการ, พนักงานขาย"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                disabled={isLoading}
-              />
+
+        <FormProvider {...methods}>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 pt-2">
+            <div className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="preset" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  เลือกจากแม่แบบ (Optional Preset)
+                </Label>
+                <Select onValueChange={handleApplyPreset}>
+                  <SelectTrigger id="preset" className="bg-muted/30 border-dashed">
+                    <SelectValue placeholder="เลือกจากชุดสิทธิ์สำเร็จรูป..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MANAGER">ผู้จัดการ (สิทธิ์เกือบทุกอย่าง)</SelectItem>
+                    <SelectItem value="CASHIER">แคชเชียร์ (ขายและ POS)</SelectItem>
+                    <SelectItem value="STOCK_KEEPER">เจ้าหน้าที่คลังสินค้า (สต็อกและสั่งซื้อ)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <FormField name="name" label="ชื่อ Role" required>
+                <Input
+                  id="name"
+                  placeholder="เช่น หัวหน้าทีมขาย"
+                  {...register('name')}
+                  disabled={isPending}
+                />
+              </FormField>
+
+              <FormField name="description" label="คำอธิบาย">
+                <Textarea
+                  id="description"
+                  placeholder="อธิบายสิทธิ์หน้าที่ย่อๆ"
+                  className="resize-none"
+                  rows={2}
+                  {...register('description')}
+                  disabled={isPending}
+                />
+              </FormField>
+              
+              <div className="bg-primary/5 border border-primary/10 rounded-lg p-3 text-xs text-primary flex items-start gap-2">
+                <ShieldCheck className="h-4 w-4 mt-0.5 shrink-0" />
+                <p>คุณสามารถปรับแต่งสิทธิ์อย่างละเอียดได้ในหน้าแก้ไขหลังจากสร้าง Role เสร็จสิ้น</p>
+              </div>
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="description">คำอธิบาย</Label>
-              <Textarea
-                id="description"
-                placeholder="อธิบายหน้าที่ของ Role นี้"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                disabled={isLoading}
-                rows={2}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="preset">เลือก Preset สิทธิ์</Label>
-              <Select value={preset} onValueChange={setPreset} disabled={isLoading}>
-                <SelectTrigger>
-                  <SelectValue placeholder="เลือก preset..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="MANAGER">
-                    ผู้จัดการ - สิทธิ์เต็มที่ (ยกเว้นจัดการทีม)
-                  </SelectItem>
-                  <SelectItem value="CASHIER">
-                    แคชเชียร์ - ขายสินค้าและ POS
-                  </SelectItem>
-                  <SelectItem value="STOCK_KEEPER">
-                    ดูแลสต็อก - จัดการสินค้าและสั่งซื้อ
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {error && (
-              <p className="text-sm text-destructive">{error}</p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={isLoading}>
-              ยกเลิก
-            </Button>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? 'กำลังสร้าง...' : 'สร้าง Role'}
-            </Button>
-          </DialogFooter>
-        </form>
+
+            <DialogFooter className="border-t pt-4">
+              <Button 
+                type="button" 
+                variant="ghost" 
+                onClick={() => setOpen(false)} 
+                disabled={isPending}
+              >
+                ยกเลิก
+              </Button>
+              <Button type="submit" disabled={isPending}>
+                {isPending ? 'กำลังบันทึก...' : 'สร้างและกำหนดสิทธิ์'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </FormProvider>
       </DialogContent>
     </Dialog>
   );

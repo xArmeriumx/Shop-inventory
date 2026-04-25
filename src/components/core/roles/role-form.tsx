@@ -21,6 +21,7 @@ import { updateRole } from '@/actions/core/roles.actions';
 import { MAP_GROUPS, getPermission } from '@/constants/erp/permissions.constants';
 import { roleFormSchema, getRoleFormDefaults } from '@/schemas/core/role-form.schema';
 import type { RoleFormValues } from '@/schemas/core/role-form.schema';
+import { runActionWithToast, mapActionErrorsToForm } from '@/lib/mutation-utils';
 
 // ============================================================================
 // Constants: Permission Dependencies
@@ -214,24 +215,18 @@ export function RoleForm({ role }: RoleFormProps) {
     }
 
     startTransition(async () => {
-      try {
-        const result = await updateRole(role.id, {
-          ...data,
-          description: data.description || undefined,
-          permissions: data.permissions as any,
-        });
-
-        if (result.success) {
-          toast.success('บันทึกข้อมูลสำเร็จ');
+      await runActionWithToast(updateRole(role.id, data), {
+        successMessage: 'บันทึกการเปลี่ยนแปลงสิทธิ์เรียบร้อยแล้ว',
+        onSuccess: () => {
           router.refresh();
           router.push('/settings/roles');
-        } else {
-          setError('root', { message: result.message });
-          toast.error(result.message);
+        },
+        onError: (result) => {
+          if (result.errors) {
+            mapActionErrorsToForm(methods, result.errors);
+          }
         }
-      } catch (error) {
-        toast.error('เกิดข้อผิดพลาดในการบันทึก');
-      }
+      });
     });
   }
 
