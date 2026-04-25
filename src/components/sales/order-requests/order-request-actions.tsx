@@ -4,6 +4,7 @@ import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { runActionWithToast } from '@/lib/mutation-utils';
 import { Send } from 'lucide-react';
 import { submitOrderRequest } from '@/actions/sales/order-requests.actions';
 import { OrderRequestStatus } from '@/types/domain';
@@ -21,13 +22,14 @@ export function OrderRequestActions({ requestId, status }: OrderRequestActionsPr
         if (!confirm('คุณต้องการส่งคำขอซื้อนี้เพื่อขออนุมัติใช่หรือไม่?')) return;
 
         startTransition(async () => {
-            const result = await submitOrderRequest(requestId);
-            if (result.success) {
-                toast.success(result.message);
-                router.refresh();
-            } else {
-                toast.error(result.message);
-            }
+            await runActionWithToast(submitOrderRequest(requestId), {
+                successMessage: 'ส่งคำขอซื้อเพื่อขออนุมัติเรียบร้อยแล้ว',
+                onSuccess: () => {
+                    setTimeout(() => {
+                        router.refresh();
+                    }, 100);
+                }
+            });
         });
     };
 

@@ -18,6 +18,7 @@ import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useSession } from 'next-auth/react';
 import { toast } from 'sonner';
+import { runActionWithToast } from '@/lib/mutation-utils';
 import { cn } from '@/lib/utils';
 import { CheckCircle2, ChevronRight, ChevronLeft, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -132,15 +133,19 @@ export function GenesisWizard() {
     const handleSubmit = () => {
         form5.handleSubmit(async (step5) => {
             startTransition(async () => {
-                const result = await completeGenesis(step1Data, step2Data, step3Data, step4Data, step5);
-
-                if (result.success) {
-                    toast.success('สร้างร้านค้าสำเร็จ! กำลังเข้าสู่ระบบ...');
-                    await update(); // Refresh JWT token to pick up new shopId
-                    window.location.href = '/dashboard';
-                } else {
-                    toast.error(result.message ?? 'เกิดข้อผิดพลาด กรุณาลองใหม่');
-                }
+                await runActionWithToast(completeGenesis(step1Data, step2Data, step3Data, step4Data, step5), {
+                    successMessage: 'สร้างร้านค้าสำเร็จ! เตรียมพบกับประสบการณ์ใหม่ของคุณ...',
+                    onSuccess: async () => {
+                        await update(); // Refresh JWT token
+                        // Give 2 seconds for user to see the success message
+                        setTimeout(() => {
+                            window.location.href = '/dashboard';
+                        }, 2000);
+                    },
+                    onError: (error) => {
+                        // We could map errors here if step5 has validation issues from server
+                    }
+                });
             });
         })();
     };

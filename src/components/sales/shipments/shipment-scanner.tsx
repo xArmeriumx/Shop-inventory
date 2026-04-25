@@ -146,12 +146,18 @@ export function ShipmentScanner({ availableSales }: ShipmentScannerProps) {
       if (successCount > 0) {
         toast.success(`สร้าง ${successCount} รายการจัดส่งสำเร็จ`);
       }
+      
       if (errorCount > 0) {
-        toast.error(`${errorCount} รายการไม่สำเร็จ`);
+        toast.error(`${errorCount} รายการสร้างไม่สำเร็จ`, {
+            description: 'กรุณาตรวจสอบความถูกต้องของข้อมูลสแกนอีกครั้ง'
+        });
       }
 
-      router.push('/shipments');
-      router.refresh();
+      // Safe navigation pattern
+      setTimeout(() => {
+        router.push('/shipments');
+        router.refresh();
+      }, 100);
     });
   };
 

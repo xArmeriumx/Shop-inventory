@@ -23,6 +23,7 @@ import {
     cancelStockTakeAction
 } from '@/actions/inventory/stock-take.actions';
 import { toast } from 'sonner';
+import { runActionWithToast } from '@/lib/mutation-utils';
 import {
     Save,
     CheckCircle2,
@@ -56,35 +57,31 @@ export function StockTakeCountingForm({ session }: StockTakeCountingFormProps) {
     };
 
     const handleSaveItem = async (productId: string) => {
-        try {
-            await updateStockTakeItemAction(session.id, productId, counts[productId]);
-            toast.success('บันทึกจำนวนแล้ว');
-        } catch (error: any) {
-            toast.error(error.message);
-        }
+        await runActionWithToast(updateStockTakeItemAction(session.id, productId, counts[productId]), {
+            successMessage: 'บันทึกจำนวนแล้ว'
+        });
     };
 
     const handleSubmit = () => {
         startTransition(async () => {
-            try {
-                await submitStockTakeAction(session.id);
-                toast.success('ส่งรอยืนยันการตรวจนับแล้ว');
-                router.refresh();
-            } catch (error: any) {
-                toast.error(error.message);
-            }
+            await runActionWithToast(submitStockTakeAction(session.id), {
+                successMessage: 'ส่งรอยืนยันการตรวจนับแล้ว',
+                onSuccess: () => router.refresh()
+            });
         });
     };
 
     const handleComplete = () => {
         startTransition(async () => {
-            try {
-                await completeStockTakeAction(session.id);
-                toast.success('อนุมัติและปรับปรุงสต็อกสำเร็จ');
-                router.push('/inventory/stock-take');
-            } catch (error: any) {
-                toast.error(error.message);
-            }
+            await runActionWithToast(completeStockTakeAction(session.id), {
+                successMessage: 'อนุมัติและปรับปรุงสต็อกสำเร็จ',
+                onSuccess: () => {
+                    setTimeout(() => {
+                        router.push('/inventory/stock-take');
+                        router.refresh();
+                    }, 100);
+                }
+            });
         });
     };
 
@@ -93,13 +90,10 @@ export function StockTakeCountingForm({ session }: StockTakeCountingFormProps) {
         if (!reason) return;
 
         startTransition(async () => {
-            try {
-                await cancelStockTakeAction(session.id, reason);
-                toast.success('ยกเลิกรายการตรวจนับแล้ว');
-                router.refresh();
-            } catch (error: any) {
-                toast.error(error.message);
-            }
+            await runActionWithToast(cancelStockTakeAction(session.id, reason), {
+                successMessage: 'ยกเลิกรายการตรวจนับแล้ว',
+                onSuccess: () => router.refresh()
+            });
         });
     };
 

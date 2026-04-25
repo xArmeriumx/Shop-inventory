@@ -306,10 +306,14 @@ export function ShipmentScannerDialog({
 
       if (successCount > 0) {
         toast.success(`สร้าง ${successCount} รายการจัดส่งสำเร็จ`);
-        onSuccess?.();
+        setTimeout(() => {
+            onSuccess?.();
+        }, 100);
       }
       if (failCount > 0) {
-        toast.error(`สร้างไม่สำเร็จ ${failCount} รายการ`);
+        toast.error(`สร้างไม่สำเร็จ ${failCount} รายการ`, {
+            description: 'ระบบข้ามรายการที่มีความขัดแย้งด้านข้อมูล'
+        });
       }
     });
   };

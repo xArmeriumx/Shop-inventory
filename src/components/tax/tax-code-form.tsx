@@ -21,6 +21,7 @@ import {
 } from '@/schemas/tax/tax-form.schema';
 import { createTaxCode, updateTaxCode } from '@/actions/tax/tax.actions';
 import { toast } from 'sonner';
+import { runActionWithToast, mapActionErrorsToForm } from '@/lib/mutation-utils';
 import { useTransition } from 'react';
 
 interface TaxCodeFormProps {
@@ -39,21 +40,23 @@ export function TaxCodeForm({ initialData, onSuccess }: TaxCodeFormProps) {
 
     const onSubmit = (values: TaxCodeFormValues) => {
         startTransition(async () => {
-            const res = isEdit
-                ? await updateTaxCode(initialData.code, values)
-                : await createTaxCode(values);
+            const action = isEdit
+                ? updateTaxCode(initialData.code, values)
+                : createTaxCode(values);
 
-            if (res.success) {
-                toast.success(res.message);
-                onSuccess?.();
-            } else {
-                toast.error(res.message);
-                if (typeof res.errors === 'object') {
-                    Object.entries(res.errors).forEach(([key, value]: [string, any]) => {
-                        methods.setError(key as any, { message: value[0] });
-                    });
+            await runActionWithToast(action, {
+                successMessage: isEdit ? 'แก้ไขรหัสภาษีสำเร็จ' : 'สร้างรหัสภาษีใหม่สำเร็จ',
+                onSuccess: () => {
+                    setTimeout(() => {
+                        onSuccess?.();
+                    }, 100);
+                },
+                onError: (result) => {
+                    if (result.errors) {
+                        mapActionErrorsToForm(methods, result.errors);
+                    }
                 }
-            }
+            });
         });
     };
 

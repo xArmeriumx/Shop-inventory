@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
+import { runActionWithToast, mapActionErrorsToForm } from '@/lib/mutation-utils';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -36,28 +37,26 @@ export function CustomerForm({ customer }: CustomerFormProps) {
     const { handleSubmit, setError } = methods;
 
     async function onSubmit(data: CustomerFormValues) {
-        startTransition(async () => {
-            const result = isEdit
-                ? await updateCustomer(customer.id, data as any)
-                : await createCustomer(data as any);
+        const actionCall = isEdit
+            ? updateCustomer(customer.id, data as any)
+            : createCustomer(data as any);
 
-            if (!result.success) {
-                if (result.errors && typeof result.errors === 'object') {
-                    Object.entries(result.errors).forEach(([field, messages]) => {
-                        if (field === '_form') {
-                            setError('root', { message: (messages as string[]).join(', ') });
-                        } else {
-                            setError(field as any, { message: (messages as string[])[0] });
-                        }
-                    });
-                } else if (result.message) {
-                    setError('root', { message: result.message });
+        startTransition(async () => {
+            await runActionWithToast(actionCall, {
+                successMessage: isEdit ? 'บันทึกการแก้ไขสำเร็จ' : 'เพิ่มลูกค้าสำเร็จ',
+                onSuccess: () => {
+                    setTimeout(() => {
+                        router.push('/customers');
+                        router.refresh();
+                    }, 100);
+                },
+                onError: (result) => {
+                    mapActionErrorsToForm(methods, result.errors);
+                    if (result.message && !result.errors) {
+                        setError('root', { message: result.message });
+                    }
                 }
-            } else {
-                toast.success(isEdit ? 'บันทึกการแก้ไขสำเร็จ' : 'เพิ่มลูกค้าสำเร็จ');
-                router.push('/customers');
-                router.refresh();
-            }
+            });
         });
     }
 

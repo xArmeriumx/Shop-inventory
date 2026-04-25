@@ -22,6 +22,7 @@ import { FileCheck, AlertCircle, Printer, Loader2 } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import { getWhtEntriesAction, issueWhtCertificateAction } from '@/actions/tax/wht.actions';
 import { toast } from 'sonner';
+import { runActionWithToast } from '@/lib/mutation-utils';
 import { PdfPrintTrigger } from '@/features/print/components/pdf-print-trigger';
 
 interface WhtLedgerProps {
@@ -56,13 +57,10 @@ export function WhtLedger({ initialData, shop }: WhtLedgerProps) {
 
     const handleIssue = async (entryId: string) => {
         startTransition(async () => {
-            const result = await issueWhtCertificateAction(entryId);
-            if (result.success) {
-                toast.success('ออกหนังสือรับรองสำเร็จ');
-                fetchEntries();
-            } else {
-                toast.error(result.message || 'ไม่สามารถออกหนังสือรับรองได้');
-            }
+            await runActionWithToast(issueWhtCertificateAction(entryId), {
+                successMessage: 'ออกหนังสือรับรองภาษีหัก ณ ที่จ่าย (50 ทวิ) สำเร็จ',
+                onSuccess: () => fetchEntries()
+            });
         });
     };
 

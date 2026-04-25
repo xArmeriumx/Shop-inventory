@@ -4,6 +4,7 @@ import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { runActionWithToast } from '@/lib/mutation-utils';
 import { CheckCircle, XCircle } from 'lucide-react';
 import { confirmQuotation, cancelQuotation } from '@/actions/sales/quotations.actions';
 import { QuotationStatus } from '@/types/domain';
@@ -21,13 +22,10 @@ export function QuotationActions({ quotationId, status }: QuotationActionsProps)
         if (!confirm('คุณต้องการยืนยันใบเสนอราคานี้และสร้างรายการขายใช่หรือไม่?')) return;
 
         startTransition(async () => {
-            const result = await confirmQuotation(quotationId);
-            if (result.success) {
-                toast.success(result.message);
-                router.refresh();
-            } else {
-                toast.error(result.message);
-            }
+            await runActionWithToast(confirmQuotation(quotationId), {
+                successMessage: 'ยืนยันใบเสนอราคาสำเร็จ',
+                onSuccess: () => router.refresh()
+            });
         });
     };
 
@@ -35,13 +33,10 @@ export function QuotationActions({ quotationId, status }: QuotationActionsProps)
         if (!confirm('คุณต้องการยกเลิกใบเสนอราคานี้ใช่หรือไม่?')) return;
 
         startTransition(async () => {
-            const result = await cancelQuotation(quotationId);
-            if (result.success) {
-                toast.success(result.message);
-                router.refresh();
-            } else {
-                toast.error(result.message);
-            }
+            await runActionWithToast(cancelQuotation(quotationId), {
+                successMessage: 'ยกเลิกใบเสนอราคาสำเร็จ',
+                onSuccess: () => router.refresh()
+            });
         });
     };
 

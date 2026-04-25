@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
+import { runActionWithToast, mapActionErrorsToForm } from '@/lib/mutation-utils';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -57,28 +58,26 @@ export function SupplierForm({ supplier }: SupplierFormProps) {
   const { handleSubmit, setError } = methods;
 
   function onSubmit(data: SupplierFormValues) {
-    startTransition(async () => {
-      const result = isEdit
-        ? await updateSupplier(supplier.id, data as any)
-        : await createSupplier(data as any);
+    const actionCall = isEdit
+      ? updateSupplier(supplier.id, data as any)
+      : createSupplier(data as any);
 
-      if (!result.success) {
-        if (result.errors && typeof result.errors === 'object') {
-          Object.entries(result.errors).forEach(([field, messages]) => {
-            if (field === '_form') {
-              setError('root', { message: (messages as string[]).join(', ') });
-            } else {
-              setError(field as any, { message: (messages as string[])[0] });
-            }
-          });
-        } else if (result.message) {
-          setError('root', { message: result.message });
+    startTransition(async () => {
+      await runActionWithToast(actionCall, {
+        successMessage: isEdit ? 'บันทึกการแก้ไขสำเร็จ' : 'เพิ่มผู้จำหน่ายสำเร็จ',
+        onSuccess: () => {
+          setTimeout(() => {
+            router.push('/suppliers');
+            router.refresh();
+          }, 100);
+        },
+        onError: (result) => {
+          mapActionErrorsToForm(methods, result.errors);
+          if (result.message && !result.errors) {
+            setError('root', { message: result.message });
+          }
         }
-      } else {
-        toast.success(isEdit ? 'บันทึกการแก้ไขสำเร็จ' : 'เพิ่มผู้จำหน่ายสำเร็จ');
-        router.push('/suppliers');
-        router.refresh();
-      }
+      });
     });
   }
 

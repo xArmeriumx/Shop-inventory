@@ -2,8 +2,9 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { runActionWithToast } from '@/lib/mutation-utils';
 import type { SerializedProduct } from '@/types/serialized';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -43,22 +44,20 @@ const getCategoryLabel = (value: string) =>
 
 export function ProductsTable({ products, pagination }: ProductsTableProps) {
   const router = useRouter();
+  const [isPending, startTransition] = useTransition();
   const { hasPermission } = usePermissions();
   const canViewCost = hasPermission('PRODUCT_VIEW_COST');
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(`ต้องการลบสินค้า "${name}" หรือไม่?`)) return;
-    setDeletingId(id);
-    try {
-      const result = await deleteProduct(id);
-      if (!result.success) toast.error(result.message);
-      else { toast.success('ลบสินค้าสำเร็จ'); router.refresh(); }
-    } catch {
-      toast.error('เกิดข้อผิดพลาด');
-    } finally {
-      setDeletingId(null);
-    }
+    
+    startTransition(async () => {
+        await runActionWithToast(deleteProduct(id), {
+          successMessage: 'ลบสินค้าสำเร็จ',
+          onSuccess: () => router.refresh()
+        });
+    });
   };
 
   if (products.length === 0) {

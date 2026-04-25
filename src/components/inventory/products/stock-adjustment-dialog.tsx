@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
+import { runActionWithToast } from '@/lib/mutation-utils';
 import {
   Dialog,
   DialogContent,
@@ -50,38 +52,40 @@ export function StockAdjustmentDialog({ productId, currentStock }: StockAdjustme
   const newStock = calculateNewStock();
   const diff = newStock - currentStock;
 
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setErrorInfo(null);
+    async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+        e.preventDefault();
+        
+        const formData = new FormData(e.currentTarget);
+        const reason = formData.get('reason') as string;
 
-    const formData = new FormData(e.currentTarget);
-    const reason = formData.get('reason') as string;
+        // Bug Fix: Allow 0 only if type is 'SET'
+        if ((type !== 'SET' && (!quantity || quantity <= 0)) || (type === 'SET' && quantity < 0)) {
+            toast.error('กรุณาระบุจำนวนที่ถูกต้อง');
+            return;
+        }
 
-    if (!quantity || quantity <= 0) {
-      setErrorInfo({ message: 'กรุณาระบุจำนวนที่ถูกต้อง' });
-      return;
+        if (!reason || reason.trim().length === 0) {
+            toast.error('กรุณาระบุเหตุผล');
+            return;
+        }
+
+        startTransition(async () => {
+            await runActionWithToast(adjustStock(productId, {
+                type: type as 'ADD' | 'REMOVE' | 'SET',
+                quantity,
+                note: reason,
+            }), {
+                successMessage: 'ปรับปรุงสต็อกสำเร็จ',
+                onSuccess: () => {
+                    setOpen(false);
+                    router.refresh();
+                },
+                onError: (result) => {
+                    setErrorInfo({ message: result.message || 'เกิดข้อผิดพลาด', action: result.action });
+                }
+            });
+        });
     }
-
-    if (!reason || reason.trim().length === 0) {
-      setErrorInfo({ message: 'กรุณาระบุเหตุผล' });
-      return;
-    }
-
-    startTransition(async () => {
-      const result = await adjustStock(productId, {
-        type: type as 'ADD' | 'REMOVE' | 'SET',
-        quantity,
-        note: reason,
-      });
-
-      if (!result.success) {
-        setErrorInfo({ message: result.message || 'เกิดข้อผิดพลาด', action: result.action });
-      } else {
-        setOpen(false);
-        router.refresh();
-      }
-    });
-  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

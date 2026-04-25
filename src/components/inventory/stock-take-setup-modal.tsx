@@ -16,6 +16,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { ClipboardCheck, Loader2 } from 'lucide-react';
 import { createStockTakeAction } from '@/actions/inventory/stock-take.actions';
 import { toast } from 'sonner';
+import { runActionWithToast } from '@/lib/mutation-utils';
 
 interface StockTakeSetupModalProps {
     open: boolean;
@@ -36,20 +37,18 @@ export function StockTakeSetupModal({ open, onOpenChange, productIds, totalCount
         }
 
         setIsLoading(true);
-        try {
-            const result = await createStockTakeAction(productIds, notes);
-            if (result.success && result.data) {
-                toast.success('เริ่มรายการตรวจนับแล้ว');
+        await runActionWithToast(createStockTakeAction(productIds, notes), {
+            successMessage: 'เริ่มรายการตรวจนับและ Snapshot สต็อกเรียบร้อยแล้ว',
+            onSuccess: (result) => {
+                const data = result as any;
                 onOpenChange(false);
-                router.push(`/inventory/stock-take/${result.data.id}`);
-            } else {
-                toast.error(result.message || 'ไม่สามารถเริ่มรายการตรวจนับได้');
-            }
-        } catch (error: any) {
-            toast.error(error.message);
-        } finally {
-            setIsLoading(false);
-        }
+                setTimeout(() => {
+                    router.push(`/inventory/stock-take/${data.id}`);
+                    router.refresh();
+                }, 100);
+            },
+            onFinally: () => setIsLoading(false)
+        });
     };
 
     return (

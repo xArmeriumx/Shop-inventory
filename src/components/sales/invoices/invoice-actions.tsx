@@ -4,6 +4,7 @@ import { useTransition, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { runActionWithToast } from '@/lib/mutation-utils';
 import { FileCheck, CreditCard, X, AlertTriangle } from 'lucide-react';
 import { postInvoice, markInvoicePaid, cancelInvoice } from '@/actions/sales/invoices.actions';
 import {
@@ -33,18 +34,22 @@ export function InvoiceActions({ invoiceId, status }: InvoiceActionsProps) {
     const executeAction = async () => {
         setConfirmAction(prev => ({ ...prev, open: false }));
 
-        startTransition(async () => {
-            let result;
-            if (confirmAction.type === 'POST') result = await postInvoice(invoiceId);
-            else if (confirmAction.type === 'PAID') result = await markInvoicePaid(invoiceId);
-            else if (confirmAction.type === 'CANCEL') result = await cancelInvoice(invoiceId);
+        let action;
+        if (confirmAction.type === 'POST') action = postInvoice(invoiceId);
+        else if (confirmAction.type === 'PAID') action = markInvoicePaid(invoiceId);
+        else if (confirmAction.type === 'CANCEL') action = cancelInvoice(invoiceId);
 
-            if (result?.success) {
-                toast.success(result.message);
-                router.refresh();
-            } else if (result) {
-                toast.error(result.message);
-            }
+        if (!action) return;
+
+        startTransition(async () => {
+            await runActionWithToast(action, {
+                successMessage: 'ดำเนินการสำเร็จ',
+                onSuccess: () => {
+                    setTimeout(() => {
+                        router.refresh();
+                    }, 100);
+                }
+            });
         });
     };
 

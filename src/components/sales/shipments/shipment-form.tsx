@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useForm, FormProvider, useFormContext, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
+import { runActionWithToast, mapActionErrorsToForm } from '@/lib/mutation-utils';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -207,25 +208,21 @@ export function ShipmentForm({ sales, preSelectedSaleId }: ShipmentFormProps) {
     };
 
     startTransition(async () => {
-      const result = await createShipment(payload);
-
-      if (result.success) {
-        toast.success(result.message);
-        router.push('/shipments');
-        router.refresh();
-      } else {
-        if (result.errors && typeof result.errors === 'object') {
-          Object.entries(result.errors).forEach(([field, messages]) => {
-            if (field === '_form') {
-              setError('root', { message: (messages as string[]).join(', ') });
-            } else {
-              setError(field as any, { message: (messages as string[])[0] });
-            }
-          });
-        } else {
-          toast.error(result.message || 'เกิดข้อผิดพลาด');
+      await runActionWithToast(createShipment(payload), {
+        successMessage: 'สร้างรายการจัดส่งสำเร็จ',
+        onSuccess: () => {
+          setTimeout(() => {
+            router.push('/shipments');
+            router.refresh();
+          }, 100);
+        },
+        onError: (result) => {
+          mapActionErrorsToForm(methods, result.errors);
+          if (result.message && !result.errors) {
+            setError('root', { message: result.message });
+          }
         }
-      }
+      });
     });
   }
 

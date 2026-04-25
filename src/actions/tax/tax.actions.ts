@@ -3,12 +3,13 @@
 import { PurchaseTaxService } from '@/services/tax/purchase-tax.service';
 import { TaxSettingsService } from '@/services/tax/tax-settings.service';
 import { ExportService } from '@/services/core/intelligence/export.service';
+import { AuditService } from '@/services/core/system/audit.service';
 import { requirePermission } from '@/lib/auth-guard';
+import { logger } from '@/lib/logger';
 import { handleAction, type ActionResponse } from '@/lib/action-handler';
 import { revalidatePath } from 'next/cache';
 import { Permission } from '@prisma/client';
 import {
-    purchaseTaxPostSchema,
     upsertCompanyTaxProfileSchema,
     createTaxCodeSchema,
     updateTaxCodeSchema
@@ -110,6 +111,18 @@ export async function createTaxCode(input: any): Promise<ActionResponse<any>> {
         const ctx = await requirePermission(Permission.TAX_REPORT_POST);
         const validated = createTaxCodeSchema.parse(input);
         const code = await TaxSettingsService.createTaxCode(validated, ctx);
+        
+        // Audit logging
+        AuditService.record({
+            action: 'CREATE_TAX_CODE',
+            targetType: 'TaxCode',
+            targetId: code.code,
+            note: `Created tax code: ${code.name}`,
+            after: code,
+            userId: ctx.userId,
+            shopId: ctx.shopId
+        }).catch(err => logger.error('[Audit] CREATE_TAX_CODE log failed', err));
+
         revalidatePath('/settings/tax');
         return code;
     }, { context: { action: 'createTaxCode' } });
@@ -118,8 +131,26 @@ export async function createTaxCode(input: any): Promise<ActionResponse<any>> {
 export async function updateTaxCode(code: string, input: any): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         const ctx = await requirePermission(Permission.TAX_REPORT_POST);
+        
+        // Get before snapshot for diffing
+        const allCodes = await TaxSettingsService.listTaxCodes(ctx);
+        const before = allCodes.find((c: any) => c.code === code);
+        
         const validated = updateTaxCodeSchema.parse(input);
         const updated = await TaxSettingsService.updateTaxCode(code, validated, ctx);
+        
+        // Audit logging (Non-blocking)
+        AuditService.record({
+            action: 'UPDATE_TAX_CODE',
+            targetType: 'TaxCode',
+            targetId: code,
+            note: `Updated tax code: ${code}`,
+            before: before,
+            after: updated,
+            actorId: ctx.userId,
+            shopId: ctx.shopId
+        }).catch(err => logger.error('[Audit] UPDATE_TAX_CODE log failed', err));
+
         revalidatePath('/settings/tax');
         return updated;
     }, { context: { action: 'updateTaxCode', code } });

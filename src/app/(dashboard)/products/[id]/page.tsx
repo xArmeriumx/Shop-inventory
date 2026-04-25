@@ -6,6 +6,7 @@ import { getLookupValues, seedDefaultLookupValues } from '@/actions/core/lookups
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ProductBarcodeTab } from '@/components/inventory/products/product-barcode-tab';
 import { ProductHistoryTab } from '@/components/inventory/intelligence/product-history-tab';
+import { ProductAuditTab } from '@/components/inventory/intelligence/product-audit-tab';
 
 interface EditProductPageProps {
   params: {
@@ -44,6 +45,7 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
           <TabsList>
             <TabsTrigger value="edit">ข้อมูลสินค้า</TabsTrigger>
             <TabsTrigger value="history">ประวัติสต็อก</TabsTrigger>
+            <TabsTrigger value="audit">บันทึกการแก้ไข</TabsTrigger>
             <TabsTrigger value="barcode">บาร์โค้ด</TabsTrigger>
           </TabsList>
 
@@ -55,6 +57,10 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
 
           <TabsContent value="history">
             <ProductHistoryTab productId={params.id} />
+          </TabsContent>
+
+          <TabsContent value="audit">
+            <ProductAuditTab productId={params.id} />
           </TabsContent>
 
           <TabsContent value="barcode">

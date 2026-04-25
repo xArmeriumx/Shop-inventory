@@ -195,12 +195,6 @@ const internalMetrics = {
 // AUDIT SERVICE
 // ============================================================================
 
-/**
- * ERP Business Audit Service (Rule 12.1)
- * 
- * Logs who did what, to which entity, from which shop, before and after.
- * Best effort — audit log failure NEVER crashes the main flow.
- */
 export const AuditService = {
   /**
    * Log a business action with before/after snapshots.
@@ -240,7 +234,7 @@ export const AuditService = {
           targetId: finalTargetId,
           beforeSnapshot: sanitizeSnapshot(beforeSnapshot) as any,
           afterSnapshot: sanitizeSnapshot(afterSnapshot) as any,
-          changedFields: changedFields ?? [],
+          changedFields: changedFields ?? AuditService.calculateChangedFields(beforeSnapshot, afterSnapshot),
           reason: reason ?? null,
           note: finalNote,
         },
@@ -273,6 +267,49 @@ export const AuditService = {
       internalMetrics.lastIncidentAt = new Date();
       logger.error('[AuditService] Failed to write audit log', { error, action, targetId });
     }
+  },
+
+  /**
+   * Modern wrapper for logging an audit event.
+   * 
+   * ERP Rule 12.1 — Proactive Traceability
+   * Maps modern param names (actorId, before, after) to the internal log schema.
+   */
+  async record(params: {
+    shopId?: string;
+    userId?: string;
+    actorId?: string; // alias for userId
+    action: string;
+    status?: AuditStatus;
+    targetType?: string;
+    targetId?: string;
+    before?: any;
+    after?: any;
+    note?: string;
+    reason?: string;
+  }, tx?: any): Promise<void> {
+    const { 
+      shopId, userId, actorId, action, status, 
+      targetType, targetId, before, after, note, reason 
+    } = params;
+
+    return AuditService.log(
+      { 
+        userId: (userId || actorId) as string, 
+        shopId 
+      }, 
+      {
+        action,
+        status,
+        targetType,
+        targetId,
+        beforeSnapshot: before,
+        afterSnapshot: after,
+        note,
+        reason,
+      },
+      tx
+    );
   },
 
   /**
@@ -536,5 +573,32 @@ export const AuditService = {
       lastIncidentAt: internalMetrics.lastIncidentAt,
       status: internalMetrics.auditWriteFailures > 10 ? 'CRITICAL' : (internalMetrics.auditWriteFailures > 0 ? 'WARNING' : 'HEALTHY'),
     };
+  },
+
+  /**
+   * เปรียบเทียบข้อมูล 2 ชุดเพื่อหาว่าฟิลด์ไหนเปลี่ยนบ้าง (Phase 12.1 Auto-Diff)
+   */
+  calculateChangedFields(before?: any, after?: any): string[] {
+    if (!before || !after || typeof before !== 'object' || typeof after !== 'object') return [];
+    
+    try {
+      const changes: string[] = [];
+      const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
+      
+      for (const key of Array.from(keys)) {
+        // ข้ามฟิลด์ที่เป็น metadata หรือความสัมพันธ์ที่ซับซ้อน
+        if (['updatedAt', 'createdAt', 'version', 'id', 'shopId', 'userId'].includes(key)) continue;
+
+        const valBefore = JSON.stringify(before[key]);
+        const valAfter = JSON.stringify(after[key]);
+
+        if (valBefore !== valAfter) {
+          changes.push(key);
+        }
+      }
+      return changes;
+    } catch (e) {
+      return [];
+    }
   },
 };

@@ -8,6 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 
 import { cn } from '@/lib/utils';
+import { runActionWithToast, mapActionErrorsToForm } from '@/lib/mutation-utils';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -415,18 +416,21 @@ export function SaleForm() {
     // ---------------------------------
 
     startTransition(async () => {
-      const result = await createSale(payload);
-      if (result.success) {
-        toast.success('บันทึกการขายสำเร็จ');
-        router.push('/sales');
-        router.refresh();
-      } else {
-        if (result.errors) {
-          Object.entries(result.errors).forEach(([field, messages]) => {
-            methods.setError(field as any, { message: (messages as string[])[0] });
-          });
+      await runActionWithToast(createSale(payload), {
+        successMessage: 'บันทึกการขายสำเร็จ',
+        onSuccess: () => {
+          // Fix Race Condition: Small delay before navigation to let Toast render
+          setTimeout(() => {
+            router.push('/sales');
+            router.refresh();
+          }, 100);
+        },
+        onError: (result) => {
+          if (result.errors) {
+            mapActionErrorsToForm(methods, result.errors);
+          }
         }
-      }
+      });
     });
   };
 

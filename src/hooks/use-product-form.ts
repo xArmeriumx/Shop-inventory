@@ -11,6 +11,7 @@ import { productFormSchema, getProductFormDefaults } from '@/schemas/inventory/p
 import type { ProductFormValues } from '@/schemas/inventory/product-form.schema';
 import type { SerializedProduct } from '@/services';
 import { VERSION_CONFLICT_ERROR } from '@/lib/optimistic-lock';
+import { runActionWithToast, mapActionErrorsToForm } from '@/lib/mutation-utils';
 
 /**
  * useProductForm Hook
@@ -38,7 +39,6 @@ export function useProductForm(product?: SerializedProduct) {
     const { handleSubmit, setError } = methods;
 
     const onSubmit = (data: ProductFormValues) => {
-        // 1. Prepare payload (Shallow mapping for Action)
         const payload = {
             ...data,
             description: data.description || null,
@@ -47,57 +47,46 @@ export function useProductForm(product?: SerializedProduct) {
             ...(isEdit ? { stock: undefined } : {}),
         };
 
+        const actionCall = isEdit
+            ? updateProduct(product!.id, {
+                ...payload,
+                version: (product as any).version,
+            } as any)
+            : createProduct(payload as any);
+
         startTransition(async () => {
-            // 2. Execute Action
-            const result = isEdit
-                ? await updateProduct(product!.id, {
-                    ...payload,
-                    version: (product as any).version,
-                })
-                : await createProduct(payload as any);
-
-            // 3. Handle Result
-            if (!result.success) {
-                handleServerErrors(result);
-            } else {
-                toast.success(isEdit ? 'บันทึกการแก้ไขสำเร็จ' : 'เพิ่มสินค้าสำเร็จ');
-                router.push('/products');
-                router.refresh();
-            }
-        });
-    };
-
-    /**
-     * Internal helper to map domain errors back to RHF fields
-     */
-    const handleServerErrors = (result: any) => {
-        const errors = result.errors;
-
-        // Check for optimistic locking conflict
-        if (errors?._form?.includes(VERSION_CONFLICT_ERROR)) {
-            toast.error('ข้อมูลถูกแก้ไขโดยผู้ใช้อื่น', {
-                description: 'กรุณารีเฟรชเพื่อดูข้อมูลล่าสุด',
-                action: {
-                    label: 'รีเฟรช',
-                    onClick: () => router.refresh(),
+            await runActionWithToast(actionCall, {
+                successMessage: isEdit ? 'บันทึกการแก้ไขสำเร็จ' : 'เพิ่มสินค้าสำเร็จ',
+                onSuccess: () => {
+                    setTimeout(() => {
+                        router.push('/products');
+                        router.refresh();
+                    }, 100);
                 },
-                duration: 10000,
-            });
-            return;
-        }
+                onError: (result) => {
+                    // Specific handling for Optimistic Locking
+                    if (result.errors?._form?.includes(VERSION_CONFLICT_ERROR)) {
+                        toast.error('ข้อมูลถูกแก้ไขโดยผู้ใช้อื่น', {
+                            description: 'กรุณารีเฟรชเพื่อดูข้อมูลล่าสุด',
+                            action: {
+                                label: 'รีเฟรช',
+                                onClick: () => router.refresh(),
+                            },
+                            duration: 10000,
+                        });
+                        return;
+                    }
 
-        // Standard field error mapping
-        if (errors && typeof errors === 'object') {
-            Object.entries(errors).forEach(([field, messages]) => {
-                if (field === '_form') {
-                    setError('root', { message: (messages as string[]).join(', ') });
-                } else {
-                    setError(field as any, { message: (messages as string[])[0] });
+                    // Field Mapping
+                    mapActionErrorsToForm(methods, result.errors);
+                    
+                    // Root Error Mapping from message
+                    if (result.message && !result.errors) {
+                        methods.setError('root', { message: result.message });
+                    }
                 }
             });
-        } else if (result.message) {
-            setError('root', { message: result.message });
-        }
+        });
     };
 
     return {

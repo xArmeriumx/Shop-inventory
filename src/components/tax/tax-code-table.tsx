@@ -26,6 +26,8 @@ import {
     DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
+import { runActionWithToast } from '@/lib/mutation-utils';
+import { useRouter } from 'next/navigation';
 import { toggleTaxCode } from '@/actions/tax/tax.actions';
 import { TaxCodeForm } from './tax-code-form';
 import {
@@ -41,6 +43,7 @@ interface TaxCodeTableProps {
 }
 
 export function TaxCodeTable({ initialData }: TaxCodeTableProps) {
+    const router = useRouter();
     const [data, setData] = useState(initialData);
     const [isPending, startTransition] = useTransition();
     const [editingCode, setEditingCode] = useState<any>(null);
@@ -48,13 +51,10 @@ export function TaxCodeTable({ initialData }: TaxCodeTableProps) {
 
     const handleToggle = (code: string, currentStatus: boolean) => {
         startTransition(async () => {
-            const res = await toggleTaxCode(code, !currentStatus);
-            if (res.success) {
-                toast.success(res.message);
-                // Refresh local state if needed or rely on revalidatePath
-            } else {
-                toast.error(res.message);
-            }
+            await runActionWithToast(toggleTaxCode(code, !currentStatus), {
+                successMessage: `อัปเดตสถานะรหัสภาษี ${code} เรียบร้อยแล้ว`,
+                onSuccess: () => router.refresh()
+            });
         });
     };
 

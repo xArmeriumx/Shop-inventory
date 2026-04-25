@@ -6,6 +6,7 @@ import { format } from 'date-fns';
 import { useForm, FormProvider, useFormContext, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
+import { runActionWithToast, mapActionErrorsToForm } from '@/lib/mutation-utils';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -304,16 +305,21 @@ export function PurchaseForm() {
       date: data.isBackdated ? new Date(data.date!).toISOString() : undefined,
     };
     startTransition(async () => {
-      const result = await createPurchase(payload);
-      if (result.success) {
-        toast.success('บันทึกการซื้อสำเร็จ');
-        router.push('/purchases');
-        router.refresh();
-      } else if (result.errors) {
-        Object.entries(result.errors).forEach(([field, messages]) => {
-          methods.setError(field as any, { message: (messages as string[])[0] });
-        });
-      }
+      await runActionWithToast(createPurchase(payload), {
+        successMessage: 'บันทึกการซื้อสำเร็จ',
+        onSuccess: () => {
+          // Fix Race Condition: Small delay before navigation to let Toast render
+          setTimeout(() => {
+            router.push('/purchases');
+            router.refresh();
+          }, 100);
+        },
+        onError: (result) => {
+          if (result.errors) {
+            mapActionErrorsToForm(methods, result.errors);
+          }
+        }
+      });
     });
   };
 

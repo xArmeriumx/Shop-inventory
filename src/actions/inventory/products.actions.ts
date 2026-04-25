@@ -13,6 +13,8 @@ import {
 } from '@/services';
 import { PerformanceCollector } from '@/lib/debug/measurement';
 import { handleAction, type ActionResponse } from '@/lib/action-handler';
+import { AuditService } from '@/services/core/system/audit.service';
+import { logger } from '@/lib/logger';
 
 // Re-export types for other components (like scan-review-modal)
 export type { BatchProductInput, BatchCreateResult, SerializedProduct };
@@ -89,7 +91,23 @@ export async function deleteProduct(id: string): Promise<ActionResponse<null>> {
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
       const ctx = await requirePermission('PRODUCT_DELETE');
+      
+      // Audit: Get snapshot before delete
+      const before = await ProductService.getById(id, ctx);
+      
       await ProductService.delete(id, ctx);
+      
+      // Audit: Record (Non-blocking)
+      AuditService.record({
+        shopId: ctx.shopId,
+        actorId: ctx.userId,
+        action: 'PRODUCT_DELETE',
+        targetType: 'Product',
+        targetId: id,
+        before,
+        note: `ลบสินค้า: ${before?.name}`
+      }).catch(err => logger.error('[Audit] PRODUCT_DELETE log failed', err));
+
       revalidateTag('products');
       return null;
     }, 'inventory:deleteProduct');
@@ -137,11 +155,32 @@ export async function adjustStock(productId: string, input: AdjustStockInputManu
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
       const ctx = await requirePermission('PRODUCT_UPDATE');
+      
+      // Audit: Get snapshot before adjustment
+      const before = await ProductService.getById(productId, ctx);
+
       await ProductService.adjustStockManual(productId, {
         quantity: input.quantity,
         description: input.reason || input.note,
         type: input.type
       }, ctx);
+
+      // Audit: Get snapshot after adjustment
+      const after = await ProductService.getById(productId, ctx);
+
+      // Audit: Record (Non-blocking)
+      AuditService.record({
+        shopId: ctx.shopId,
+        actorId: ctx.userId,
+        action: 'PRODUCT_STOCK_ADJUST',
+        targetType: 'Product',
+        targetId: productId,
+        before,
+        after,
+        note: `ปรับปรุงสต็อก ${input.type}: ${input.quantity}`,
+        reason: input.reason || input.note
+      }).catch(err => logger.error('[Audit] PRODUCT_STOCK_ADJUST log failed', err));
+
       revalidatePath(`/products/${productId}`);
       return null;
     }, 'inventory:adjustStock');

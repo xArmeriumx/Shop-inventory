@@ -18,6 +18,7 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { ClientDate } from '@/components/ui/client-date';
 import { approveStep, rejectStep } from '@/actions/core/approvals.actions';
 import { toast } from 'sonner';
+import { runActionWithToast } from '@/lib/mutation-utils';
 import { useRouter } from 'next/navigation';
 import {
     Dialog,
@@ -78,13 +79,14 @@ export function ApprovalDecisionCenter({ instance, impact }: ApprovalDecisionCen
         if (!confirm('ยืนยันการอนุมัติขั้นตอนนี้?')) return;
 
         startTransition(async () => {
-            const result = await approveStep(instance.documentId, instance.documentType);
-            if (result.success) {
-                toast.success('อนุมัติสำเร็จ');
-                router.refresh();
-            } else {
-                toast.error(result.message);
-            }
+            await runActionWithToast(approveStep(instance.documentId, instance.documentType), {
+                successMessage: 'อนุมัติเอกสารสำเร็จ',
+                onSuccess: () => {
+                    setTimeout(() => {
+                        router.refresh();
+                    }, 100);
+                }
+            });
         });
     };
 
@@ -95,14 +97,15 @@ export function ApprovalDecisionCenter({ instance, impact }: ApprovalDecisionCen
         }
 
         startTransition(async () => {
-            const result = await rejectStep(instance.documentId, instance.documentType, rejectReason);
-            if (result.success) {
-                toast.success('ปฏิเสธการอนุมัติแล้ว');
-                setShowRejectDialog(false);
-                router.refresh();
-            } else {
-                toast.error(result.message);
-            }
+            await runActionWithToast(rejectStep(instance.documentId, instance.documentType, rejectReason), {
+                successMessage: 'ปฏิเสธการอนุมัติเรียบร้อยแล้ว',
+                onSuccess: () => {
+                    setShowRejectDialog(false);
+                    setTimeout(() => {
+                        router.refresh();
+                    }, 100);
+                }
+            });
         });
     };
 

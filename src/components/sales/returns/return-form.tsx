@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm, FormProvider, useFormContext, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
+import { runActionWithToast, mapActionErrorsToForm } from '@/lib/mutation-utils';
 import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
@@ -212,16 +213,24 @@ export function ReturnForm() {
 
   const onSubmit = (data: ReturnFormValues) => {
     startTransition(async () => {
-      const result = await createReturn({
+      await runActionWithToast(createReturn({
         ...data,
         refundMethod: data.refundMethod as any,
-      } as any);
-      if (result.success) {
-        toast.success('บันทึกการคืนสินค้าสำเร็จ');
-        router.push('/returns');
-      } else {
-        methods.setError('root', { message: result.message });
-      }
+      } as any), {
+        successMessage: 'บันทึกการคืนสินค้าสำเร็จ',
+        onSuccess: () => {
+          setTimeout(() => {
+            router.push('/returns');
+            router.refresh();
+          }, 100);
+        },
+        onError: (result) => {
+          mapActionErrorsToForm(methods, result.errors);
+          if (result.message && !result.errors) {
+            methods.setError('root', { message: result.message });
+          }
+        }
+      });
     });
   };
 

@@ -13,6 +13,7 @@ import {
 import { SaleDetailDTO } from '@/types/dtos/sales.dto';
 import { PerformanceCollector } from '@/lib/debug/measurement';
 import { handleAction } from '@/lib/action-handler';
+import { AuditService } from '@/services/core/system/audit.service';
 
 // =============================================================================
 // SALE LIST & DETAIL
@@ -73,6 +74,7 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<SaleD
       const validated = saleSchema.parse(input);
 
       const sale = await SaleService.create(ctx, validated);
+      
       revalidatePath('/sales');
       revalidatePath('/dashboard');
       return sale;
@@ -85,6 +87,7 @@ export async function cancelSale(input: CancelSaleInput): Promise<ActionResponse
     return PerformanceCollector.run(async () => {
       const ctx = await requirePermission('SALE_CANCEL');
       await SaleService.cancel(input, ctx);
+
       revalidatePath('/sales');
       revalidatePath('/products');
       revalidatePath('/expenses');
@@ -110,6 +113,7 @@ export async function verifyPayment(
       const sanitizedNote = note ? z.string().max(500).parse(note.trim()) : undefined;
 
       await SaleService.verifyPayment(sanitizedSaleId, status, sanitizedNote, ctx);
+      
       revalidatePath('/sales');
       revalidatePath(`/sales/${saleId}`);
     }, 'sales:verifyPayment');

@@ -4,6 +4,7 @@ import { useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { registerPurchaseTax } from '@/actions/tax/tax.actions';
 import { toast } from 'sonner';
+import { runActionWithToast } from '@/lib/mutation-utils';
 import { FileText, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -18,16 +19,18 @@ export function RegisterPurchaseTaxButton({ purchaseId, hasTaxDoc }: RegisterPur
 
     const handleRegister = () => {
         startTransition(async () => {
-            const res = await registerPurchaseTax(purchaseId);
-            if (res.success) {
-                toast.success(res.message);
-                const data = res.data as any;
-                if (data?.id) {
-                    router.push(`/tax/purchase-tax/${data.id}`);
+            await runActionWithToast(registerPurchaseTax(purchaseId), {
+                successMessage: 'จดทะเบียนภาษีซื้อสำเร็จ',
+                onSuccess: (res) => {
+                    const data = res as any;
+                    if (data?.id) {
+                        setTimeout(() => {
+                            router.push(`/tax/purchase-tax/${data.id}`);
+                            router.refresh();
+                        }, 100);
+                    }
                 }
-            } else {
-                toast.error(res.message);
-            }
+            });
         });
     };
 

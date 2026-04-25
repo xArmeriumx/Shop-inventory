@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { FormProvider } from 'react-hook-form';
 import { createStockTransferAction } from '@/actions/inventory/stock-transfer.actions';
 import { toast } from 'sonner';
+import { runActionWithToast, mapActionErrorsToForm } from '@/lib/mutation-utils';
 import { useTransition } from 'react';
 import { Trash2, Plus, ArrowRightLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -39,19 +40,32 @@ export function StockTransferForm({ warehouses, products }: StockTransferFormPro
         name: 'lines',
     });
 
+    const fromWarehouseId = methods.watch('fromWarehouseId');
+    const toWarehouseId = methods.watch('toWarehouseId');
+
     const onSubmit = (values: StockTransferFormValues) => {
+        // Double check same warehouse on client side just in case
+        if (values.fromWarehouseId === values.toWarehouseId) {
+            toast.error('คลังต้นทางและปลายทางต้องไม่ใชที่เดียวกัน');
+            return;
+        }
+
         startTransition(async () => {
-            const result = await createStockTransferAction(values);
-            if (result.success) {
-                toast.success(result.message);
-                router.push('/inventory/transfers');
-                router.refresh();
-            } else {
-                const errorMsg = typeof result.errors === 'string'
-                    ? result.errors
-                    : result.errors?.root?.[0] || 'เกิดข้อผิดพลาดในการสร้างใบโอนสินค้า';
-                toast.error(errorMsg);
-            }
+            await runActionWithToast(createStockTransferAction(values), {
+                successMessage: 'สร้างใบโอนสินค้าสำเร็จ',
+                onSuccess: () => {
+                    setTimeout(() => {
+                        router.push('/inventory/transfers');
+                        router.refresh();
+                    }, 100);
+                },
+                onError: (result) => {
+                    mapActionErrorsToForm(methods, result.errors);
+                    if (result.message && !result.errors) {
+                        methods.setError('root', { message: result.message });
+                    }
+                }
+            });
         });
     };
 
@@ -65,37 +79,41 @@ export function StockTransferForm({ warehouses, products }: StockTransferFormPro
                                 <FormField name="fromWarehouseId" label="จากคลังสินค้า (Source)" required>
                                     <Select
                                         onValueChange={(val) => methods.setValue('fromWarehouseId', val)}
-                                        value={methods.watch('fromWarehouseId')}
+                                        value={fromWarehouseId}
                                     >
                                         <SelectTrigger>
                                             <SelectValue placeholder="เลือกคลังต้นทาง" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {warehouses.map(w => (
-                                                <SelectItem key={w.id} value={w.id}>{w.name} ({w.code})</SelectItem>
-                                            ))}
+                                            {warehouses
+                                                .filter(w => w.id !== toWarehouseId) // Bug Fix: Filter out destination
+                                                .map(w => (
+                                                    <SelectItem key={w.id} value={w.id}>{w.name} ({w.code})</SelectItem>
+                                                ))}
                                         </SelectContent>
                                     </Select>
                                 </FormField>
                             </div>
 
                             <div className="hidden lg:flex justify-center pb-3">
-                                <ArrowRightLeft className="h-5 w-5 text-muted-foreground" />
+                                <ArrowRightLeft className="h-5 w-5 text-muted-foreground transition-all duration-500 hover:rotate-180" />
                             </div>
 
                             <div className="lg:col-span-2">
                                 <FormField name="toWarehouseId" label="ไปคลังสินค้า (Destination)" required>
                                     <Select
                                         onValueChange={(val) => methods.setValue('toWarehouseId', val)}
-                                        value={methods.watch('toWarehouseId')}
+                                        value={toWarehouseId}
                                     >
                                         <SelectTrigger>
                                             <SelectValue placeholder="เลือกคลังปลายทาง" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {warehouses.map(w => (
-                                                <SelectItem key={w.id} value={w.id}>{w.name} ({w.code})</SelectItem>
-                                            ))}
+                                            {warehouses
+                                                .filter(w => w.id !== fromWarehouseId) // Bug Fix: Filter out source
+                                                .map(w => (
+                                                    <SelectItem key={w.id} value={w.id}>{w.name} ({w.code})</SelectItem>
+                                                ))}
                                         </SelectContent>
                                     </Select>
                                 </FormField>

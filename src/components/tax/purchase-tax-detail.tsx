@@ -8,6 +8,7 @@ import { th } from 'date-fns/locale';
 import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { runActionWithToast } from '@/lib/mutation-utils';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -68,17 +69,18 @@ export function PurchaseTaxDetail({ doc }: PurchaseTaxDetailProps) {
 
         startTransition(async () => {
             const values = form.getValues();
-            const res = await postPurchaseTax(doc.id, {
+            await runActionWithToast(postPurchaseTax(doc.id, {
                 vendorDocNo: values.vendorDocNo,
                 vendorDocDate: new Date(values.vendorDocDate),
                 claimStatus: values.claimStatus
+            }), {
+                successMessage: 'ลงบัญชีภาษีซื้อเรียบร้อยแล้ว',
+                onSuccess: () => {
+                    setTimeout(() => {
+                        router.refresh();
+                    }, 100);
+                }
             });
-            if (res.success) {
-                toast.success(res.message);
-                router.refresh();
-            } else {
-                toast.error(res.message);
-            }
         });
     };
 
@@ -86,13 +88,14 @@ export function PurchaseTaxDetail({ doc }: PurchaseTaxDetailProps) {
         if (!confirm('ยืนยันระบบจะยกเลิกเอกสารภาษีซื้อนี้และรายการบัญชีที่เกี่ยวข้อง?')) return;
 
         startTransition(async () => {
-            const res = await voidPurchaseTax(doc.id);
-            if (res.success) {
-                toast.success(res.message);
-                router.refresh();
-            } else {
-                toast.error(res.message);
-            }
+            await runActionWithToast(voidPurchaseTax(doc.id), {
+                successMessage: 'ยกเลิกเอกสารภาษีซื้อเรียบร้อยแล้ว',
+                onSuccess: () => {
+                    setTimeout(() => {
+                        router.refresh();
+                    }, 100);
+                }
+            });
         });
     };
 

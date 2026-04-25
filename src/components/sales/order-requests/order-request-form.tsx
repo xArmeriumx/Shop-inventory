@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useForm, FormProvider, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
+import { runActionWithToast, mapActionErrorsToForm } from '@/lib/mutation-utils';
 import { Plus, Trash2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -42,20 +43,16 @@ export function OrderRequestForm({ requesters, products }: OrderRequestFormProps
 
     async function onSubmit(data: OrderRequestInput) {
         startTransition(async () => {
-            const result = await createOrderRequest(data);
-            if (result.success) {
-                toast.success(result.message);
-                router.push('/order-requests');
-                router.refresh();
-            } else {
-                if (result.errors && typeof result.errors === 'object') {
-                    Object.entries(result.errors).forEach(([field, messages]) => {
-                        setError(field as any, { message: (messages as string[])[0] });
-                    });
-                } else {
-                    toast.error(result.message);
-                }
-            }
+            await runActionWithToast(createOrderRequest(data), {
+                successMessage: 'สร้างคำขอซื้อเรียบร้อยแล้ว',
+                onSuccess: () => {
+                    setTimeout(() => {
+                        router.push('/order-requests');
+                        router.refresh();
+                    }, 100);
+                },
+                onError: (result) => mapActionErrorsToForm(methods, result.errors)
+            });
         });
     }
 

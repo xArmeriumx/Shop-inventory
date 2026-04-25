@@ -11,6 +11,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { FormProvider } from 'react-hook-form';
 import { createWarehouseAction } from '@/actions/inventory/warehouse.actions';
 import { toast } from 'sonner';
+import { runActionWithToast, mapActionErrorsToForm } from '@/lib/mutation-utils';
 import { useTransition } from 'react';
 
 interface WarehouseFormModalProps {
@@ -35,16 +36,18 @@ export function WarehouseFormModal({ isOpen, onClose, initialData }: WarehouseFo
 
     const onSubmit = (values: WarehouseFormValues) => {
         startTransition(async () => {
-            const result = await createWarehouseAction(values);
-            if (result.success) {
-                toast.success(result.message);
-                onClose();
-            } else {
-                const errorMsg = typeof result.errors === 'string'
-                    ? result.errors
-                    : result.errors?.root?.[0] || 'เกิดข้อผิดพลาดในการบันทึกข้อมูล';
-                toast.error(errorMsg);
-            }
+            await runActionWithToast(createWarehouseAction(values), {
+                successMessage: 'บันทึกข้อมูลคลังสินค้าสำเร็จ',
+                onSuccess: () => {
+                    onClose();
+                },
+                onError: (result) => {
+                    mapActionErrorsToForm(methods, result.errors);
+                    if (result.message && !result.errors) {
+                        methods.setError('root', { message: result.message });
+                    }
+                }
+            });
         });
     };
 
