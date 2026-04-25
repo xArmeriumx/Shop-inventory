@@ -373,6 +373,25 @@ export const InvoiceService = {
         return await db.$transaction(async (tx) => await execute(tx), { timeout: DB_TIMEOUTS.EXTENDED });
     },
 
+    /**
+     * tryPost — Graceful version of post() for POS/RETAIL automated flows.
+     *
+     * Best Practice: ใน Retail mode การขายต้องสำเร็จเสมอ
+     * ถ้า CoA ยังไม่ได้ตั้งค่า → Invoice อยู่ใน DRAFT ไปก่อน
+     * Accountant สามารถ Post ย้อนหลังได้จากหน้า /invoices
+     *
+     * @returns true ถ้า post สำเร็จ, false ถ้า skip
+     */
+    async tryPost(ctx: RequestContext, id: string, tx?: Prisma.TransactionClient): Promise<boolean> {
+        try {
+            await this.post(ctx, id, tx);
+            return true;
+        } catch (error: any) {
+            console.warn(`[InvoiceService.tryPost] Posting skipped for invoice ${id}:`, error?.message);
+            return false;
+        }
+    },
+
     async markPaid(ctx: RequestContext, id: string, tx?: Prisma.TransactionClient) {
         const client = tx || db;
         const invoice = await (client as any).invoice.findUnique({ where: { id } });
