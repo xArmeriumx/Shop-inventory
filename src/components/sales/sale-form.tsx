@@ -28,7 +28,7 @@ import { getQuotationDetail } from '@/actions/sales/quotations.actions';
 import { formatCurrency } from '@/lib/formatters';
 import { PAYMENT_METHODS } from '@/lib/constants';
 import { usePermissions } from '@/hooks/use-permissions';
-import { saleFormSchema, getSaleFormDefaults, type SaleFormValues } from '@/schemas/sales/sale-form.schema';
+import { saleFormSchema, getSaleFormDefaults, computeSaleTotals, type SaleFormValues } from '@/schemas/sales/sale-form.schema';
 
 // ============================================================================
 // Section: Sales Info
@@ -332,31 +332,22 @@ export function SaleForm() {
         }
       });
     }
-  }, [quotationId, products.length, customers.length]);
+  }, [quotationId, products.length, customers.length, setValue]);
 
   const items = watch('items');
   const showDiscount = watch('showDiscount');
   const discountType = watch('discountType');
   const discountValue = watch('discountValue');
 
-  // Calculate Summary
-  let totalAmount = 0;
-  let totalCost = 0;
-  items.forEach((item) => {
-    const p = products.find(x => x.id === item.productId);
-    const quantity = Number(item.quantity) || 0;
-    totalAmount += quantity * ((Number(item.salePrice) || 0) - (Number(item.discountAmount) || 0));
-    totalCost += quantity * (p?.costPrice || 0);
-  });
-
-  let billDiscountAmount = 0;
-  const dv = Number(discountValue) || 0;
-  if (showDiscount && dv > 0) {
-    billDiscountAmount = discountType === 'PERCENT' ? (totalAmount * dv / 100) : dv;
-  }
-  if (billDiscountAmount > totalAmount) billDiscountAmount = totalAmount;
-  const netAmount = totalAmount - billDiscountAmount;
-  const profit = netAmount - totalCost;
+  const allValues = watch();
+  const calculation = computeSaleTotals(allValues, products);
+  const { totals } = calculation;
+  
+  const totalAmount = totals.subtotalAmount;
+  const billDiscountAmount = totals.billDiscountAmount;
+  const netAmount = totals.netAmount;
+  const totalCost = totals.totalCost;
+  const profit = totals.totalProfit;
 
   const handleScanResult = (result: SaleScanResult) => {
     const filled = new Set<string>();
@@ -451,35 +442,57 @@ export function SaleForm() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="pt-6 space-y-2">
-            <div className="flex justify-between text-sm"><span className="text-muted-foreground">ยอดรวมสินค้า</span><span className="font-medium">{formatCurrency(totalAmount.toString())}</span></div>
+        <Card className="border-primary/20 shadow-md">
+          <CardContent className="pt-6 space-y-3">
+            <div className="flex justify-between text-sm">
+               <span className="text-muted-foreground flex items-center gap-1.5"><Plus className="h-3 w-3" /> ยอดรวมสินค้า (Gross)</span>
+               <span className="font-mono font-bold">{formatCurrency(totalAmount.toString())}</span>
+            </div>
+            
             <div className="space-y-2">
-              <button type="button" onClick={() => setValue('showDiscount', !showDiscount)} className="flex items-center gap-1 text-sm text-primary hover:underline">
-                <Tag className="h-3.5 w-3.5" /> {showDiscount ? 'ซ่อนส่วนลดบิล' : '▸ เพิ่มส่วนลดบิล'}
+              <button type="button" onClick={() => setValue('showDiscount', !showDiscount)} className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-primary hover:text-primary/80 transition-colors">
+                <Tag className="h-3 w-3" /> {showDiscount ? 'ยกเลิกส่วนลดท้ายบิล' : '▸ เพิ่มส่วนลดท้ายบิล'}
               </button>
+              
               {showDiscount && (
-                <div className="animate-in fade-in slide-in-from-top-2 flex items-center gap-2 rounded-lg border border-dashed p-3 bg-muted/30">
-                  <select {...methods.register('discountType')} className="h-9 w-24 rounded-md border border-input bg-background px-2 text-sm">
+                <div className="animate-in slide-in-from-top-2 flex items-center gap-2 rounded-xl border border-dashed p-3 bg-primary/5">
+                  <select {...methods.register('discountType')} className="h-9 w-24 rounded-lg border border-input bg-background px-2 text-sm font-bold">
                     <option value="FIXED">฿ บาท</option>
                     <option value="PERCENT">% เปอร์เซ็นต์</option>
                   </select>
-                  <Input type="number" step="0.01" {...methods.register('discountValue')} placeholder="ราคาหรือเปอรเซ็นต์" className="flex-1" />
-                  {discountType === 'PERCENT' && <Percent className="h-4 w-4 text-muted-foreground" />}
+                  <Input type="number" step="0.01" {...methods.register('discountValue')} placeholder="ระบุจำนวนเงินหรือ %" className="flex-1 font-bold" />
+                  {discountType === 'PERCENT' && <Percent className="h-4 w-4 text-primary" />}
                 </div>
               )}
             </div>
+
             {billDiscountAmount > 0 && (
-              <div className="flex justify-between text-sm text-orange-600">
-                <span>ส่วนลดบิล {discountType === 'PERCENT' ? `(${discountValue}%)` : ''}</span>
+              <div className="flex justify-between text-sm text-orange-600 font-bold border-t border-dashed pt-2">
+                <span>ส่วนลดท้ายบิล {discountType === 'PERCENT' ? `(${discountValue}%)` : ''}</span>
                 <span>-{formatCurrency(billDiscountAmount.toString())}</span>
               </div>
             )}
-            <div className="flex justify-between border-t pt-2"><span className="font-semibold">ยอดสุทธิ</span><span className="text-lg font-bold">{formatCurrency(netAmount.toString())}</span></div>
+
+            <div className="flex justify-between border-t pt-3 items-baseline">
+               <span className="font-bold text-sm uppercase tracking-tighter opacity-70">ยอดสุทธิ (Net Amount)</span>
+               <span className="text-3xl font-black tracking-tighter text-primary font-mono">{formatCurrency(netAmount.toString())}</span>
+            </div>
+
             {hasPermission('SALE_VIEW_PROFIT') && (
-              <div className="border-t pt-2 space-y-1">
-                <div className="flex justify-between text-xs text-muted-foreground"><span>ต้นทุน</span><span>{formatCurrency(totalCost.toString())}</span></div>
-                <div className="flex justify-between text-sm"><span className="font-medium">กำไร</span><span className={`font-bold ${profit >= 0 ? 'text-green-600' : 'text-destructive'}`}>{formatCurrency(profit.toString())}</span></div>
+              <div className="mt-4 p-3 rounded-2xl bg-muted/40 space-y-1.5 border border-border/50">
+                <div className="flex justify-between text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                   <span>ต้นทุน (Total Cost)</span>
+                   <span className="font-mono">{formatCurrency(totalCost.toString())}</span>
+                </div>
+                <div className="flex justify-between items-center pt-1 border-t border-border/50 border-dashed">
+                   <span className="text-xs font-black uppercase tracking-tighter">กำไรขั้นต้น (GP)</span>
+                   <span className={cn(
+                     "text-lg font-black font-mono tracking-tight",
+                     profit >= 0 ? "text-emerald-600" : "text-destructive"
+                   )}>
+                     {formatCurrency(profit.toString())}
+                   </span>
+                </div>
               </div>
             )}
           </CardContent>

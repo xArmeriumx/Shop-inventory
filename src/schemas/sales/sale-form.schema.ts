@@ -1,8 +1,9 @@
-/**
- * Sale Form Schema
- */
 import { z } from 'zod';
+import { ComputationEngine, CalculationItemInput } from '@/services/core/finance/computation.service';
 
+/**
+ * Sale Form Schema — Single Source of Truth for Sales Data & Logic
+ */
 export const saleItemSchema = z.object({
     productId: z.string().min(1, 'กรุณาเลือกสินค้า'),
     quantity: z.coerce.number().min(1, 'จำนวนต้องมากกว่า 0'),
@@ -46,4 +47,26 @@ export function getSaleFormDefaults(): SaleFormValues {
         discountType: 'FIXED',
         discountValue: 0,
     };
+}
+
+/**
+ * SSOT Helper: Calculate totals for UI display using the same engine as the server.
+ */
+export function computeSaleTotals(values: SaleFormValues, products: any[]) {
+    const computationItems: CalculationItemInput[] = (values.items || []).map(item => {
+        const product = products.find(p => p.id === item.productId);
+        return {
+            qty: Number(item.quantity) || 0,
+            unitPrice: Number(item.salePrice) || 0,
+            costPrice: product ? Number(product.costPrice) : 0,
+            lineDiscount: Number(item.discountAmount) || 0,
+        };
+    });
+
+    const config = {
+        type: (values.showDiscount ? values.discountType : 'FIXED') as any,
+        value: values.showDiscount ? (Number(values.discountValue) || 0) : 0
+    };
+
+    return ComputationEngine.calculateTotals(computationItems, config);
 }

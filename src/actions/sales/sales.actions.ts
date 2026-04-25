@@ -74,6 +74,17 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<SaleD
       const validated = saleSchema.parse(input);
 
       const sale = await SaleService.create(ctx, validated);
+
+      // 🛡️ Audit Snapshot (Witness the birth of this transaction)
+      AuditService.record({
+        action: 'SALE_CREATE',
+        targetType: 'Sale',
+        targetId: (sale as any).id,
+        note: `ลงบัญชีการขายใหม่: ${sale.invoiceNumber}`,
+        after: sale,
+        actorId: ctx.userId,
+        shopId: ctx.shopId
+      }).catch(err => console.error('[Audit] Log failed', err));
       
       revalidatePath('/sales');
       revalidatePath('/dashboard');
@@ -86,7 +97,28 @@ export async function cancelSale(input: CancelSaleInput): Promise<ActionResponse
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
       const ctx = await requirePermission('SALE_CANCEL');
+      
+      // 1. Capture BEFORE state (Full Snapshot)
+      const before = await SaleService.getById(input.id, ctx);
+      if (!before) throw new Error('ไม่พบข้อมูลการขายที่ต้องการยกเลิก');
+
+      // 2. Execute Mutation
       await SaleService.cancel(input, ctx);
+
+      // 3. Capture AFTER state (Evidence of the void)
+      const after = await SaleService.getById(input.id, ctx);
+
+      // 🛡️ Record Audit (Comparative forensics)
+      AuditService.record({
+        action: 'SALE_CANCEL',
+        targetType: 'Sale',
+        targetId: input.id,
+        note: `ยกเลิกรายการขาย: ${before.invoiceNumber}`,
+        before,
+        after,
+        actorId: ctx.userId,
+        shopId: ctx.shopId
+      }).catch(err => console.error('[Audit] Log failed', err));
 
       revalidatePath('/sales');
       revalidatePath('/products');
