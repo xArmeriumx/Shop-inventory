@@ -75,17 +75,6 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<SaleD
 
       const sale = await SaleService.create(ctx, validated);
 
-      // 🛡️ Audit Snapshot (Witness the birth of this transaction)
-      AuditService.record({
-        action: 'SALE_CREATE',
-        targetType: 'Sale',
-        targetId: (sale as any).id,
-        note: `ลงบัญชีการขายใหม่: ${sale.invoiceNumber}`,
-        after: sale,
-        actorId: ctx.userId,
-        shopId: ctx.shopId
-      }).catch(err => console.error('[Audit] Log failed', err));
-      
       revalidatePath('/sales');
       revalidatePath('/dashboard');
       return sale;

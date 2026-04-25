@@ -368,13 +368,15 @@ export const AuditService = {
 
       // 5. Success Log (Non-blocking for performance)
       // ERP Phase 7 Solution: Fire-and-forget business side-effects
+      const ctxMetadata = (ctx as any).auditMetadata || {};
+      
       AuditService.log(ctx, {
         action,
         status: AUDIT_STATUS.SUCCESS,
         targetType: targetTypeVal,
         targetId,
-        beforeSnapshot,
-        afterSnapshot: sanitizeSnapshot(afterSnapshot) as any,
+        beforeSnapshot: beforeSnapshot ? { ...beforeSnapshot, ...ctxMetadata.before } : ctxMetadata.before,
+        afterSnapshot: sanitizeSnapshot(afterSnapshot ? { ...afterSnapshot, ...ctxMetadata.after } : ctxMetadata.after) as any,
         note: noteVal,
       }, tx).catch(err => logger.error('[AuditService] success log failed', err));
 

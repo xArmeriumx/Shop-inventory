@@ -22,9 +22,9 @@ import type {
   POSProduct,
   POSCategory,
   POSCreateSaleInput,
-  POSCreateSaleResult,
   POSCustomer
 } from './types';
+import { ActionResponse } from '@/types/common';
 
 // ==================== Customer Operations ====================
 
@@ -177,58 +177,13 @@ export async function getCategories(): Promise<POSCategory[]> {
 // ... imports
 
 // Update existing createPOSSale to handle new ActionResponse structure
-export async function createPOSSale(input: POSCreateSaleInput): Promise<POSCreateSaleResult> {
-  try {
-    const result = await createSaleAction({
-      customerId: input.customerId || null,
-      customerName: input.customerName || null,
-      paymentMethod: input.paymentMethod as 'CASH' | 'TRANSFER' | 'CREDIT',
-      notes: input.notes || null,
-      receiptUrl: input.receiptUrl || null,
-      items: input.items.map(item => ({ ...item, discountAmount: 0 })),
-    });
-
-    // Cast response to expected type to satisfy TS
-    const actionResult = result as unknown as { success: boolean, message?: string, errors?: any, data?: any };
-
-    if (!actionResult.success) {
-      let errorMessage = actionResult.message || 'เกิดข้อผิดพลาดในการบันทึกการขาย';
-
-      // Type guard for errors object
-      if (actionResult.errors && typeof actionResult.errors === 'object') {
-        const fieldErrors = actionResult.errors as Record<string, string[]>;
-        const firstErrorKey = Object.keys(fieldErrors)[0];
-        if (firstErrorKey && fieldErrors[firstErrorKey]) {
-          errorMessage = fieldErrors[firstErrorKey][0];
-        }
-      } else if (typeof actionResult.errors === 'string') {
-        errorMessage = actionResult.errors;
-      }
-
-      return {
-        success: false,
-        message: errorMessage,
-      };
-    }
-
-    // Success case
-    if (actionResult.data) {
-      return {
-        success: true,
-        saleId: actionResult.data.id,
-        invoiceNumber: actionResult.data.invoiceNumber,
-      };
-    }
-
-    return {
-      success: false,
-      message: 'เกิดข้อผิดพลาดที่ไม่คาดคิด',
-    };
-  } catch (error) {
-    console.error('POS Sale Error:', error);
-    return {
-      success: false,
-      message: 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง',
-    };
-  }
+export async function createPOSSale(input: POSCreateSaleInput): Promise<ActionResponse<any>> {
+  return createSaleAction({
+    customerId: input.customerId || null,
+    customerName: input.customerName || null,
+    paymentMethod: input.paymentMethod as 'CASH' | 'TRANSFER' | 'CREDIT',
+    notes: input.notes || null,
+    receiptUrl: input.receiptUrl || null,
+    items: input.items.map(item => ({ ...item, discountAmount: 0 })),
+  });
 }

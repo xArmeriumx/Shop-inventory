@@ -60,7 +60,11 @@ export const SaleService: ISaleService = {
 
     return AuditService.runWithAudit(
       ctx,
-      SALE_AUDIT_POLICIES.CREATE(saleData.customerName || 'New Sale'),
+      {
+        ...SALE_AUDIT_POLICIES.CREATE(saleData.customerName || 'New Sale'),
+        // Dynamic note with audit metadata
+        note: `ลงบัญชีการขายใหม่: #${ctx.memberId || 'SYSTEM'}`,
+      },
       async () => {
         return runInTransaction(tx, async (prisma) => {
           // 1. Generate Invoice Number
@@ -99,6 +103,14 @@ export const SaleService: ISaleService = {
           if (stockErrors.length > 0) {
             throw new ServiceError(stockErrors.join('\n'));
           }
+
+          // 🛡️ Snapshot BEFORE (Evidence for Audit)
+          const beforeSnapshot = products.map(p => ({
+            id: p.id,
+            name: p.name,
+            stock: Number(p.stock),
+            reservedStock: Number(p.reservedStock || 0)
+          }));
 
           // 3. Calculate Totals via Central Engine
           const computationItems: CalculationItemInput[] = items.map(item => {
@@ -204,7 +216,30 @@ export const SaleService: ISaleService = {
             if (sale.paymentMethod !== 'CREDIT') {
               await InvoiceService.markPaid(ctx, invoice.id, prisma);
             }
+
+            // 🛡️ POS / Retail Standard: Finalize stock deduction and close the sale immediately
+            // This ensures physical stock is deducted and COGS are posted upon receipt issuance.
+            await this.completeSale(sale.id, ctx, prisma);
           }
+
+          // 🛡️ Snapshot AFTER (Proof of Execution)
+          const updatedProducts = await prisma.product.findMany({
+            where: { id: { in: productIds } },
+            select: { id: true, name: true, stock: true, reservedStock: true }
+          });
+
+          const afterSnapshot = updatedProducts.map(p => ({
+            id: p.id,
+            name: p.name,
+            stock: Number(p.stock),
+            reservedStock: Number(p.reservedStock || 0)
+          }));
+
+          // Attach evidence to the current audit context
+          (ctx as any).auditMetadata = {
+            before: { inventoryBefore: beforeSnapshot },
+            after: { inventoryAfter: afterSnapshot }
+          };
 
           return SaleMapper.toDetailDTO(sale, ctx);
         }, { timeout: DB_TIMEOUTS.EXTENDED }).then(async (result) => {

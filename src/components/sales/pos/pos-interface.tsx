@@ -15,6 +15,7 @@ import type { POSProduct, POSCategory, POSCart, POSCartItem, POSCustomer } from 
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/formatters';
 import { money, calcSubtotal, calcProfit } from '@/lib/money';
+import { runActionWithToast } from '@/lib/mutation-utils';
 
 interface POSInterfaceProps {
   initialProducts: POSProduct[];
@@ -235,11 +236,11 @@ export function POSInterface({ initialProducts, categories, promptPayId }: POSIn
     }
   }, [cart.items.length]);
 
-  const handlePaymentConfirm = useCallback(async (paymentMethod: string, amountReceived?: number, change?: number, receiptUrl?: string) => {
+   const handlePaymentConfirm = useCallback(async (paymentMethod: string, amountReceived?: number, change?: number, receiptUrl?: string) => {
     setIsProcessing(true);
-
-    try {
-      const result = await createPOSSale({
+    
+    await runActionWithToast(
+      createPOSSale({
         customerId: selectedCustomer?.id.startsWith('temp-') ? undefined : selectedCustomer?.id,
         customerName: selectedCustomer ? selectedCustomer.name : undefined,
         paymentMethod,
@@ -249,46 +250,44 @@ export function POSInterface({ initialProducts, categories, promptPayId }: POSIn
           quantity: item.quantity,
           salePrice: item.salePrice,
         })),
-      });
+      }),
+      {
+        loadingMessage: 'กำลังบันทึกการขาย...',
+        successMessage: 'บันทึกการขายสำเร็จ',
+        onSuccess: (data) => {
+          // Optimistic Update: Immediately update local stock
+          setProducts((prevProducts) =>
+            prevProducts.map((product) => {
+              const soldItem = cart.items.find((item) => item.productId === product.id);
+              if (soldItem) {
+                return {
+                  ...product,
+                  stock: Math.max(0, product.stock - soldItem.quantity),
+                  reservedStock: Math.max(0, product.reservedStock + soldItem.quantity),
+                };
+              }
+              return product;
+            })
+          );
 
-      if (result.success) {
-        // Optimistic Update: Immediately update local stock
-        setProducts((prevProducts) =>
-          prevProducts.map((product) => {
-            const soldItem = cart.items.find((item) => item.productId === product.id);
-            if (soldItem) {
-              return {
-                ...product,
-                stock: Math.max(0, product.stock - soldItem.quantity),
-                reservedStock: Math.max(0, product.reservedStock + soldItem.quantity),
-              };
-            }
-            return product;
-          })
-        );
-
-        // Success! Clear cart and close dialog
-        clearCart();
-        setIsPaymentOpen(false);
-
-        // Show success dialog
-        setSuccessInvoiceNumber(result.invoiceNumber || '');
-        setSuccessSaleId(result.saleId || '');
-        setSuccessAmountReceived(amountReceived);
-        setSuccessChange(change);
-        setIsSuccessOpen(true);
-
-        // Refresh to update stock (backup sync from server)
-        router.refresh();
-      } else {
-        alert(result.message || 'เกิดข้อผิดพลาด');
+          // Success Dialog Data
+          setSuccessInvoiceNumber(data.invoiceNumber || '');
+          setSuccessSaleId(data.id || '');
+          setSuccessAmountReceived(amountReceived);
+          setSuccessChange(change);
+          
+          // Reset UI
+          clearCart();
+          setIsPaymentOpen(false);
+          setIsSuccessOpen(true);
+          
+          router.refresh();
+        },
+        onFinally: () => {
+          setIsProcessing(false);
+        }
       }
-    } catch (error) {
-      console.error('Checkout error:', error);
-      alert('เกิดข้อผิดพลาดในการบันทึก');
-    } finally {
-      setIsProcessing(false);
-    }
+    );
   }, [cart.items, clearCart, router, selectedCustomer]);
 
   // Mobile cart sheet state
