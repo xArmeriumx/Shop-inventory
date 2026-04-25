@@ -206,10 +206,18 @@ export const SaleService: ISaleService = {
 
           // 7. Hybrid Flow Execution (Retail vs ERP)
           if (shop?.salesFlowMode === 'RETAIL') {
-            // Auto-Invoicing Logic
+            // Auto-Invoicing Logic (สร้างใบแจ้งหนี้เสมอ — ไม่มีเหตุผลที่จะล้มเหลว)
             const invoice = await InvoiceService.createFromSale(ctx, sale.id, prisma);
-            await InvoiceService.post(ctx, invoice.id, prisma);
-            
+
+            // ⚡ POS Accounting: Graceful Posting
+            // หาก Shop ยังไม่ได้ตั้งค่า Chart of Accounts (COA) จะไม่บล็อกการขาย
+            // Invoice จะอยู่ใน DRAFT status และ Accountant สามารถ Post ทีหลังได้
+            try {
+              await InvoiceService.post(ctx, invoice.id, prisma);
+            } catch (postingError: any) {
+              console.warn('[POS] Invoice posting skipped — COA not configured or posting failed:', postingError?.message);
+            }
+
             // Mark Paid if not CREDIT
             if (sale.paymentMethod !== 'CREDIT') {
               await InvoiceService.markPaid(ctx, invoice.id, prisma);
