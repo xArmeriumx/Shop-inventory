@@ -38,44 +38,38 @@ export function TaxInvoiceSection({ isReadOnly, isPending }: TaxInvoiceSectionPr
       <CardContent className="pt-8 space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="vendorDocNo" className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                <FileText className="h-3 w-3" />
-                เลขที่ใบกำกับภาษี (Tax Invoice No.)
-              </Label>
+            <FormField
+              label="เลขที่ใบกำกับภาษี (Tax Invoice No.)"
+              icon={<FileText className="h-3 w-3" />}
+              error={errors.vendorDocNo?.message}
+              required
+            >
               <Input
-                id="vendorDocNo"
                 placeholder="ระบุเลขที่จากเอกสารต้นฉบับ"
                 className="h-12 text-lg font-bold rounded-xl border-2 focus-visible:ring-primary"
                 {...register('vendorDocNo')}
                 disabled={isReadOnly || isPending}
               />
-              {errors.vendorDocNo && (
-                <p className="text-xs text-destructive font-medium animate-in slide-in-from-left-2">{errors.vendorDocNo.message}</p>
-              )}
-            </div>
+            </FormField>
 
-            <div className="space-y-2">
-              <Label htmlFor="vendorDocDate" className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                <Calendar className="h-3 w-3" />
-                วันที่ในใบกำกับภาษี (Issue Date)
-              </Label>
+            <FormField
+              label="วันที่ในใบกำกับภาษี (Issue Date)"
+              icon={<Calendar className="h-3 w-3" />}
+            >
               <Input
-                id="vendorDocDate"
                 type="date"
                 className="h-12 font-medium rounded-xl border-2"
                 {...register('vendorDocDate')}
                 disabled={isReadOnly || isPending}
               />
-            </div>
+            </FormField>
           </div>
 
-          <div className="space-y-4 bg-muted/20 p-6 rounded-[1.5rem] border border-dashed border-primary/20">
-            <div className="space-y-2">
-              <Label className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-2">
-                <ShieldCheck className="h-3 w-3" />
-                สิทธิการขอคืนภาษี (Claim Policy)
-              </Label>
+          <div className="space-y-4 bg-muted/20 p-6 rounded-[1.5rem] border border-primary/10">
+            <FormField
+              label="สิทธิการขอคืนภาษี (Claim Policy)"
+              icon={<ShieldCheck className="h-3 w-3" />}
+            >
               <Select
                 disabled={isReadOnly || isPending}
                 value={claimStatus}
@@ -90,13 +84,14 @@ export function TaxInvoiceSection({ isReadOnly, isPending }: TaxInvoiceSectionPr
                   <SelectItem value="NON_CLAIMABLE" className="font-medium text-destructive">ไม่ขอคืนภาษี (ภาษีซื้อต้องห้าม)</SelectItem>
                 </SelectContent>
               </Select>
-              <div className="mt-4 p-3 bg-primary/5 rounded-lg border border-primary/10">
-                <p className="text-[10px] text-muted-foreground leading-relaxed">
-                  {claimStatus === 'CLAIMABLE' && "ระบบจะนำยอดยื่นในรายงานภาษีซื้อ (ภ.พ. 30) ของเดือนภาษีปัจจุบัน"}
-                  {claimStatus === 'WAITING_DOC' && "ระบบจะจองสิทธิ์ไว้ แต่ยังไม่คำนวณในรายงานเดือนนี้จนกว่าจะได้รับเอกสาร"}
-                  {claimStatus === 'NON_CLAIMABLE' && "รายการนี้จะถูกคัดชื่อออกจากการคำนวณภาษีมูลค่าเพิ่มโดยสิ้นเชิง"}
-                </p>
-              </div>
+            </FormField>
+
+            <div className="mt-2 p-3 bg-primary/5 rounded-lg border border-primary/10 animate-in fade-in duration-300">
+              <p className="text-[10px] text-muted-foreground leading-relaxed italic">
+                {claimStatus === 'CLAIMABLE' && "ระบบจะนำยอดยื่นในรายงานภาษีซื้อ (ภ.พ. 30) ของเดือนภาษีปัจจุบัน"}
+                {claimStatus === 'WAITING_DOC' && "ระบบจะจองสิทธิ์ไว้ แต่ยังไม่คำนวณในรายงานเดือนนี้จนกว่าจะได้รับเอกสาร"}
+                {claimStatus === 'NON_CLAIMABLE' && "รายการนี้จะถูกคัดชื่อออกจากการคำนวณภาษีมูลค่าเพิ่มโดยสิ้นเชิง"}
+              </p>
             </div>
           </div>
         </div>
