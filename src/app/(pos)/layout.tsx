@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
+export const dynamic = 'force-dynamic';
 
 /**
  * POS Layout - Clean fullscreen layout without sidebar

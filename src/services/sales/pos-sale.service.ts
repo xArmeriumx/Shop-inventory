@@ -118,7 +118,7 @@ export const POSSaleService = {
             afterSnapshot: (res: any) => res?.sale,
         }, async () => {
             return db.$transaction(async (tx) => {
-                const productIds = [...new Set(cart.items.map(i => i.productId))];
+                const productIds = Array.from(new Set(cart.items.map(i => i.productId)));
 
                 // ── 1. Fetch Products (1 query) ──────────────────────────────
                 const products = await tx.product.findMany({

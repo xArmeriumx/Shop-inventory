@@ -412,14 +412,12 @@ export function SaleForm() {
     });
 
     if (insufficientItems.length > 0) {
-      toast.error('ไม่สามารถบันทึกได้เนื่องจากสินค้าบางรายการมีสต็อกไม่พอ');
-      return;
+      toast.warning('สินค้าบางรายการสต็อกไม่พอ รายการนี้จะถูกตั้งสถานะเป็น "รอสต็อก" (WAITING) ในระบบจัดส่ง');
     }
-    // ---------------------------------
 
     startTransition(async () => {
       await runActionWithToast(createSale(payload), {
-        successMessage: 'บันทึกการขายสำเร็จ',
+        successMessage: 'บันทึกใบสั่งขายสำเร็จ',
         onSuccess: () => {
           // Fix Race Condition: Small delay before navigation to let Toast render
           setTimeout(() => {

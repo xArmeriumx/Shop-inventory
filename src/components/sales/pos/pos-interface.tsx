@@ -79,8 +79,10 @@ export function POSInterface({ initialProducts, categories, promptPayId }: POSIn
       if (isPaymentOpen || isProcessing) return;
 
       try {
-        const latestProducts = await getProductsForPOS();
-        setProducts(latestProducts);
+        const res = await getProductsForPOS();
+        if (res.success) {
+          setProducts(res.data);
+        }
       } catch (error) {
         console.error('Stock refresh error:', error);
         // Silently fail - don't interrupt POS operation
@@ -95,8 +97,10 @@ export function POSInterface({ initialProducts, categories, promptPayId }: POSIn
   useEffect(() => {
     const fetchCustomers = async () => {
       try {
-        const data = await getPOSCustomers();
-        setCustomers(data);
+        const res = await getPOSCustomers();
+        if (res.success) {
+          setCustomers(res.data);
+        }
       } catch (error) {
         console.error('Failed to fetch customers:', error);
       }
@@ -216,9 +220,9 @@ export function POSInterface({ initialProducts, categories, promptPayId }: POSIn
         setScanInput('');
       } else {
         // Try server lookup (in case products list is stale)
-        const serverProduct = await getProductBySKU(sku);
-        if (serverProduct) {
-          addToCart(serverProduct);
+        const res = await getProductBySKU(sku);
+        if (res.success && res.data) {
+          addToCart(res.data);
           setScanInput('');
         } else {
           // Show error - could use toast in production

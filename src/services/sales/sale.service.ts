@@ -191,6 +191,7 @@ export const SaleService: ISaleService = {
               items: { create: saleItemsToCreate },
               status: SaleStatus.CONFIRMED,
               bookingStatus: BookingStatus.RESERVED,
+              salesFlowMode: 'ERP',
             } as Prisma.SaleUncheckedCreateInput,
             include: { items: true, customer: true },
           });

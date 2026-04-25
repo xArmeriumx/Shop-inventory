@@ -17,11 +17,9 @@ export const metadata: Metadata = {
 };
 
 const DELIVERY_STATUS_CONFIG: Record<string, StatusConfig> = {
-    DRAFT: { label: 'ฉบับร่าง', variant: 'secondary' },
-    WAITING: { label: 'รอส่ง', variant: 'outline', className: 'border-yellow-500 text-yellow-600' },
-    PROCESSING: { label: 'กำลังแพ็ค', variant: 'outline', className: 'border-blue-500 text-blue-600' },
-    SHIPPED: { label: 'ส่งแล้ว', variant: 'outline', className: 'border-purple-500 text-purple-600' },
-    DELIVERED: { label: 'ถึงมือลูกค้า', variant: 'default', className: 'bg-green-600' },
+    WAITING: { label: 'สินค้าไม่พอ (Waiting)', variant: 'outline', className: 'border-yellow-500 text-yellow-600 bg-yellow-50' },
+    PROCESSING: { label: 'พร้อมส่ง (Available)', variant: 'outline', className: 'border-blue-500 text-blue-600 bg-blue-50' },
+    DELIVERED: { label: 'ส่งสำเร็จ (Done)', variant: 'default', className: 'bg-green-600' },
     CANCELLED: { label: 'ยกเลิก', variant: 'destructive' },
 };
 
@@ -69,18 +67,40 @@ export default async function DeliveryOrderDetailPage({ params }: { params: { id
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {delivery.items.map((item: any) => (
-                                    <TableRow key={item.id}>
-                                        <TableCell>
-                                            <div className="font-medium">{item.product?.name}</div>
-                                            <div className="text-xs text-muted-foreground">SKU: {item.product?.sku || '-'}</div>
-                                        </TableCell>
-                                        <TableCell className="text-right font-bold">{item.quantity}</TableCell>
-                                        <TableCell>
-                                            <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full">พร้อมส่ง</span>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
+                                {delivery.items.map((item: any) => {
+                                    const available = (item.product?.stock || 0);
+                                    const isShort = item.quantity > available;
+                                    const shortQty = item.quantity - available;
+
+                                    return (
+                                        <TableRow key={item.id}>
+                                            <TableCell>
+                                                <div className="font-medium">{item.product?.name}</div>
+                                                <div className="text-xs text-muted-foreground flex gap-2">
+                                                    <span>SKU: {item.product?.sku || '-'}</span>
+                                                    <span className="font-bold text-blue-600">ในคลัง: {available}</span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-right font-bold text-lg">
+                                                {item.quantity}
+                                            </TableCell>
+                                            <TableCell>
+                                                {isShort ? (
+                                                    <div className="flex flex-col gap-1">
+                                                        <span className="text-[10px] px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-bold inline-block w-fit">
+                                                            สต็อกไม่พอ
+                                                        </span>
+                                                        <span className="text-[10px] text-red-600 font-bold">ขาดอีก: {shortQty}</span>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-[10px] px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-bold">
+                                                        พร้อมส่ง
+                                                    </span>
+                                                )}
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })}
                             </TableBody>
                         </Table>
                     </CardContent>

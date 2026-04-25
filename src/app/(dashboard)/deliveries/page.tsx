@@ -14,11 +14,9 @@ export const metadata: Metadata = {
 };
 
 const DELIVERY_STATUS_CONFIG: Record<string, StatusConfig> = {
-    DRAFT: { label: 'ฉบับร่าง', variant: 'secondary' },
-    WAITING: { label: 'รอส่ง', variant: 'outline', className: 'border-yellow-500 text-yellow-600' },
-    PROCESSING: { label: 'กำลังแพ็ค', variant: 'outline', className: 'border-blue-500 text-blue-600' },
-    SHIPPED: { label: 'ส่งแล้ว', variant: 'outline', className: 'border-purple-500 text-purple-600' },
-    DELIVERED: { label: 'ถึงมือลูกค้า', variant: 'default', className: 'bg-green-600' },
+    WAITING: { label: 'สินค้าไม่พอ (Waiting)', variant: 'outline', className: 'border-yellow-500 text-yellow-600 bg-yellow-50' },
+    PROCESSING: { label: 'พร้อมส่ง (Available)', variant: 'outline', className: 'border-blue-500 text-blue-600 bg-blue-50' },
+    DELIVERED: { label: 'ส่งสำเร็จ (Done)', variant: 'default', className: 'bg-green-600' },
     CANCELLED: { label: 'ยกเลิก', variant: 'destructive' },
 };
 

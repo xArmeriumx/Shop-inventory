@@ -24,7 +24,6 @@ export const shopFormSchema = z.object({
     taxId: z.string().max(13, 'เลขประจำตัวผู้เสียภาษีต้องไม่เกิน 13 หลัก').optional().nullable(),
     promptPayId: z.string().max(20, 'PromptPay ID ต้องไม่เกิน 20 หลัก').optional().nullable(),
     logo: z.string().optional().nullable(),
-    salesFlowMode: z.enum(['RETAIL', 'ERP']).default('RETAIL'),
 });
 
 export type ShopFormValues = z.infer<typeof shopFormSchema>;
@@ -37,6 +36,5 @@ export function getShopFormDefaults(shop?: any): ShopFormValues {
         taxId: shop?.taxId ?? '',
         promptPayId: shop?.promptPayId ?? '',
         logo: shop?.logo ?? '',
-        salesFlowMode: shop?.salesFlowMode ?? 'RETAIL',
     };
 }

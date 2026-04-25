@@ -19,7 +19,6 @@ interface SalesPageProps {
     paymentMethod?: string;
     channel?: string;
     status?: string;
-    salesFlowMode?: string;
   };
 }
 
@@ -40,16 +39,11 @@ export default async function SalesPage({ searchParams }: SalesPageProps) {
     paymentMethod,
     channel,
     status,
-    salesFlowMode: searchParams.salesFlowMode as any,
   });
 
   const { data: sales = [], pagination = { page: 1, limit: 10, total: 0, totalPages: 0, hasNextPage: false, hasPrevPage: false } } = result.data || {};
 
-  const pageTitle = searchParams.salesFlowMode === 'ERP' 
-    ? 'ใบสั่งขาย (Sales Orders)' 
-    : searchParams.salesFlowMode === 'RETAIL' 
-      ? 'ประวัติการขาย (Sales History)' 
-      : 'ขายสินค้า (Orders)';
+  const pageTitle = 'รายการขาย (Sales Orders)';
 
   return (
     <div>

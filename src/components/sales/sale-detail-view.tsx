@@ -117,13 +117,13 @@ export function SaleDetailView({ sale, shop, payments = [] }: SaleDetailViewProp
                     },
                     {
                         id: 'sale',
-                        label: sale.salesFlowMode === 'ERP' ? 'ใบสั่งขาย (SO)' : 'รายการขาย',
+                        label: 'ใบสั่งขาย (SO)',
                         status: 'current'
                     },
                     {
                         id: 'shipment',
                         label: 'จัดส่งสินค้า',
-                        status: activeShipment ? 'completed' : (sale.salesFlowMode === 'RETAIL' ? 'skipped' : 'pending')
+                        status: activeShipment ? 'completed' : 'pending'
                     },
                     {
                         id: 'invoice',
@@ -138,23 +138,20 @@ export function SaleDetailView({ sale, shop, payments = [] }: SaleDetailViewProp
                 ]}
             />
 
-            {/* Workflow Assistant - Premium Guided UX */}
             <WorkflowAssistant
                 type="sale"
                 status={sale.status}
                 steps={[
-                    ...(sale.salesFlowMode === 'ERP' && !activeShipment && sale.status !== 'CANCELLED' ? [{
+                    ...(!activeShipment && sale.status !== 'CANCELLED' ? [{
                         label: 'เตรียมสินค้าเพื่อจัดส่ง',
                         action: 'สร้างใบส่งของ (DO)',
-                        description: 'รายการขายนี้พร้อมสำหรับการจัดส่งแล้ว กรุณาสร้างรายการจัดส่งเพื่อตัดสต็อกจริงและติดตามพัสดุ',
+                        description: 'รายการขายนี้พร้อมสำหรับการจัดส่งแล้ว กรุณาสร้างใบส่งของเพื่อติดตามพัสดุและตัดสต็อก',
                         isPrimary: true,
-                        onClick: () => router.push(`/shipments/create?saleId=${sale.id}`)
+                        onClick: () => router.push(`/deliveries/new?saleId=${sale.id}`)
                     }] : !existingInvoice && sale.status !== 'CANCELLED' ? [{
-                        label: sale.salesFlowMode === 'RETAIL' ? 'บันทึกการขายสมบูรณ์' : 'สินค้าเตรียมส่ง/ส่งแล้ว',
+                        label: 'สินค้าเตรียมส่ง/ส่งแล้ว',
                         action: 'ออกใบแจ้งหนี้',
-                        description: sale.salesFlowMode === 'RETAIL' 
-                            ? 'คุณสามารถออกใบแจ้งหนี้/ใบเสร็จเพื่อสรุปยอดขายนี้ให้สมบูรณ์ได้ทันที'
-                            : 'เมื่อสินค้าพร้อมส่ง คุณควรออกใบแจ้งหนี้ (Invoice) เพื่อบันทึกยอดตั้งหนี้ลูกค้าและลงบัญชี',
+                        description: 'เมื่อสินค้าพร้อมส่ง คุณควรออกใบแจ้งหนี้ (Invoice) เพื่อบันทึกยอดตั้งหนี้ลูกค้าและลงบัญชี',
                         isPrimary: true,
                         onClick: handleCreateInvoice
                     }] : !isFullyPaid && sale.status !== 'CANCELLED' ? [{
@@ -170,15 +167,11 @@ export function SaleDetailView({ sale, shop, payments = [] }: SaleDetailViewProp
                         onClick: () => router.push('/sales')
                     }] : [{
                         label: 'เสร็จสิ้นกระบวนการขาย',
-                        action: sale.salesFlowMode === 'ERP' ? 'ดูรายการจัดส่ง' : 'กลับสู่หน้าสรุป',
+                        action: 'ดูรายการจัดส่ง',
                         description: 'กระบวนการขาย จัดส่ง และรับชำระเงินเสร็จสิ้นสมบูรณ์แล้ว',
                         onClick: () => {
-                            if (sale.salesFlowMode === 'ERP') {
-                                const el = document.getElementById('shipment-section');
-                                el?.scrollIntoView({ behavior: 'smooth' });
-                            } else {
-                                router.push('/sales?salesFlowMode=RETAIL');
-                            }
+                            const el = document.getElementById('shipment-section');
+                            el?.scrollIntoView({ behavior: 'smooth' });
                         }
                     }])
                 ]}
