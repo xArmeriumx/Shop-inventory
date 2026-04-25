@@ -1,12 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useTransition } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatDate } from '@/lib/formatters';
 import { Lock, Unlock, History, Info, AlertTriangle, UserCheck, ShieldAlert } from 'lucide-react';
-import { toast } from 'sonner';
 import { closePeriodAction, reopenPeriodAction } from '@/actions/accounting/accounting.actions';
 import {
     Dialog,
@@ -18,60 +17,51 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
+import { runActionWithToast } from '@/lib/mutation-utils';
 
 interface PeriodListProps {
     periods: any[];
+    onRefresh: () => void;
 }
 
 /**
  * PeriodList — Logic-driven display of fiscal cycles.
- * FOCUS: Reliability, Audit Integrity, and State Clarity.
+ * PATTERN: Uses runActionWithToast for all state transitions.
  */
-export const PeriodList: React.FC<PeriodListProps> = ({ periods }) => {
+export const PeriodList: React.FC<PeriodListProps> = ({ periods, onRefresh }) => {
     const [selectedPeriod, setSelectedPeriod] = useState<any>(null);
     const [reopenReason, setReopenReason] = useState('');
-    const [isActionLoading, setIsActionLoading] = useState(false);
+    const [isPending, startTransition] = useTransition();
 
-    const handleClosePeriod = async (id: string, name: string) => {
-        // Confirmation is also part of logic (Governance confirm)
+    const handleClosePeriod = (id: string, name: string) => {
         if (!confirm(`LOCK PERIOD: ยืนยันการปิดงวดบัญชี ${name}?\nข้อมูลจะกลายเป็น Immutable และไม่สามารถแก้ไขได้จนกว่าจะทำ Re-open Protocol`)) return;
 
-        setIsActionLoading(true);
-        try {
-            const res = await closePeriodAction(id);
-            if (res.success) {
-                toast.success(`งวดบัญชี ${name} ถูกล็อคเรียบร้อยแล้ว`);
-            } else {
-                toast.error(res.message);
-            }
-        } catch (err) {
-            toast.error("Security Service: ปิดงวดไม่สำเร็จ");
-        } finally {
-            setIsActionLoading(false);
-        }
+        startTransition(async () => {
+            await runActionWithToast(closePeriodAction(id), {
+                successMessage: `งวดบัญชี ${name} ถูกล็อคเรียบร้อยแล้ว`,
+                loadingMessage: "กำลังล็อคข้อมูลงวดบัญชี...",
+                onSuccess: () => onRefresh()
+            });
+        });
     };
 
-    const handleReopenPeriod = async () => {
+    const handleReopenPeriod = () => {
         if (!reopenReason.trim() || reopenReason.length < 5) {
-            toast.error('กรุณาระบุเหตุผลในการเปิดงวดอย่างเป็นทางการ (อย่างน้อย 5 ตัวอักษร)');
+            alert('กรุณาระบุเหตุผลในการเปิดงวดอย่างเป็นทางการ (อย่างน้อย 5 ตัวอักษร)');
             return;
         }
 
-        setIsActionLoading(true);
-        try {
-            const res = await reopenPeriodAction({ periodId: selectedPeriod.id, reason: reopenReason });
-            if (res.success) {
-                toast.success(`งวดบัญชี ${selectedPeriod.periodName} ปลดล็อคสำเร็จ (Recorded)`);
-                setSelectedPeriod(null);
-                setReopenReason('');
-            } else {
-                toast.error(res.message);
-            }
-        } catch (err) {
-            toast.error("Security Service: ปลดล็อคไม่สำเร็จ");
-        } finally {
-            setIsActionLoading(false);
-        }
+        startTransition(async () => {
+            await runActionWithToast(reopenPeriodAction({ periodId: selectedPeriod.id, reason: reopenReason }), {
+                successMessage: `งวดบัญชี ${selectedPeriod.periodName} ปลดล็อคสำเร็จ (Recorded)`,
+                loadingMessage: "กำลังปลดล็อคข้อมูลงวดบัญชี...",
+                onSuccess: () => {
+                    setSelectedPeriod(null);
+                    setReopenReason('');
+                    onRefresh();
+                }
+            });
+        });
     };
 
     return (
@@ -131,7 +121,7 @@ export const PeriodList: React.FC<PeriodListProps> = ({ periods }) => {
                                                 variant="destructive"
                                                 className="rounded-full h-12 px-8 font-black gap-2 shadow-xl shadow-rose-500/10"
                                                 onClick={() => handleClosePeriod(period.id, period.periodName)}
-                                                disabled={isActionLoading}
+                                                disabled={isPending}
                                             >
                                                 <ShieldAlert size={18} />
                                                 Lock Period
@@ -141,7 +131,7 @@ export const PeriodList: React.FC<PeriodListProps> = ({ periods }) => {
                                                 variant="outline"
                                                 className="rounded-full h-12 px-8 font-black gap-2 border-2 hover:bg-emerald-50 transition-all"
                                                 onClick={() => setSelectedPeriod(period)}
-                                                disabled={isActionLoading}
+                                                disabled={isPending}
                                             >
                                                 <Unlock size={18} />
                                                 Re-open Protocol
@@ -229,7 +219,7 @@ export const PeriodList: React.FC<PeriodListProps> = ({ periods }) => {
                         <Button
                             className="bg-emerald-600 hover:bg-emerald-700 rounded-full h-12 px-10 font-black shadow-xl shadow-emerald-600/20"
                             onClick={handleReopenPeriod}
-                            disabled={isActionLoading}
+                            disabled={isPending}
                         >
                             ยืนยันการเปิดงวดใหม่
                         </Button>

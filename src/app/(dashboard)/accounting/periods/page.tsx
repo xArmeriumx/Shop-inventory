@@ -1,61 +1,47 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useTransition } from 'react';
 import { PeriodList } from '@/components/accounting/periods/period-list';
-import { getAccountingPeriodsAction } from '@/actions/accounting/accounting.actions';
+import { getAccountingPeriodsAction, initializePeriodsAction } from '@/actions/accounting/accounting.actions';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { RefreshCw, ShieldCheck, Lock, Unlock, ClipboardList, Info } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { runActionWithToast } from '@/lib/mutation-utils';
 
 /**
  * AccountingPeriodsPage — Fiscal Governance Hub (Phase 3).
  * Manages the opening and closing of accounting periods for data integrity.
- * FOCUS: Clean Logic & Direct Auditability.
+ * PATTERN: Uses runActionWithToast for standardized interaction.
  */
 export default function AccountingPeriodsPage() {
     const [periods, setPeriods] = useState<any[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const [isFetching, setIsFetching] = useState(true);
+    const [isPending, startTransition] = useTransition();
 
     const fetchData = useCallback(async () => {
-        setIsLoading(true);
-        try {
-            const res = await getAccountingPeriodsAction();
-            if (res.success) {
-                setPeriods(res.data as any[]);
-            } else {
-                toast.error(res.message);
-            }
-        } catch (error) {
-            toast.error("Failed to connect to accounting service.");
-        } finally {
-            setIsLoading(false);
+        setIsFetching(true);
+        const res = await getAccountingPeriodsAction();
+        if (res.success) {
+            setPeriods(res.data as any[]);
         }
+        setIsFetching(false);
     }, []);
 
     useEffect(() => {
         fetchData();
     }, [fetchData]);
 
-    const [isInitializing, setIsInitializing] = useState(false);
-
-    const handleInitialize = async () => {
-        setIsInitializing(true);
-        try {
-            const { initializePeriodsAction } = await import('@/actions/accounting/accounting.actions');
-            const res = await initializePeriodsAction();
-            if (res.success) {
-                toast.success("ตั้งค่างวดบัญชีเริ่มต้นสำเร็จ");
-                fetchData();
-            } else {
-                toast.error(res.message);
-            }
-        } finally {
-            setIsInitializing(false);
-        }
+    const handleInitialize = () => {
+        startTransition(async () => {
+             await runActionWithToast(initializePeriodsAction(), {
+                 successMessage: "ตั้งค่างวดบัญชีเริ่มต้นสำเร็จ",
+                 loadingMessage: "กำลังสร้างงวดบัญชีพื้นฐาน...",
+                 onSuccess: () => fetchData()
+             });
+        });
     };
 
     const activePeriods = periods.filter(p => p.status === 'OPEN').length;
@@ -78,13 +64,13 @@ export default function AccountingPeriodsPage() {
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
-                    {periods.length === 0 && !isLoading && (
+                    {periods.length === 0 && !isFetching && (
                         <Button 
                             className="bg-emerald-600 hover:bg-emerald-700 rounded-full px-8 h-12 font-black shadow-lg shadow-emerald-600/20"
                             onClick={handleInitialize}
-                            disabled={isInitializing}
+                            disabled={isPending}
                         >
-                            {isInitializing ? <RefreshCw size={16} className="animate-spin mr-2" /> : <ClipboardList size={16} className="mr-2" />}
+                            {isPending ? <RefreshCw size={16} className="animate-spin mr-2" /> : <ClipboardList size={16} className="mr-2" />}
                             เริ่มต้นตั้งค่างวดบัญชี
                         </Button>
                     )}
@@ -92,9 +78,9 @@ export default function AccountingPeriodsPage() {
                         variant="outline" 
                         className="rounded-full px-6 h-12 gap-2 font-black shadow-sm" 
                         onClick={fetchData} 
-                        disabled={isLoading}
+                        disabled={isFetching}
                     >
-                        <RefreshCw size={16} className={cn(isLoading && "animate-spin")} />
+                        <RefreshCw size={16} className={cn(isFetching && "animate-spin")} />
                         Refresh Status
                     </Button>
                 </div>
@@ -103,14 +89,14 @@ export default function AccountingPeriodsPage() {
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
                 {/* 2. Main Diagnostic Column */}
                 <div className="lg:col-span-3 space-y-6">
-                    {isLoading ? (
+                    {isFetching ? (
                         <div className="space-y-4">
                             {[1, 2, 3].map((i) => (
                                 <Skeleton key={i} className="h-32 w-full rounded-[2rem]" />
                             ))}
                         </div>
                     ) : (
-                        <PeriodList periods={periods} />
+                        <PeriodList periods={periods} onRefresh={fetchData} />
                     )}
                 </div>
 
