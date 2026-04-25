@@ -605,7 +605,9 @@ export const SaleService: ISaleService = {
   },
 
   async completeSale(saleId: string, ctx: RequestContext, tx?: Prisma.TransactionClient): Promise<void> {
-    const sale = await db.sale.findFirst({ where: { id: saleId, shopId: ctx.shopId } });
+    // 🛡️ Fix: Use tx if available — avoids requesting a new connection while one is already held
+    const client = tx || db;
+    const sale = await client.sale.findFirst({ where: { id: saleId, shopId: ctx.shopId } });
     if (!sale) throw new ServiceError('ไม่พบรายการขาย');
 
     return AuditService.runWithAudit(
@@ -654,7 +656,8 @@ export const SaleService: ISaleService = {
             console.error('COGS Posting failed:', e);
           }
         });
-      }
+      },
+      tx // 🛡️ Fix: Pass tx so AuditLog.create uses the same connection
     );
   },
 
