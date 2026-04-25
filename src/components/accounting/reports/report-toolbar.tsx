@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Calendar as CalendarIcon, Filter, RefreshCw, Zap, Clock, CalendarDays } from 'lucide-react';
+import { Calendar, Filter, RefreshCw } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { useState, useTransition } from 'react';
 import { cn } from '@/lib/utils';
@@ -13,8 +13,8 @@ interface ReportToolbarProps {
 }
 
 /**
- * ReportToolbar — Unified diagnostic filter for the Analytics Hub (Phase 3).
- * Provides intuitive date-range selections with executive-level aesthetics.
+ * ReportToolbar — Clean, minimalist diagnostic filter.
+ * Simplified UI as per user request, maintaining SSOT logic.
  */
 export function ReportToolbar({ startDate, endDate }: ReportToolbarProps) {
   const router = useRouter();
@@ -43,7 +43,7 @@ export function ReportToolbar({ startDate, endDate }: ReportToolbarProps) {
     let end = new Date();
 
     if (type === 'today') {
-      // Current day
+      // today
     } else if (type === 'last7days') {
       start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 7);
     } else if (type === 'thisMonth') {
@@ -68,75 +68,60 @@ export function ReportToolbar({ startDate, endDate }: ReportToolbarProps) {
   };
 
   return (
-    <div className="bg-muted/30 backdrop-blur-md rounded-[2.5rem] border-2 p-6 print:hidden shadow-xl shadow-black/5 relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
-            <Filter className="h-20 w-20" />
+    <div className="bg-card border rounded-lg p-4 print:hidden flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2 px-3 border-r pr-4">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-semibold">ตัวกรอง</span>
+            </div>
+
+            <div className="flex items-center gap-3">
+                <label className="text-xs font-bold text-muted-foreground uppercase">ตั้งแต่วันที่</label>
+                <Input
+                    type="date"
+                    value={dateRange.start}
+                    onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
+                    className="w-[140px] h-9"
+                />
+            </div>
+
+            <div className="flex items-center gap-3">
+                <label className="text-xs font-bold text-muted-foreground uppercase">ถึงวันที่</label>
+                <Input
+                    type="date"
+                    value={dateRange.end}
+                    onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
+                    className="w-[140px] h-9"
+                />
+            </div>
+
+            <Button 
+                onClick={handleFilter} 
+                disabled={isPending}
+                size="sm"
+                className="gap-2"
+            >
+                {isPending ? <RefreshCw className="h-3 w-3 animate-spin" /> : 'อัปเดตรายงาน'}
+            </Button>
         </div>
-        
-        <div className="relative z-10 flex flex-col xl:flex-row items-center justify-between gap-8">
-            {/* 1. Diagnostic Title */}
-            <div className="flex items-center gap-4 shrink-0">
-                <div className="h-12 w-12 rounded-2xl bg-foreground text-background flex items-center justify-center shadow-lg">
-                    <Clock className="h-6 w-6" />
-                </div>
-                <div>
-                    <h4 className="text-lg font-black tracking-tighter">Time Horizon</h4>
-                    <p className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">Range Diagnostic</p>
-                </div>
-            </div>
 
-            {/* 2. Range Controls */}
-            <div className="flex flex-wrap items-center justify-center gap-4 bg-background/50 p-2 rounded-[2rem] border-2 shadow-inner">
-                <div className="flex items-center px-4 gap-3">
-                    <span className="text-[10px] font-black uppercase text-muted-foreground">From</span>
-                    <Input
-                        type="date"
-                        value={dateRange.start}
-                        onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-                        className="w-[140px] border-none bg-transparent font-black text-sm p-0 h-auto focus-visible:ring-0"
-                    />
-                </div>
-                
-                <div className="h-8 w-px bg-border hidden sm:block" />
-                
-                <div className="flex items-center px-4 gap-3">
-                    <span className="text-[10px] font-black uppercase text-muted-foreground">To</span>
-                    <Input
-                        type="date"
-                        value={dateRange.end}
-                        onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-                        className="w-[140px] border-none bg-transparent font-black text-sm p-0 h-auto focus-visible:ring-0"
-                    />
-                </div>
-
+        <div className="flex items-center gap-1 bg-muted p-1 rounded-md">
+            {[
+                { id: 'today', label: 'วันนี้' },
+                { id: 'last7days', label: '7 วันล่าสุด' },
+                { id: 'thisMonth', label: 'เดือนนี้' },
+                { id: 'lastMonth', label: 'เดือนที่แล้ว' }
+            ].map((preset) => (
                 <Button 
-                    onClick={handleFilter} 
-                    disabled={isPending}
-                    className="rounded-full bg-foreground text-background font-black px-6 h-10 hover:bg-foreground/90 transition-transform active:scale-95 shadow-lg"
+                    key={preset.id}
+                    variant="ghost" 
+                    size="sm" 
+                    className="h-7 text-[11px] font-medium px-3"
+                    onClick={() => setPreset(preset.id as any)}
                 >
-                    {isPending ? <RefreshCw className="h-4 w-4 animate-spin" /> : 'Apply Filter'}
+                    {preset.label}
                 </Button>
-            </div>
-
-            {/* 3. Executive Presets */}
-            <div className="flex items-center gap-2 bg-muted h-12 p-1 rounded-2xl border shadow-inner">
-                {[
-                    { id: 'today', label: 'Today', icon: Zap },
-                    { id: 'last7days', label: '7D', icon: CalendarDays },
-                    { id: 'thisMonth', label: 'M-1', icon: CalendarIcon },
-                    { id: 'lastMonth', label: 'M-2', icon: Clock }
-                ].map((preset) => (
-                    <Button 
-                        key={preset.id}
-                        variant="ghost" 
-                        size="sm" 
-                        className="rounded-xl h-full px-4 text-[10px] font-black uppercase tracking-wider hover:bg-background hover:shadow-sm"
-                        onClick={() => setPreset(preset.id as any)}
-                    >
-                        {preset.label}
-                    </Button>
-                ))}
-            </div>
+            ))}
         </div>
     </div>
   );
