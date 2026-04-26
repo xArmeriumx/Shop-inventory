@@ -68,6 +68,14 @@ ${topProductsStr}
 - - ค่าใช้จ่าย: ฿${monthExpenses.amount.toLocaleString()}
 - **กำไรสุทธิ: ฿${netProfit.toLocaleString()}**
 
+## สถานะการจองสินค้า (Inventory Booking)
+- จำนวนสินค้าที่ติดจองอยู่: ${data.totalReserved.toLocaleString()} ชิ้น
+- สินค้าที่พร้อมขาย = สต็อกจริง - สต็อกที่ติดจอง
+
+## สุขภาพระบบและความปลอดภัย (Governance)
+- จำนวนการพยายามเข้าถึงที่ถูกปฏิเสธวันนี้: ${data.governanceHealth.deniedToday} ครั้ง
+- สถานะความปลอดภัยภาพรวม: ${data.governanceHealth.status}
+
 ## การขายล่าสุด 5 รายการ
 ${recentSalesStr}
 `;

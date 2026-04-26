@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { RequestContext } from '@/types/domain';
+import { AuditService } from '../system/audit.service';
 
 export interface AiShopContextData {
   shopName: string;
@@ -11,6 +12,8 @@ export interface AiShopContextData {
   monthExpenses: { count: number; amount: number };
   monthIncomes: { count: number; amount: number };
   recentSales: { amount: number; items: number; paymentMethod: string; time: string }[];
+  totalReserved: number;
+  governanceHealth: { deniedToday: number; status: string };
 }
 
 export const AiService = {
@@ -27,14 +30,21 @@ export const AiService = {
       stats,
       products,
       finance,
-      recent
+      recent,
+      auditMetrics
     ] = await Promise.all([
       db.shop.findUnique({ where: { id: ctx.shopId }, select: { name: true } }),
       this.getSalesStats(ctx.shopId, startOfToday, startOfMonth),
       this.getProductStats(ctx.shopId, startOfMonth),
       this.getFinancialStats(ctx.shopId, startOfMonth),
       this.getRecentSales(ctx.shopId),
+      AuditService.getSecurityDashboardMetrics(ctx.shopId),
     ]);
+
+    const totalReservedAgg = await db.product.aggregate({
+      where: { shopId: ctx.shopId, deletedAt: null },
+      _sum: { reservedStock: true },
+    });
 
     return {
       shopName: shop?.name || 'ไม่ระบุ',
@@ -42,6 +52,11 @@ export const AiService = {
       ...products,
       ...finance,
       recentSales: recent,
+      totalReserved: Number(totalReservedAgg._sum.reservedStock || 0),
+      governanceHealth: {
+        deniedToday: auditMetrics.metrics.deniedToday,
+        status: auditMetrics.governanceHealth.status,
+      },
     };
   },
 

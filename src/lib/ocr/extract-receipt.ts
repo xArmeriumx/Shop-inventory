@@ -3,7 +3,7 @@
  * Uses Groq AI to extract structured data from OCR text
  */
 
-import { groq } from '../groq';
+import { groq } from '../ai/client';
 import type { ReceiptData, ReceiptItem, PaymentDetail, PaymentMethod } from './types';
 
 // ============================================

@@ -11,7 +11,7 @@
  *   receipt → sale | purchase | invoice | shipment
  */
 
-import { groq } from '@/lib/ai';
+import { groq } from '@/lib/ai/client';
 import { getStrategy, DocumentType, ScanResult } from './strategies';
 
 // ═══════════════════════════════════════

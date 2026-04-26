@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { db } from '@/lib/db';
-import { groq, DEFAULT_MODEL } from '@/lib/ai';
+import { groq, DEFAULT_MODEL } from '@/lib/ai/client';
 import { Security } from '@/services/core/iam/security.service';
 import { getSessionContext } from '@/lib/auth-guard';
 import { whtCodeSchema, WhtCodeFormValues } from '@/schemas/tax/wht-form.schema';

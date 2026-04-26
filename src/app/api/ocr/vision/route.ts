@@ -8,7 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { withAuth } from '@/lib/auth/api-guard';
-import { groq } from '@/lib/ai';
+import { groq } from '@/lib/ai/client';
 import type { ReceiptData } from '@/lib/ocr/types';
 
 // Vision models with fallback order

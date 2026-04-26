@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { TokenUsage } from '@/hooks/use-ai-chat';
-import { AI_CONFIG } from '@/lib/ai';
+import { AI_CONFIG } from '@/lib/ai/config';
 import { Badge } from '@/components/ui/badge';
 import { Cpu, Zap, Activity } from 'lucide-react';
 import { cn } from '@/lib/utils';
