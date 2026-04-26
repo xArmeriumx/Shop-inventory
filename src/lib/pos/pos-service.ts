@@ -1,3 +1,5 @@
+'use server';
+
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/auth-guard';
 import { posCheckout } from '@/actions/sales/pos.actions';

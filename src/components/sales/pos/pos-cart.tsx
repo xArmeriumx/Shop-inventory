@@ -3,12 +3,16 @@
 import { ShoppingCart, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { POSCartItemRow } from './pos-cart-item';
-import type { POSCart, POSCartItem } from '@/lib/pos/types';
+import type { POSCart, POSCartItem, POSCustomer } from '@/lib/pos/types';
 import { formatCurrency } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
+import { POSCustomerSelector } from './pos-customer-selector';
 
 interface POSCartPanelProps {
   cart: POSCart;
+  customers: POSCustomer[];
+  selectedCustomer: POSCustomer | null;
+  onSelectCustomer: (customer: POSCustomer | null) => void;
   onUpdateQuantity: (productId: string, quantity: number) => void;
   onRemoveItem: (productId: string) => void;
   onClearCart: () => void;
@@ -21,6 +25,9 @@ interface POSCartPanelProps {
  */
 export function POSCartPanel({
   cart,
+  customers,
+  selectedCustomer,
+  onSelectCustomer,
   onUpdateQuantity,
   onRemoveItem,
   onClearCart,
@@ -31,6 +38,15 @@ export function POSCartPanel({
 
   return (
     <div className="flex flex-col h-full bg-card border-r">
+      {/* Customer Selector */}
+      <div className="shrink-0 p-4 border-b bg-muted/10">
+        <POSCustomerSelector 
+          customers={customers}
+          selectedCustomer={selectedCustomer}
+          onSelect={onSelectCustomer}
+        />
+      </div>
+
       {/* Cart Header */}
       <div className="shrink-0 p-4 border-b flex items-center justify-between">
         <div className="flex items-center gap-2">

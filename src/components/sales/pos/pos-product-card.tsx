@@ -16,7 +16,8 @@ interface POSProductCardProps {
  * POS Product Card - Touch-friendly product card for grid
  */
 export function POSProductCard({ product, onAdd, disabled }: POSProductCardProps) {
-  const isOutOfStock = product.stock <= 0;
+  const available = product.stock - product.reservedStock;
+  const isOutOfStock = available <= 0;
   const isDisabled = disabled || isOutOfStock;
 
   return (
@@ -25,10 +26,12 @@ export function POSProductCard({ product, onAdd, disabled }: POSProductCardProps
       onClick={() => !isDisabled && onAdd(product)}
       disabled={isDisabled}
       className={cn(
-        'relative flex flex-col rounded-lg border bg-card p-3 text-left transition-all',
-        'hover:border-primary hover:shadow-md active:scale-[0.98]',
+        'relative flex flex-col rounded-lg border bg-card p-2 sm:p-3 text-left transition-all min-h-[140px]',
+        'hover:border-primary hover:shadow-md',
+        'active:scale-[0.97] active:bg-muted/50',
         'focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2',
-        isDisabled && 'opacity-50 cursor-not-allowed hover:border-border hover:shadow-none'
+        'touch-manipulation', // Prevents 300ms delay on touch
+        isDisabled && 'opacity-50 cursor-not-allowed hover:border-border hover:shadow-none active:scale-100'
       )}
     >
       {/* Product Image */}
@@ -73,7 +76,7 @@ export function POSProductCard({ product, onAdd, disabled }: POSProductCardProps
           {formatCurrency(product.salePrice.toString())}
         </span>
         <span className="text-xs text-muted-foreground">
-          คงเหลือ {product.stock}
+          สั่งซื้อได้ {available}
         </span>
       </div>
     </button>

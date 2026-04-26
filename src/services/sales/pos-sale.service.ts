@@ -1,4 +1,4 @@
-'use server'; // ไม่ใช้ใน Service โดยตรง แต่ TS type check ต้องการ context
+
 
 import { db } from '@/lib/db';
 import { Prisma, Permission } from '@prisma/client';

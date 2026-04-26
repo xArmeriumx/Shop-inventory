@@ -49,8 +49,8 @@ export function POSProductGrid({
   return (
     <div className="flex flex-col h-full">
       {/* Category Tabs */}
-      <div className="shrink-0 border-b bg-muted/30 px-4 py-2">
-        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+      <div className="shrink-0 border-b bg-muted/30 px-3 lg:px-4 py-2">
+        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide -mx-1 px-1">
           <CategoryTab
             label="ทั้งหมด"
             isActive={!selectedCategory}
@@ -70,13 +70,13 @@ export function POSProductGrid({
       </div>
 
       {/* Product Grid */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto p-3 lg:p-4">
         {filteredProducts.length === 0 ? (
           <div className="flex items-center justify-center h-full text-muted-foreground">
             ไม่พบสินค้า
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3">
             {filteredProducts.map((product) => (
               <POSProductCard
                 key={product.id}
@@ -106,11 +106,12 @@ function CategoryTab({ label, isActive, onClick, count }: CategoryTabProps) {
       type="button"
       onClick={onClick}
       className={cn(
-        'shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-colors',
+        'shrink-0 px-4 py-2.5 rounded-full text-sm font-medium transition-colors min-h-[44px]',
         'focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2',
+        'touch-manipulation active:scale-[0.97]',
         isActive
           ? 'bg-primary text-primary-foreground'
-          : 'bg-background border hover:bg-muted'
+          : 'bg-background border hover:bg-muted active:bg-muted/80'
       )}
     >
       {label}

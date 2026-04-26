@@ -2,30 +2,47 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ScanBarcode, Search } from 'lucide-react';
+import { ScanBarcode, Search, ShoppingCart, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { POSHeader } from './pos-header';
 import { POSProductGrid } from './pos-product-grid';
 import { POSCartPanel } from './pos-cart';
 import { POSPaymentDialog } from './pos-payment-dialog';
-import { createPOSSale, getProductBySKU } from '@/lib/pos/pos-service';
-import type { POSProduct, POSCategory, POSCart, POSCartItem } from '@/lib/pos/types';
+import { POSSuccessDialog } from './pos-success-dialog';
+import { createPOSSale, getProductBySKU, getProductsForPOS, getPOSCustomers } from '@/lib/pos/pos-service';
+import type { POSProduct, POSCategory, POSCart, POSCartItem, POSCustomer } from '@/lib/pos/types';
+import { cn } from '@/lib/utils';
+import { formatCurrency } from '@/lib/formatters';
+import { money, calcSubtotal, calcProfit } from '@/lib/money';
 
 interface POSInterfaceProps {
   initialProducts: POSProduct[];
   categories: POSCategory[];
+  promptPayId?: string;
 }
 
 /**
  * POS Interface - Main POS component with state management
  * Coordinates all POS sub-components
  */
-export function POSInterface({ initialProducts, categories }: POSInterfaceProps) {
+export function POSInterface({ initialProducts, categories, promptPayId }: POSInterfaceProps) {
   const router = useRouter();
   const scanInputRef = useRef<HTMLInputElement>(null);
 
+  // Detect touch device (iPad/tablet) - don't auto-focus on touch devices to prevent keyboard popup
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
+  
+  useEffect(() => {
+    // Check if device has touch capability
+    const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    setIsTouchDevice(hasTouch);
+  }, []);
+
   // State
-  const [products] = useState<POSProduct[]>(initialProducts);
+  const [products, setProducts] = useState<POSProduct[]>(initialProducts);
+  const [customers, setCustomers] = useState<POSCustomer[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<POSCustomer | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [scanInput, setScanInput] = useState('');
@@ -38,24 +55,70 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
   });
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isSuccessOpen, setIsSuccessOpen] = useState(false);
+  const [successInvoiceNumber, setSuccessInvoiceNumber] = useState<string>('');
+  const [successSaleId, setSuccessSaleId] = useState<string>('');
+  const [successAmountReceived, setSuccessAmountReceived] = useState<number | undefined>(undefined);
+  const [successChange, setSuccessChange] = useState<number | undefined>(undefined);
 
-  // Focus scan input on mount and after actions
+  // Focus scan input on mount - only for non-touch devices (desktop with barcode scanner)
   useEffect(() => {
-    scanInputRef.current?.focus();
+    if (!isTouchDevice) {
+      scanInputRef.current?.focus();
+    }
+  }, [isTouchDevice]);
+
+  // Auto-refresh stock every 3 seconds for multi-terminal sync
+  useEffect(() => {
+    const refreshInterval = setInterval(async () => {
+      // Skip refresh if tab is not active (user switched to another tab/app)
+      if (!document.hasFocus()) return;
+      
+      // Skip refresh if payment dialog is open (don't interrupt user)
+      if (isPaymentOpen || isProcessing) return;
+
+      try {
+        const response = await getProductsForPOS();
+        if (response.success && response.data) {
+          setProducts(response.data);
+        }
+      } catch (error) {
+        console.error('Stock refresh error:', error);
+        // Silently fail - don't interrupt POS operation
+      }
+    }, 3000); // 3 seconds - fast enough for real-time feel
+
+    return () => clearInterval(refreshInterval);
+    return () => clearInterval(refreshInterval);
+  }, [isPaymentOpen, isProcessing]);
+
+  // Fetch customers on mount
+  useEffect(() => {
+    const fetchCustomers = async () => {
+      try {
+        const response = await getPOSCustomers();
+        if (response.success && response.data) {
+          setCustomers(response.data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch customers:', error);
+      }
+    };
+    fetchCustomers();
   }, []);
 
   // ==================== Cart Operations ====================
 
   const recalculateCart = useCallback((items: POSCartItem[]): POSCart => {
-    const totalAmount = items.reduce((sum, item) => sum + item.subtotal, 0);
-    const totalCost = items.reduce((sum, item) => sum + (item.product.costPrice * item.quantity), 0);
+    const totalAmount = items.reduce((sum, item) => money.add(sum, item.subtotal), 0);
+    const totalCost = items.reduce((sum, item) => money.add(sum, calcSubtotal(item.quantity, item.product.costPrice)), 0);
     const itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
     return {
       items,
       totalAmount,
       totalCost,
-      profit: totalAmount - totalCost,
+      profit: calcProfit(totalAmount, totalCost),
       itemCount,
     };
   }, []);
@@ -69,12 +132,13 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
       if (existingIndex >= 0) {
         // Increment existing
         newItems = prev.items.map((item, idx) => {
-          if (idx === existingIndex && item.quantity < product.stock) {
+          const available = product.stock - product.reservedStock;
+          if (idx === existingIndex && item.quantity < available) {
             const newQty = item.quantity + 1;
             return {
               ...item,
               quantity: newQty,
-              subtotal: newQty * item.salePrice,
+              subtotal: calcSubtotal(newQty, item.salePrice),
             };
           }
           return item;
@@ -94,9 +158,11 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
       return recalculateCart(newItems);
     });
 
-    // Refocus scan input
-    scanInputRef.current?.focus();
-  }, [recalculateCart]);
+    // Refocus scan input (only on desktop - touch devices use tap)
+    if (!isTouchDevice) {
+      scanInputRef.current?.focus();
+    }
+  }, [recalculateCart, isTouchDevice]);
 
   const updateQuantity = useCallback((productId: string, quantity: number) => {
     setCart((prev) => {
@@ -105,7 +171,7 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
           return {
             ...item,
             quantity,
-            subtotal: quantity * item.salePrice,
+            subtotal: calcSubtotal(quantity, item.salePrice),
           };
         }
         return item;
@@ -119,8 +185,10 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
       const newItems = prev.items.filter((item) => item.productId !== productId);
       return recalculateCart(newItems);
     });
-    scanInputRef.current?.focus();
-  }, [recalculateCart]);
+    if (!isTouchDevice) {
+      scanInputRef.current?.focus();
+    }
+  }, [recalculateCart, isTouchDevice]);
 
   const clearCart = useCallback(() => {
     setCart({
@@ -130,8 +198,10 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
       profit: 0,
       itemCount: 0,
     });
-    scanInputRef.current?.focus();
-  }, []);
+    if (!isTouchDevice) {
+      scanInputRef.current?.focus();
+    }
+  }, [isTouchDevice]);
 
   // ==================== Barcode Scanning ====================
 
@@ -155,7 +225,7 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
           setScanInput('');
         } else {
           // Show error - could use toast in production
-          alert(`ไม่พบสินค้า SKU: ${sku}`);
+          alert(response.message || `ไม่พบสินค้า SKU: ${sku}`);
         }
       }
     }
@@ -169,28 +239,50 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
     }
   }, [cart.items.length]);
 
-  const handlePaymentConfirm = useCallback(async (paymentMethod: string) => {
+  const handlePaymentConfirm = useCallback(async (paymentMethod: string, amountReceived?: number, change?: number, receiptUrl?: string) => {
     setIsProcessing(true);
 
     try {
       const response = await createPOSSale({
-        paymentMethod: paymentMethod === 'CREDIT' ? 'CREDIT_CARD' : paymentMethod,
+        customerId: selectedCustomer?.id.startsWith('temp-') ? undefined : selectedCustomer?.id,
+        customerName: selectedCustomer ? selectedCustomer.name : undefined,
+        paymentMethod: paymentMethod === 'CREDIT' ? 'CREDIT_CARD' : (paymentMethod as any),
+        receiptUrl: receiptUrl || null,
         items: cart.items.map((item) => ({
           productId: item.productId,
           quantity: item.quantity,
           salePrice: item.salePrice,
         })),
       });
-      
-      if (response.success) {
+
+      if (response.success && response.data) {
+        // Optimistic Update: Immediately update local stock
+        setProducts((prevProducts) =>
+          prevProducts.map((product) => {
+            const soldItem = cart.items.find((item) => item.productId === product.id);
+            if (soldItem) {
+              return {
+                ...product,
+                stock: Math.max(0, product.stock - soldItem.quantity),
+                reservedStock: Math.max(0, product.reservedStock + soldItem.quantity),
+              };
+            }
+            return product;
+          })
+        );
+
         // Success! Clear cart and close dialog
         clearCart();
         setIsPaymentOpen(false);
         
-        // Show success message
-        alert(`บันทึกการขายสำเร็จ!\nเลขที่: ${response.data.sale.invoiceNumber}`);
+        // Show success dialog
+        setSuccessInvoiceNumber(response.data.sale.invoiceNumber || '');
+        setSuccessSaleId(response.data.sale.id || '');
+        setSuccessAmountReceived(amountReceived);
+        setSuccessChange(change);
+        setIsSuccessOpen(true);
         
-        // Refresh to update stock
+        // Refresh to update stock (backup sync from server)
         router.refresh();
       } else {
         alert(response.message || 'เกิดข้อผิดพลาด');
@@ -201,7 +293,10 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
     } finally {
       setIsProcessing(false);
     }
-  }, [cart.items, clearCart, router]);
+  }, [cart.items, clearCart, router, selectedCustomer]);
+
+  // Mobile cart sheet state
+  const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
 
   // ==================== Render ====================
 
@@ -212,8 +307,8 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
 
       {/* Main Content */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left: Cart Panel */}
-        <div className="w-[380px] shrink-0">
+        {/* Left: Cart Panel - Hidden on mobile */}
+        <div className="hidden lg:block w-[380px] shrink-0">
           <div className="h-full flex flex-col">
             {/* Barcode Scanner Input */}
             <div className="p-4 border-b bg-card">
@@ -236,6 +331,9 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
             <div className="flex-1">
               <POSCartPanel
                 cart={cart}
+                customers={customers}
+                selectedCustomer={selectedCustomer}
+                onSelectCustomer={setSelectedCustomer}
                 onUpdateQuantity={updateQuantity}
                 onRemoveItem={removeItem}
                 onClearCart={clearCart}
@@ -246,24 +344,24 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
           </div>
         </div>
 
-        {/* Right: Product Grid */}
+        {/* Right: Product Grid - Full width on mobile */}
         <div className="flex-1 flex flex-col bg-muted/20">
           {/* Search Bar */}
-          <div className="shrink-0 p-4 bg-card border-b">
-            <div className="relative max-w-md">
+          <div className="shrink-0 p-3 lg:p-4 bg-card border-b">
+            <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 type="text"
                 placeholder="ค้นหาสินค้า..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
+                className="pl-9 h-11"
               />
             </div>
           </div>
 
           {/* Product Grid */}
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 overflow-hidden pb-20 lg:pb-0">
             <POSProductGrid
               products={products}
               categories={categories}
@@ -276,6 +374,79 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
         </div>
       </div>
 
+      {/* Mobile: Floating Cart Button */}
+      {cart.itemCount > 0 && (
+        <div className="lg:hidden fixed bottom-4 left-4 right-4 z-40">
+          <Button 
+            size="lg"
+            className="w-full h-14 text-lg shadow-lg"
+            onClick={() => setIsMobileCartOpen(true)}
+          >
+            <ShoppingCart className="h-5 w-5 mr-2" />
+            <span>ตะกร้า ({cart.itemCount})</span>
+            <span className="ml-auto font-bold">
+              {formatCurrency(cart.totalAmount.toString())}
+            </span>
+          </Button>
+        </div>
+      )}
+
+      {/* Mobile: Cart Sheet (Slide-up) */}
+      {isMobileCartOpen && (
+        <div className="lg:hidden fixed inset-0 z-50">
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/50" 
+            onClick={() => setIsMobileCartOpen(false)}
+          />
+          
+          {/* Sheet */}
+          <div className="absolute bottom-0 left-0 right-0 max-h-[85vh] bg-card rounded-t-2xl shadow-2xl flex flex-col animate-in slide-in-from-bottom duration-300">
+            {/* Handle + Header */}
+            <div className="shrink-0 p-4 border-b bg-muted/30 rounded-t-2xl">
+              <div className="w-12 h-1.5 bg-muted-foreground/30 rounded-full mx-auto mb-3" />
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ShoppingCart className="h-5 w-5" />
+                  <span className="font-semibold">ตะกร้าสินค้า</span>
+                  <span className="bg-primary text-primary-foreground text-xs font-medium px-2 py-0.5 rounded-full">
+                    {cart.itemCount}
+                  </span>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="icon"
+                  onClick={() => setIsMobileCartOpen(false)}
+                >
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
+            </div>
+            
+            {/* Cart Content */}
+            <div className="flex-1 overflow-hidden">
+              <POSCartPanel
+                cart={cart}
+                customers={customers}
+                selectedCustomer={selectedCustomer}
+                onSelectCustomer={setSelectedCustomer}
+                onUpdateQuantity={updateQuantity}
+                onRemoveItem={removeItem}
+                onClearCart={() => {
+                  clearCart();
+                  setIsMobileCartOpen(false);
+                }}
+                onCheckout={() => {
+                  setIsMobileCartOpen(false);
+                  handleCheckout();
+                }}
+                isProcessing={isProcessing}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Payment Dialog */}
       <POSPaymentDialog
         isOpen={isPaymentOpen}
@@ -283,6 +454,17 @@ export function POSInterface({ initialProducts, categories }: POSInterfaceProps)
         cart={cart}
         onConfirm={handlePaymentConfirm}
         isProcessing={isProcessing}
+        promptPayId={promptPayId}
+      />
+
+      {/* Success Dialog */}
+      <POSSuccessDialog
+        isOpen={isSuccessOpen}
+        onClose={() => setIsSuccessOpen(false)}
+        invoiceNumber={successInvoiceNumber}
+        saleId={successSaleId}
+        amountReceived={successAmountReceived}
+        change={successChange}
       />
     </div>
   );
