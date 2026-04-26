@@ -1,3 +1,4 @@
+'use client';
 import { format } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 import { th } from 'date-fns/locale';
@@ -29,7 +30,7 @@ interface PurchaseDetailViewProps {
  * Extracted from purchases/[id]/page.tsx to keep the page file thin.
  */
 export function PurchaseDetailView({ purchase, shop }: PurchaseDetailViewProps) {
-    const zonedDate = toZonedTime(purchase.date, 'Asia/Bangkok');
+    const zonedDate = purchase?.date ? toZonedTime(purchase.date, 'Asia/Bangkok') : new Date();
 
     return (
         <div className="space-y-6">
@@ -43,7 +44,7 @@ export function PurchaseDetailView({ purchase, shop }: PurchaseDetailViewProps) 
                     <PdfPrintTrigger
                         type="PURCHASE"
                         documentData={buildPurchasePrintDTO(purchase, shop)}
-                        fileName={`PO-${purchase.invoiceNumber || purchase.id.slice(0, 8)}.pdf`}
+                        fileName={`PO-${purchase.purchaseNumber || purchase.id.slice(0, 8)}.pdf`}
                         label="พิมพ์ใบสั่งซื้อ (PDF)"
                         size="sm"
                     />
@@ -76,7 +77,7 @@ export function PurchaseDetailView({ purchase, shop }: PurchaseDetailViewProps) 
                     {
                         id: 'payment',
                         label: 'จ่ายเงิน',
-                        status: purchase.residualAmount <= 0 ? 'completed' : 'pending'
+                        status: Number(purchase.residualAmount || 0) <= 0 ? 'completed' : 'pending'
                     }
                 ]}
             />
@@ -100,7 +101,7 @@ export function PurchaseDetailView({ purchase, shop }: PurchaseDetailViewProps) 
                         ...(purchase.status === 'RECEIVED' && purchase.residualAmount > 0 ? [{
                             label: 'ขั้นตอนถัดไป: ชำระเงินเจ้าหนี้',
                             action: 'บันทึกจ่ายเงิน',
-                            description: `ได้รับสินค้าแล้ว แต่ยังมียอดค้างชำระ ${formatCurrency(purchase.residualAmount)} กรุณาบันทึกการจ่ายเงินเพื่อปิดยอด`,
+                            description: `ได้รับสินค้าแล้ว แต่ยังมียอดค้างชำระ ${formatCurrency(Number(purchase.residualAmount || 0))} กรุณาบันทึกการจ่ายเงินเพื่อปิดยอด`,
                             isPrimary: true,
                             onClick: () => {
                                 window.location.href = `/accounting/payments/new?partnerId=${purchase.supplierId}&purchaseId=${purchase.id}`;
@@ -181,7 +182,7 @@ export function PurchaseDetailView({ purchase, shop }: PurchaseDetailViewProps) 
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {purchase.items.map((item: any, index: number) => (
+                                    {(purchase.items || []).map((item: any, index: number) => (
                                         <tr key={item.id} className="border-b last:border-0 hover:bg-muted/50">
                                             <td className="p-3">{index + 1}</td>
                                             <td className="p-3">
@@ -209,7 +210,7 @@ export function PurchaseDetailView({ purchase, shop }: PurchaseDetailViewProps) 
                         <div className="w-64">
                             <div className="flex justify-between text-sm">
                                 <span className="text-muted-foreground">ยอดรวมทั้งหมด</span>
-                                <span className="font-bold text-lg">{formatCurrency(Number(purchase.totalCost))}</span>
+                                <span className="font-bold text-lg">{formatCurrency(Number(purchase.totalCost || 0))}</span>
                             </div>
                         </div>
                     </div>

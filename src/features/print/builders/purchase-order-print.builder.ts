@@ -48,16 +48,16 @@ export interface PurchasePrintDTO {
  */
 export function buildPurchasePrintDTO(purchase: any, shop: any): PurchasePrintDTO {
     const financials = {
-        subtotal: Number(purchase.totalAmount || 0),
-        discount: Number(purchase.discountAmount || 0),
-        tax: Number(purchase.taxAmount || 0),
-        net: Number(purchase.netAmount || 0),
-        netText: bahtText(Number(purchase.netAmount || 0)),
+        subtotal: Number(purchase.totalCost || 0),
+        discount: 0, // Purchase doesn't have these fields yet
+        tax: 0,
+        net: Number(purchase.totalCost || 0),
+        netText: bahtText(Number(purchase.totalCost || 0)),
     };
 
     return {
-        docNumber: purchase.invoiceNumber, // Purchase uses invoiceNumber for the ref
-        docDate: purchase.date instanceof Date ? purchase.date.toISOString() : purchase.date,
+        docNumber: purchase.purchaseNumber || purchase.id.slice(0, 8),
+        docDate: purchase.date ? (purchase.date instanceof Date ? purchase.date.toISOString() : purchase.date) : new Date().toISOString(),
 
         requester: {
             name: shop?.name || 'ร้านค้า',
@@ -78,7 +78,7 @@ export function buildPurchasePrintDTO(purchase: any, shop: any): PurchasePrintDT
             name: item.product?.name || 'ไม่ระบุสินค้า',
             quantity: Number(item.quantity || 0),
             uom: 'Unit', // Legacy Purchase might not have UOM snapshot yet
-            unitPrice: Number(item.unitPrice || 0),
+            unitPrice: Number(item.costPrice || 0),
             subtotal: Number(item.subtotal || 0),
         })),
 
