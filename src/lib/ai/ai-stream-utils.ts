@@ -34,5 +34,12 @@ export const AiStreamUtils = {
      */
     formatContentChunk(content: string) {
         return { content };
+    },
+
+    /**
+     * Helper to format usage chunk for the stream
+     */
+    formatUsageChunk(usage: { promptTokens: number; completionTokens: number; totalTokens: number }) {
+        return { usage };
     }
 };

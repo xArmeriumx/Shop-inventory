@@ -4,7 +4,7 @@ import { getShopContextForAI } from '@/actions/core/ai.actions';
 import { getToolDefinitions, executeTool } from '@/lib/ai/tools';
 import { withAuth } from '@/lib/auth/api-guard';
 import { AiStreamUtils } from '@/lib/ai/ai-stream-utils';
-import { DEFAULT_MODEL, SHOP_AI_SYSTEM_PROMPT, detectToolFromMessage } from '@/lib/ai';
+import { AI_CONFIG, SHOP_AI_SYSTEM_PROMPT, detectToolFromMessage } from '@/lib/ai';
 
 export const POST = withAuth(async (request: NextRequest, session: any) => {
   try {
@@ -36,15 +36,15 @@ export const POST = withAuth(async (request: NextRequest, session: any) => {
 
     // Call Groq API
     const response = await groq.chat.completions.create({
-      model: DEFAULT_MODEL,
+      model: AI_CONFIG.models.default,
       messages: [
         { role: 'system', content: `${SHOP_AI_SYSTEM_PROMPT}\n\n--- ข้อมูลร้านปัจจุบัน ---\n${shopContext}` },
         ...messages
       ],
       tools: getToolDefinitions(),
       tool_choice: 'auto',
-      temperature: 0.3,
-      max_tokens: 1024,
+      temperature: AI_CONFIG.generation.temperature,
+      max_tokens: AI_CONFIG.generation.maxTokens,
       stream: true,
     });
 
@@ -57,6 +57,17 @@ export const POST = withAuth(async (request: NextRequest, session: any) => {
         try {
           for await (const chunk of response) {
             const delta = chunk.choices[0]?.delta;
+
+            // Handle usage (sent when include_usage: true)
+            const usage = (chunk as any).usage;
+            if (usage) {
+              controller.enqueue(encodeChunk(AiStreamUtils.formatUsageChunk({
+                promptTokens: usage.prompt_tokens,
+                completionTokens: usage.completion_tokens,
+                totalTokens: usage.total_tokens,
+              })));
+            }
+
             if (delta?.content) {
               textContent += delta.content;
               controller.enqueue(encodeChunk(AiStreamUtils.formatContentChunk(delta.content)));

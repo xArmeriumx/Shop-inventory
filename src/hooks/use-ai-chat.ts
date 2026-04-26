@@ -14,6 +14,12 @@ export interface ConfirmationData {
     params: Record<string, any>;
 }
 
+export interface TokenUsage {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+}
+
 export function useAIChat() {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState('');
@@ -21,10 +27,10 @@ export function useAIChat() {
     const [streamingContent, setStreamingContent] = useState('');
     const [confirmation, setConfirmation] = useState<ConfirmationData | null>(null);
     const [isConfirming, setIsConfirming] = useState(false);
+    const [tokenUsage, setTokenUsage] = useState<TokenUsage | null>(null);
 
     const scrollAreaRef = useRef<HTMLDivElement>(null);
-
-    // Auto-scroll logic
+    // ... scrollToBottom logic existing
     const scrollToBottom = useCallback(() => {
         if (scrollAreaRef.current) {
             scrollAreaRef.current.scrollTo({
@@ -70,7 +76,6 @@ export function useAIChat() {
     const sendMessage = async (content: string) => {
         if (!content.trim() || isLoading) return;
 
-        // Remove emoji icons from suggested questions
         const cleanContent = content.replace(/^[📊🏆⚠️📈💰📦➕💡]\s*/, '');
 
         const userMessage: ChatMessage = { role: 'user', content: cleanContent };
@@ -79,6 +84,7 @@ export function useAIChat() {
         setIsLoading(true);
         setStreamingContent('');
         setConfirmation(null);
+        setTokenUsage(null);
 
         try {
             const response = await fetch('/api/ai/chat', {
@@ -124,6 +130,10 @@ export function useAIChat() {
                                     setStreamingContent(fullContent);
                                 }
 
+                                if (parsed.usage) {
+                                    setTokenUsage(parsed.usage);
+                                }
+
                                 if (parsed.toolResult) {
                                     hasToolResult = true;
                                     if (parsed.toolResult.requireConfirmation) {
@@ -161,6 +171,7 @@ export function useAIChat() {
         streamingContent,
         confirmation,
         isConfirming,
+        tokenUsage,
         scrollAreaRef,
         sendMessage,
         handleConfirm,
