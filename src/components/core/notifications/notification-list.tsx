@@ -5,10 +5,11 @@ import {
     Info,
     AlertTriangle,
     AlertCircle,
-    CheckCircle2,
     ChevronRight,
     BellOff,
-    Check
+    Check,
+    Clock,
+    Circle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -43,14 +44,22 @@ export function NotificationList({ initialNotifications }: NotificationListProps
 
     if (notifications.length === 0) {
         return (
-            <div className="flex flex-col items-center justify-center py-20 bg-muted/20 rounded-xl border border-dashed text-center">
-                <div className="bg-muted p-4 rounded-full mb-4">
-                    <BellOff className="h-8 w-8 text-muted-foreground" />
+            <div className="flex flex-col items-center justify-center py-24 text-center space-y-4 px-6 animate-in fade-in zoom-in-95 duration-500">
+                <div className="relative">
+                    <div className="absolute -inset-4 bg-primary/5 rounded-full blur-xl" />
+                    <div className="relative bg-background p-5 rounded-full border shadow-sm">
+                        <BellOff className="h-10 w-10 text-muted-foreground/40" />
+                    </div>
                 </div>
-                <h3 className="text-lg font-semibold">ไม่มีการแจ้งเตือน</h3>
-                <p className="text-muted-foreground max-w-xs mx-auto mt-1">
-                    ยินดีด้วย! ระบบของคุณปกติดีและไม่มีงานค้างที่ต้องดำเนินการในขณะนี้
-                </p>
+                <div className="space-y-2 max-w-[280px]">
+                    <h3 className="text-xl font-bold tracking-tight">ไม่มีการแจ้งเตือน</h3>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                        ยินดีด้วย! ระบบของคุณปกติดีและไม่มีงานค้างที่ต้องดำเนินการในขณะนี้
+                    </p>
+                </div>
+                <Button variant="outline" className="rounded-xl border-2 font-bold px-6">
+                    ตรวจสอบประวัติเก่า
+                </Button>
             </div>
         );
     }
@@ -58,91 +67,138 @@ export function NotificationList({ initialNotifications }: NotificationListProps
     const unreadCount = notifications.filter(n => !n.isRead).length;
 
     return (
-        <div className="space-y-4">
-            <div className="flex items-center justify-between px-2">
-                <p className="text-sm text-muted-foreground">
-                    แสดงการแจ้งเตือนและประวัติการทำงาน {notifications.length} รายการ
-                    {unreadCount > 0 && (
-                        <span className="ml-2 font-bold text-red-500">
-                            (ยังไม่ได้อ่าน {unreadCount})
+        <div className="divide-y divide-border/50">
+            {unreadCount > 0 && (
+                <div className="px-6 py-4 bg-muted/20 flex items-center justify-between border-b">
+                    <div className="flex items-center gap-2">
+                        <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
                         </span>
-                    )}
-                </p>
-            </div>
+                        <span className="text-xs font-bold uppercase tracking-widest text-primary">
+                            ยังไม่ได้อ่าน {unreadCount} รายการ
+                        </span>
+                    </div>
+                </div>
+            )}
 
-            <div className="grid gap-3">
-                {notifications.map((notification) => (
-                    <div
-                        key={notification.id}
-                        className={cn(
-                            "relative group flex items-start gap-4 p-4 rounded-xl border transition-all duration-200",
-                            notification.isRead
-                                ? "bg-background border-border"
-                                : "bg-primary/5 border-primary/20 shadow-sm"
-                        )}
-                    >
-                        {/* Severity Indicator */}
-                        <div className={cn(
-                            "mt-1 p-2 rounded-lg shrink-0",
-                            notification.severity === 'CRITICAL' ? "bg-red-100 text-red-600" :
-                                notification.severity === 'WARNING' ? "bg-amber-100 text-amber-600" :
-                                    "bg-blue-100 text-blue-600"
-                        )}>
-                            {notification.severity === 'CRITICAL' ? <AlertCircle className="w-5 h-5" /> :
-                                notification.severity === 'WARNING' ? <AlertTriangle className="w-5 h-5" /> :
-                                    <Info className="w-5 h-5" />}
-                        </div>
+            <div className="flex flex-col">
+                {notifications.map((notification, index) => {
+                    const severityConfig = {
+                        CRITICAL: {
+                            icon: AlertCircle,
+                            color: "text-rose-500",
+                            bg: "bg-rose-500/10",
+                            border: "border-rose-500/20",
+                            glow: "group-hover:bg-rose-500/5"
+                        },
+                        WARNING: {
+                            icon: AlertTriangle,
+                            color: "text-amber-500",
+                            bg: "bg-amber-500/10",
+                            border: "border-amber-500/20",
+                            glow: "group-hover:bg-amber-500/5"
+                        },
+                        INFO: {
+                            icon: Info,
+                            color: "text-indigo-500",
+                            bg: "bg-indigo-500/10",
+                            border: "border-indigo-500/20",
+                            glow: "group-hover:bg-indigo-500/5"
+                        }
+                    }[notification.severity as 'CRITICAL' | 'WARNING' | 'INFO'] || {
+                        icon: Info,
+                        color: "text-slate-500",
+                        bg: "bg-slate-500/10",
+                        border: "border-slate-500/20",
+                        glow: "group-hover:bg-slate-500/5"
+                    };
 
-                        {/* Content */}
-                        <div className="flex-1 min-w-0 pr-8">
-                            <div className="flex items-center gap-2 mb-1">
-                                <h4 className={cn(
-                                    "font-bold text-sm",
-                                    !notification.isRead && "text-primary"
+                    const Icon = severityConfig.icon;
+
+                    return (
+                        <div
+                            key={notification.id}
+                            style={{ animationDelay: `${index * 50}ms` }}
+                            className={cn(
+                                "group relative flex flex-col md:flex-row gap-4 p-5 transition-all duration-300 animate-in fade-in slide-in-from-left-4",
+                                !notification.isRead && "bg-primary/[0.02]",
+                                severityConfig.glow
+                            )}
+                        >
+                            {/* Unread dot - Mobile floating, Desktop fixed */}
+                            {!notification.isRead && (
+                                <div className="absolute top-6 left-2 md:left-4">
+                                    <Circle className="h-2 w-2 fill-primary text-primary" />
+                                </div>
+                            )}
+
+                            {/* Main Content Area */}
+                            <div className="flex items-start gap-4 flex-1">
+                                {/* Icon container */}
+                                <div className={cn(
+                                    "mt-0.5 p-3 rounded-2xl border shrink-0 transition-transform group-hover:scale-110",
+                                    severityConfig.bg,
+                                    severityConfig.border,
+                                    severityConfig.color
                                 )}>
-                                    {notification.title}
-                                </h4>
+                                    <Icon className="w-5 h-5" />
+                                </div>
+
+                                <div className="flex-1 space-y-1.5 min-w-0">
+                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+                                        <h4 className={cn(
+                                            "text-sm font-bold tracking-tight",
+                                            !notification.isRead ? "text-foreground" : "text-muted-foreground"
+                                        )}>
+                                            {notification.title}
+                                        </h4>
+                                        <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-medium">
+                                            <Clock className="w-3 h-3" />
+                                            <ClientDate date={notification.createdAt} />
+                                        </div>
+                                    </div>
+                                    
+                                    <p className={cn(
+                                        "text-xs leading-relaxed max-w-2xl",
+                                        !notification.isRead ? "text-muted-foreground" : "text-muted-foreground/60"
+                                    )}>
+                                        {notification.message}
+                                    </p>
+
+                                    <div className="pt-1">
+                                        <Badge variant="secondary" className="text-[10px] font-bold px-2 py-0 h-5 bg-muted/50 text-muted-foreground border-none">
+                                            {notification.type.replace('_', ' ').toUpperCase()}
+                                        </Badge>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Actions Area */}
+                            <div className="flex items-center gap-2 self-end md:self-center pl-14 md:pl-0">
+                                {notification.link && (
+                                    <Button asChild variant="outline" size="sm" className="h-9 rounded-xl border-2 px-4 font-bold text-xs gap-2 hover:bg-primary hover:text-primary-foreground transition-all">
+                                        <Link href={notification.link}>
+                                            ดูรายละเอียด
+                                            <ChevronRight className="h-3 w-3" />
+                                        </Link>
+                                    </Button>
+                                )}
                                 {!notification.isRead && (
-                                    <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                                    <Button
+                                        onClick={() => handleMarkAsRead(notification.id)}
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-9 w-9 rounded-xl text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                                        title="ทำเครื่องหมายว่าอ่านแล้ว"
+                                    >
+                                        <Check className="h-5 w-5" />
+                                    </Button>
                                 )}
                             </div>
-                            <p className="text-xs text-muted-foreground leading-relaxed mb-3">
-                                {notification.message}
-                            </p>
-
-                            <div className="flex items-center gap-4 text-[10px] text-muted-foreground">
-                                <div className="flex items-center gap-1">
-                                    <ClientDate date={notification.createdAt} />
-                                </div>
-                                <Badge variant="outline" className="text-[9px] uppercase tracking-wider h-4">
-                                    {notification.type.replace('_', ' ')}
-                                </Badge>
-                            </div>
                         </div>
-
-                        {/* Actions */}
-                        <div className="absolute top-4 right-4 flex items-center gap-2">
-                            {notification.link && (
-                                <Button asChild variant="ghost" size="icon" className="h-8 w-8 rounded-full">
-                                    <Link href={notification.link}>
-                                        <ChevronRight className="h-4 w-4" />
-                                    </Link>
-                                </Button>
-                            )}
-                            {!notification.isRead && (
-                                <Button
-                                    onClick={() => handleMarkAsRead(notification.id)}
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 rounded-full text-muted-foreground hover:text-emerald-600 hover:bg-emerald-50"
-                                    title="ทำเครื่องหมายว่าอ่านแล้ว"
-                                >
-                                    <Check className="h-4 w-4" />
-                                </Button>
-                            )}
-                        </div>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
         </div>
     );

@@ -1,13 +1,14 @@
 import { getNotifications, markAllNotificationsAsRead } from '@/actions/core/notifications.actions';
 import { NotificationList } from '@/components/core/notifications/notification-list';
 import { Button } from '@/components/ui/button';
-import { CheckCircle2, BellRing, Settings, ShieldAlert } from 'lucide-react';
+import { CheckCircle2, Bell, Settings, Info, Filter } from 'lucide-react';
 import { revalidatePath } from 'next/cache';
+import { Separator } from '@/components/ui/separator';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
-    title: 'ศูนย์แจ้งเตือน (Notifications) | Shop Inventory ERP',
-    description: 'จัดการคำสั่งการและสถานะการทำงานของระบบ',
+    title: 'การแจ้งเตือน (Notifications) | Shop Inventory ERP',
+    description: 'ศูนย์รวมการแจ้งเตือนและสถานะการทำงานของระบบ',
 };
 
 export default async function NotificationsPage() {
@@ -21,77 +22,94 @@ export default async function NotificationsPage() {
     }
 
     return (
-        <div className="space-y-10 pb-12">
-            {/* Command Center Style Header */}
-            <div className="relative group overflow-hidden rounded-[3rem] border-2 border-primary/20 bg-primary/5 p-10 shadow-2xl shadow-primary/5">
-                <div className="absolute -top-24 -right-24 w-64 h-64 bg-primary/10 rounded-full blur-3xl" />
-                
-                <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-8">
-                    <div className="flex items-center gap-6">
-                        <div className="h-20 w-20 rounded-[2rem] bg-foreground text-background flex items-center justify-center shadow-2xl">
-                            <BellRing className="h-10 w-10 animate-bounce" />
+        <div className="container mx-auto max-w-6xl py-6 md:py-10 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+            {/* Header Section */}
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 px-2">
+                <div className="space-y-1">
+                    <div className="flex items-center gap-2 text-primary">
+                        <div className="p-2 bg-primary/10 rounded-lg">
+                            <Bell className="h-5 w-5" />
                         </div>
-                        <div className="space-y-1 text-center md:text-left">
-                            <h1 className="text-4xl font-black tracking-tighter">Notification Center</h1>
-                            <p className="text-muted-foreground font-medium max-w-lg">
-                                ติดตามความเคลื่อนไหว สุขภาพระบบ และงานค้างดำเนินต่างของธุรกิจในระดับวินาที
-                            </p>
-                        </div>
+                        <span className="text-xs font-bold uppercase tracking-wider">System Center</span>
                     </div>
+                    <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight">การแจ้งเตือน</h1>
+                    <p className="text-muted-foreground text-sm font-medium">
+                        ติดตามความเคลื่อนไหวและสถานะความเรียบร้อยของทุกแผนกในร้านค้าของคุณ
+                    </p>
+                </div>
 
-                    <div className="flex items-center gap-3">
-                        <form action={handleMarkAllRead}>
-                            <Button variant="default" className="rounded-2xl h-12 px-8 font-black bg-foreground text-background hover:bg-foreground/90 shadow-xl transition-transform active:scale-95">
-                                <CheckCircle2 className="mr-2 h-5 w-5" />
-                                มาร์คอ่านแล้วทั้งหมด
-                            </Button>
-                        </form>
-                    </div>
+                <div className="flex items-center gap-2">
+                    <form action={handleMarkAllRead}>
+                        <Button 
+                            variant="outline" 
+                            className="bg-background/50 backdrop-blur-sm border-2 rounded-xl hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 transition-all font-bold px-5"
+                        >
+                            <CheckCircle2 className="mr-2 h-4 w-4" />
+                            อ่านแล้วทั้งหมด
+                        </Button>
+                    </form>
+                    <Button variant="ghost" size="icon" className="rounded-xl border h-10 w-10">
+                        <Settings className="h-4 w-4" />
+                    </Button>
                 </div>
             </div>
 
-            <div className="grid gap-8 lg:grid-cols-12">
-                {/* Main Notification Stream */}
-                <div className="lg:col-span-8">
-                    <div className="bg-background rounded-[2.5rem] border-2 shadow-2xl overflow-hidden min-h-[600px] relative">
-                         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-primary via-blue-500 to-primary" />
-                         <div className="p-1 sm:p-4 lg:p-8">
+            <Separator className="bg-border/50" />
+
+            <div className="grid gap-8 lg:grid-cols-12 px-2">
+                {/* Main Notification Feed */}
+                <div className="lg:col-span-8 space-y-4">
+                    <div className="flex items-center justify-between mb-2">
+                        <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                            <Filter className="w-3 h-3" />
+                            รายการล่าสุด
+                        </h2>
+                    </div>
+                    
+                    <div className="bg-card rounded-2xl border shadow-sm overflow-hidden">
+                        <div className="p-1 md:p-2">
                             <NotificationList initialNotifications={notifications as any} />
-                         </div>
+                        </div>
                     </div>
                 </div>
 
-                {/* Side Insights (Governance Context) */}
+                {/* Sidebar Context */}
                 <div className="lg:col-span-4 space-y-6">
-                    <div className="bg-muted/30 rounded-[2rem] border-2 border-dashed p-8 space-y-6">
-                        <div className="space-y-2">
-                             <div className="flex items-center gap-2 text-primary">
-                                <ShieldAlert className="h-5 w-5" />
-                                <span className="text-sm font-black uppercase tracking-widest">System Rule 12</span>
-                             </div>
-                             <h3 className="text-xl font-black italic">Attention Required</h3>
-                             <p className="text-sm text-balance text-muted-foreground font-medium leading-relaxed">
-                                การแจ้งเตือนเหล่านี้สะท้อนถึงความสมบูรณ์ของระบบ การดำเนินการใดๆ จะถูกบันทึกใน Audit Trail เพื่อใช้ในกระบวนการตรวจสอบย้อนกลับ (Traceability)
-                             </p>
+                    <div className="bg-gradient-to-br from-indigo-500/5 to-purple-500/5 rounded-2xl border-2 border-dashed p-6 space-y-6">
+                        <div className="space-y-4">
+                            <div className="p-3 bg-white dark:bg-slate-900 rounded-xl shadow-sm border w-fit">
+                                <Info className="h-5 w-5 text-indigo-500" />
+                            </div>
+                            <div className="space-y-2">
+                                <h3 className="text-lg font-bold">เกี่ยวกับศูนย์แจ้งเตือน</h3>
+                                <p className="text-sm text-muted-foreground leading-relaxed">
+                                    ระบบจะแจ้งเตือนเมื่อพบเหตุการณ์สำคัญ เช่น สต็อกสินค้าต่ำ, การอนุมัติเอกสารค้างชำระ, หรือเหตุการณ์ด้านความปลอดภัย
+                                </p>
+                            </div>
                         </div>
 
-                        <div className="pt-6 border-t font-black">
-                            <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-4">Notification Frequency</p>
-                            <div className="space-y-4">
-                                <div className="flex justify-between items-center text-sm">
-                                    <span className="text-muted-foreground">System Alerts</span>
-                                    <span className="px-2 py-0.5 bg-red-100 text-red-600 rounded-lg">High</span>
+                        <div className="space-y-3 pt-4 border-t border-dashed">
+                            <h4 className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground">ระดับความสำคัญ</h4>
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between text-xs font-medium p-2 rounded-lg bg-background/50 border">
+                                    <span className="flex items-center gap-2">
+                                        <div className="w-2 h-2 rounded-full bg-rose-500" />
+                                        เร่งด่วน (Critical)
+                                    </span>
+                                    <span className="text-muted-foreground">ต้องจัดการทันที</span>
                                 </div>
-                                <div className="flex justify-between items-center text-sm">
-                                    <span className="text-muted-foreground">Workflow Ops</span>
-                                    <span className="px-2 py-0.5 bg-blue-100 text-blue-600 rounded-lg">Medium</span>
+                                <div className="flex items-center justify-between text-xs font-medium p-2 rounded-lg bg-background/50 border">
+                                    <span className="flex items-center gap-2">
+                                        <div className="w-2 h-2 rounded-full bg-amber-500" />
+                                        เฝ้าระวัง (Warning)
+                                    </span>
+                                    <span className="text-muted-foreground">ควรตรวจสอบ</span>
                                 </div>
                             </div>
                         </div>
-                        
-                        <Button variant="outline" className="w-full rounded-2xl border-2 h-12 font-black gap-2">
-                            <Settings className="h-4 w-4" />
-                            Alert Settings
+
+                        <Button variant="ghost" className="w-full text-xs font-bold text-muted-foreground hover:text-primary transition-colors py-6">
+                            ดูประวัติ Audit Trail ทั้งหมด
                         </Button>
                     </div>
                 </div>
