@@ -1,30 +1,28 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useTransition } from 'react';
 import { getStaleDocuments } from '@/actions/inventory/ops.actions';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Clock, ArrowRight, AlertTriangle, FileText, CheckCircle2 } from 'lucide-react';
-import { toast } from 'sonner';
+import { runActionWithToast } from '@/lib/mutation-utils';
 import { formatCurrency, formatDate } from '@/lib/formatters';
 import Link from 'next/link';
 
 export function StaleDocumentsTool() {
   const [data, setData] = useState<{ sales: any[], purchases: any[] }>({ sales: [], purchases: [] });
-  const [loading, setLoading] = useState(true);
+  const [isPending, startTransition] = useTransition();
 
   const loadData = async () => {
-    setLoading(true);
-    try {
-      const result = await getStaleDocuments();
-      setData(result.success && result.data ? result.data : { sales: [], purchases: [] });
-    } catch (error) {
-      console.error('Failed to load stale documents', error);
-      toast.error('ไม่สามารถโหลดข้อมูลเอกสารค้างได้');
-    } finally {
-      setLoading(false);
-    }
+    startTransition(async () => {
+      await runActionWithToast(getStaleDocuments(), {
+        showSuccessToast: false,
+        onSuccess: (result) => {
+          setData(result || { sales: [], purchases: [] });
+        },
+      });
+    });
   };
 
   useEffect(() => {
@@ -33,7 +31,7 @@ export function StaleDocumentsTool() {
 
   const totalStale = data.sales.length + data.purchases.length;
 
-  if (loading) {
+  if (isPending && data.sales.length === 0 && data.purchases.length === 0) {
     return (
       <div className="flex justify-center items-center p-12 text-muted-foreground">
         กำลังตรวจสอบเอกสารตกค้าง...

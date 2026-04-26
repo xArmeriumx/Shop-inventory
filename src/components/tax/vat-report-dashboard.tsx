@@ -29,7 +29,7 @@ import {
     ArrowDownRight
 } from 'lucide-react';
 import { getVatReport } from '@/actions/tax/tax.actions';
-import { toast } from 'sonner';
+import { runActionWithToast } from '@/lib/mutation-utils';
 import { formatCurrency } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -41,12 +41,12 @@ export function VatReportDashboard() {
 
     const fetchReport = useCallback(() => {
         startTransition(async () => {
-            const res = await getVatReport(month, year);
-            if (res.success) {
-                setReport(res.data);
-            } else {
-                toast.error(res.message);
-            }
+            await runActionWithToast(getVatReport(month, year), {
+                successMessage: '', // suppress success toast for data fetching
+                onSuccess: (data) => {
+                    setReport(data);
+                }
+            });
         });
     }, [month, year]);
 

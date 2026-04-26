@@ -1,6 +1,6 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidateTag } from 'next/cache';
 import { requirePermission } from '@/lib/auth-guard';
 import { incomeSchema, type IncomeInput } from '@/schemas/accounting/income.schema';
 import { FinanceService } from '@/services';
@@ -31,10 +31,13 @@ export async function createIncome(input: IncomeInput): Promise<ActionResponse<a
     return PerformanceCollector.run(async () => {
       const ctx = await requirePermission('FINANCE_CONFIG' as any);
       const validated = incomeSchema.parse(input);
-      const income = await FinanceService.createIncome(validated, ctx);
-      revalidatePath('/incomes');
-      revalidatePath('/dashboard');
-      return income;
+      const result = await FinanceService.createIncome(validated, ctx);
+      
+      if (result.affectedTags) {
+        result.affectedTags.forEach(tag => revalidateTag(tag));
+      }
+
+      return result.data;
     }, 'accounting:createIncome');
   }, { context: { action: 'createIncome' } });
 }
@@ -44,10 +47,13 @@ export async function updateIncome(id: string, input: IncomeInput): Promise<Acti
     return PerformanceCollector.run(async () => {
       const ctx = await requirePermission('FINANCE_CONFIG' as any);
       const validated = incomeSchema.parse(input);
-      const income = await FinanceService.updateIncome(id, validated, ctx);
-      revalidatePath('/incomes');
-      revalidatePath(`/incomes/${id}`);
-      return income;
+      const result = await FinanceService.updateIncome(id, validated, ctx);
+      
+      if (result.affectedTags) {
+        result.affectedTags.forEach(tag => revalidateTag(tag));
+      }
+
+      return result.data;
     }, 'accounting:updateIncome');
   }, { context: { action: 'updateIncome' } });
 }
@@ -56,9 +62,12 @@ export async function deleteIncome(id: string): Promise<ActionResponse<null>> {
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
       const ctx = await requirePermission('FINANCE_CONFIG');
-      await FinanceService.deleteIncome(id, ctx);
-      revalidatePath('/incomes');
-      revalidatePath('/dashboard');
+      const result = await FinanceService.deleteIncome(id, ctx);
+      
+      if (result.affectedTags) {
+        result.affectedTags.forEach(tag => revalidateTag(tag));
+      }
+
       return null;
     }, 'accounting:deleteIncome');
   }, { context: { action: 'deleteIncome', id } });

@@ -20,7 +20,7 @@ import { PaymentModal } from '@/components/accounting/finance/payment-modal';
 import { FinancialTimeline } from '@/components/accounting/finance/financial-timeline';
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { toast } from 'sonner';
+import { runActionWithToast } from '@/lib/mutation-utils';
 import { createInvoiceFromSale } from '@/actions/sales/invoices.actions';
 import { PdfPrintTrigger } from '@/features/print/components/pdf-print-trigger';
 import { buildSalePrintDTO } from '@/features/print/builders/sale-print.builder';
@@ -58,13 +58,12 @@ export function SaleDetailView({ sale, shop, payments = [] }: SaleDetailViewProp
 
     const handleCreateInvoice = () => {
         startTransition(async () => {
-            const res = await createInvoiceFromSale(sale.id);
-            if (res.success) {
-                toast.success(res.message);
-                router.push(`/invoices/${(res.data as any).id}`);
-            } else {
-                toast.error(res.message);
-            }
+            await runActionWithToast(createInvoiceFromSale(sale.id), {
+                successMessage: 'สร้างใบแจ้งหนี้เรียบร้อยแล้ว',
+                onSuccess: (res) => {
+                    router.push(`/invoices/${(res as any).id}`);
+                },
+            });
         });
     };
 

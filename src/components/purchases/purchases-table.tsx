@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -17,7 +17,7 @@ import { getPurchaseStatusLabel } from '@/lib/erp-utils';
 import { cancelPurchase, convertToPurchaseOrder } from '@/actions/purchases/purchases.actions';
 import { usePermissions } from '@/hooks/use-permissions';
 import { Package, Edit, Trash2, ShoppingCart } from 'lucide-react';
-import { toast } from 'sonner';
+import { runActionWithToast } from '@/lib/mutation-utils';
 import type { ErrorAction } from '@/types/domain';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -64,42 +64,39 @@ export function PurchasesTable({ purchases, pagination }: PurchasesTableProps) {
   const { hasPermission } = usePermissions();
 
   const [cancelDialogPurchase, setCancelDialogPurchase] = useState<Purchase | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [isPending, startTransition] = useTransition();
   const [errorInfo, setErrorInfo] = useState<{ message: string; action?: ErrorAction } | null>(null);
 
-  const handleConvertToPO = async (id: string, number: string) => {
+  const handleConvertToPO = (id: string, number: string) => {
     if (!confirm(`ต้องการแปลงใบขอซื้อ ${number} เป็นใบสั่งซื้อ (PO) ใช่หรือไม่?`)) return;
-    setIsProcessing(true);
-    try {
-      const result = await convertToPurchaseOrder(id);
-      if (result.success) {
-        toast.success(result.message);
-        setErrorInfo(null);
-        router.refresh();
-      } else {
-        setErrorInfo({ message: result.message || 'ไม่สามารถแปลงเอกสารได้', action: result.action });
-        toast.error(result.message || 'ไม่สามารถแปลงเอกสารได้');
-      }
-    } catch {
-      toast.error('เกิดข้อผิดพลาดในการแปลงเอกสาร');
-    } finally {
-      setIsProcessing(false);
-    }
+    
+    startTransition(async () => {
+      await runActionWithToast(convertToPurchaseOrder(id), {
+        onSuccess: () => {
+          setErrorInfo(null);
+          router.refresh();
+        },
+        onError: (result) => {
+          setErrorInfo({ 
+            message: result.message || 'ไม่สามารถแปลงเอกสารได้', 
+            action: result.action 
+          });
+        },
+      });
+    });
   };
 
   const handleCancelConfirm = async (reasonCode: string, reasonDetail?: string) => {
     if (!cancelDialogPurchase) return;
-    setIsProcessing(true);
-    try {
-      const result = await cancelPurchase({ id: cancelDialogPurchase.id, reasonCode, reasonDetail });
-      if (!result.success) toast.error(result.message || 'ไม่สามารถยกเลิกรายการได้');
-      else { toast.success(result.message || 'ยกเลิกรายการสำเร็จ'); setCancelDialogPurchase(null); }
-      router.refresh();
-    } catch {
-      toast.error('เกิดข้อผิดพลาด');
-    } finally {
-      setIsProcessing(false);
-    }
+    
+    startTransition(async () => {
+      await runActionWithToast(cancelPurchase({ id: cancelDialogPurchase.id, reasonCode, reasonDetail }), {
+        onSuccess: () => {
+          setCancelDialogPurchase(null);
+          router.refresh();
+        },
+      });
+    });
   };
 
   if (purchases.length === 0) {
@@ -199,7 +196,7 @@ export function PurchasesTable({ purchases, pagination }: PurchasesTableProps) {
         title="ยกเลิกรายการซื้อ"
         description="ยกเลิกรายการซื้อนี้"
         stockChangePreview="สต็อกจะถูกหักออกตามจำนวนที่ซื้อ"
-        isLoading={isProcessing}
+        isLoading={isPending}
         reasons={PURCHASE_VOID_REASONS}
       />
     </div>

@@ -34,21 +34,19 @@ export function WhtLedger({ initialData, shop }: WhtLedgerProps) {
     const [month, setMonth] = useState(new Date().getMonth() + 1);
     const [year, setYear] = useState(new Date().getFullYear());
     const [entries, setEntries] = useState(initialData?.data || []);
-    const [loading, setLoading] = useState(false);
     const [isPending, startTransition] = useTransition();
 
-    const fetchEntries = useCallback(async () => {
-        setLoading(true);
-        try {
-            const result = await getWhtEntriesAction({ year, month });
-            if (result.success && result.data) {
-                setEntries((result.data as any).data);
-            }
-        } catch (error) {
-            toast.error('ไม่สามารถดึงข้อมูลได้');
-        } finally {
-            setLoading(false);
-        }
+    const fetchEntries = useCallback(() => {
+        startTransition(async () => {
+            await runActionWithToast(getWhtEntriesAction({ year, month }), {
+                successMessage: '', // suppress for fetch
+                onSuccess: (result) => {
+                    if (result && (result as any).data) {
+                        setEntries((result as any).data);
+                    }
+                }
+            });
+        });
     }, [year, month]);
 
     useEffect(() => {
@@ -96,7 +94,7 @@ export function WhtLedger({ initialData, shop }: WhtLedgerProps) {
                         </SelectContent>
                     </Select>
                 </div>
-                {loading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+                {isPending && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
             </div>
 
             {/* Table */}

@@ -7,8 +7,9 @@ import { AuditService } from '@/services/core/system/audit.service';
 import { requirePermission } from '@/lib/auth-guard';
 import { logger } from '@/lib/logger';
 import { handleAction, type ActionResponse } from '@/lib/action-handler';
-import { revalidatePath } from 'next/cache';
+import { revalidateTag } from 'next/cache';
 import { Permission } from '@prisma/client';
+import { TAX_TAGS } from '@/config/cache-tags';
 import {
     taxCodeSchema,
     updateTaxCodeSchema
@@ -23,12 +24,10 @@ import {
 export async function registerPurchaseTax(purchaseId: string): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         const ctx = await requirePermission(Permission.TAX_REPORT_POST);
-        const doc = await PurchaseTaxService.registerFromPurchase(purchaseId, ctx);
+        const result = await PurchaseTaxService.registerFromPurchase(purchaseId, ctx);
 
-        revalidatePath(`/purchases/${purchaseId}`);
-        revalidatePath('/tax/purchase-tax');
-
-        return doc;
+        revalidateTag(TAX_TAGS.PURCHASE_TAX.LIST);
+        return result.data;
     }, { context: { action: 'registerPurchaseTax', purchaseId } });
 }
 
@@ -46,8 +45,8 @@ export async function postPurchaseTax(docId: string, input: any): Promise<Action
         // 2. Perform Mutation
         const result = await PurchaseTaxService.post(docId, input, ctx);
 
-        // 3. After Snapshot (From result or re-fetch)
-        const after = await PurchaseTaxService.getById(docId, ctx);
+        // 3. After Snapshot
+        const after = result.data;
 
         // 4. Record Deep Audit
         AuditService.record({
@@ -61,10 +60,10 @@ export async function postPurchaseTax(docId: string, input: any): Promise<Action
             shopId: ctx.shopId
         }).catch(err => logger.error('[Audit] PURCHASE_TAX_POST log failed', err));
 
-        revalidatePath(`/tax/purchase-tax/${docId}`);
-        revalidatePath('/tax/purchase-tax');
+        revalidateTag(TAX_TAGS.PURCHASE_TAX.LIST);
+        revalidateTag(TAX_TAGS.PURCHASE_TAX.DETAIL(docId));
 
-        return null;
+        return result.data;
     }, { context: { action: 'postPurchaseTax', docId } });
 }
 
@@ -80,10 +79,10 @@ export async function voidPurchaseTax(docId: string): Promise<ActionResponse<nul
         if (!before) throw new Error('ไม่พบเอกสารภาษีซื้อที่ต้องการยกเลิก');
 
         // 2. Perform Mutation
-        await PurchaseTaxService.void(docId, ctx);
+        const result = await PurchaseTaxService.void(docId, ctx);
 
         // 3. After Snapshot
-        const after = await PurchaseTaxService.getById(docId, ctx);
+        const after = result.data;
 
         // 4. Record Deep Audit
         AuditService.record({
@@ -97,10 +96,10 @@ export async function voidPurchaseTax(docId: string): Promise<ActionResponse<nul
             shopId: ctx.shopId
         }).catch(err => logger.error('[Audit] PURCHASE_TAX_VOID log failed', err));
 
-        revalidatePath(`/tax/purchase-tax/${docId}`);
-        revalidatePath('/tax/purchase-tax');
+        revalidateTag(TAX_TAGS.PURCHASE_TAX.LIST);
+        revalidateTag(TAX_TAGS.PURCHASE_TAX.DETAIL(docId));
 
-        return null;
+        return result.data;
     }, { context: { action: 'voidPurchaseTax', docId } });
 }
 
@@ -137,7 +136,7 @@ export async function upsertCompanyTaxProfile(input: any): Promise<ActionRespons
     return handleAction(async () => {
         const ctx = await requirePermission(Permission.TAX_REPORT_POST);
         const validated = upsertCompanyTaxProfileSchema.parse(input);
-        const profile = await TaxSettingsService.upsertCompanyTaxProfile(validated, ctx);
+        const result = await TaxSettingsService.upsertCompanyTaxProfile(validated, ctx);
 
         // Audit (Non-blocking)
         AuditService.record({
@@ -145,13 +144,13 @@ export async function upsertCompanyTaxProfile(input: any): Promise<ActionRespons
             targetType: 'CompanyTaxProfile',
             targetId: ctx.shopId,
             note: 'Updated company tax profile',
-            after: profile,
+            after: result.data,
             actorId: ctx.userId,
             shopId: ctx.shopId
         }).catch(err => logger.error('[Audit] UPDATE_COMPANY_TAX_PROFILE log failed', err));
 
-        revalidatePath('/settings/tax');
-        return profile;
+        revalidateTag(TAX_TAGS.SETTINGS);
+        return result.data;
     }, { context: { action: 'upsertCompanyTaxProfile' } });
 }
 
@@ -166,21 +165,21 @@ export async function createTaxCode(input: any): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         const ctx = await requirePermission(Permission.TAX_REPORT_POST);
         const validated = taxCodeSchema.parse(input);
-        const code = await TaxSettingsService.createTaxCode(validated, ctx);
+        const result = await TaxSettingsService.createTaxCode(validated, ctx);
         
         // Audit logging (Non-blocking)
         AuditService.record({
             action: 'CREATE_TAX_CODE',
             targetType: 'TaxCode',
-            targetId: code.code,
-            note: `Created tax code: ${code.name}`,
-            after: code,
+            targetId: result.data.code,
+            note: `Created tax code: ${result.data.name}`,
+            after: result.data,
             actorId: ctx.userId,
             shopId: ctx.shopId
         }).catch(err => logger.error('[Audit] CREATE_TAX_CODE log failed', err));
 
-        revalidatePath('/settings/tax');
-        return code;
+        revalidateTag(TAX_TAGS.SETTINGS);
+        return result.data;
     }, { context: { action: 'createTaxCode' } });
 }
 
@@ -195,7 +194,7 @@ export async function updateTaxCode(code: string, input: any): Promise<ActionRes
         }
         
         const validated = updateTaxCodeSchema.parse(input);
-        const updated = await TaxSettingsService.updateTaxCode(code, validated, ctx);
+        const result = await TaxSettingsService.updateTaxCode(code, validated, ctx);
         
         // Audit logging (Non-blocking)
         AuditService.record({
@@ -204,13 +203,13 @@ export async function updateTaxCode(code: string, input: any): Promise<ActionRes
             targetId: code,
             note: `Updated tax code: ${code}`,
             before: before,
-            after: updated,
+            after: result.data,
             actorId: ctx.userId,
             shopId: ctx.shopId
         }).catch(err => logger.error('[Audit] UPDATE_TAX_CODE log failed', err));
 
-        revalidatePath('/settings/tax');
-        return updated;
+        revalidateTag(TAX_TAGS.SETTINGS);
+        return result.data;
     }, { context: { action: 'updateTaxCode', code } });
 }
 
@@ -221,7 +220,7 @@ export async function toggleTaxCode(code: string, isActive: boolean): Promise<Ac
         // Snapshot for audit
         const before = await TaxSettingsService.getTaxCodeByCode(code, ctx);
         
-        await TaxSettingsService.toggleTaxCode(code, isActive, ctx);
+        const result = await TaxSettingsService.toggleTaxCode(code, isActive, ctx);
         
         // Audit
         AuditService.record({
@@ -235,8 +234,8 @@ export async function toggleTaxCode(code: string, isActive: boolean): Promise<Ac
             shopId: ctx.shopId
         }).catch(err => logger.error('[Audit] TOGGLE_TAX_CODE log failed', err));
 
-        revalidatePath('/settings/tax');
-        return null;
+        revalidateTag(TAX_TAGS.SETTINGS);
+        return result.data;
     }, { context: { action: 'toggleTaxCode', code, isActive } });
 }
 

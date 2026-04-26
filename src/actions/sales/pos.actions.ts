@@ -1,6 +1,6 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidateTag } from 'next/cache';
 import { requirePermission } from '@/lib/auth-guard';
 import { handleAction } from '@/lib/action-handler';
 import { PerformanceCollector } from '@/lib/debug/measurement';
@@ -18,16 +18,15 @@ import { POSSaleService, type POSCartInput } from '@/services/sales/pos-sale.ser
 export async function posCheckout(cart: POSCartInput): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
-            const ctx = await requirePermission('POS_ACCESS');
+            const ctx = await requirePermission('POS_ACCESS' as any);
             const result = await POSSaleService.checkout(ctx, cart);
 
-            // Revalidate: POS ส่งผลต่อ Sales, Invoices, Inventory ทั้งหมด
-            revalidatePath('/sales');
-            revalidatePath('/invoices');
-            revalidatePath('/products');
-            revalidatePath('/dashboard');
+            // Revalidate using tags from MutationResult
+            if (result.affectedTags) {
+                result.affectedTags.forEach(tag => revalidateTag(tag));
+            }
 
-            return result;
+            return result.data;
         }, 'pos:checkout');
     }, { context: { action: 'posCheckout' } });
 }

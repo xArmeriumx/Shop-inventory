@@ -1,15 +1,15 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useTransition } from 'react';
 import { getAuditLogs } from '@/actions/core/audit.actions';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
-import { History, ChevronDown, ChevronRight, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import { History, ChevronDown, ChevronRight, CheckCircle2, XCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
+import { runActionWithToast } from '@/lib/mutation-utils';
 import { AuditDiffViewer } from '@/components/ui/audit-diff-viewer';
 import { LocalPagination } from '@/components/ui/local-pagination';
 
@@ -19,32 +19,28 @@ interface ProductAuditTabProps {
 
 export function ProductAuditTab({ productId }: ProductAuditTabProps) {
   const [logs, setLogs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [isPending, startTransition] = useTransition();
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  const fetchLogs = useCallback(async () => {
-    setLoading(true);
-    try {
-      const result = await getAuditLogs({
+  const fetchLogs = useCallback(() => {
+    startTransition(async () => {
+      await runActionWithToast(getAuditLogs({
         page,
         limit: 10,
         targetType: 'Product',
         targetId: productId,
+      }), {
+        successMessage: '', // suppress for fetch
+        onSuccess: (result) => {
+          if (result) {
+            setLogs(result.data);
+            setTotalPages(result.totalPages);
+          }
+        }
       });
-
-      if (result.success) {
-        setLogs(result.data.data);
-        setTotalPages(result.data.totalPages);
-      } else {
-        toast.error(result.message);
-      }
-    } catch (error) {
-      toast.error('ไม่สามารถโหลดประวัติการแก้ไขได้');
-    } finally {
-      setLoading(false);
-    }
+    });
   }, [productId, page]);
 
   useEffect(() => {
@@ -58,7 +54,7 @@ export function ProductAuditTab({ productId }: ProductAuditTabProps) {
     setExpandedRows(newSet);
   };
 
-  if (loading && logs.length === 0) {
+  if (isPending && logs.length === 0) {
     return <div className="space-y-4 animate-pulse">
       <div className="h-40 bg-muted rounded-md" />
       <div className="h-40 bg-muted rounded-md" />

@@ -3,7 +3,7 @@
 import { useTransition } from 'react';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { toast } from 'sonner';
+import { runActionWithToast, mapActionErrorsToForm } from '@/lib/mutation-utils';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,17 +37,14 @@ function ProfileSettings({ initialData }: { initialData: { name: string | null, 
 
   const onSubmit = (data: ProfileFormValues) => {
     startTransition(async () => {
-      const result = await updateProfile(data);
-      if (result.success) {
-        toast.success('บันทึกข้อมูลเรียบร้อยแล้ว');
-      } else {
-        if (result.errors && typeof result.errors === 'object') {
-          Object.entries(result.errors).forEach(([field, messages]) => {
-            methods.setError(field as any, { message: (messages as string[])[0] });
-          });
-        }
-        toast.error(result.message || 'เกิดข้อผิดพลาด');
-      }
+      await runActionWithToast(updateProfile(data), {
+        successMessage: 'บันทึกข้อมูลเรียบร้อยแล้ว',
+        onError: (result) => {
+          if (result.errors) {
+            mapActionErrorsToForm(methods, result.errors);
+          }
+        },
+      });
     });
   };
 
@@ -113,17 +110,15 @@ function ShopSettings({ shopData }: { shopData: any }) {
         promptPayId: data.promptPayId ?? undefined,
         logo: data.logo ?? undefined,
       };
-      const result = await updateShop(sanitizedData);
-      if (result.success) {
-        toast.success('บันทึกข้อมูลเรียบร้อยแล้ว');
-      } else {
-        if (result.errors && typeof result.errors === 'object') {
-          Object.entries(result.errors).forEach(([field, messages]) => {
-            methods.setError(field as any, { message: (messages as string[])[0] });
-          });
-        }
-        toast.error(result.message || 'เกิดข้อผิดพลาด');
-      }
+
+      await runActionWithToast(updateShop(sanitizedData), {
+        successMessage: 'บันทึกข้อมูลเรียบร้อยแล้ว',
+        onError: (result) => {
+          if (result.errors) {
+            mapActionErrorsToForm(methods, result.errors);
+          }
+        },
+      });
     });
   };
 
@@ -216,13 +211,12 @@ export function SettingsForm({ initialData, shopData, productCategories, expense
   const handleRevokeAllSessions = () => {
     if (confirm('คุณแน่ใจหรือไม่ว่าต้องการออกจากระบบในทุกอุปกรณ์? (รวมถึงอุปกรณ์นี้ด้วย)')) {
       startRevokeTransition(async () => {
-        const result = await revokeAllMySessions();
-        if (result?.success) {
-          toast.success(result.message || 'ออกจากระบบทุกอุปกรณ์เรียบร้อยแล้ว');
-          window.location.reload();
-        } else {
-          toast.error(result?.message || 'เกิดข้อผิดพลาด');
-        }
+        await runActionWithToast(revokeAllMySessions(), {
+          successMessage: 'ออกจากระบบทุกอุปกรณ์เรียบร้อยแล้ว',
+          onSuccess: () => {
+            window.location.reload();
+          },
+        });
       });
     }
   };

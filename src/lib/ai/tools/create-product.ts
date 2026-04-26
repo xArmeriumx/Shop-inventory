@@ -66,7 +66,7 @@ export const createProductTool: AITool = {
       const timestamp = Date.now().toString(36).toUpperCase();
       const sku = `PRD-${timestamp}`;
 
-      const product = await ProductService.create(context as any, {
+      const result = await ProductService.create(context as any, {
         name,
         sku,
         salePrice: price,
@@ -76,6 +76,14 @@ export const createProductTool: AITool = {
         minStock: 5,
         isActive: true,
       });
+
+      const product = result.data;
+
+      // Handle revalidation for AI actions too
+      if (result.affectedTags && typeof window === 'undefined') {
+        const { revalidateTag } = await import('next/cache');
+        result.affectedTags.forEach(tag => revalidateTag(tag));
+      }
 
       return {
         success: true,

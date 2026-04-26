@@ -1,7 +1,7 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
-import { requirePermission, hasPermission, requireAuth, requireShop } from '@/lib/auth-guard';
+import { revalidateTag } from 'next/cache';
+import { requirePermission, hasPermission, requireShop } from '@/lib/auth-guard';
 import { saleSchema, type SaleInput } from '@/schemas/sales/sale.schema';
 import { z } from 'zod';
 import { ActionResponse } from '@/types/common';
@@ -13,7 +13,6 @@ import {
 import { SaleDetailDTO } from '@/types/dtos/sales.dto';
 import { PerformanceCollector } from '@/lib/debug/measurement';
 import { handleAction } from '@/lib/action-handler';
-import { AuditService } from '@/services/core/system/audit.service';
 
 // =============================================================================
 // SALE LIST & DETAIL
@@ -73,11 +72,13 @@ export async function createSale(input: SaleInput): Promise<ActionResponse<SaleD
       const ctx = await requirePermission('SALE_CREATE');
       const validated = saleSchema.parse(input);
 
-      const sale = await SaleService.create(ctx, validated);
+      const result = await SaleService.create(ctx, validated);
 
-      revalidatePath('/sales');
-      revalidatePath('/dashboard');
-      return sale;
+      if (result.affectedTags) {
+        result.affectedTags.forEach(tag => revalidateTag(tag));
+      }
+      
+      return result.data;
     }, 'sales:createSale');
   }, { context: { action: 'createSale' } });
 }
@@ -87,33 +88,13 @@ export async function cancelSale(input: CancelSaleInput): Promise<ActionResponse
     return PerformanceCollector.run(async () => {
       const ctx = await requirePermission('SALE_CANCEL');
       
-      // 1. Capture BEFORE state (Full Snapshot)
-      const before = await SaleService.getById(input.id, ctx);
-      if (!before) throw new Error('ไม่พบข้อมูลการขายที่ต้องการยกเลิก');
+      const result = await SaleService.cancel(input, ctx);
 
-      // 2. Execute Mutation
-      await SaleService.cancel(input, ctx);
+      if (result.affectedTags) {
+        result.affectedTags.forEach(tag => revalidateTag(tag));
+      }
 
-      // 3. Capture AFTER state (Evidence of the void)
-      const after = await SaleService.getById(input.id, ctx);
-
-      // 🛡️ Record Audit (Comparative forensics)
-      AuditService.record({
-        action: 'SALE_CANCEL',
-        targetType: 'Sale',
-        targetId: input.id,
-        note: `ยกเลิกรายการขาย: ${before.invoiceNumber}`,
-        before,
-        after,
-        actorId: ctx.userId,
-        shopId: ctx.shopId
-      }).catch(err => console.error('[Audit] Log failed', err));
-
-      revalidatePath('/sales');
-      revalidatePath('/products');
-      revalidatePath('/expenses');
-      revalidatePath('/shipments');
-      revalidatePath('/dashboard');
+      return null;
     }, 'sales:cancelSale');
   }, { context: { action: 'cancelSale', saleId: input.id } });
 }
@@ -133,10 +114,13 @@ export async function verifyPayment(
       const sanitizedSaleId = z.string().min(1).parse(saleId);
       const sanitizedNote = note ? z.string().max(500).parse(note.trim()) : undefined;
 
-      await SaleService.verifyPayment(sanitizedSaleId, status, sanitizedNote, ctx);
+      const result = await SaleService.verifyPayment(sanitizedSaleId, status, sanitizedNote, ctx);
       
-      revalidatePath('/sales');
-      revalidatePath(`/sales/${saleId}`);
+      if (result.affectedTags) {
+        result.affectedTags.forEach(tag => revalidateTag(tag));
+      }
+
+      return null;
     }, 'sales:verifyPayment');
   }, { context: { action: 'verifyPayment', saleId } });
 }
@@ -151,9 +135,13 @@ export async function uploadPaymentProof(
       const sanitizedSaleId = z.string().min(1).parse(saleId);
       const sanitizedUrl = z.string().url().max(2048).parse(proofUrl);
 
-      await SaleService.uploadPaymentProof(sanitizedSaleId, sanitizedUrl, ctx);
-      revalidatePath('/sales');
-      revalidatePath(`/sales/${saleId}`);
+      const result = await SaleService.uploadPaymentProof(sanitizedSaleId, sanitizedUrl, ctx);
+      
+      if (result.affectedTags) {
+        result.affectedTags.forEach(tag => revalidateTag(tag));
+      }
+
+      return null;
     }, 'sales:uploadPaymentProof');
   }, { context: { action: 'uploadPaymentProof', saleId } });
 }

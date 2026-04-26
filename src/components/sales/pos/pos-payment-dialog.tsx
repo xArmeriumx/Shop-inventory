@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
 import { CheckCircle, Loader2, CreditCard, Wallet, Smartphone, QrCode, Settings, Camera, ImageIcon, X, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -319,9 +320,11 @@ export function POSPaymentDialog({
                 {slipPreview ? (
                   /* Slip Preview */
                   <div className="relative border rounded-lg overflow-hidden bg-muted/30">
-                    <img 
+                    <Image 
                       src={slipPreview} 
                       alt="สลิปการโอนเงิน"
+                      width={400}
+                      height={200}
                       className="w-full max-h-[200px] object-contain"
                     />
                     <button

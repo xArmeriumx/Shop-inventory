@@ -15,6 +15,11 @@ import { toNumber } from '@/lib/money';
 import { Prisma } from '@prisma/client';
 import { money } from '@/lib/money';
 
+import { QUOTATION_TAGS, SALES_TAGS } from '@/config/cache-tags';
+import { IQuotationService } from '@/types/service-contracts';
+import { MutationResult, PaginatedResult } from '@/types/domain';
+import { paginatedQuery } from '@/lib/pagination';
+
 /**
  * Audit Allowlist for Quotation (ERP Rule 12.1)
  */
@@ -26,13 +31,12 @@ const QUOTATION_AUDIT_FIELDS = [
 /**
  * QuotationService — จัดการใบเสนอราคา (Sales Quotation Management)
  */
-export const QuotationService = {
+export const QuotationService: IQuotationService = {
     /**
      * List — ค้นหาและแบ่งหน้า
      */
-    async list(ctx: RequestContext, params: GetQuotationsParams) {
+    async list(ctx: RequestContext, params: GetQuotationsParams): Promise<PaginatedResult<any>> {
         const { page = 1, limit = 10, search, status, customerId } = params;
-        const skip = (page - 1) * limit;
 
         const where: Prisma.QuotationWhereInput = {
             shopId: ctx.shopId,
@@ -44,26 +48,13 @@ export const QuotationService = {
             ] : undefined,
         };
 
-        const [data, total] = await Promise.all([
-            db.quotation.findMany({
-                where,
-                include: { customer: true, salesperson: true },
-                orderBy: { createdAt: 'desc' },
-                skip,
-                take: limit,
-            }),
-            db.quotation.count({ where }),
-        ]);
-
-        return {
-            data,
-            pagination: {
-                page,
-                limit,
-                total,
-                totalPages: Math.ceil(total / limit),
-            },
-        };
+        return paginatedQuery(db.quotation as any, {
+            where,
+            include: { customer: true, salesperson: true },
+            orderBy: { createdAt: 'desc' },
+            page,
+            limit,
+        });
     },
 
     /**
@@ -96,8 +87,8 @@ export const QuotationService = {
     /**
      * Create — ออกใบเสนอราคาใหม่
      */
-    async create(ctx: RequestContext, input: CreateQuotationInput & { taxMode?: any; taxRate?: any }) {
-        return await AuditService.runWithAudit(ctx, {
+    async create(ctx: RequestContext, input: CreateQuotationInput & { taxMode?: any; taxRate?: any }): Promise<MutationResult<any>> {
+        const result = await AuditService.runWithAudit(ctx, {
             action: 'QUOTATION_CREATE',
             targetType: 'Quotation',
             allowlist: QUOTATION_AUDIT_FIELDS,
@@ -183,13 +174,18 @@ export const QuotationService = {
             return quotation;
             });
         });
+
+        return {
+            data: result,
+            affectedTags: [QUOTATION_TAGS.LIST]
+        };
     },
 
     /**
      * Confirm — อนุมัติใบเสนอราคาและสร้าง Sale (SO)
      */
-    async confirm(ctx: RequestContext, id: string) {
-        return await AuditService.runWithAudit(ctx, {
+    async confirm(ctx: RequestContext, id: string): Promise<MutationResult<any>> {
+        const result = await AuditService.runWithAudit(ctx, {
             action: 'QUOTATION_CONFIRM',
             targetType: 'Quotation',
             targetId: id,
@@ -289,13 +285,18 @@ export const QuotationService = {
             return sale;
             });
         });
+
+        return {
+            data: result,
+            affectedTags: [QUOTATION_TAGS.LIST, QUOTATION_TAGS.DETAIL(id), SALES_TAGS.LIST, SALES_TAGS.DASHBOARD]
+        };
     },
 
     /**
      * Cancel — ยกเลิกใบเสนอราคา
      */
-    async cancel(ctx: RequestContext, id: string) {
-        return await AuditService.runWithAudit(ctx, {
+    async cancel(ctx: RequestContext, id: string): Promise<MutationResult<any>> {
+        const result = await AuditService.runWithAudit(ctx, {
             action: 'QUOTATION_CANCEL',
             targetType: 'Quotation',
             targetId: id,
@@ -319,5 +320,10 @@ export const QuotationService = {
             });
             });
         });
+
+        return {
+            data: result,
+            affectedTags: [QUOTATION_TAGS.LIST, QUOTATION_TAGS.DETAIL(id)]
+        };
     },
 };

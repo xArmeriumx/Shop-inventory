@@ -23,7 +23,7 @@ import {
 import { Plus, Package, Loader2 } from 'lucide-react';
 import { createProduct } from '@/actions/inventory/products.actions';
 import { getLookupValues } from '@/actions/core/lookups.actions';
-import { toast } from 'sonner';
+import { runActionWithToast } from '@/lib/mutation-utils';
 
 interface Category {
   id: string;
@@ -122,7 +122,7 @@ export function QuickAddProductDialog({
     }
 
     startTransition(async () => {
-      const result = await createProduct({
+      await runActionWithToast(createProduct({
         name: name.trim(),
         sku: sku.trim() || null,
         category,
@@ -132,19 +132,21 @@ export function QuickAddProductDialog({
         minStock: 5,
         description: null,
         images: [],
+      }), {
+        successMessage: 'เพิ่มสินค้าสำเร็จ',
+        onSuccess: (result) => {
+          const data = result as any;
+          onCreated?.({
+            id: data.id,
+            name: data.name,
+            costPrice: Number(data.costPrice),
+          });
+          setOpen(false);
+        },
+        onError: (result) => {
+          setError(result.message || 'เกิดข้อผิดพลาด');
+        }
       });
-
-      if (result.success && result.data) {
-        toast.success('เพิ่มสินค้าสำเร็จ');
-        onCreated?.({
-          id: result.data.id,
-          name: result.data.name,
-          costPrice: Number(result.data.costPrice),
-        });
-        setOpen(false);
-      } else {
-        setError(result.message || 'เกิดข้อผิดพลาด');
-      }
     });
   };
 

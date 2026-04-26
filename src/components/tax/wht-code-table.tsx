@@ -19,7 +19,8 @@ import {
 import { MoreHorizontal, Edit, Power, PowerOff, Percent } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { toggleWhtCodeStatus } from '@/actions/tax/wht.actions';
-import { toast } from 'sonner';
+import { runActionWithToast } from '@/lib/mutation-utils';
+import { useTransition } from 'react';
 import { WhtCodeForm } from '@/components/tax/wht-code-form';
 
 interface WhtCodeTableProps {
@@ -27,15 +28,15 @@ interface WhtCodeTableProps {
 }
 
 export function WhtCodeTable({ data }: WhtCodeTableProps) {
+    const [isPending, startTransition] = useTransition();
     const [editingCode, setEditingCode] = useState<any | null>(null);
 
-    const handleToggleStatus = async (id: string, currentStatus: boolean) => {
-        try {
-            await toggleWhtCodeStatus(id, !currentStatus);
-            toast.success('อัปเดตสถานะรหัสภาษีเสร็จสมบูรณ์');
-        } catch (error) {
-            toast.error('ไม่สามารถอัปเดตสถานะได้');
-        }
+    const handleToggleStatus = (id: string, currentStatus: boolean) => {
+        startTransition(async () => {
+            await runActionWithToast(toggleWhtCodeStatus(id, !currentStatus), {
+                successMessage: 'อัปเดตสถานะรหัสภาษีเสร็จสมบูรณ์',
+            });
+        });
     };
 
     return (

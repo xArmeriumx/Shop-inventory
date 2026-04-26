@@ -15,7 +15,8 @@ import { EXPENSE_CATEGORIES } from '@/schemas/accounting/expense.schema';
 import { useUrlFilters } from '@/hooks';
 import { Edit, Trash2, Receipt } from 'lucide-react';
 import { deleteExpense } from '@/actions/accounting/expense.actions';
-import { toast } from 'sonner';
+import { runActionWithToast } from '@/lib/mutation-utils';
+import { useTransition } from 'react';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -42,21 +43,17 @@ const getCategoryLabel = (value: string) =>
 export function ExpensesTable({ expenses, pagination }: ExpensesTableProps) {
   const router = useRouter();
   const { goToPage, isPending } = useUrlFilters();
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [isPendingDelete, startTransition] = useTransition();
 
-  const handleDelete = async (id: string, description: string | null) => {
+  const handleDelete = (id: string, description: string | null) => {
     if (!confirm(`ต้องการลบ "${description || 'รายการนี้'}" หรือไม่?`)) return;
-    setDeletingId(id);
-    try {
-      const result = await deleteExpense(id);
-      if (!result.success) toast.error(result.message || 'เกิดข้อผิดพลาด');
-      else toast.success('ลบรายการสำเร็จ');
-      router.refresh();
-    } catch {
-      toast.error('เกิดข้อผิดพลาด');
-    } finally {
-      setDeletingId(null);
-    }
+    
+    startTransition(async () => {
+      await runActionWithToast(deleteExpense(id), {
+        successMessage: 'ลบรายการสำเร็จ',
+        onSuccess: () => router.refresh(),
+      });
+    });
   };
 
   if (expenses.length === 0) {
@@ -112,7 +109,7 @@ export function ExpensesTable({ expenses, pagination }: ExpensesTableProps) {
                       <Button
                         variant="ghost" size="icon" className="h-8 w-8"
                         onClick={() => handleDelete(expense.id, expense.description)}
-                        disabled={deletingId === expense.id}
+                        disabled={isPendingDelete}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>

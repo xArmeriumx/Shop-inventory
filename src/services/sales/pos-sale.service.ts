@@ -19,7 +19,10 @@ import {
     SaleStatus,
     BookingStatus,
     DocPaymentStatus,
+    MutationResult,
 } from '@/types/domain';
+import { IPOSSaleService } from '@/types/service-contracts';
+import { SALES_TAGS, INVOICE_TAGS, INVENTORY_TAGS } from '@/config/cache-tags';
 
 // ============================================================================
 // TYPES
@@ -77,39 +80,10 @@ const SALE_RESULT_SELECT = {
 
 /**
  * POSSaleService — POS Checkout Flow (แยกจาก SaleService)
- *
- * Design: "Sales-First, Accounting-Deferred"
- *   - การขายต้องสำเร็จเสมอ ใน 1 Atomic Transaction
- *   - SO สถานะ COMPLETED ทันที (ไม่ผ่าน CONFIRMED)
- *   - Stock ตัดทันที (ไม่ต้องรอ DO)
- *   - Invoice PAID ทันที (tryPost — graceful ถ้าไม่มี CoA)
- *
- * Pattern:
- *   AuditService.runWithAudit → db.$transaction → [stock + sale + invoice]
  */
-export const POSSaleService = {
-    /**
-     * checkout — จุดเดียวสำหรับ POS Checkout ทั้งหมด
-     *
-     * ⚡ Performance:
-     *   - 1 productFindMany ดึงทุก product พร้อมกัน
-     *   - ไม่มี select * ทุกที่ — ใช้ minimal select
-     *   - Notification ออกนอก Transaction (non-blocking)
-     *
-     * @returns { sale, invoiceId } — data ขั้นต่ำที่ UI ต้องการ
-     */
-    async checkout(ctx: RequestContext, cart: POSCartInput) {
-        Security.requirePermission(ctx, 'POS_ACCESS' as Permission);
-
-        if (!cart.items || cart.items.length === 0) {
-            throw new ServiceError('ไม่มีสินค้าในตะกร้า');
-        }
-
-        if (!ctx.memberId) {
-            throw new ServiceError('ไม่พบรหัสพนักงาน กรุณา Login ใหม่');
-        }
-
-        return AuditService.runWithAudit(ctx, {
+export const POSSaleService: IPOSSaleService = {
+    async checkout(ctx: RequestContext, cart: POSCartInput): Promise<MutationResult<any>> {
+        const result = await AuditService.runWithAudit(ctx, {
             action: 'POS_CHECKOUT',
             targetType: 'Sale',
             allowlist: ['invoiceNumber', 'totalAmount', 'netAmount', 'paymentMethod', 'status'],
@@ -239,24 +213,37 @@ export const POSSaleService = {
 
                 // ── 7. Create Invoice + tryPost + markPaid ─────────────────
                 const invoice = await InvoiceService.createFromSale(ctx, sale.id, tx);
-                await InvoiceService.tryPost(ctx, invoice.id, tx);   // graceful — ไม่ throw ถ้าไม่มี CoA
-                await InvoiceService.markPaid(ctx, invoice.id, tx);
+                await InvoiceService.tryPost(ctx, invoice.data.id, tx);   // graceful — ไม่ throw ถ้าไม่มี CoA
+                await InvoiceService.markPaid(ctx, invoice.data.id, tx);
 
-                return { sale, invoiceId: invoice.id };
+                return { sale, invoiceId: invoice.data.id };
             }, { timeout: DB_TIMEOUTS.EXTENDED });
-        }).then(async (result) => {
-            // ── 8. Notification (ออกนอก Transaction — Non-blocking) ─────
-            NotificationService.create({
-                shopId: ctx.shopId,
-                type: 'NEW_SALE',
-                severity: 'INFO',
-                title: `POS ขายสำเร็จ ${result.sale.invoiceNumber}`,
-                message: `ยอด ${result.sale.netAmount} บาท`,
-                link: `/sales/${result.sale.id}`,
-                groupKey: `pos:${ctx.shopId}:${new Date().toDateString()}`,
-            }).catch(() => {});
-
-            return result;
         });
+
+        // ── 8. Notification (ออกนอก Transaction — Non-blocking) ─────
+        NotificationService.create({
+            shopId: ctx.shopId,
+            type: 'NEW_SALE',
+            severity: 'INFO',
+            title: `POS ขายสำเร็จ ${result.sale.invoiceNumber}`,
+            message: `ยอด ${result.sale.netAmount} บาท`,
+            link: `/sales/${result.sale.id}`,
+            groupKey: `pos:${ctx.shopId}:${new Date().toDateString()}`,
+        }).catch(() => {});
+
+        const productIds = Array.from(new Set(cart.items.map(i => i.productId)));
+
+        return {
+            data: result,
+            affectedTags: [
+                SALES_TAGS.LIST,
+                SALES_TAGS.DASHBOARD,
+                INVOICE_TAGS.LIST,
+                INVOICE_TAGS.STATS,
+                INVENTORY_TAGS.LIST,
+                ...productIds.map(id => INVENTORY_TAGS.STOCK(id)),
+                ...productIds.map(id => INVENTORY_TAGS.DETAIL(id)),
+            ]
+        };
     },
 };

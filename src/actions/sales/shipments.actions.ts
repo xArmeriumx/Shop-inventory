@@ -1,6 +1,6 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidateTag } from 'next/cache';
 import { shipmentSchema, updateShipmentSchema, updateShipmentStatusSchema } from '@/schemas/sales/shipment.schema';
 import type { ShipmentInput, UpdateShipmentInput, UpdateShipmentStatusInput } from '@/schemas/sales/shipment.schema';
 import { handleAction, type ActionResponse } from '@/lib/action-handler';
@@ -8,15 +8,10 @@ import { requirePermission } from '@/lib/auth-guard';
 import {
   ShipmentService,
   type OcrParcel,
-  type ParcelMatch,
-  ServiceError
+  type ParcelMatch
 } from '@/services';
 
 export type { OcrParcel, ParcelMatch };
-
-// =============================================================================
-// SHIPMENT LIST & DETAIL
-// =============================================================================
 
 // =============================================================================
 // SHIPMENT LIST & DETAIL
@@ -53,56 +48,55 @@ export async function createShipment(input: ShipmentInput): Promise<ActionRespon
     const validated = shipmentSchema.parse(input);
     const result = await ShipmentService.create(validated, ctx);
 
-    revalidatePath('/shipments');
-    revalidatePath('/sales');
-    revalidatePath('/expenses');
-    revalidatePath('/dashboard');
+    if (result.affectedTags) {
+      result.affectedTags.forEach((tag: string) => revalidateTag(tag));
+    }
 
-    return result;
+    return result.data;
   }, { context: { action: 'createShipment' } });
 }
 
-export async function updateShipment(input: UpdateShipmentInput): Promise<ActionResponse<null>> {
+export async function updateShipment(input: UpdateShipmentInput): Promise<ActionResponse<any>> {
   return handleAction(async () => {
     const ctx = await requirePermission('SHIPMENT_EDIT');
     const validated = updateShipmentSchema.parse(input);
 
-    await ShipmentService.update(validated, ctx);
+    const result = await ShipmentService.update(validated, ctx);
 
-    revalidatePath('/shipments');
-    revalidatePath(`/shipments/${validated.id}`);
+    if (result.affectedTags) {
+      result.affectedTags.forEach((tag: string) => revalidateTag(tag));
+    }
 
-    return null;
+    return result.data;
   }, { context: { action: 'updateShipment', shipmentId: input.id } });
 }
 
-export async function updateShipmentStatus(input: UpdateShipmentStatusInput): Promise<ActionResponse<null>> {
+export async function updateShipmentStatus(input: UpdateShipmentStatusInput): Promise<ActionResponse<any>> {
   return handleAction(async () => {
     const ctx = await requirePermission('SHIPMENT_EDIT');
     const validated = updateShipmentStatusSchema.parse(input);
 
     // Calling the sync version to ensure stock deduction on SHIPPED
-    await ShipmentService.updateStatusWithSync(validated.id, validated.status as any, ctx);
+    const result = await ShipmentService.updateStatusWithSync(validated.id, validated.status as any, ctx);
 
-    revalidatePath('/shipments');
-    revalidatePath(`/shipments/${validated.id}`);
-    revalidatePath('/sales');
-    revalidatePath('/products');
-    revalidatePath('/dashboard');
+    if (result.affectedTags) {
+      result.affectedTags.forEach((tag: string) => revalidateTag(tag));
+    }
 
     return null;
   }, { context: { action: 'updateShipmentStatus', shipmentId: input.id } });
 }
 
-export async function cancelShipment(id: string, reason?: string): Promise<ActionResponse<null>> {
+export async function cancelShipment(id: string, reason?: string): Promise<ActionResponse<any>> {
   return handleAction(async () => {
     const ctx = await requirePermission('SHIPMENT_CANCEL');
-    await ShipmentService.cancel(id, reason, ctx);
+    const result = await ShipmentService.cancel(id, reason, ctx);
 
-    revalidatePath('/shipments');
-    revalidatePath(`/shipments/${id}`);
+    if (result.affectedTags) {
+      result.affectedTags.forEach((tag: string) => revalidateTag(tag));
+    }
 
-    return null;
+    return result.data;
   }, { context: { action: 'cancelShipment', shipmentId: id } });
 }
 
@@ -128,8 +122,12 @@ export async function processShipmentRoute(ids: string[], type: 'OUTBOUND' | 'IN
   return handleAction(async () => {
     const ctx = await requirePermission('SHIPMENT_EDIT');
     const result = await ShipmentService.processRoute(ids, type, ctx);
-    revalidatePath('/shipments');
-    return result;
+    
+    if (result.affectedTags) {
+      result.affectedTags.forEach((tag: string) => revalidateTag(tag));
+    }
+
+    return result.data;
   }, { context: { action: 'processShipmentRoute' } });
 }
 

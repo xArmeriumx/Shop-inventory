@@ -1,12 +1,10 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidateTag } from 'next/cache';
 import { requirePermission } from '@/lib/auth-guard';
-import { logger } from '@/lib/logger';
 import { customerSchema, type CustomerInput } from '@/schemas/sales/customer.schema';
-import type { Customer } from '@prisma/client';
 import type { SerializedCustomer, GetCustomersParams } from '@/types/domain';
-import { CustomerService, ServiceError } from '@/services';
+import { CustomerService } from '@/services';
 import { Permission } from '@prisma/client';
 
 import { PerformanceCollector } from '@/lib/debug/measurement';
@@ -16,7 +14,7 @@ export async function getCustomers(params: GetCustomersParams = {}): Promise<Act
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
       const ctx = await requirePermission('CUSTOMER_VIEW');
-      return CustomerService.getAll(ctx, params);
+      return CustomerService.getList(params, ctx);
     }, 'sales:getCustomers');
   }, { context: { action: 'sales:getCustomers', ...params } });
 }
@@ -35,7 +33,13 @@ export async function createCustomer(input: CustomerInput): Promise<ActionRespon
     return PerformanceCollector.run(async () => {
       const ctx = await requirePermission(Permission.CUSTOMER_CREATE);
       const validated = customerSchema.parse(input);
-      return CustomerService.create(ctx, validated);
+      const result = await CustomerService.create(ctx, validated);
+
+      if (result.affectedTags) {
+        result.affectedTags.forEach((tag: string) => revalidateTag(tag));
+      }
+
+      return result.data;
     }, 'sales:createCustomer');
   }, { context: { action: 'sales:createCustomer' } });
 }
@@ -45,10 +49,13 @@ export async function updateCustomer(id: string, input: CustomerInput): Promise<
     return PerformanceCollector.run(async () => {
       const ctx = await requirePermission(Permission.CUSTOMER_UPDATE);
       const validated = customerSchema.parse(input);
-      const customer = await CustomerService.update(id, ctx, validated);
-      revalidatePath('/customers');
-      revalidatePath(`/customers/${id}`);
-      return customer;
+      const result = await CustomerService.update(id, ctx, validated);
+
+      if (result.affectedTags) {
+        result.affectedTags.forEach((tag: string) => revalidateTag(tag));
+      }
+
+      return result.data;
     }, 'sales:updateCustomer');
   }, { context: { action: 'sales:updateCustomer', id } });
 }
@@ -57,7 +64,13 @@ export async function deleteCustomer(id: string): Promise<ActionResponse<any>> {
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
       const ctx = await requirePermission('CUSTOMER_DELETE' as any);
-      return CustomerService.delete(id, ctx);
+      const result = await CustomerService.delete(id, ctx);
+
+      if (result.affectedTags) {
+        result.affectedTags.forEach((tag: string) => revalidateTag(tag));
+      }
+
+      return result.data;
     }, 'sales:deleteCustomer');
   }, { context: { action: 'sales:deleteCustomer', id } });
 }

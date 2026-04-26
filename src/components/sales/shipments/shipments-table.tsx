@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -16,7 +16,7 @@ import { formatCurrency, formatDate } from '@/lib/formatters';
 import { useUrlFilters } from '@/hooks';
 import { Eye, Package, MapPin, Loader2 } from 'lucide-react';
 import { processShipmentRoute } from '@/actions/sales/shipments.actions';
-import { toast } from 'sonner';
+import { runActionWithToast } from '@/lib/mutation-utils';
 import type { ShipmentStatus } from '@prisma/client';
 import type { ErrorAction } from '@/types/domain';
 
@@ -88,32 +88,27 @@ function RouteIntelligenceBanner({
 export function ShipmentsTable({ shipments, pagination }: ShipmentsTableProps) {
   const router = useRouter();
   const { goToPage, isPending } = useUrlFilters();
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [isRoutePending, startRouteTransition] = useTransition();
   const [errorInfo, setErrorInfo] = useState<{ message: string; action?: ErrorAction } | null>(null);
 
-  const handleProcessRoute = async (type: 'OUTBOUND' | 'INBOUND') => {
+  const handleProcessRoute = (type: 'OUTBOUND' | 'INBOUND') => {
     const pendingIds = shipments.filter((s) => s.status === 'PENDING').map((s) => s.id);
-    if (pendingIds.length === 0) {
-      toast.error('ไม่มีรายการที่รอจัดส่งเพื่อแสดงเส้นทาง');
-      return;
-    }
-    setIsProcessing(true);
-    try {
-      const result = await processShipmentRoute(pendingIds, type);
-      if (result.success) {
-        toast.success(result.message);
-        setErrorInfo(null);
-        router.refresh();
-      } else {
-        const msg = result.message || 'ไม่สามารถคำนวณเส้นทางได้';
-        setErrorInfo({ message: msg, action: result.action });
-        toast.error(msg);
-      }
-    } catch {
-      toast.error('เกิดข้อผิดพลาดในการคำนวณเส้นทาง');
-    } finally {
-      setIsProcessing(false);
-    }
+    if (pendingIds.length === 0) return;
+
+    startRouteTransition(async () => {
+      await runActionWithToast(processShipmentRoute(pendingIds, type), {
+        onSuccess: () => {
+          setErrorInfo(null);
+          router.refresh();
+        },
+        onError: (result) => {
+          setErrorInfo({ 
+            message: result.message || 'ไม่สามารถคำนวณเส้นทางได้', 
+            action: result.action 
+          });
+        },
+      });
+    });
   };
 
   if (shipments.length === 0) {
@@ -132,7 +127,7 @@ export function ShipmentsTable({ shipments, pagination }: ShipmentsTableProps) {
         <GuidedErrorAlert message={errorInfo.message} action={errorInfo.action} />
       )}
 
-      <RouteIntelligenceBanner onRoute={handleProcessRoute} isProcessing={isProcessing} />
+      <RouteIntelligenceBanner onRoute={handleProcessRoute} isProcessing={isRoutePending} />
 
       <div className="rounded-md border overflow-hidden">
         <div className="overflow-x-auto">

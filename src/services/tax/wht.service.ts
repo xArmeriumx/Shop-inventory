@@ -10,6 +10,9 @@ const WhtPayeeType = { INDIVIDUAL: "INDIVIDUAL", CORPORATE: "CORPORATE", UNKNOWN
 const WhtFormType = { PND3: "PND3", PND53: "PND53" } as any;
 const TaxPostingStatus = { DRAFT: "DRAFT", POSTED: "POSTED", VOIDED: "VOIDED" } as any;
 
+import { IWhtService } from '@/types/service-contracts';
+import { TAX_TAGS } from '@/config/cache-tags';
+
 /**
  * WhtService — บริหารจัดการภาษีหัก ณ ที่จ่าย (Withholding Tax)
  * 
@@ -19,7 +22,7 @@ const TaxPostingStatus = { DRAFT: "DRAFT", POSTED: "POSTED", VOIDED: "VOIDED" } 
  * 3. ออกหนังสือรับรองหัก ณ ที่จ่าย (WhtCertificate - 50 ทวิ)
  * 4. เตรียมข้อมูลสำหรับรายงาน ภ.ง.ด. 3 และ ภ.ง.ด. 53
  */
-export const WhtService = {
+export const WhtService: IWhtService = {
     /**
      * คำนวณยอดเงิน WHT ตามมาตรฐาน ERP
      * grossPayableAmount - whtAmount = netPaidAmount
@@ -100,7 +103,10 @@ export const WhtService = {
             });
 
             // 2. Automatically generate Reference Number for Cert (Optional at this stage)
-            return entry;
+            return {
+                data: entry,
+                affectedTags: [TAX_TAGS.WHT.LIST]
+            };
         });
     },
 
@@ -187,7 +193,10 @@ export const WhtService = {
                 }
             });
 
-            return certificate;
+            return {
+                data: certificate,
+                affectedTags: [TAX_TAGS.WHT.LIST, TAX_TAGS.WHT.DETAIL(entryId)]
+            };
         });
     },
 
@@ -204,9 +213,14 @@ export const WhtService = {
         if (!existing) throw new ServiceError('ไม่พบหนังสือรับรอง');
         if (existing.status === 'VOIDED') throw new ServiceError('หนังสือรับรองนี้ถูกยกเลิกไปแล้ว');
 
-        return await (db as any).whtCertificate.update({
+        const voided = await (db as any).whtCertificate.update({
             where: { id: certId },
             data: { status: 'VOIDED' }
         });
+
+        return {
+            data: voided,
+            affectedTags: [TAX_TAGS.WHT.LIST]
+        };
     }
 };

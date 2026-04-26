@@ -10,16 +10,20 @@ import {
 } from '@/types/domain';
 import { Prisma } from '@prisma/client';
 
+import { ORDER_REQUEST_TAGS } from '@/config/cache-tags';
+import { IOrderRequestService } from '@/types/service-contracts';
+import { MutationResult, PaginatedResult } from '@/types/domain';
+import { paginatedQuery } from '@/lib/pagination';
+
 /**
  * OrderRequestService — ระบบคำขอซื้อภายใน (Internal Purchase Request Management)
  */
-export const OrderRequestService = {
+export const OrderRequestService: IOrderRequestService = {
     /**
      * List — คัดกรองและแบ่งหน้า
      */
-    async list(ctx: RequestContext, params: GetOrderRequestsParams) {
+    async list(ctx: RequestContext, params: GetOrderRequestsParams): Promise<PaginatedResult<any>> {
         const { page = 1, limit = 10, search, status, requesterId } = params;
-        const skip = (page - 1) * limit;
 
         const where: Prisma.OrderRequestWhereInput = {
             shopId: ctx.shopId,
@@ -31,26 +35,13 @@ export const OrderRequestService = {
             ] : undefined,
         };
 
-        const [data, total] = await Promise.all([
-            db.orderRequest.findMany({
-                where,
-                include: { requester: { include: { user: true } } },
-                orderBy: { createdAt: 'desc' },
-                skip,
-                take: limit,
-            }),
-            db.orderRequest.count({ where }),
-        ]);
-
-        return {
-            data,
-            pagination: {
-                page,
-                limit,
-                total,
-                totalPages: Math.ceil(total / limit),
-            },
-        };
+        return paginatedQuery(db.orderRequest as any, {
+            where,
+            include: { requester: { include: { user: true } } },
+            orderBy: { createdAt: 'desc' },
+            page,
+            limit,
+        });
     },
 
     /**
@@ -78,8 +69,8 @@ export const OrderRequestService = {
     /**
      * Create — สร้างคำขอซื้อใหม่
      */
-    async create(ctx: RequestContext, input: CreateOrderRequestInput) {
-        return await db.$transaction(async (tx) => {
+    async create(ctx: RequestContext, input: CreateOrderRequestInput): Promise<MutationResult<any>> {
+        const result = await db.$transaction(async (tx) => {
             // 1. Generate Sequence Number
             const requestNo = await SequenceService.generate(ctx, DocumentType.ORDER_REQUEST, tx);
 
@@ -104,12 +95,17 @@ export const OrderRequestService = {
                 include: { items: true },
             });
         });
+
+        return {
+            data: result,
+            affectedTags: [ORDER_REQUEST_TAGS.LIST]
+        };
     },
 
     /**
      * Submit — ส่งขออนุมัติ
      */
-    async submit(ctx: RequestContext, id: string) {
+    async submit(ctx: RequestContext, id: string): Promise<MutationResult<any>> {
         const request = await db.orderRequest.findUnique({
             where: { id },
         });
@@ -122,19 +118,29 @@ export const OrderRequestService = {
             throw new ServiceError('คำขอซื้อนี้อยู่ในช่วงดำเนินการแล้ว');
         }
 
-        return await db.orderRequest.update({
+        const result = await db.orderRequest.update({
             where: { id },
             data: { status: OrderRequestStatus.SUBMITTED },
         });
+
+        return {
+            data: result,
+            affectedTags: [ORDER_REQUEST_TAGS.LIST, ORDER_REQUEST_TAGS.DETAIL(id)]
+        };
     },
 
     /**
      * Sync Status — อัปเดตสถานะตามเอกสาร PR/PO ที่เกี่ยวข้อง
      */
-    async syncStatus(ctx: RequestContext, id: string, status: OrderRequestStatus) {
-        return await db.orderRequest.update({
+    async syncStatus(ctx: RequestContext, id: string, status: OrderRequestStatus): Promise<MutationResult<any>> {
+        const result = await db.orderRequest.update({
             where: { id },
             data: { status },
         });
+
+        return {
+            data: result,
+            affectedTags: [ORDER_REQUEST_TAGS.LIST, ORDER_REQUEST_TAGS.DETAIL(id)]
+        };
     },
 };

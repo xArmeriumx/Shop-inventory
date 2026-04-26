@@ -14,6 +14,7 @@ import { FormField } from '@/components/ui/form-field';
 import { createIncome, updateIncome } from '@/actions/accounting/income.actions';
 import { INCOME_CATEGORIES } from '@/schemas/accounting/income.schema';
 import { incomeFormSchema, getIncomeFormDefaults } from '@/schemas/accounting/income-form.schema';
+import { runActionWithToast, mapActionErrorsToForm } from '@/lib/mutation-utils';
 import type { IncomeFormValues } from '@/schemas/accounting/income-form.schema';
 
 // ============================================================================
@@ -65,29 +66,22 @@ export function IncomeForm({ income, categories }: IncomeFormProps) {
     };
 
     startTransition(async () => {
-      const result = isEdit
-        ? await updateIncome(income.id, payload)
-        : await createIncome(payload);
+      const action = isEdit
+        ? updateIncome(income.id, payload)
+        : createIncome(payload);
 
-      const actionErrors = (result as any).error || (result as any).errors;
-
-      if (!result.success) {
-        if (actionErrors && typeof actionErrors === 'object') {
-          Object.entries(actionErrors).forEach(([field, messages]) => {
-            if (field === '_form') {
-              setError('root', { message: (messages as string[]).join(', ') });
-            } else {
-              setError(field as any, { message: (messages as string[])[0] });
-            }
-          });
-        } else if ((result as any).message) {
-          setError('root', { message: (result as any).message });
+      await runActionWithToast(action, {
+        successMessage: isEdit ? 'บันทึกการแก้ไขสำเร็จ' : 'บันทึกรายรับสำเร็จ',
+        onSuccess: () => {
+          router.push('/incomes');
+          router.refresh();
+        },
+        onError: (result) => {
+          if (result.errors) {
+            mapActionErrorsToForm(methods, result.errors);
+          }
         }
-      } else {
-        toast.success(isEdit ? 'บันทึกการแก้ไขสำเร็จ' : 'บันทึกรายรับสำเร็จ');
-        router.push('/incomes');
-        router.refresh();
-      }
+      });
     });
   }
 

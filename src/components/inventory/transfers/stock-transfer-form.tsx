@@ -9,7 +9,6 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { FormProvider } from 'react-hook-form';
 import { createStockTransferAction } from '@/actions/inventory/stock-transfer.actions';
-import { toast } from 'sonner';
 import { runActionWithToast, mapActionErrorsToForm } from '@/lib/mutation-utils';
 import { useTransition } from 'react';
 import { Trash2, Plus, ArrowRightLeft } from 'lucide-react';
@@ -46,7 +45,7 @@ export function StockTransferForm({ warehouses, products }: StockTransferFormPro
     const onSubmit = (values: StockTransferFormValues) => {
         // Double check same warehouse on client side just in case
         if (values.fromWarehouseId === values.toWarehouseId) {
-            toast.error('คลังต้นทางและปลายทางต้องไม่ใชที่เดียวกัน');
+            methods.setError('root', { message: 'คลังต้นทางและปลายทางต้องไม่ใชที่เดียวกัน' });
             return;
         }
 

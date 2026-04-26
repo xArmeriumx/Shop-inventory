@@ -5,6 +5,7 @@ import {
   StockMovement,
   DocumentType,
   StockAvailability,
+  MutationResult
 } from '@/types/domain';
 import { IStockService } from '@/types/service-contracts';
 import { SequenceService } from '@/services/core/system/sequence.service';
@@ -12,6 +13,7 @@ import { AuditService } from '@/services/core/system/audit.service';
 import { STOCK_AUDIT_POLICIES } from '@/policies/inventory/stock.policy';
 import { Prisma } from '@prisma/client';
 import { DEFAULT_LOW_STOCK_THRESHOLD } from '@/lib/constants';
+import { INVENTORY_TAGS } from '@/config/cache-tags';
 
 export interface CreateStockMovementParams {
   productId: string;
@@ -33,7 +35,7 @@ export const StockService: IStockService = {
   /**
    * บันทึกการเคลื่อนไหวสต็อก (Source of Truth สำหรับการตัดสต็อก)
    */
-  async recordMovement(ctx: RequestContext, params: CreateStockMovementParams) {
+  async recordMovement(ctx: RequestContext, params: CreateStockMovementParams): Promise<MutationResult<any>> {
     const {
       productId,
       type,
@@ -47,7 +49,7 @@ export const StockService: IStockService = {
       requireStock = true,
     } = params;
 
-    return AuditService.runWithAudit(
+    const result = await AuditService.runWithAudit(
       ctx,
       STOCK_AUDIT_POLICIES.MOVE(productId, type as any, quantity, note),
       async () => {
@@ -63,8 +65,8 @@ export const StockService: IStockService = {
         if (product.shopId !== ctx.shopId) throw new ServiceError('ไม่มีสิทธิ์จัดการสินค้านี้');
 
         // คำนวณสต็อกใหม่
-        let newStock = product.stock;
-        let newReserved = product.reservedStock;
+        let newStock = Number(product.stock);
+        let newReserved = Number(product.reservedStock || 0);
 
         // Logic ตามความหมายทางธุรกิจของ ERP
         switch (type) {
@@ -74,10 +76,8 @@ export const StockService: IStockService = {
             break;
 
           case 'CANCEL': // จ่ายออกทั่วไป
-            if (requireStock && product.stock < quantity) {
-              throw new ServiceError(`สต็อกไม่เพียงพอ (คงเหลือ: ${product.stock}, ต้องการ: ${quantity})`);
-            }
-            newStock -= quantity;
+          case 'SALE_CANCEL' as any: // In case of cancel sale
+            newStock += quantity;
             break;
 
           case 'SALE': // ตัดสต็อกจากการขาย (ลด Stock, ลด Reserved)
@@ -85,35 +85,32 @@ export const StockService: IStockService = {
               throw new ServiceError(`สต็อกไม่เพียงพอ (คงเหลือ: ${product.stock}, ต้องการ: ${quantity})`);
             }
             newStock -= quantity;
-            // ถ้าระบบมีการจองสต็อกไว้ (Reserved) ให้ตัด Reserved ออกด้วย
             if (product.reservedStock >= quantity) {
               newReserved -= quantity;
             }
             break;
 
           case 'RESERVATION': // จองสต็อก (เพิ่ม Reserved, Stock เท่าเดิม)
-            if (requireStock && (product.stock - product.reservedStock) < quantity) {
+            if (requireStock && (product.stock - (product.reservedStock || 0)) < quantity) {
               throw new ServiceError(`สต็อกพร้อมขายไม่เพียงพอ (คงเหลือ: ${product.stock}, จองแล้ว: ${product.reservedStock}, ต้องการจองเพิ่ม: ${quantity})`);
             }
             newReserved += quantity;
             break;
 
           case 'RELEASE': // ปล่อยการจอง (ลด Reserved, Stock เท่าเดิม)
-            newReserved = Math.max(0, product.reservedStock - quantity);
+            newReserved = Math.max(0, (product.reservedStock || 0) - quantity);
             break;
 
           default:
-            // Custom types or adjustments
             if (type === 'ADJUSTMENT' as any) {
-              newStock += quantity; // Positive or negative
-              // 🛡️ Bug #5 Fix: Guard against negative stock
+              newStock += quantity; 
               if (newStock < 0) {
                 throw new ServiceError(`ไม่สามารถลดสต็อกได้ เนื่องจากสต็อกจะติดลบ (คงเหลือ: ${product.stock}, ต้องการลด: ${Math.abs(quantity)})`);
               }
             }
         }
 
-        // Pillar 6.3: Optimistic Locking
+        // Optimistic Locking
         try {
           await executor.product.update({
             where: { id: productId, version: product.version },
@@ -132,24 +129,20 @@ export const StockService: IStockService = {
         }
 
         // บันทึก Log
-        const logData = {
-          type,
-          productId,
-          quantity,
-          balance: newStock,
-          note,
-          saleId,
-          purchaseId,
-          deliveryOrderId,
-          returnId,
-          userId: ctx.userId,
-          shopId: ctx.shopId,
-        };
-
         const log = await (executor as any).stockLog.create({
           data: {
-            ...logData,
+            type,
+            productId,
+            quantity,
+            balance: newStock,
+            note,
+            saleId,
+            purchaseId,
+            deliveryOrderId,
+            returnId,
+            userId: ctx.userId,
             memberId: ctx.memberId || null,
+            shopId: ctx.shopId,
           } as any,
         });
 
@@ -157,13 +150,18 @@ export const StockService: IStockService = {
       },
       tx
     );
+
+    return {
+      data: result,
+      affectedTags: [INVENTORY_TAGS.STOCK(productId), INVENTORY_TAGS.LIST]
+    };
   },
 
   /**
    * จองสต็อกสินค้า (เมื่อ Sale เปลี่ยนสถานะเป็น CONFIRMED)
    */
-  async reserveStock(productId: string, quantity: number, ctx: RequestContext, tx: Prisma.TransactionClient) {
-    return this.recordMovement(ctx, {
+  async reserveStock(productId: string, quantity: number, ctx: RequestContext, tx: Prisma.TransactionClient): Promise<any> {
+    const result = await this.recordMovement(ctx, {
       productId,
       type: 'RESERVATION',
       quantity,
@@ -171,13 +169,14 @@ export const StockService: IStockService = {
       ctx,
       tx,
     });
+    return result.data;
   },
 
   /**
    * ปล่อยการจอง (เมื่อ Sale ถูก Cancel ก่อนส่งของ)
    */
-  async releaseStock(productId: string, quantity: number, ctx: RequestContext, tx: Prisma.TransactionClient) {
-    return this.recordMovement(ctx, {
+  async releaseStock(productId: string, quantity: number, ctx: RequestContext, tx: Prisma.TransactionClient): Promise<any> {
+    const result = await this.recordMovement(ctx, {
       productId,
       type: 'RELEASE',
       quantity,
@@ -186,13 +185,14 @@ export const StockService: IStockService = {
       tx,
       requireStock: false,
     });
+    return result.data;
   },
 
   /**
    * ตัดสต็อกจริงเมื่อส่งสินค้า
    */
-  async deductStock(productId: string, quantity: number, ctx: RequestContext, tx?: Prisma.TransactionClient, docRef?: { saleId?: string; deliveryOrderId?: string }) {
-    return this.recordMovement(ctx, {
+  async deductStock(productId: string, quantity: number, ctx: RequestContext, tx?: Prisma.TransactionClient, docRef?: { saleId?: string; deliveryOrderId?: string }): Promise<any> {
+    const result = await this.recordMovement(ctx, {
       productId,
       type: 'SALE',
       quantity,
@@ -202,6 +202,7 @@ export const StockService: IStockService = {
       ctx,
       tx,
     });
+    return result.data;
   },
 
   /**
@@ -224,12 +225,6 @@ export const StockService: IStockService = {
     };
   },
 
-  /**
-   * checkBulkAvailability — ตรวจสอบสต็อกทุก Item ใน 1 Query (O(n) product lookup)
-   * ใช้ใน DeliveryOrderService.create() เพื่อตั้ง Initial Status
-   *
-   * @returns { allAvailable: boolean, shortages: Array<{ productId, required, available }> }
-   */
   async checkBulkAvailability(
     items: Array<{ productId: string; quantity: number }>,
     shopId: string,
@@ -238,7 +233,6 @@ export const StockService: IStockService = {
     const executor = tx || db;
     const productIds = Array.from(new Set(items.map(i => i.productId)));
 
-    // ⚡ 1 query สำหรับทุก product
     const products = await executor.product.findMany({
       where: { id: { in: productIds }, shopId },
       select: { id: true, stock: true, reservedStock: true },
@@ -294,10 +288,10 @@ export const StockService: IStockService = {
     await this.recordMovements(ctx, movements, tx);
   },
 
-  async recordMovements(ctx: RequestContext, movements: any[], tx: Prisma.TransactionClient) {
-    if (movements.length === 0) return;
+  async recordMovements(ctx: RequestContext, movements: any[], tx: Prisma.TransactionClient): Promise<MutationResult<void>> {
+    if (movements.length === 0) return { data: undefined, affectedTags: [] };
 
-    return AuditService.runWithAudit(
+    await AuditService.runWithAudit(
       ctx,
       {
         action: 'STOCK_BULK_PROCESS',
@@ -306,8 +300,6 @@ export const StockService: IStockService = {
       },
       async () => {
         const productIds = Array.from(new Set(movements.map(m => m.productId)));
-        
-        // ⚡ Bulk Fetch all products at once
         const products = await tx.product.findMany({
           where: { id: { in: productIds } },
           select: { id: true, stock: true, reservedStock: true, minStock: true, shopId: true, version: true },
@@ -315,8 +307,6 @@ export const StockService: IStockService = {
 
         const productMap = new Map(products.map(p => [p.id, p]));
 
-        // ⚡ Perform all updates sequentially in memory but write to DB
-        // (Prisma doesn't support bulk update with logic, so we still update in loop but we skip findUnique)
         for (const movement of movements) {
           const { productId, type, quantity } = movement;
           const product = productMap.get(productId);
@@ -326,12 +316,8 @@ export const StockService: IStockService = {
           let newReserved = Number(product.reservedStock || 0);
 
           switch (type) {
-            case 'RESERVATION':
-              newReserved += quantity;
-              break;
-            case 'RELEASE':
-              newReserved = Math.max(0, newReserved - quantity);
-              break;
+            case 'RESERVATION': newReserved += quantity; break;
+            case 'RELEASE': newReserved = Math.max(0, newReserved - quantity); break;
             case 'SALE':
               newStock -= quantity;
               if (newReserved >= quantity) newReserved -= quantity;
@@ -341,8 +327,7 @@ export const StockService: IStockService = {
             case 'SALE_CANCEL':
               newStock += quantity;
               break;
-            default:
-              newStock += quantity;
+            default: newStock += quantity;
           }
 
           await tx.product.update({
@@ -356,19 +341,26 @@ export const StockService: IStockService = {
           });
         }
 
-        // ⚡ Bulk Insert all logs in ONE command
         await (tx as any).stockLog.createMany({
           data: movements.map(m => ({
             ...m,
             memberId: ctx.memberId || null,
             shopId: ctx.shopId,
             userId: ctx.userId,
-            balance: productMap.get(m.productId)!.stock // Note: legacy balance might be slightly off in createMany for same-product bulk
+            balance: productMap.get(m.productId)!.stock
           })) as any,
         });
       },
-      tx // ⚡ PROPAGATE TRANSACTION CLIENT HERE
+      tx
     );
+
+    const affectedTags = Array.from(new Set(movements.map(m => INVENTORY_TAGS.STOCK(m.productId))));
+    affectedTags.push(INVENTORY_TAGS.LIST);
+
+    return {
+      data: undefined,
+      affectedTags
+    };
   },
 
   async getProductHistory(ctx: RequestContext, productId: string, page: number = 1, limit: number = 10) {

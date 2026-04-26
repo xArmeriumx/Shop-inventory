@@ -2,6 +2,8 @@
 
 import { useState, useTransition, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
+import { type ActionResponse } from '@/lib/action-handler';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,7 +17,7 @@ import {
 import { ShipmentStatusBadge } from './shipment-status-badge';
 import { matchParcelsToSales, createShipment } from '@/actions/sales/shipments.actions';
 import type { OcrParcel, ParcelMatch } from '@/actions/sales/shipments.actions';
-import { toast } from 'sonner';
+import { runActionWithToast } from '@/lib/mutation-utils';
 import {
   ArrowLeft,
   Camera,
@@ -92,16 +94,16 @@ export function ShipmentScanner({ availableSales }: ShipmentScannerProps) {
           size: p.size || null,
         }));
 
-        const matchResult = await matchParcelsToSales(parcels);
-        if (matchResult.success) {
-          setMatches(matchResult.data);
-          setStep('review');
-          toast.success(`พบ ${parcels.length} พัสดุ, จับคู่ได้ ${matchResult.data.filter((m: any) => m.sale).length} รายการ`);
-        } else {
-          console.error('Failed to match parcels:', matchResult.message);
-          toast.error(matchResult.message);
-          setStep('upload');
-        }
+        await runActionWithToast(matchParcelsToSales(parcels), {
+          successMessage: (res) => `พบ ${parcels.length} พัสดุ, จับคู่ได้ ${res.filter((m: any) => m.sale).length} รายการ`,
+          onSuccess: (res) => {
+            setMatches(res);
+            setStep('review');
+          },
+          onError: () => {
+            setStep('upload');
+          }
+        });
       } catch (error) {
         toast.error('เกิดข้อผิดพลาดในการสแกน');
         setStep('upload');
@@ -126,6 +128,7 @@ export function ShipmentScanner({ availableSales }: ShipmentScannerProps) {
           continue;
         }
 
+        // We use the raw action here because it's in a loop, but we wrap the whole process in transition
         const result = await createShipment({
           saleId,
           recipientName: match.parcel.recipientName,
@@ -143,21 +146,19 @@ export function ShipmentScanner({ availableSales }: ShipmentScannerProps) {
         }
       }
 
-      if (successCount > 0) {
-        toast.success(`สร้าง ${successCount} รายการจัดส่งสำเร็จ`);
-      }
-      
-      if (errorCount > 0) {
-        toast.error(`${errorCount} รายการสร้างไม่สำเร็จ`, {
-            description: 'กรุณาตรวจสอบความถูกต้องของข้อมูลสแกนอีกครั้ง'
-        });
-      }
-
-      // Safe navigation pattern
-      setTimeout(() => {
-        router.push('/shipments');
-        router.refresh();
-      }, 100);
+      // Final report after loop
+      await runActionWithToast(Promise.resolve({ 
+        success: errorCount === 0, 
+        message: `สร้าง ${successCount} รายการสำเร็จ` + (errorCount > 0 ? `, ล้มเหลว ${errorCount} รายการ` : ''),
+        data: null
+      } as ActionResponse<null>), {
+        onSuccess: () => {
+          setTimeout(() => {
+            router.push('/shipments');
+            router.refresh();
+          }, 100);
+        }
+      });
     });
   };
 

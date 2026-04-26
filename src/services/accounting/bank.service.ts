@@ -4,25 +4,14 @@ import crypto from 'crypto';
 import { AccountingService } from './accounting.service';
 import { ACCOUNTING_CONFIG } from '@/constants/erp/accounting-logic.constants';
 
-export class BankService {
-    /**
-     * Generate a unique hash for a bank line to prevent duplicate imports.
-     */
-    private static generateDedupeHash(data: {
-        date: Date;
-        amount: number;
-        description: string;
-        referenceNo?: string;
-        bankAccountId: string;
-    }): string {
-        const input = `${data.bankAccountId}_${data.date.toISOString()}_${data.amount}_${data.description}_${data.referenceNo || ''}`;
-        return crypto.createHash('sha256').update(input).digest('hex');
-    }
+import { IBankService } from '@/types/service-contracts';
+import { ACCOUNTING_TAGS } from '@/config/cache-tags';
 
+export const BankService: IBankService = {
     /**
      * Create a new Bank Account and link it to the CoA.
      */
-    static async createBankAccount(data: {
+    async createBankAccount(data: {
         shopId: string;
         userId: string;
         name: string;
@@ -31,18 +20,23 @@ export class BankService {
         glAccountId: string;
         currency?: string;
     }) {
-        return await db.bankAccount.create({
+        const bankAccount = await db.bankAccount.create({
             data: {
                 ...data,
                 isActive: true
             }
         });
-    }
+
+        return {
+            data: bankAccount,
+            affectedTags: [ACCOUNTING_TAGS.JOURNAL]
+        };
+    },
 
     /**
      * Import a bank statement and its lines with deduplication.
      */
-    static async importStatement(data: {
+    async importStatement(data: {
         shopId: string;
         memberId: string;
         bankAccountId: string;
@@ -58,7 +52,7 @@ export class BankService {
             creditAmount: number;
         }>;
     }) {
-        return await db.$transaction(async (tx: Prisma.TransactionClient) => {
+        const result = await db.$transaction(async (tx: Prisma.TransactionClient) => {
             // 1. Create the Statement header
             const statement = await tx.bankStatement.create({
                 data: {
@@ -76,7 +70,7 @@ export class BankService {
             const importedLines = [];
             for (const line of data.lines) {
                 const netAmount = line.creditAmount - line.debitAmount;
-                const dedupeHash = this.generateDedupeHash({
+                const dedupeHash = generateDedupeHash({
                     bankAccountId: data.bankAccountId,
                     date: line.bookingDate,
                     amount: netAmount,
@@ -111,12 +105,17 @@ export class BankService {
 
             return { statement, linesImported: importedLines.length };
         });
-    }
+
+        return {
+            data: result,
+            affectedTags: [ACCOUNTING_TAGS.JOURNAL]
+        };
+    },
 
     /**
      * Find potential matching JournalLines for a specific BankLine.
      */
-    static async getMatchCandidates(bankLineId: string) {
+    async getMatchCandidates(bankLineId: string) {
         const bankLine = await db.bankLine.findUnique({
             where: { id: bankLineId },
             include: { statement: { include: { bankAccount: true } } }
@@ -150,13 +149,13 @@ export class BankService {
                 journalEntry: true
             }
         });
-    }
+    },
 
     /**
      * Securely match a BankLine with one or more JournalLines.
      */
-    static async matchLine(bankLineId: string, journalLineIds: string[], memberId: string) {
-        return await db.$transaction(async (tx: Prisma.TransactionClient) => {
+    async matchLine(bankLineId: string, journalLineIds: string[], memberId: string) {
+        const result = await db.$transaction(async (tx: Prisma.TransactionClient) => {
             const bankLine = await tx.bankLine.findUnique({ where: { id: bankLineId } });
             if (!bankLine) throw new Error('Bank line not found');
 
@@ -183,5 +182,24 @@ export class BankService {
                 }
             });
         });
+
+        return {
+            data: result,
+            affectedTags: [ACCOUNTING_TAGS.JOURNAL]
+        };
     }
+};
+
+/**
+ * Generate a unique hash for a bank line to prevent duplicate imports.
+ */
+function generateDedupeHash(data: {
+    date: Date;
+    amount: number;
+    description: string;
+    referenceNo?: string;
+    bankAccountId: string;
+}): string {
+    const input = `${data.bankAccountId}_${data.date.toISOString()}_${data.amount}_${data.description}_${data.referenceNo || ''}`;
+    return crypto.createHash('sha256').update(input).digest('hex');
 }

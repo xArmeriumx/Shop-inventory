@@ -18,6 +18,17 @@ export const PURCHASE_AUDIT_POLICIES = {
     })
   }),
 
+  CREATE_REQUEST: (purchaseNumber: string): AuditPolicy => ({
+    action: 'PURCHASE_REQUEST_CREATE',
+    targetType: 'Purchase',
+    note: `สร้างใบขอซื้อ (PR) ${purchaseNumber}`,
+    afterSnapshot: (data: any) => ({
+      purchaseNumber: data.purchaseNumber,
+      docType: 'REQUEST',
+      itemCount: data.items?.length || 0,
+    })
+  }),
+
   CANCEL: (purchaseNumber: string, reason: string): AuditPolicy => ({
     action: 'PURCHASE_VOID',
     targetType: 'Purchase',

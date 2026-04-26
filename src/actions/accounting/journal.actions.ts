@@ -11,6 +11,8 @@ import { ActionResponse } from '@/types/common';
 import { PerformanceCollector } from '@/lib/debug/measurement';
 import { handleAction } from '@/lib/action-handler';
 import { requirePermission } from '@/lib/auth-guard';
+import { ACCOUNTING_TAGS } from '@/config/cache-tags';
+import { revalidateTag } from 'next/cache';
 
 /**
  * ดึงรายการสมุดรายวัน
@@ -45,8 +47,8 @@ export async function createJournalAction(data: any): Promise<ActionResponse<any
                 ...data,
                 journalDate: new Date(data.journalDate),
             });
-            revalidatePath('/settings/accounting');
-            return result;
+            revalidateTag(ACCOUNTING_TAGS.JOURNAL);
+            return result.data;
         }, 'accounting:createJournal');
     }, { context: { action: 'createJournalAction', data } });
 }
@@ -59,8 +61,8 @@ export async function postJournalAction(id: string): Promise<ActionResponse<any>
         return PerformanceCollector.run(async () => {
             const ctx = await requirePermission('FINANCE_CONFIG' as any);
             const result = await JournalService.postEntry(id, ctx);
-            revalidatePath('/settings/accounting');
-            return result;
+            revalidateTag(ACCOUNTING_TAGS.JOURNAL);
+            return result.data;
         }, 'accounting:postJournal');
     }, { context: { action: 'postJournalAction', id } });
 }
@@ -73,8 +75,8 @@ export async function voidJournalAction(id: string): Promise<ActionResponse<any>
         return PerformanceCollector.run(async () => {
             const ctx = await requirePermission('FINANCE_PAYMENT_VOID');
             const result = await JournalService.voidEntry(id, ctx);
-            revalidatePath('/settings/accounting');
-            return result;
+            revalidateTag(ACCOUNTING_TAGS.JOURNAL);
+            return result.data;
         });
     }, { context: { action: 'voidJournalAction' } });
 }

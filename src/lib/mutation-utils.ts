@@ -13,11 +13,12 @@ import { ActionResponse } from '@/types/domain';
 export async function runActionWithToast<T>(
     action: Promise<ActionResponse<T>>,
     options?: {
-        successMessage?: string;
+        successMessage?: string | ((data: T) => string);
         onSuccess?: (data: T) => void | Promise<void>;
         onError?: (result: Extract<ActionResponse<T>, { success: false }>) => void;
         onFinally?: () => void;
         loadingMessage?: string;
+        showSuccessToast?: boolean;
     }
 ) {
     // ใช้ Operation ID เพื่อป้องกันการเด้งซ้ำ (Deduplication)
@@ -40,8 +41,23 @@ export async function runActionWithToast<T>(
         }
 
         // กรณีสำเร็จ: แสดงข้อความ (ถ้ามี)
-        const msg = result.message || options?.successMessage || 'ทำรายการสำเร็จ';
-        toast.success(msg, { id: toastId });
+        const showSuccess = options?.showSuccessToast ?? true;
+        if (showSuccess) {
+            let msg = result.message || 'ทำรายการสำเร็จ';
+            
+            if (options?.successMessage) {
+                if (typeof options.successMessage === 'function') {
+                    msg = options.successMessage(result.data);
+                } else {
+                    msg = options.successMessage;
+                }
+            }
+            
+            toast.success(msg, { id: toastId });
+        } else {
+            // Remove loading toast if it was shown
+            toast.dismiss(toastId);
+        }
 
         // รัน callback เมื่อสำเร็จ
         if (options?.onSuccess) {

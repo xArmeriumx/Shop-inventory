@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useTransition } from 'react';
 import { useForm, FormProvider, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
+import { runActionWithToast } from '@/lib/mutation-utils';
 import {
     Dialog,
     DialogContent,
@@ -39,7 +40,7 @@ export function PaymentModal({
     residualAmount,
     parentTitle
 }: PaymentModalProps) {
-    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isPending, startTransition] = useTransition();
     const [previewData, setPreviewData] = useState<any>(null);
 
     const methods = useForm<PaymentFormValues>({
@@ -83,9 +84,8 @@ export function PaymentModal({
             return;
         }
 
-        setIsSubmitting(true);
-        try {
-            const result = await recordPaymentAction({
+        startTransition(async () => {
+            await runActionWithToast(recordPaymentAction({
                 saleId,
                 invoiceId,
                 amount: values.amount,
@@ -93,19 +93,11 @@ export function PaymentModal({
                 paymentDate: values.paymentDate ? new Date(values.paymentDate) : undefined,
                 referenceId: values.referenceId,
                 note: values.note,
+            }), {
+                successMessage: 'บันทึกการชำระเงินสำเร็จ',
+                onSuccess: () => onClose(),
             });
-
-            if (result.success) {
-                toast.success('บันทึกการชำระเงินสำเร็จ');
-                onClose();
-            } else {
-                toast.error(result.message || 'เกิดข้อผิดพลาดในการบันทึกการชำระเงิน');
-            }
-        } catch (error) {
-            toast.error('เกิดข้อผิดพลาดในการเชื่อมต่อ');
-        } finally {
-            setIsSubmitting(false);
-        }
+        });
     };
 
     const paymentMethodOptions = Object.values(PAYMENT_METHODS);
@@ -213,11 +205,11 @@ export function PaymentModal({
                         </div>
 
                         <DialogFooter className="pt-2">
-                            <Button type="button" variant="ghost" onClick={onClose} disabled={isSubmitting}>
+                            <Button type="button" variant="ghost" onClick={onClose} disabled={isPending}>
                                 ยกเลิก
                             </Button>
-                            <Button type="submit" disabled={isSubmitting} className="min-w-[140px] h-11">
-                                {isSubmitting ? (
+                            <Button type="submit" disabled={isPending} className="min-w-[140px] h-11">
+                                {isPending ? (
                                     <>
                                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                         กำลังบันทึก...

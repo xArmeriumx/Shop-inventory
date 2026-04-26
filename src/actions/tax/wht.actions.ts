@@ -12,6 +12,8 @@ import { ExportService } from '@/services/core/intelligence/export.service';
 import { PerformanceCollector } from '@/lib/debug/measurement';
 import { handleAction, type ActionResponse } from '@/lib/action-handler';
 import { requirePermission } from '@/lib/auth-guard';
+import { revalidateTag } from 'next/cache';
+import { TAX_TAGS } from '@/config/cache-tags';
 
 /**
  * Server Actions for Withholding Tax (WHT)
@@ -56,7 +58,7 @@ export async function upsertWhtCode(data: WhtCodeFormValues, id?: string): Promi
                 });
             }
 
-            revalidatePath('/settings/tax');
+            revalidateTag(TAX_TAGS.SETTINGS);
             return null;
         }, 'tax:upsertWhtCode');
     }, { context: { action: 'upsertWhtCode' } });
@@ -70,7 +72,7 @@ export async function toggleWhtCodeStatus(id: string, isActive: boolean): Promis
                 where: { id, shopId: ctx.shopId },
                 data: { isActive },
             });
-            revalidatePath('/settings/tax');
+            revalidateTag(TAX_TAGS.SETTINGS);
             return null;
         }, 'tax:toggleWhtCodeStatus');
     }, { context: { action: 'toggleWhtCodeStatus', id } });
@@ -83,7 +85,7 @@ export async function deleteWhtCodeAction(id: string): Promise<ActionResponse<nu
             await db.whtCode.delete({
                 where: { id, shopId: ctx.shopId }
             });
-            revalidatePath('/settings/tax');
+            revalidateTag(TAX_TAGS.SETTINGS);
             return null;
         }, 'tax:deleteWhtCode');
     }, { context: { action: 'deleteWhtCode', id } });
@@ -102,9 +104,10 @@ export async function issueWhtCertificateAction(entryId: string): Promise<Action
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
             const ctx = await requirePermission('TAX_REPORT_POST');
-            const certificate = await WhtService.issueCertificate(ctx, entryId);
-            revalidatePath('/settings/tax');
-            return certificate;
+            const result = await WhtService.issueCertificate(ctx, entryId);
+            revalidateTag(TAX_TAGS.WHT.LIST);
+            revalidateTag(TAX_TAGS.WHT.DETAIL(entryId));
+            return result.data;
         }, 'tax:issueWhtCertificate');
     }, { context: { action: 'issueWhtCertificate', entryId } });
 }
@@ -113,9 +116,9 @@ export async function voidWhtCertificateAction(certId: string): Promise<ActionRe
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
             const ctx = await requirePermission('TAX_REPORT_POST');
-            await WhtService.voidCertificate(ctx, certId);
-            revalidatePath('/settings/tax');
-            return null;
+            const result = await WhtService.voidCertificate(ctx, certId);
+            revalidateTag(TAX_TAGS.WHT.LIST);
+            return result.data;
         }, 'tax:voidWhtCertificate');
     }, { context: { action: 'voidWhtCertificate', certId } });
 }

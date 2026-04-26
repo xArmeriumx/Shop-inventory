@@ -4,7 +4,6 @@ import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm, FormProvider, useFormContext } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -209,11 +208,6 @@ export function RoleForm({ role }: RoleFormProps) {
   const { handleSubmit, setError, register } = methods;
 
   function onSubmit(data: RoleFormValues) {
-    if (role.isSystem) {
-      toast.error('ไม่สามารถแก้ไข Role ระบบได้');
-      return;
-    }
-
     startTransition(async () => {
       await runActionWithToast(updateRole(role.id, data), {
         successMessage: 'บันทึกการเปลี่ยนแปลงสิทธิ์เรียบร้อยแล้ว',

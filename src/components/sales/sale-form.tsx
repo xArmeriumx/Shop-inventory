@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
 import { useForm, FormProvider, useFormContext, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { toast } from 'sonner';
 
 import { cn } from '@/lib/utils';
 import { runActionWithToast, mapActionErrorsToForm } from '@/lib/mutation-utils';
@@ -173,7 +172,8 @@ function SalesItemsSection({
         }
         setScanInput('');
       } else {
-        toast.error('ไม่พบสินค้า SKU: ' + sku);
+        // Just log or handle silently, standard runActionWithToast is for Server Actions
+        console.error('ไม่พบสินค้า SKU: ' + sku);
       }
     }
   };
@@ -339,7 +339,7 @@ export function SaleForm() {
             setValue('items', saleItems);
           }
 
-          toast.success(`ดึงข้อมูลจากใบเสนอราคา ${q.quotationNo} แล้ว`);
+          // Silent success for data retrieval pre-fill
         }
       });
     }
@@ -411,9 +411,6 @@ export function SaleForm() {
       return (Number(item.quantity) || 0) > available;
     });
 
-    if (insufficientItems.length > 0) {
-      toast.warning('สินค้าบางรายการสต็อกไม่พอ รายการนี้จะถูกตั้งสถานะเป็น "รอสต็อก" (WAITING) ในระบบจัดส่ง');
-    }
 
     startTransition(async () => {
       await runActionWithToast(createSale(payload), {

@@ -23,7 +23,7 @@ import {
     AlertCircle
 } from 'lucide-react';
 import { importStatementAction } from '@/actions/accounting/bank.actions';
-import { toast } from 'sonner';
+import { runActionWithToast } from '@/lib/mutation-utils';
 
 const lineSchema = z.object({
     bookingDate: z.string().min(1, 'ระบุวันที่'),
@@ -74,23 +74,22 @@ export function StatementImportModal({ children, bankAccountId }: StatementImpor
 
     const onSubmit = (values: StatementFormValues) => {
         startTransition(async () => {
-            try {
-                await importStatementAction({
-                    bankAccountId,
-                    statementDate: new Date(values.statementDate),
-                    openingBalance: values.openingBalance,
-                    closingBalance: values.closingBalance,
-                    lines: values.lines.map(l => ({
-                        ...l,
-                        bookingDate: new Date(l.bookingDate)
-                    }))
-                });
-                toast.success('นำเข้าข้อมูล Statement สำเร็จ');
-                setOpen(false);
-                form.reset();
-            } catch (error) {
-                toast.error('ไม่สามารถนำเข้าข้อมูลได้');
-            }
+            await runActionWithToast(importStatementAction({
+                bankAccountId,
+                statementDate: new Date(values.statementDate),
+                openingBalance: values.openingBalance,
+                closingBalance: values.closingBalance,
+                lines: values.lines.map(l => ({
+                    ...l,
+                    bookingDate: new Date(l.bookingDate)
+                }))
+            }), {
+                successMessage: 'นำเข้าข้อมูล Statement สำเร็จ',
+                onSuccess: () => {
+                    setOpen(false);
+                    form.reset();
+                }
+            });
         });
     };
 

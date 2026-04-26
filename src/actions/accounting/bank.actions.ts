@@ -1,23 +1,23 @@
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import { requirePermission } from '@/lib/auth-guard';
 import { BankService } from '@/services/accounting/bank.service';
 import { ActionResponse } from '@/types/common';
 import { db } from '@/lib/db';
 import { PerformanceCollector } from '@/lib/debug/measurement';
 import { handleAction } from '@/lib/action-handler';
+import { ACCOUNTING_TAGS } from '@/config/cache-tags';
 
 export async function createBankAccountAction(data: any): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
             const ctx = await requirePermission('FINANCE_CONFIG' as any);
-            const bankAccount = await BankService.createBankAccount({
+            const result = await BankService.createBankAccount({
                 ...data,
                 shopId: ctx.shopId,
                 userId: ctx.userId
             });
-
-            revalidatePath('/accounting/banks');
-            return bankAccount;
+            revalidateTag(ACCOUNTING_TAGS.JOURNAL);
+            return result.data;
         });
     }, { context: { action: 'createBankAccountAction' } });
 }
@@ -31,9 +31,8 @@ export async function importStatementAction(data: any): Promise<ActionResponse<a
                 shopId: ctx.shopId,
                 memberId: ctx.memberId
             });
-
-            revalidatePath('/accounting/reconcile');
-            return result;
+            revalidateTag(ACCOUNTING_TAGS.JOURNAL);
+            return result.data;
         });
     }, { context: { action: 'importStatementAction' } });
 }
@@ -43,8 +42,8 @@ export async function matchLineAction(bankLineId: string, journalLineIds: string
         return PerformanceCollector.run(async () => {
             const ctx = await requirePermission('FINANCE_CONFIG' as any);
             const result = await BankService.matchLine(bankLineId, journalLineIds, ctx.memberId!);
-            revalidatePath('/accounting/reconcile');
-            return result;
+            revalidateTag(ACCOUNTING_TAGS.JOURNAL);
+            return result.data;
         });
     }, { context: { action: 'matchLineAction' } });
 }

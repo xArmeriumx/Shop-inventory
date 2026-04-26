@@ -10,6 +10,8 @@
 
 import { db } from '@/lib/db';
 import type { RequestContext } from '@/types/domain';
+import { ITaxSettingsService } from '@/types/service-contracts';
+import { TAX_TAGS } from '@/config/cache-tags';
 
 // ==================== Company Tax Profile ====================
 
@@ -41,7 +43,7 @@ async function upsertCompanyTaxProfile(
     input: UpsertCompanyTaxProfileInput,
     ctx: RequestContext
 ) {
-    return (db as any).companyTaxProfile.upsert({
+    const profile = await (db as any).companyTaxProfile.upsert({
         where: { shopId: ctx.shopId },
         create: {
             shopId: ctx.shopId,
@@ -49,6 +51,11 @@ async function upsertCompanyTaxProfile(
         },
         update: { ...input },
     });
+
+    return {
+        data: profile,
+        affectedTags: [TAX_TAGS.SETTINGS]
+    };
 }
 
 // ==================== Tax Code ====================
@@ -97,12 +104,17 @@ async function getTaxCodeByCode(code: string, ctx: RequestContext) {
 }
 
 async function createTaxCode(input: CreateTaxCodeInput, ctx: RequestContext) {
-    return (db as any).taxCode.create({
+    const taxCode = await (db as any).taxCode.create({
         data: {
             shopId: ctx.shopId,
             ...input,
         },
     });
+
+    return {
+        data: taxCode,
+        affectedTags: [TAX_TAGS.SETTINGS]
+    };
 }
 
 async function updateTaxCode(
@@ -110,17 +122,27 @@ async function updateTaxCode(
     input: Partial<CreateTaxCodeInput>,
     ctx: RequestContext
 ) {
-    return (db as any).taxCode.update({
+    const updated = await (db as any).taxCode.update({
         where: { shopId_code: { shopId: ctx.shopId, code } },
         data: { ...input },
     });
+
+    return {
+        data: updated,
+        affectedTags: [TAX_TAGS.SETTINGS]
+    };
 }
 
 async function toggleTaxCode(code: string, isActive: boolean, ctx: RequestContext) {
-    return (db as any).taxCode.update({
+    const toggled = await (db as any).taxCode.update({
         where: { shopId_code: { shopId: ctx.shopId, code } },
         data: { isActive },
     });
+
+    return {
+        data: toggled,
+        affectedTags: [TAX_TAGS.SETTINGS]
+    };
 }
 
 // ==================== Partner Tax Profile ====================
@@ -158,11 +180,16 @@ async function upsertPartnerTaxProfile(
     const { customerId, supplierId } = input;
     const where = customerId ? { customerId } : { supplierId };
 
-    return (db as any).partnerTaxProfile.upsert({
+    const profile = await (db as any).partnerTaxProfile.upsert({
         where,
         create: { shopId: ctx.shopId, ...input },
         update: { ...input },
     });
+
+    return {
+        data: profile,
+        affectedTags: [TAX_TAGS.SETTINGS]
+    };
 }
 
 // ==================== Product Tax Profile ====================
@@ -184,11 +211,16 @@ async function upsertProductTaxProfile(
     input: UpsertProductTaxProfileInput,
     ctx: RequestContext
 ) {
-    return (db as any).productTaxProfile.upsert({
+    const profile = await (db as any).productTaxProfile.upsert({
         where: { productId },
         create: { shopId: ctx.shopId, productId, ...input },
         update: { ...input },
     });
+
+    return {
+        data: profile,
+        affectedTags: [TAX_TAGS.SETTINGS]
+    };
 }
 
 // ==================== Tax Report Entries ====================
@@ -266,7 +298,7 @@ async function postSalesTaxEntry(
     tx: any = db
 ) {
     const now = new Date();
-    return (tx as any).salesTaxEntry.create({
+    const entry = await (tx as any).salesTaxEntry.create({
         data: {
             shopId: ctx.shopId,
             ...input,
@@ -276,6 +308,11 @@ async function postSalesTaxEntry(
             postedAt: now,
         },
     });
+
+    return {
+        data: entry,
+        affectedTags: [TAX_TAGS.VAT.LIST, TAX_TAGS.VAT.SUMMARY]
+    };
 }
 
 /**
@@ -300,7 +337,7 @@ async function postPurchaseTaxEntry(
     tx: any = db
 ) {
     const now = new Date();
-    return (tx as any).purchaseTaxEntry.create({
+    const entry = await (tx as any).purchaseTaxEntry.create({
         data: {
             shopId: ctx.shopId,
             ...input,
@@ -310,6 +347,11 @@ async function postPurchaseTaxEntry(
             postedAt: now,
         },
     });
+
+    return {
+        data: entry,
+        affectedTags: [TAX_TAGS.PURCHASE_TAX.LIST]
+    };
 }
 
 /**
@@ -331,9 +373,14 @@ async function voidTaxEntries(
             data: { postingStatus: 'VOIDED', voidedAt: now },
         }),
     ]);
+
+    return {
+        data: undefined,
+        affectedTags: [TAX_TAGS.VAT.LIST, TAX_TAGS.PURCHASE_TAX.LIST]
+    };
 }
 
-export const TaxSettingsService = {
+export const TaxSettingsService: ITaxSettingsService = {
     // Company
     getCompanyTaxProfile,
     upsertCompanyTaxProfile,

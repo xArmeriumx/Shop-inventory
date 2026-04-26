@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
     DialogDescription, DialogFooter
@@ -24,7 +24,7 @@ import { exportWhtEntriesAction } from '@/actions/tax/wht.actions';
 
 export function AuditPackModal() {
     const [isOpen, setIsOpen] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
+    const [isPending, startTransition] = useTransition();
     const [selectedDate, setSelectedDate] = useState(new Date());
 
     const presets = [
@@ -52,62 +52,62 @@ export function AuditPackModal() {
         document.body.removeChild(link);
     };
 
-    const handleGeneratePack = async () => {
-        setIsLoading(true);
+    const handleGeneratePack = () => {
         const startDate = startOfMonth(selectedDate);
         const endDate = endOfMonth(selectedDate);
         const dateStr = format(selectedDate, 'yyyy-MM');
+        const toastId = 'audit-pack';
 
-        try {
-            toast.loading('กำลังเตรียม Audit Pack...', { id: 'audit-pack' });
+        startTransition(async () => {
+            try {
+                toast.loading('กำลังเตรียม Audit Pack...', { id: toastId });
 
-            // 1. Profit & Loss
-            const pnl = await exportProfitAndLossAction({
-                startDate: startDate.toISOString(),
-                endDate: endDate.toISOString()
-            });
-            if (pnl.success) triggerDownload(pnl.data as string, `PL_${dateStr}`);
+                // 1. Profit & Loss
+                const pnl = await exportProfitAndLossAction({
+                    startDate: startDate.toISOString(),
+                    endDate: endDate.toISOString()
+                });
+                if (pnl.success) triggerDownload(pnl.data as string, `PL_${dateStr}`);
 
-            // 2. Balance Sheet (as of end of month)
-            const bs = await exportBalanceSheetAction({
-                asOfDate: endDate.toISOString()
-            });
-            if (bs.success) triggerDownload(bs.data as string, `BS_${dateStr}`);
+                // 2. Balance Sheet (as of end of month)
+                const bs = await exportBalanceSheetAction({
+                    asOfDate: endDate.toISOString()
+                });
+                if (bs.success) triggerDownload(bs.data as string, `BS_${dateStr}`);
 
-            // 3. Trial Balance
-            const tb = await exportTrialBalanceAction({
-                date: endDate.toISOString()
-            });
-            if (tb.success) triggerDownload(tb.data as string, `TB_${dateStr}`);
+                // 3. Trial Balance
+                const tb = await exportTrialBalanceAction({
+                    date: endDate.toISOString()
+                });
+                if (tb.success) triggerDownload(tb.data as string, `TB_${dateStr}`);
 
-            // 4. General Ledger (Full)
-            const gl = await exportGeneralLedgerAction({
-                startDate: startDate.toISOString(),
-                endDate: endDate.toISOString()
-            });
-            if (gl.success) triggerDownload(gl.data as string, `GL_${dateStr}`);
+                // 4. General Ledger (Full)
+                const gl = await exportGeneralLedgerAction({
+                    startDate: startDate.toISOString(),
+                    endDate: endDate.toISOString()
+                });
+                if (gl.success) triggerDownload(gl.data as string, `GL_${dateStr}`);
 
-            // 5. VAT Report
-            const vat = await exportVatReportAction({
-                month: selectedDate.getMonth() + 1,
-                year: selectedDate.getFullYear()
-            });
-            if (vat.success) triggerDownload(vat.data as string, `VAT_${dateStr}`);
+                // 5. VAT Report
+                const vat = await exportVatReportAction({
+                    month: selectedDate.getMonth() + 1,
+                    year: selectedDate.getFullYear()
+                });
+                if (vat.success) triggerDownload(vat.data as string, `VAT_${dateStr}`);
 
-            // 6. WHT Report
-            const wht = await exportWhtEntriesAction({
-                month: selectedDate.getMonth() + 1,
-                year: selectedDate.getFullYear()
-            });
-            if (wht.success) triggerDownload(wht.data as string, `WHT_${dateStr}`);
+                // 6. WHT Report
+                const wht = await exportWhtEntriesAction({
+                    month: selectedDate.getMonth() + 1,
+                    year: selectedDate.getFullYear()
+                });
+                if (wht.success) triggerDownload(wht.data as string, `WHT_${dateStr}`);
 
-            toast.success('ดาวน์โหลด Audit Pack ครบถ้วน', { id: 'audit-pack' });
-            setIsOpen(false);
-        } catch (error: any) {
-            toast.error('เกิดข้อผิดพลาดในการโหลด Audit Pack', { id: 'audit-pack' });
-        } finally {
-            setIsLoading(false);
-        }
+                toast.success('ดาวน์โหลด Audit Pack ครบถ้วน', { id: toastId });
+                setIsOpen(false);
+            } catch (error: any) {
+                toast.error('เกิดข้อผิดพลาดในการโหลด Audit Pack', { id: toastId });
+            }
+        });
     };
 
     return (
@@ -175,15 +175,15 @@ export function AuditPackModal() {
                 </div>
 
                 <DialogFooter>
-                    <Button variant="ghost" onClick={() => setIsOpen(false)} disabled={isLoading}>
+                    <Button variant="ghost" onClick={() => setIsOpen(false)} disabled={isPending}>
                         Cancel
                     </Button>
                     <Button
                         onClick={handleGeneratePack}
-                        disabled={isLoading}
+                        disabled={isPending}
                         className="bg-slate-900 text-white min-w-[150px]"
                     >
-                        {isLoading ? (
+                        {isPending ? (
                             <>
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                 Processing...

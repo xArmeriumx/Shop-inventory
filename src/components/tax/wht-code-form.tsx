@@ -17,7 +17,7 @@ import {
     getDefaultWhtCodeValues
 } from "@/schemas/tax/wht-form.schema";
 import { upsertWhtCode } from "@/actions/tax/wht.actions";
-import { toast } from "sonner";
+import { runActionWithToast } from "@/lib/mutation-utils";
 import { useTransition } from "react";
 import {
     Select,
@@ -45,13 +45,10 @@ export function WhtCodeForm({ data, onClose }: WhtCodeFormProps) {
 
     const onSubmit = (values: WhtCodeFormValues) => {
         startTransition(async () => {
-            try {
-                await upsertWhtCode(values, data?.id);
-                toast.success(data ? 'แก้ไขรหัสภาษีสำเร็จ' : 'เพิ่มรหัสภาษีสำเร็จ');
-                onClose();
-            } catch (error) {
-                toast.error('ไม่สามารถบันทึกข้อมูลได้');
-            }
+            await runActionWithToast(upsertWhtCode(values, data?.id), {
+                successMessage: data ? 'แก้ไขรหัสภาษีสำเร็จ' : 'เพิ่มรหัสภาษีสำเร็จ',
+                onSuccess: () => onClose()
+            });
         });
     };
 

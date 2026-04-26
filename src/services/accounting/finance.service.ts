@@ -8,6 +8,8 @@ import { paginatedQuery, buildSearchFilter, buildDateRangeFilter } from '@/lib/p
 import { toNumber, money } from '@/lib/money';
 import { FINANCE_CONSTANTS, serializeIncome, serializeExpense } from '@/lib/mappers';
 import { IFinanceService } from '@/types/service-contracts';
+import { ACCOUNTING_TAGS, SALES_TAGS } from '@/config/cache-tags';
+import { MutationResult } from '@/types/domain';
 
 export const FinanceService: IFinanceService = {
   // ============================================================================
@@ -49,12 +51,12 @@ export const FinanceService: IFinanceService = {
     return serializeIncome(income);
   },
 
-  async createIncome(data: IncomeInput, ctx: RequestContext): Promise<SerializedIncome> {
+  async createIncome(data: IncomeInput, ctx: RequestContext): Promise<MutationResult<SerializedIncome>> {
     const income = await AuditService.runWithAudit(
       ctx,
       FINANCE_AUDIT_POLICIES.INCOME_CREATE(data.description || ''),
       async () => {
-        const income = await db.income.create({
+        return db.income.create({
           data: {
             ...data,
             userId: ctx.userId,
@@ -62,14 +64,16 @@ export const FinanceService: IFinanceService = {
             shopId: ctx.shopId,
           } as any,
         });
-        return income;
       }
     );
 
-    return serializeIncome(income);
+    return {
+      data: serializeIncome(income),
+      affectedTags: [ACCOUNTING_TAGS.INCOME]
+    };
   },
 
-  async updateIncome(id: string, data: IncomeInput, ctx: RequestContext): Promise<SerializedIncome> {
+  async updateIncome(id: string, data: IncomeInput, ctx: RequestContext): Promise<MutationResult<SerializedIncome>> {
     const existing = await db.income.findFirst({
       where: { id, shopId: ctx.shopId, deletedAt: null },
     });
@@ -91,10 +95,13 @@ export const FinanceService: IFinanceService = {
       }
     );
 
-    return serializeIncome(updated);
+    return {
+      data: serializeIncome(updated),
+      affectedTags: [ACCOUNTING_TAGS.INCOME]
+    };
   },
 
-  async deleteIncome(id: string, ctx: RequestContext): Promise<void> {
+  async deleteIncome(id: string, ctx: RequestContext): Promise<MutationResult<void>> {
     const existing = await db.income.findFirst({
       where: { id, shopId: ctx.shopId, deletedAt: null },
     });
@@ -114,6 +121,11 @@ export const FinanceService: IFinanceService = {
         });
       }
     );
+
+    return {
+      data: undefined,
+      affectedTags: [ACCOUNTING_TAGS.INCOME]
+    };
   },
 
   async getMonthlyIncomes(ctx: RequestContext): Promise<{ total: number; count: number }> {
@@ -176,12 +188,12 @@ export const FinanceService: IFinanceService = {
     return serializeExpense(expense);
   },
 
-  async createExpense(data: ExpenseInput, ctx: RequestContext): Promise<SerializedExpense> {
+  async createExpense(data: ExpenseInput, ctx: RequestContext): Promise<MutationResult<SerializedExpense>> {
     const expense = await AuditService.runWithAudit(
       ctx,
       FINANCE_AUDIT_POLICIES.EXPENSE_CREATE(data.description || ''),
       async () => {
-        const expense = await db.expense.create({
+        return db.expense.create({
           data: {
             ...data,
             userId: ctx.userId,
@@ -189,14 +201,16 @@ export const FinanceService: IFinanceService = {
             shopId: ctx.shopId,
           } as any,
         });
-        return expense;
       }
     );
 
-    return serializeExpense(expense);
+    return {
+      data: serializeExpense(expense),
+      affectedTags: [ACCOUNTING_TAGS.EXPENSE]
+    };
   },
 
-  async updateExpense(id: string, data: ExpenseInput, ctx: RequestContext): Promise<SerializedExpense> {
+  async updateExpense(id: string, data: ExpenseInput, ctx: RequestContext): Promise<MutationResult<SerializedExpense>> {
     const existing = await db.expense.findFirst({
       where: { id, shopId: ctx.shopId, deletedAt: null },
     });
@@ -218,10 +232,13 @@ export const FinanceService: IFinanceService = {
       }
     );
 
-    return serializeExpense(updated);
+    return {
+      data: serializeExpense(updated),
+      affectedTags: [ACCOUNTING_TAGS.EXPENSE]
+    };
   },
 
-  async deleteExpense(id: string, ctx: RequestContext): Promise<void> {
+  async deleteExpense(id: string, ctx: RequestContext): Promise<MutationResult<void>> {
     const existing = await db.expense.findFirst({
       where: { id, shopId: ctx.shopId, deletedAt: null },
     });
@@ -241,6 +258,11 @@ export const FinanceService: IFinanceService = {
         });
       }
     );
+
+    return {
+      data: undefined,
+      affectedTags: [ACCOUNTING_TAGS.EXPENSE]
+    };
   },
 
   async getMonthlyExpenses(ctx: RequestContext): Promise<{ total: number; count: number }> {
@@ -268,7 +290,7 @@ export const FinanceService: IFinanceService = {
   // BILLING & TAX (ERP Module 6)
   // ============================================================================
 
-  async markAsBilled(saleId: string, ctx: RequestContext): Promise<void> {
+  async markAsBilled(saleId: string, ctx: RequestContext): Promise<MutationResult<void>> {
     const sale = await db.sale.findFirst({
       where: { id: saleId, shopId: ctx.shopId },
     });
@@ -290,6 +312,11 @@ export const FinanceService: IFinanceService = {
         });
       }
     );
+
+    return {
+      data: undefined,
+      affectedTags: [SALES_TAGS.DETAIL(saleId), SALES_TAGS.LIST]
+    };
   },
 
   async generateTaxReport(params: { startDate: string, endDate: string }, ctx: RequestContext) {

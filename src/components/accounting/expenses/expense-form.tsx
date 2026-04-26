@@ -14,6 +14,7 @@ import { FormField } from '@/components/ui/form-field';
 import { createExpense, updateExpense } from '@/actions/accounting/expense.actions';
 import { EXPENSE_CATEGORIES } from '@/schemas/accounting/expense.schema';
 import { expenseFormSchema, getExpenseFormDefaults } from '@/schemas/accounting/expense-form.schema';
+import { runActionWithToast, mapActionErrorsToForm } from '@/lib/mutation-utils';
 import type { ExpenseFormValues } from '@/schemas/accounting/expense-form.schema';
 
 // ============================================================================
@@ -64,30 +65,22 @@ export function ExpenseForm({ expense, categories }: ExpenseFormProps) {
     };
 
     startTransition(async () => {
-      const result = isEdit
-        ? await updateExpense(expense.id, payload)
-        : await createExpense(payload);
+      const action = isEdit
+        ? updateExpense(expense.id, payload)
+        : createExpense(payload);
 
-      // Expense actions use `error` field, not `errors`
-      const actionErrors = (result as any).error || (result as any).errors;
-
-      if (!result.success) {
-        if (actionErrors && typeof actionErrors === 'object') {
-          Object.entries(actionErrors).forEach(([field, messages]) => {
-            if (field === '_form') {
-              setError('root', { message: (messages as string[]).join(', ') });
-            } else {
-              setError(field as any, { message: (messages as string[])[0] });
-            }
-          });
-        } else if ((result as any).message) {
-          setError('root', { message: (result as any).message });
+      await runActionWithToast(action, {
+        successMessage: isEdit ? 'บันทึกการแก้ไขสำเร็จ' : 'บันทึกค่าใช้จ่ายสำเร็จ',
+        onSuccess: () => {
+          router.push('/expenses');
+          router.refresh();
+        },
+        onError: (result) => {
+          if (result.errors) {
+            mapActionErrorsToForm(methods, result.errors);
+          }
         }
-      } else {
-        toast.success(isEdit ? 'บันทึกการแก้ไขสำเร็จ' : 'บันทึกค่าใช้จ่ายสำเร็จ');
-        router.push('/expenses');
-        router.refresh();
-      }
+      });
     });
   }
 

@@ -1,7 +1,7 @@
 'use server';
 
 import { db } from '@/lib/db';
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import { WarehouseService } from '@/services/inventory/warehouse.service';
 import { warehouseSchema } from '@/schemas/inventory/warehouse-form.schema';
 import { requireShop, requirePermission } from '@/lib/auth-guard';
@@ -16,10 +16,13 @@ export async function createWarehouseAction(data: any): Promise<ActionResponse<a
       await requirePermission('PRODUCT_UPDATE');
 
       const validatedData = warehouseSchema.parse(data);
-      const warehouse = await WarehouseService.createWarehouse(context as any, validatedData);
+      const result = await WarehouseService.createWarehouse(context as any, validatedData);
 
-      revalidatePath('/inventory/warehouses');
-      return warehouse;
+      if (result.affectedTags) {
+        result.affectedTags.forEach(tag => revalidateTag(tag));
+      }
+
+      return result.data;
     });
   }, { context: { action: 'createWarehouse' } });
 }
@@ -102,15 +105,16 @@ export async function quickAdjustStock(
       if (type === 'REMOVE') delta = -quantity;
       if (type === 'SET') delta = quantity - product.stock;
 
-      await db.$transaction(async (tx) => {
-        await WarehouseService.adjustWarehouseStock(ctx as any, {
-          warehouseId: defaultWh.id,
-          productId,
-          delta
-        }, tx);
+      const result = await WarehouseService.adjustWarehouseStock(ctx as any, {
+        warehouseId: defaultWh.id,
+        productId,
+        delta
       });
 
-      revalidatePath('/inventory');
+      if (result.affectedTags) {
+        result.affectedTags.forEach(tag => revalidateTag(tag));
+      }
+
       return null;
     });
   }, { context: { action: 'quickAdjustStock' } });
@@ -165,15 +169,20 @@ export async function confirmReceipt(purchaseId: string): Promise<ActionResponse
         });
 
         for (const item of po.items) {
-          await WarehouseService.adjustWarehouseStock(ctx as any, {
+          const result = await WarehouseService.adjustWarehouseStock(ctx as any, {
             warehouseId: defaultWh.id,
             productId: item.productId,
             delta: item.quantity
           }, tx);
+          
+          if (result.affectedTags) {
+            result.affectedTags.forEach(tag => revalidateTag(tag));
+          }
         }
       });
 
-      revalidatePath('/inventory/purchases');
+      const { PURCHASE_TAGS } = await import('@/config/cache-tags');
+      revalidateTag(PURCHASE_TAGS.LIST);
       return null;
     });
   }, { context: { action: 'confirmReceipt' } });

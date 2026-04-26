@@ -12,7 +12,7 @@ import { ShipmentStatusBadge } from './shipment-status-badge';
 import { ShipmentTimeline } from './shipment-timeline';
 import { updateShipment, updateShipmentStatus, cancelShipment, calculateShipmentLoad } from '@/actions/sales/shipments.actions';
 import { formatCurrency, formatDate } from '@/lib/formatters';
-import { toast } from 'sonner';
+import { runActionWithToast } from '@/lib/mutation-utils';
 import { GuidedErrorAlert } from '@/components/ui/guided-error-alert';
 import { ErrorAction } from '@/types/domain';
 import {
@@ -61,57 +61,52 @@ export function ShipmentDetail({ shipment }: ShipmentDetailProps) {
   const [isPending, startTransition] = useTransition();
   const [cancelReason, setCancelReason] = useState('');
   const [loadData, setLoadData] = useState<any>(null);
-  const [isCalculating, setIsCalculating] = useState(false);
+  const [isLoadPending, startLoadTransition] = useTransition();
   const [errorInfo, setErrorInfo] = useState<{ message: string; action?: ErrorAction } | null>(null);
 
-  const handleCalculateLoad = async () => {
-    setIsCalculating(true);
-    try {
-      const result = await calculateShipmentLoad(shipment.id);
-      if (result.success) {
-        setLoadData(result.data);
-        setErrorInfo(null);
-      } else {
-        const fallbackMsg = result.message || 'ไม่สามารถคำนวณ Load ได้';
-        setErrorInfo({ message: fallbackMsg, action: result.action });
-        toast.error(fallbackMsg);
-      }
-    } catch {
-      toast.error('เกิดข้อผิดพลาดในการคำนวณ');
-    } finally {
-      setIsCalculating(false);
-    }
+  const handleCalculateLoad = () => {
+    startLoadTransition(async () => {
+      await runActionWithToast(calculateShipmentLoad(shipment.id), {
+        showSuccessToast: false,
+        onSuccess: (result) => {
+          setLoadData(result.data);
+          setErrorInfo(null);
+        },
+        onError: (result) => {
+          setErrorInfo({ 
+            message: result.message || 'ไม่สามารถคำนวณ Load ได้', 
+            action: result.action 
+          });
+        },
+      });
+    });
   };
 
   const handleStatusChange = (newStatus: ShipmentStatus) => {
     startTransition(async () => {
-      const result = await updateShipmentStatus({
-        id: shipment.id,
-        status: newStatus,
+      await runActionWithToast(updateShipmentStatus({ id: shipment.id, status: newStatus }), {
+        onSuccess: () => {
+          setErrorInfo(null);
+          router.refresh();
+        },
+        onError: (result) => {
+          setErrorInfo({ 
+            message: result.message || 'ไม่สามารถเปลี่ยนสถานะได้', 
+            action: result.action 
+          });
+        },
       });
-
-      if (result.success) {
-        toast.success(result.message);
-        setErrorInfo(null);
-        router.refresh();
-      } else {
-        const fallbackMsg = result.message || 'ไม่สามารถเปลี่ยนสถานะได้';
-        setErrorInfo({ message: fallbackMsg, action: result.action });
-        toast.error(fallbackMsg);
-      }
     });
   };
 
   const handleCancel = () => {
     startTransition(async () => {
-      const result = await cancelShipment(shipment.id, cancelReason || undefined);
-      if (result.success) {
-        toast.success(result.message);
-        setCancelReason('');
-        router.refresh();
-      } else {
-        toast.error(result.message || 'เกิดข้อผิดพลาด');
-      }
+      await runActionWithToast(cancelShipment(shipment.id, cancelReason || undefined), {
+        onSuccess: () => {
+          setCancelReason('');
+          router.refresh();
+        },
+      });
     });
   };
 
@@ -120,26 +115,21 @@ export function ShipmentDetail({ shipment }: ShipmentDetailProps) {
     const formData = new FormData(e.currentTarget);
 
     startTransition(async () => {
-      const result = await updateShipment({
+      await runActionWithToast(updateShipment({
         id: shipment.id,
         trackingNumber: (formData.get('trackingNumber') as string) || null,
         shippingProvider: (formData.get('shippingProvider') as string) || null,
-        shippingCost: formData.get('shippingCost')
-          ? Number(formData.get('shippingCost'))
-          : null,
+        shippingCost: formData.get('shippingCost') ? Number(formData.get('shippingCost')) : null,
         recipientName: formData.get('recipientName') as string,
         recipientPhone: (formData.get('recipientPhone') as string) || null,
         shippingAddress: formData.get('shippingAddress') as string,
         notes: (formData.get('notes') as string) || null,
+      }), {
+        onSuccess: () => {
+          setIsEditing(false);
+          router.refresh();
+        },
       });
-
-      if (result.success) {
-        toast.success(result.message);
-        setIsEditing(false);
-        router.refresh();
-      } else {
-        toast.error(result.message || 'เกิดข้อผิดพลาด');
-      }
     });
   };
 
@@ -400,9 +390,9 @@ export function ShipmentDetail({ shipment }: ShipmentDetailProps) {
                   size="sm" 
                   className="w-full text-xs" 
                   onClick={handleCalculateLoad}
-                  disabled={isCalculating}
+                  disabled={isLoadPending}
                 >
-                  {isCalculating ? <Loader2 className="h-3 w-3 mr-2 animate-spin" /> : <Save className="h-3 w-3 mr-2" />}
+                  {isLoadPending ? <Loader2 className="h-3 w-3 mr-2 animate-spin" /> : <Save className="h-3 w-3 mr-2" />}
                   คำนวณ Load
                 </Button>
               ) : (

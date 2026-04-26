@@ -20,7 +20,8 @@ import {
   PaginatedResult,
   SaleListDTO,
   SaleDetailDTO,
-  SerializedSale
+  SerializedSale,
+  MutationResult
 } from '@/types/domain';
 import { ISaleService } from '@/types/service-contracts';
 import { SequenceService } from '@/services/core/system/sequence.service';
@@ -34,6 +35,7 @@ import { SALE_CANCEL_REASONS, resolveReasonLabel, validateReason } from '@/confi
 
 import { ComputationEngine, CalculationItemInput } from '@/services/core/finance/computation.service';
 import { InvoiceService } from './invoice.service';
+import { SALES_TAGS, INVENTORY_TAGS } from '@/config/cache-tags';
 
 export interface CancelSaleInput {
   id: string;
@@ -45,7 +47,7 @@ export const SaleService: ISaleService = {
   /**
    * บันทึกการขายใหม่ พร้อมจองสต็อกอัตโนมัติ
    */
-  async create(ctx: RequestContext, payload: SaleInput, tx?: Prisma.TransactionClient): Promise<SaleDetailDTO> {
+  async create(ctx: RequestContext, payload: SaleInput, tx?: Prisma.TransactionClient): Promise<MutationResult<SaleDetailDTO>> {
     Security.requirePermission(ctx, 'SALE_CREATE');
     Security.assertSameShop(ctx, ctx.shopId);
 
@@ -58,7 +60,7 @@ export const SaleService: ISaleService = {
       throw new ServiceError('ต้องมีสินค้าอย่างน้อย 1 รายการ');
     }
 
-    return AuditService.runWithAudit(
+    const result = await AuditService.runWithAudit(
       ctx,
       {
         ...SALE_AUDIT_POLICIES.CREATE(saleData.customerName || 'New Sale'),
@@ -217,32 +219,42 @@ export const SaleService: ISaleService = {
             after: { inventoryAfter: afterSnapshot }
           };
 
-          return SaleMapper.toDetailDTO(sale, ctx);
-        }, { timeout: DB_TIMEOUTS.EXTENDED }).then(async (result) => {
+          const resultDTO = SaleMapper.toDetailDTO(sale, ctx);
+
           // 7. Notification (Outside transaction = SAFE)
           NotificationService.create({
             shopId: ctx.shopId,
             type: 'NEW_SALE',
             severity: 'INFO',
-            title: `ยอดขายใหม่ ${result.invoiceNumber}`,
-            message: `ยอดรวม ${result.netAmount} บาท`,
-            link: `/sales/${result.id}`,
+            title: `ยอดขายใหม่ ${resultDTO.invoiceNumber}`,
+            message: `ยอดรวม ${resultDTO.netAmount} บาท`,
+            link: `/sales/${resultDTO.id}`,
           }).catch(() => { });
 
-          return result;
+          return resultDTO;
         });
       }
     );
+
+    const affectedTags: string[] = [SALES_TAGS.LIST, SALES_TAGS.DASHBOARD];
+    payload.items.forEach(item => {
+      affectedTags.push(INVENTORY_TAGS.STOCK(item.productId));
+    });
+
+    return {
+      data: result,
+      affectedTags
+    };
   },
 
-  async update(id: string, ctx: RequestContext, payload: any): Promise<SaleDetailDTO> {
+  async update(id: string, ctx: RequestContext, payload: any): Promise<MutationResult<SaleDetailDTO>> {
     Security.require(ctx, 'SALE_UPDATE' as Permission);
     const sale = await db.sale.findFirst({ where: { id, shopId: ctx.shopId } });
     if (!sale) throw new ServiceError('ไม่พบรายการขาย');
 
     WorkflowService.canSaleAction(sale as any, 'UPDATE');
 
-    return AuditService.runWithAudit(
+    const result = await AuditService.runWithAudit(
       ctx,
       SALE_AUDIT_POLICIES.UPDATE(sale.invoiceNumber, payload),
       async () => {
@@ -275,9 +287,14 @@ export const SaleService: ISaleService = {
         return SaleMapper.toDetailDTO(updated, ctx);
       }
     );
+
+    return {
+      data: result,
+      affectedTags: [SALES_TAGS.LIST, SALES_TAGS.DETAIL(id), SALES_TAGS.DASHBOARD]
+    };
   },
 
-  async delete(id: string, ctx: RequestContext): Promise<void> {
+  async delete(id: string, ctx: RequestContext): Promise<MutationResult<void>> {
     return this.cancel({ id, reasonCode: 'SYSTEM_DELETE', reasonDetail: 'Deleted by user' }, ctx);
   },
 
@@ -389,7 +406,7 @@ export const SaleService: ISaleService = {
     return sales.map(sale => SaleMapper.toListDTO(sale)) as any;
   },
 
-  async cancel(input: CancelSaleInput, ctx: RequestContext): Promise<void> {
+  async cancel(input: CancelSaleInput, ctx: RequestContext): Promise<MutationResult<void>> {
     Security.require(ctx, Permission.SALE_CANCEL);
     const { id, reasonCode, reasonDetail } = input;
 
@@ -405,7 +422,7 @@ export const SaleService: ISaleService = {
     if (!sale) throw new ServiceError('ไม่พบข้อมูลการขาย');
     if (sale.status === 'CANCELLED') throw new ServiceError('รายการนี้ถูกยกเลิกไปแล้ว');
 
-    await AuditService.runWithAudit(
+    const result = await AuditService.runWithAudit(
       ctx,
       SALE_AUDIT_POLICIES.CANCEL(sale.invoiceNumber, cancelReason),
       async () => {
@@ -499,12 +516,25 @@ export const SaleService: ISaleService = {
 
             if (movements.length > 0) await StockService.recordMovements(ctx, movements, prisma);
           }
+
+          return fullSale;
         });
       }
     );
+
+    const affectedTags: string[] = [SALES_TAGS.LIST, SALES_TAGS.DETAIL(id), SALES_TAGS.DASHBOARD];
+    result.items?.forEach((item: any) => {
+      affectedTags.push(INVENTORY_TAGS.STOCK(item.productId));
+      affectedTags.push(INVENTORY_TAGS.DETAIL(item.productId));
+    });
+
+    return {
+      data: undefined,
+      affectedTags
+    };
   },
 
-  async verifyPayment(saleId: string, legacyStatus: 'VERIFIED' | 'REJECTED', note: string | undefined, ctx: RequestContext): Promise<void> {
+  async verifyPayment(saleId: string, legacyStatus: 'VERIFIED' | 'REJECTED', note: string | undefined, ctx: RequestContext): Promise<MutationResult<void>> {
     const status = legacyStatus === 'VERIFIED' ? 'PAID' : 'UNPAID';
     Security.requirePermission(ctx, Permission.FINANCE_VIEW_LEDGER);
     const existingSale = await db.sale.findFirst({ where: { id: saleId, shopId: ctx.shopId } });
@@ -530,9 +560,14 @@ export const SaleService: ISaleService = {
         });
       }
     );
+
+    return {
+      data: undefined,
+      affectedTags: [SALES_TAGS.LIST, SALES_TAGS.DETAIL(saleId)]
+    };
   },
 
-  async uploadPaymentProof(saleId: string, proofUrl: string, ctx: RequestContext): Promise<void> {
+  async uploadPaymentProof(saleId: string, proofUrl: string, ctx: RequestContext): Promise<MutationResult<void>> {
     const sale = await db.sale.findFirst({ where: { id: saleId, shopId: ctx.shopId } });
     if (!sale) throw new ServiceError('ไม่พบรายการขาย');
     if (sale.status === 'CANCELLED') throw new ServiceError('รายการนี้ถูกยกเลิกแล้ว');
@@ -542,13 +577,18 @@ export const SaleService: ISaleService = {
       // 🛡️ Bug #3 Fix: was incorrectly setting VOIDED — should be PENDING (awaiting verification)
       data: { paymentProof: proofUrl, paymentStatusProof: 'PENDING' },
     });
+
+    return {
+      data: undefined,
+      affectedTags: [SALES_TAGS.LIST, SALES_TAGS.DETAIL(saleId)]
+    };
   },
 
-  async confirmOrder(saleId: string, ctx: RequestContext): Promise<void> {
+  async confirmOrder(saleId: string, ctx: RequestContext): Promise<MutationResult<void>> {
     const sale = await db.sale.findFirst({ where: { id: saleId, shopId: ctx.shopId } });
     if (!sale) throw new ServiceError('ไม่พบรายการขาย');
 
-    return AuditService.runWithAudit(
+    await AuditService.runWithAudit(
       ctx,
       SALE_AUDIT_POLICIES.CONFIRM(sale.invoiceNumber),
       async () => {
@@ -570,29 +610,49 @@ export const SaleService: ISaleService = {
         });
       }
     );
+
+    return {
+      data: undefined,
+      affectedTags: [SALES_TAGS.LIST, SALES_TAGS.DETAIL(saleId), SALES_TAGS.DASHBOARD]
+    };
   },
 
-  async generateInvoice(saleId: string, ctx: RequestContext, overrides?: any): Promise<{ invoiceNumber: string }> {
-    return runInTransaction(undefined, async (prisma) => {
-      const sale = await prisma.sale.findFirst({ where: { id: saleId, shopId: ctx.shopId } });
-      if (!sale) throw new ServiceError('ไม่พบรายการขาย');
+  async generateInvoice(saleId: string, ctx: RequestContext, overrides?: any): Promise<MutationResult<{ invoiceNumber: string }>> {
+    const sale = await db.sale.findFirst({ where: { id: saleId, shopId: ctx.shopId } });
+    if (!sale) throw new ServiceError('ไม่พบรายการขาย');
 
-      await prisma.sale.update({
-        where: { id: saleId, shopId: ctx.shopId },
-        data: { status: SaleStatus.INVOICED, isLocked: true },
-      });
+    const result = await AuditService.runWithAudit(
+      ctx,
+      {
+        action: 'SALE_INVOICE_GENERATE',
+        targetType: 'Sale',
+        note: `ออกใบกำกับภาษีสำหรับรายการ ${sale.invoiceNumber}`,
+      },
+      async () => {
+        return runInTransaction(undefined, async (prisma) => {
+          await prisma.sale.update({
+            where: { id: saleId, shopId: ctx.shopId },
+            data: { status: SaleStatus.INVOICED, isLocked: true },
+          });
 
-      return { invoiceNumber: sale.invoiceNumber };
-    });
+          return { invoiceNumber: sale.invoiceNumber };
+        });
+      }
+    );
+
+    return {
+      data: result,
+      affectedTags: [SALES_TAGS.LIST, SALES_TAGS.DETAIL(saleId)]
+    };
   },
 
-  async completeSale(saleId: string, ctx: RequestContext, tx?: Prisma.TransactionClient): Promise<void> {
+  async completeSale(saleId: string, ctx: RequestContext, tx?: Prisma.TransactionClient): Promise<MutationResult<void>> {
     // 🛡️ Fix: Use tx if available — avoids requesting a new connection while one is already held
     const client = tx || db;
     const sale = await client.sale.findFirst({ where: { id: saleId, shopId: ctx.shopId } });
     if (!sale) throw new ServiceError('ไม่พบรายการขาย');
 
-    return AuditService.runWithAudit(
+    const result = await AuditService.runWithAudit(
       ctx,
       SALE_AUDIT_POLICIES.COMPLETE(sale.invoiceNumber),
       async () => {
@@ -603,7 +663,7 @@ export const SaleService: ISaleService = {
           });
 
           if (!fullSale) throw new ServiceError('ไม่พบรายการขาย');
-          if (fullSale.status === SaleStatus.COMPLETED) return;
+          if (fullSale.status === SaleStatus.COMPLETED) return fullSale;
 
           if (fullSale.paymentStatus === DocPaymentStatus.UNPAID) {
             throw new ServiceError(
@@ -637,10 +697,23 @@ export const SaleService: ISaleService = {
           } catch (e) {
             console.error('COGS Posting failed:', e);
           }
+
+          return fullSale;
         });
       },
       tx // 🛡️ Fix: Pass tx so AuditLog.create uses the same connection
     );
+
+    const affectedTags: string[] = [SALES_TAGS.LIST, SALES_TAGS.DETAIL(saleId), SALES_TAGS.DASHBOARD, INVENTORY_TAGS.LIST, INVENTORY_TAGS.LOW_STOCK];
+    result.items?.forEach((item: any) => {
+      affectedTags.push(INVENTORY_TAGS.STOCK(item.productId));
+      affectedTags.push(INVENTORY_TAGS.DETAIL(item.productId));
+    });
+
+    return {
+      data: undefined,
+      affectedTags
+    };
   },
 
   async getLockedFields(saleId: string, ctx: RequestContext): Promise<string[]> {

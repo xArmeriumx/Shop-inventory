@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, Fragment } from 'react';
+import React, { useState, useEffect, useCallback, useTransition, Fragment } from 'react';
 import { getAuditLogs } from '@/actions/core/audit.actions';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -11,12 +11,12 @@ import { Badge } from '@/components/ui/badge';
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
 import { Filter, Download, ChevronDown, ChevronRight, CheckCircle2, XCircle } from 'lucide-react';
-import { toast } from 'sonner';
+import { runActionWithToast } from '@/lib/mutation-utils';
 import { AuditDiffViewer } from '@/components/ui/audit-diff-viewer';
 
 export function AuditLogViewer() {
   const [logs, setLogs] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [isPending, startTransition] = useTransition();
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
   // Filters
@@ -27,27 +27,21 @@ export function AuditLogViewer() {
   const [actionQuery, setActionQuery] = useState<string>('');
 
   const fetchLogs = useCallback(async () => {
-    setLoading(true);
-    try {
-      const result = await getAuditLogs({
+    startTransition(async () => {
+      await runActionWithToast(getAuditLogs({
         page,
         limit: 20,
         targetType: targetType !== 'ALL' ? targetType : undefined,
         status: status !== 'ALL' ? (status as any) : undefined,
         action: actionQuery ? actionQuery : undefined,
+      }), {
+        showSuccessToast: false,
+        onSuccess: (result) => {
+          setLogs(result.data.data);
+          setTotalPages(result.data.totalPages);
+        },
       });
-
-      if (result.success) {
-        setLogs(result.data.data);
-        setTotalPages(result.data.totalPages);
-      } else {
-        toast.error(result.message);
-      }
-    } catch (error) {
-      toast.error('ไม่สามารถโหลดข้อมูล Audit Log ได้');
-    } finally {
-      setLoading(false);
-    }
+    });
   }, [page, targetType, status, actionQuery]);
 
   useEffect(() => {
@@ -62,7 +56,7 @@ export function AuditLogViewer() {
   };
 
   const handleExportCSV = () => {
-    if (logs.length === 0) return toast.info('ไม่มีข้อมูลให้ Export');
+    if (logs.length === 0) return;
     
     const headers = ['Date', 'Actor ID', 'Action', 'Target Type', 'Target ID', 'Status', 'Note'];
     const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + 
@@ -138,7 +132,7 @@ export function AuditLogViewer() {
               </SelectContent>
             </Select>
           </div>
-          <Button variant="secondary" onClick={() => fetchLogs()} disabled={loading}>
+          <Button variant="secondary" onClick={() => fetchLogs()} disabled={isPending}>
             <Filter className="h-4 w-4 mr-2" />
             ค้นหา
           </Button>
@@ -158,7 +152,7 @@ export function AuditLogViewer() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? (
+              {isPending ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-10">กำลังโหลดข้อมูล...</TableCell>
                 </TableRow>

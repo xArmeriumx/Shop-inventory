@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useTransition } from 'react';
 import {
     Dialog,
     DialogContent,
@@ -31,6 +31,7 @@ import { toast } from 'sonner';
 import { money } from '@/lib/money';
 import { createJournalAction } from '@/actions/accounting/journal.actions';
 import { cn } from '@/lib/utils';
+import { runActionWithToast } from '@/lib/mutation-utils';
 
 interface JournalFormModalProps {
     isOpen: boolean;
@@ -45,7 +46,7 @@ export function JournalFormModal({ isOpen, onClose, accounts }: JournalFormModal
         { accountId: '', description: '', debitAmount: 0, creditAmount: 0 },
         { accountId: '', description: '', debitAmount: 0, creditAmount: 0 },
     ]);
-    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isPending, startTransition] = useTransition();
 
     // Filter only postable accounts
     const postableAccounts = accounts.filter(a => a.isPostable);
@@ -88,9 +89,8 @@ export function JournalFormModal({ isOpen, onClose, accounts }: JournalFormModal
             return;
         }
 
-        setIsSubmitting(true);
-        try {
-            const res = await createJournalAction({
+        startTransition(async () => {
+            await runActionWithToast(createJournalAction({
                 journalDate,
                 description,
                 lines: lines.map(l => ({
@@ -99,25 +99,19 @@ export function JournalFormModal({ isOpen, onClose, accounts }: JournalFormModal
                     creditAmount: Number(l.creditAmount)
                 })),
                 status: 'POSTED' // Post immediately for now
+            }), {
+                successMessage: 'บันทึกรายการบัญชีสำเร็จ',
+                onSuccess: () => {
+                    onClose();
+                    // Reset form
+                    setLines([
+                        { accountId: '', description: '', debitAmount: 0, creditAmount: 0 },
+                        { accountId: '', description: '', debitAmount: 0, creditAmount: 0 },
+                    ]);
+                    setDescription('');
+                }
             });
-
-            if (res.success) {
-                toast.success('บันทึกรายการสำเร็จ');
-                onClose();
-                // Reset form
-                setLines([
-                    { accountId: '', description: '', debitAmount: 0, creditAmount: 0 },
-                    { accountId: '', description: '', debitAmount: 0, creditAmount: 0 },
-                ]);
-                setDescription('');
-            } else {
-                toast.error(res.message || 'เกิดข้อผิดพลาดในการบันทึก');
-            }
-        } catch (err) {
-            toast.error('Error submitting journal');
-        } finally {
-            setIsSubmitting(false);
-        }
+        });
     };
 
     return (
@@ -288,10 +282,10 @@ export function JournalFormModal({ isOpen, onClose, accounts }: JournalFormModal
                     <Button variant="ghost" onClick={onClose}>ยกเลิก</Button>
                     <Button
                         onClick={handleSubmit}
-                        disabled={!isBalanced || isSubmitting}
+                        disabled={!isBalanced || isPending}
                         className="min-w-[120px]"
                     >
-                        {isSubmitting ? 'กำลังบันทึก...' : 'บันทึกรายการ'}
+                        {isPending ? 'กำลังบันทึก...' : 'บันทึกรายการ'}
                     </Button>
                 </DialogFooter>
             </DialogContent>

@@ -5,6 +5,9 @@ import { Prisma } from '@prisma/client';
 import { money } from '@/lib/money';
 import { AccountingService } from './accounting.service';
 
+import { IJournalService } from '@/types/service-contracts';
+import { ACCOUNTING_TAGS } from '@/config/cache-tags';
+
 /**
  * JournalService — ระบบบริหารจัดการสมุดรายวัน (Ledger Engine)
  * 
@@ -14,7 +17,7 @@ import { AccountingService } from './accounting.service';
  * 3. ควบคุมสถานะ DRAFT -> POSTED -> VOIDED
  * 4. รักษาความ Immutability ของรายการที่ POSTED แล้ว
  */
-export const JournalService = {
+export const JournalService: IJournalService = {
     /**
      * สร้างรายการสมุดรายวัน (Draft หรือ Post ทันที)
      */
@@ -107,7 +110,10 @@ export const JournalService = {
             }
         });
 
-        return entry;
+        return {
+            data: entry,
+            affectedTags: [ACCOUNTING_TAGS.JOURNAL]
+        };
     },
 
     /**
@@ -123,13 +129,18 @@ export const JournalService = {
             if (!entry) throw new ServiceError('ไม่พบรายการสมุดรายวัน');
             if (entry.status !== 'DRAFT') throw new ServiceError('รายการนี้ถูก Post หรือ Void ไปแล้ว');
 
-            return await (tx as any).journalEntry.update({
+            const updated = await (tx as any).journalEntry.update({
                 where: { id },
                 data: {
                     status: 'POSTED',
                     postedAt: new Date() // Rule 5
                 }
             });
+
+            return {
+                data: updated,
+                affectedTags: [ACCOUNTING_TAGS.JOURNAL]
+            };
         });
     },
 
@@ -148,51 +159,69 @@ export const JournalService = {
 
             // Note: In Phase A1.2, we just mark as VOIDED. 
             // In full ERP, we might need to create a reversal entry.
-            return await (tx as any).journalEntry.update({
+            const voided = await (tx as any).journalEntry.update({
                 where: { id },
                 data: {
                     status: 'VOIDED',
                     updatedAt: new Date()
                 }
             });
+
+            return {
+                data: voided,
+                affectedTags: [ACCOUNTING_TAGS.JOURNAL]
+            };
         });
     },
 
     /**
      * ดึงรายการสมุดรายวัน
      */
-    async getEntries(ctx: RequestContext, params: {
-        status?: string;
-        startDate?: Date;
-        endDate?: Date;
-        limit?: number;
-        offset?: number;
-    }) {
+    async getEntries(ctx: RequestContext, params: { status?: string, startDate?: Date, endDate?: Date, limit?: number, offset?: number }) {
+        const { limit = 50, offset = 0, status, startDate, endDate } = params;
+        
         const where: any = {
             shopId: ctx.shopId,
+            ...(status ? { status } : {}),
+            ...(startDate || endDate ? {
+                journalDate: {
+                    ...(startDate ? { gte: startDate } : {}),
+                    ...(endDate ? { lte: endDate } : {})
+                }
+            } : {})
         };
 
-        if (params.status) where.status = params.status;
-        if (params.startDate || params.endDate) {
-            where.journalDate = {};
-            if (params.startDate) where.journalDate.gte = params.startDate;
-            if (params.endDate) where.journalDate.lte = params.endDate;
-        }
-
-        return await (db as any).journalEntry.findMany({
-            where,
-            orderBy: { journalDate: 'desc' },
-            take: params.limit || 50,
-            skip: params.offset || 0,
-            include: {
-                lines: {
-                    include: { account: true }
-                },
-                member: {
-                    select: { user: { select: { name: true } } }
+        const [data, total] = await Promise.all([
+            (db as any).journalEntry.findMany({
+                where,
+                orderBy: { journalDate: 'desc' },
+                take: limit,
+                skip: offset,
+                include: {
+                    lines: {
+                        include: { account: true }
+                    },
+                    member: {
+                        select: { user: { select: { name: true } } }
+                    }
                 }
+            }),
+            (db as any).journalEntry.count({ where })
+        ]);
+
+        const page = Math.floor(offset / limit) + 1;
+
+        return {
+            data,
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit),
+                hasNextPage: offset + limit < total,
+                hasPrevPage: offset > 0
             }
-        });
+        };
     },
 
     /**
@@ -249,6 +278,9 @@ export const JournalService = {
             data: { status: 'VOIDED' }
         });
 
-        return reversal;
+        return {
+            data: reversal.data, // reversal is already a MutationResult from createEntry
+            affectedTags: [ACCOUNTING_TAGS.JOURNAL]
+        };
     }
 };

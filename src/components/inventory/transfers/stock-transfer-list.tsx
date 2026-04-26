@@ -7,10 +7,11 @@ import { Eye, CheckCircle2, ArrowRightLeft, Clock, CheckCircle } from 'lucide-re
 import { formatDate } from '@/lib/utils';
 import { SectionHeader } from '@/components/ui/section-header';
 import { completeStockTransferAction } from '@/actions/inventory/stock-transfer.actions';
-import { toast } from 'sonner';
 import { useTransition } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { StatusBadge, StatusConfig } from '@/components/ui/status-badge';
+import { runActionWithToast } from '@/lib/mutation-utils';
 
 interface StockTransferListProps {
     transfers: any[];
@@ -25,17 +26,16 @@ const TRANSFER_STATUS_CONFIG: Record<string, StatusConfig> = {
 
 export function StockTransferList({ transfers }: StockTransferListProps) {
     const [isPending, startTransition] = useTransition();
+    const router = useRouter();
 
     const handleComplete = (id: string) => {
         if (!confirm('ยืนยันการโอนสินค้าใช่หรือไม่? ยอดสต็อกจะถูกหักจากต้นทางและเพิ่มเข้าปลายทางทันที')) return;
 
         startTransition(async () => {
-            const result = await completeStockTransferAction(id);
-            if (result.success) {
-                toast.success(result.message);
-            } else {
-                toast.error(typeof result.errors === 'string' ? result.errors : result.errors?.root?.[0]);
-            }
+            await runActionWithToast(completeStockTransferAction(id), {
+                successMessage: 'ยืนยันการโอนสินค้าเรียบร้อยแล้ว',
+                onSuccess: () => router.refresh()
+            });
         });
     };
 

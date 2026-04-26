@@ -1,6 +1,6 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidateTag } from 'next/cache';
 import { requirePermission } from '@/lib/auth-guard';
 import {
   PurchaseService,
@@ -44,8 +44,12 @@ export async function quickAssignSupplier(ids: string[], supplierId: string): Pr
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
       const ctx = await requirePermission('PURCHASE_CREATE');
-      await PurchaseService.quickAssignSupplier(ids, supplierId, ctx);
-      revalidatePath('/system/ops');
+      const result = await PurchaseService.quickAssignSupplier(ids, supplierId, ctx);
+      
+      if (result.affectedTags) {
+        result.affectedTags.forEach(tag => revalidateTag(tag));
+      }
+      
       return null;
     }, 'inventory:quickAssignSupplier');
   }, { context: { action: 'inventory:quickAssignSupplier' } });

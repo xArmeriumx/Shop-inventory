@@ -4,10 +4,13 @@ import { Security } from '@/services/core/iam/security.service';
 import { SequenceService } from '@/services/core/system/sequence.service';
 import { WarehouseService } from './warehouse.service';
 
+import { IStockTransferService } from '@/types/service-contracts';
+import { INVENTORY_TAGS } from '@/config/cache-tags';
+
 /**
  * StockTransferService — Orchestrate movement between warehouses
  */
-export const StockTransferService = {
+export const StockTransferService: IStockTransferService = {
     /**
      * Create a new stock transfer (Draft)
      */
@@ -26,7 +29,7 @@ export const StockTransferService = {
         return await db.$transaction(async (tx) => {
             const transferNo = await SequenceService.generate(ctx, DocumentType.STOCK_TRANSFER, tx);
 
-            return await (tx as any).stockTransfer.create({
+            const transfer = await (tx as any).stockTransfer.create({
                 data: {
                     transferNo,
                     shopId: ctx.shopId,
@@ -44,6 +47,11 @@ export const StockTransferService = {
                 },
                 include: { lines: true }
             });
+
+            return {
+                data: transfer,
+                affectedTags: [INVENTORY_TAGS.LIST]
+            };
         });
     },
 
@@ -82,10 +90,15 @@ export const StockTransferService = {
             }
 
             // 3. Update status
-            return await (tx as any).stockTransfer.update({
+            const updatedTransfer = await (tx as any).stockTransfer.update({
                 where: { id: transferId },
                 data: { status: 'COMPLETED' }
             });
+
+            return {
+                data: updatedTransfer,
+                affectedTags: [INVENTORY_TAGS.LIST]
+            };
         }, { timeout: 10000 });
     },
 

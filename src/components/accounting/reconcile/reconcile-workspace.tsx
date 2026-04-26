@@ -23,6 +23,7 @@ import {
     ArrowDownUp
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { runActionWithToast } from '@/lib/mutation-utils';
 import { cn } from '@/lib/utils';
 import {
     getMatchCandidatesAction,
@@ -94,19 +95,14 @@ export function ReconcileWorkspace({ bankAccounts, initialBankId }: ReconcileWor
 
     const handleMatch = (journalLineId: string) => {
         startTransition(async () => {
-            try {
-                const res = await matchLineAction(selectedBankLine.id, [journalLineId]);
-                if (res.success) {
-                    toast.success('จับคู่รายการสำเร็จ');
+            await runActionWithToast(matchLineAction(selectedBankLine.id, [journalLineId]), {
+                successMessage: 'จับคู่รายการสำเร็จ',
+                onSuccess: () => {
                     setSelectedBankLine(null);
                     setCandidates([]);
                     fetchData(); // Refresh both lists
-                } else {
-                    toast.error(res.message || 'เกิดข้อผิดพลาดในการจับคู่');
                 }
-            } catch (error) {
-                toast.error('เกิดข้อผิดพลาดในการจับคู่');
-            }
+            });
         });
     };
 

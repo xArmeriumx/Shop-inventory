@@ -4,7 +4,6 @@ import { useState, useTransition, useCallback, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useForm, FormProvider, useFormContext, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { toast } from 'sonner';
 import { runActionWithToast, mapActionErrorsToForm } from '@/lib/mutation-utils';
 import Link from 'next/link';
 
@@ -49,16 +48,13 @@ function SaleSelectionSection({
   const handleSearch = async () => {
     if (!saleSearch.trim()) return;
     setIsSearching(true);
-    try {
-      const resp = await getSales({ page: 1, limit: 10, search: saleSearch.trim() });
-      if (resp.success) {
-        setSaleResults(resp.data.filter((s: any) => s.status !== 'CANCELLED'));
-      } else {
-        toast.error(resp.message);
-      }
-    } finally {
-      setIsSearching(false);
-    }
+    await runActionWithToast(getSales({ page: 1, limit: 10, search: saleSearch.trim() }), {
+        showSuccessToast: false,
+        onSuccess: (resp) => {
+            setSaleResults(resp.data.filter((s: any) => s.status !== 'CANCELLED'));
+        },
+        onFinally: () => setIsSearching(false),
+    });
   };
 
   if (selectedSaleId) {
@@ -112,16 +108,16 @@ function ReturnItemsSection() {
   useEffect(() => {
     if (saleId) {
       setIsLoading(true);
-      getReturnableSaleItems(saleId)
-        .then(res => {
-          if (res.success) {
+      runActionWithToast(getReturnableSaleItems(saleId), {
+        showSuccessToast: false,
+        onSuccess: (res) => {
             setReturnablePool(res.data || []);
-          } else {
-            toast.error(res.message);
+        },
+        onError: () => {
             setReturnablePool([]);
-          }
-        })
-        .finally(() => setIsLoading(false));
+        },
+        onFinally: () => setIsLoading(false),
+      });
     } else {
       setReturnablePool([]);
     }

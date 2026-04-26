@@ -62,7 +62,7 @@ export const createIncomeTool: AITool = {
       return {
         success: true,
         message: `✅ บันทึกรายรับ "${description}" จำนวน ฿${Number(amount).toLocaleString()} เรียบร้อยแล้ว!`,
-        data: { incomeId: income.id },
+        data: { incomeId: income.data.id },
       };
     } catch (error) {
       console.error('Create income error:', error);

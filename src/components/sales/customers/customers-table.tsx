@@ -17,7 +17,7 @@ import { useState, useTransition } from 'react';
 import { PaginationControl } from '@/components/ui/pagination-control';
 import { DeleteEntityDialog } from '@/components/ui/delete-entity-dialog';
 import { PermissionGuard } from '@/components/core/auth/permission-guard';
-import { toast } from 'sonner';
+import { runActionWithToast } from '@/lib/mutation-utils';
 import { Permission } from '@prisma/client';
 
 interface Customer {
@@ -68,18 +68,13 @@ export function CustomersTable({ customers, pagination }: CustomersTableProps) {
     if (!targetEntity) return;
 
     startTransition(async () => {
-      try {
-        const result = await deleteCustomer(targetEntity.id);
-        if (result.success) {
-          toast.success(result.message);
+      await runActionWithToast(deleteCustomer(targetEntity.id), {
+        successMessage: 'ลบข้อมูลลูกค้าเรียบร้อยแล้ว',
+        onSuccess: () => {
           setShowDeleteDialog(false);
           router.refresh();
-        } else {
-          toast.error(result.message);
-        }
-      } catch (err) {
-        toast.error('เกิดข้อผิดพลาดในการลบข้อมูล');
-      }
+        },
+      });
     });
   };
 

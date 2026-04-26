@@ -23,7 +23,7 @@ import {
     SelectValue
 } from '@/components/ui/select';
 import { createBankAccountAction } from '@/actions/accounting/bank.actions';
-import { toast } from 'sonner';
+import { runActionWithToast } from '@/lib/mutation-utils';
 import { Loader2 } from 'lucide-react';
 
 const bankAccountSchema = z.object({
@@ -58,14 +58,13 @@ export function BankAccountFormModal({ children, postableAccounts }: BankAccount
 
     const onSubmit = (values: BankAccountFormValues) => {
         startTransition(async () => {
-            try {
-                await createBankAccountAction(values);
-                toast.success('เพิ่มบัญชีธนาคารสำเร็จ');
-                setOpen(false);
-                form.reset();
-            } catch (error) {
-                toast.error('ไม่สามารถเพิ่มบัญชีธนาคารได้');
-            }
+            await runActionWithToast(createBankAccountAction(values), {
+                successMessage: 'เพิ่มบัญชีธนาคารสำเร็จ',
+                onSuccess: () => {
+                    setOpen(false);
+                    form.reset();
+                }
+            });
         });
     };
 

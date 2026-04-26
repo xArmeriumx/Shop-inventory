@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useTransition } from 'react';
 import { getIncompleteRequests, quickAssignSupplier } from '@/actions/inventory/ops.actions';
 import { getSuppliersForSelect } from '@/actions/purchases/suppliers.actions';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -9,21 +9,19 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Package, Truck, UserCircle, Loader2, AlertCircle, ShoppingCart } from 'lucide-react';
-import { toast } from 'sonner';
+import { runActionWithToast } from '@/lib/mutation-utils';
 import { formatCurrency } from '@/lib/formatters';
 import Link from 'next/link';
 
 export function ProcurementGapTool() {
   const [data, setData] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [isPending, startTransition] = useTransition();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [targetSupplierId, setTargetSupplierId] = useState<string>('');
-  const [processing, setProcessing] = useState(false);
 
   const loadData = async () => {
-    setLoading(true);
-    try {
+    startTransition(async () => {
       const [requestsRes, supplierListRes] = await Promise.all([
         getIncompleteRequests(),
         getSuppliersForSelect()
@@ -31,12 +29,7 @@ export function ProcurementGapTool() {
 
       setData(requestsRes.success && requestsRes.data ? requestsRes.data.items : []);
       setSuppliers(supplierListRes.success && supplierListRes.data ? supplierListRes.data : []);
-    } catch (error) {
-      console.error('Failed to load procurement gaps', error);
-      toast.error('ไม่สามารถโหลดข้อมูลใบขอซื้อได้');
-    } finally {
-      setLoading(false);
-    }
+    });
   };
 
   useEffect(() => {
@@ -59,35 +52,22 @@ export function ProcurementGapTool() {
     }
   };
 
-  const handleBatchAssign = async () => {
-    if (!targetSupplierId) {
-      toast.error('กรุณาเลือกผู้จำหน่าย');
-      return;
-    }
-    if (selectedIds.length === 0) {
-      toast.error('กรุณาเลือกใบขอซื้ออย่างน้อย 1 รายการ');
-      return;
-    }
+  const handleBatchAssign = () => {
+    if (!targetSupplierId || selectedIds.length === 0) return;
 
-    setProcessing(true);
-    try {
-      const result = await quickAssignSupplier(selectedIds, targetSupplierId);
-      if (result.success) {
-        toast.success(result.message);
-        setSelectedIds([]);
-        setTargetSupplierId('');
-        loadData();
-      } else {
-        toast.error(result.message);
-      }
-    } catch (error) {
-      toast.error('เกิดข้อผิดพลาดในการมอบหมายผู้ขาย');
-    } finally {
-      setProcessing(false);
-    }
+    startTransition(async () => {
+      await runActionWithToast(quickAssignSupplier(selectedIds, targetSupplierId), {
+        successMessage: 'มอบหมายผู้ขายสำเร็จ',
+        onSuccess: () => {
+          setSelectedIds([]);
+          setTargetSupplierId('');
+          loadData();
+        },
+      });
+    });
   };
 
-  if (loading) {
+  if (isPending && data.length === 0) {
     return (
       <div className="flex justify-center items-center p-12">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -123,10 +103,10 @@ export function ProcurementGapTool() {
             </Select>
             <Button
               onClick={handleBatchAssign}
-              disabled={processing || !targetSupplierId || selectedIds.length === 0}
+              disabled={isPending || !targetSupplierId || selectedIds.length === 0}
               className="whitespace-nowrap"
             >
-              {processing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Truck className="h-4 w-4 mr-2" />}
+              {isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Truck className="h-4 w-4 mr-2" />}
               มอบหมายผู้ขาย
             </Button>
           </div>

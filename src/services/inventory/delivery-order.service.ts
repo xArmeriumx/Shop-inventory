@@ -11,8 +11,10 @@ import {
     type RequestContext,
     type CreateDeliveryOrderInput,
     type GetDeliveryOrdersParams,
+    type MutationResult,
 } from '@/types/domain';
 import { Permission } from '@prisma/client';
+import { LOGISTICS_TAGS, SALES_TAGS, INVOICE_TAGS, INVENTORY_TAGS } from '@/config/cache-tags';
 
 // ============================================================================
 // PERFORMANCE: Minimal Select Constants (SSOT)
@@ -125,10 +127,10 @@ export const DeliveryOrderService = {
      *   - มีสต็อกพอ   → PROCESSING (= AVAILABLE, พร้อมให้กด Done)
      *   - สต็อกไม่พอ  → WAITING   (ต้องรอสต็อก หรือกด "เช็คใหม่")
      */
-    async create(ctx: RequestContext, input: CreateDeliveryOrderInput) {
+    async create(ctx: RequestContext, input: CreateDeliveryOrderInput): Promise<MutationResult<any>> {
         Security.requirePermission(ctx, 'DELIVERY_VALIDATE' as Permission);
 
-        return AuditService.runWithAudit(ctx, {
+        const result = await AuditService.runWithAudit(ctx, {
             action: AUDIT_ACTIONS.SHIPMENT_CREATE,
             targetType: 'DeliveryOrder',
             note: 'สร้างใบส่งของจากรายการขาย',
@@ -183,6 +185,11 @@ export const DeliveryOrderService = {
                 };
             });
         });
+
+        return {
+            data: result,
+            affectedTags: [LOGISTICS_TAGS.DELIVERY.LIST, SALES_TAGS.DETAIL(input.saleId)]
+        };
     },
 
     /**
@@ -191,10 +198,10 @@ export const DeliveryOrderService = {
      * ถ้าสต็อกพอแล้ว → อัปเดตสถานะ WAITING → PROCESSING
      * ถ้ายังไม่พอ → คืน shortages ให้ User รู้
      */
-    async checkAvailability(ctx: RequestContext, id: string) {
+    async checkAvailability(ctx: RequestContext, id: string): Promise<MutationResult<any>> {
         Security.requirePermission(ctx, 'DELIVERY_VALIDATE' as Permission);
 
-        return db.$transaction(async (tx) => {
+        const result = await db.$transaction(async (tx) => {
             const delivery = await (tx as any).deliveryOrder.findUnique({
                 where: { id },
                 select: {
@@ -240,6 +247,11 @@ export const DeliveryOrderService = {
 
             return { available: stockCheck.allAvailable, shortages: stockCheck.shortages };
         });
+
+        return {
+            data: result,
+            affectedTags: [LOGISTICS_TAGS.DELIVERY.LIST, LOGISTICS_TAGS.DELIVERY.DETAIL(id)]
+        };
     },
 
     /**
@@ -254,10 +266,10 @@ export const DeliveryOrderService = {
      *   4. Auto Invoice: createFromSale + tryPost
      *   5. completeSale: Sale → COMPLETED
      */
-    async validate(ctx: RequestContext, id: string) {
+    async validate(ctx: RequestContext, id: string): Promise<MutationResult<any>> {
         Security.requirePermission(ctx, 'DELIVERY_VALIDATE' as Permission);
 
-        return AuditService.runWithAudit(ctx, {
+        const result = await AuditService.runWithAudit(ctx, {
             action: AUDIT_ACTIONS.SHIPMENT_STATUS,
             targetType: 'DeliveryOrder',
             targetId: id,
@@ -314,7 +326,7 @@ export const DeliveryOrderService = {
                     try {
                         const invoice = await InvoiceService.createFromSale(ctx, delivery.saleId, tx);
                         // tryPost: graceful — ถ้ายังไม่มี CoA ให้ข้ามไปก่อน
-                        await InvoiceService.tryPost(ctx, invoice.id, tx);
+                        await InvoiceService.tryPost(ctx, invoice.data.id, tx);
                     } catch (invoiceErr: any) {
                         // Auto Invoice ไม่ควรหยุด DO ทั้งก้อน
                         console.warn('[DeliveryOrderService] Auto Invoice failed:', invoiceErr?.message);
@@ -326,18 +338,36 @@ export const DeliveryOrderService = {
                 const { SaleService } = await import('@/services/sales/sale.service');
                 await (SaleService as any).completeSale(delivery.saleId, ctx, tx);
 
-                return { success: true, deliveryNo: delivery.deliveryNo };
+                return { success: true, deliveryNo: delivery.deliveryNo, saleId: delivery.saleId, itemIds: delivery.items.map((i: any) => i.productId) };
             });
         });
+
+        const affectedTags = [
+            LOGISTICS_TAGS.DELIVERY.LIST,
+            LOGISTICS_TAGS.DELIVERY.DETAIL(id),
+            SALES_TAGS.DETAIL(result.saleId),
+            SALES_TAGS.LIST,
+            INVOICE_TAGS.LIST,
+        ];
+
+        // Add stock tags for items
+        result.itemIds?.forEach((pid: string) => {
+            affectedTags.push(INVENTORY_TAGS.STOCK(pid));
+        });
+
+        return {
+            data: result,
+            affectedTags
+        };
     },
 
     /**
      * cancel — ยกเลิก DO (ต้องไม่ใช่ DELIVERED)
      */
-    async cancel(ctx: RequestContext, id: string) {
+    async cancel(ctx: RequestContext, id: string): Promise<MutationResult<void>> {
         Security.requirePermission(ctx, 'DELIVERY_VALIDATE' as Permission);
 
-        return db.$transaction(async (tx) => {
+        await db.$transaction(async (tx) => {
             const delivery = await (tx as any).deliveryOrder.findUnique({
                 where: { id },
                 select: { id: true, shopId: true, status: true, deliveryNo: true },
@@ -365,5 +395,10 @@ export const DeliveryOrderService = {
                 shopId: ctx.shopId,
             }).catch(() => {});
         });
+
+        return {
+            data: undefined,
+            affectedTags: [LOGISTICS_TAGS.DELIVERY.LIST, LOGISTICS_TAGS.DELIVERY.DETAIL(id)]
+        };
     },
 };

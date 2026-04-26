@@ -6,7 +6,10 @@ import {
   ServiceError,
   RequestContext,
   DocumentType,
+  MutationResult,
+  PaginatedResult,
 } from '@/types/domain';
+import { paginatedQuery } from '@/lib/pagination';
 import {
   SerializedReturn,
   SerializedReturnItem
@@ -16,6 +19,7 @@ import { AuditService } from '@/services/core/system/audit.service';
 import { RETURN_AUDIT_POLICIES } from '@/policies/sales/return.policy';
 import { SequenceService } from '@/services/core/system/sequence.service';
 import { serializeReturn, serializeReturnItem } from '@/lib/mappers';
+import { SALES_TAGS, INVENTORY_TAGS, RETURNS_TAGS } from '@/config/cache-tags';
 
 export interface ReturnItemInput {
   saleItemId: string;
@@ -87,14 +91,14 @@ export const ReturnService = {
   /**
    * สร้างรายการคืนสินค้า
    */
-  async create(input: CreateReturnInput, ctx: RequestContext, tx?: Prisma.TransactionClient): Promise<SerializedReturn> {
+  async create(input: CreateReturnInput, ctx: RequestContext, tx?: Prisma.TransactionClient): Promise<MutationResult<SerializedReturn>> {
     const saleMatch = await db.sale.findFirst({
       where: { id: input.saleId, shopId: ctx.shopId },
       select: { invoiceNumber: true }
     });
     if (!saleMatch) throw new ServiceError('ไม่พบบิลขาย');
 
-    return AuditService.runWithAudit(
+    const result = await AuditService.runWithAudit(
       ctx,
       RETURN_AUDIT_POLICIES.CREATE('PENDING_RET', saleMatch.invoiceNumber),
       async () => {
@@ -203,15 +207,24 @@ export const ReturnService = {
         });
       }
     );
+
+    const affectedTags: string[] = [RETURNS_TAGS.LIST, SALES_TAGS.DETAIL(input.saleId), SALES_TAGS.LIST];
+    input.items.forEach(item => {
+      affectedTags.push(INVENTORY_TAGS.STOCK(item.productId));
+    });
+
+    return {
+      data: result,
+      affectedTags
+    };
   },
 
   /**
    * ดูรายการคืนสินค้าทั้งหมดของร้าน
    */
-  async getList(options: { page?: number; limit?: number; search?: string; }, ctx: RequestContext) {
+  async getList(options: { page?: number; limit?: number; search?: string; }, ctx: RequestContext): Promise<PaginatedResult<any>> {
     const page = options?.page || 1;
     const limit = options?.limit || 20;
-    const skip = (page - 1) * limit;
 
     const where: Prisma.ReturnWhereInput = { shopId: ctx.shopId };
 
@@ -223,42 +236,30 @@ export const ReturnService = {
       ];
     }
 
-    const [data, total] = await Promise.all([
-      db.return.findMany({
-        where,
-        include: {
-          sale: { select: { invoiceNumber: true } },
-          user: { select: { name: true } },
-          items: {
-            include: {
-              product: { select: { name: true, sku: true } },
-            },
+    const result = await paginatedQuery(db.return as any, {
+      where,
+      include: {
+        sale: { select: { invoiceNumber: true } },
+        user: { select: { name: true } },
+        items: {
+          include: {
+            product: { select: { name: true, sku: true } },
           },
         },
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
-      }),
-      db.return.count({ where }),
-    ]);
-
-    const totalPages = Math.ceil(total / limit);
+      },
+      orderBy: { createdAt: 'desc' },
+      page,
+      limit,
+    });
 
     return {
-      data: data.map(r => ({
+      ...result,
+      data: result.data.map((r: any) => ({
         ...serializeReturn(r),
         items: ((r as any).items || []).map((ri: any) => serializeReturnItem(ri)),
         sale: (r as any).sale || null,
         user: (r as any).user || null
       })),
-      pagination: {
-        total,
-        page,
-        limit,
-        totalPages,
-        hasNextPage: page < totalPages,
-        hasPrevPage: page > 1,
-      },
     };
   },
 

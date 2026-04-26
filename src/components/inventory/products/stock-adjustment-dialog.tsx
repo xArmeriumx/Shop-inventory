@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { toast } from 'sonner';
 import { runActionWithToast } from '@/lib/mutation-utils';
 import {
   Dialog,
@@ -58,14 +57,14 @@ export function StockAdjustmentDialog({ productId, currentStock }: StockAdjustme
         const formData = new FormData(e.currentTarget);
         const reason = formData.get('reason') as string;
 
-        // Bug Fix: Allow 0 only if type is 'SET'
+        // Safe UI validation
         if ((type !== 'SET' && (!quantity || quantity <= 0)) || (type === 'SET' && quantity < 0)) {
-            toast.error('กรุณาระบุจำนวนที่ถูกต้อง');
+            setErrorInfo({ message: 'กรุณาระบุจำนวนที่ถูกต้อง' });
             return;
         }
 
         if (!reason || reason.trim().length === 0) {
-            toast.error('กรุณาระบุเหตุผล');
+            setErrorInfo({ message: 'กรุณาระบุเหตุผลที่ปรับปรุงสต็อก' });
             return;
         }
 

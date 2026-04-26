@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -31,7 +31,7 @@ import {
   ChevronRight,
   Edit2,
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { runActionWithToast } from '@/lib/mutation-utils';
 import {
   matchProduct,
   matchSupplier,
@@ -106,7 +106,7 @@ export function ScanReviewModal({
   suppliers,
   onConfirm,
 }: ScanReviewModalProps) {
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [isPending, startTransition] = useTransition();
   const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
   const [categoriesLoaded, setCategoriesLoaded] = useState(false);
 
@@ -116,7 +116,6 @@ export function ScanReviewModal({
   const [defaultCategory, setDefaultCategory] = useState<string>('');
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
-  const [isAddingCategory, setIsAddingCategory] = useState(false);
 
   useEffect(() => {
     getLookupValues('PRODUCT_CATEGORY').then((result) => {
@@ -219,39 +218,27 @@ export function ScanReviewModal({
   };
 
   // Handle adding new category inline - connects to database
-  const handleAddCategory = async () => {
+  const handleAddCategory = () => {
     if (!newCategoryName.trim()) return;
 
-    setIsAddingCategory(true);
-    try {
-      const result = await quickAddCategory('PRODUCT_CATEGORY', newCategoryName.trim());
-
-      if (result.success && result.data) {
-        // Add to local categories list
-        setCategories((prev) => [...prev, { id: result.data!.id, name: result.data!.name }]);
-
-        // Set as default and update all unmatched items
-        setDefaultCategory(result.data.name);
-        setReviewedItems((prev) =>
-          prev.map((item) =>
-            item.newProduct
-              ? { ...item, newProduct: { ...item.newProduct, category: result.data!.name } }
-              : item
-          )
-        );
-
-        toast.success(`เพิ่มหมวดหมู่ "${result.data.name}" สำเร็จ`);
-        setShowAddCategory(false);
-        setNewCategoryName('');
-      } else {
-        toast.error((result as any).message || 'เพิ่มหมวดหมู่ไม่สำเร็จ');
-      }
-    } catch (error) {
-      console.error('Add category error:', error);
-      toast.error('เกิดข้อผิดพลาดในการเพิ่มหมวดหมู่');
-    } finally {
-      setIsAddingCategory(false);
-    }
+    startTransition(async () => {
+      await runActionWithToast(quickAddCategory('PRODUCT_CATEGORY', newCategoryName.trim()), {
+        successMessage: `เพิ่มหมวดหมู่ "${newCategoryName.trim()}" สำเร็จ`,
+        onSuccess: (result) => {
+          setCategories((prev) => [...prev, { id: result.id, name: result.name }]);
+          setDefaultCategory(result.name);
+          setReviewedItems((prev) =>
+            prev.map((item) =>
+              item.newProduct
+                ? { ...item, newProduct: { ...item.newProduct, category: result.name } }
+                : item
+            )
+          );
+          setShowAddCategory(false);
+          setNewCategoryName('');
+        },
+      });
+    });
   };
 
   // Update new supplier data
@@ -267,169 +254,106 @@ export function ScanReviewModal({
     }
   };
 
-  // Handle confirm - create items and return result
-  const handleConfirm = async () => {
-    setIsProcessing(true);
+  const handleConfirm = () => {
+    startTransition(async () => {
+      try {
+        let finalSupplierId: string | undefined;
+        let finalSupplierName: string | undefined;
 
-    try {
-      let finalSupplierId: string | undefined;
-      let finalSupplierName: string | undefined;
-
-      // Step 1: Create supplier if needed
-      if (reviewedSupplier) {
-        if (reviewedSupplier.match) {
-          finalSupplierId = reviewedSupplier.match.item.id;
-          finalSupplierName = reviewedSupplier.match.item.name;
-        } else if (reviewedSupplier.newSupplier?.name) {
-          const result = await createSupplier({
-            name: reviewedSupplier.newSupplier.name,
-            code: reviewedSupplier.newSupplier.code || null,
-            contactName: null,
-            phone: null,
-            email: null,
-            address: null,
-            taxId: null,
-            notes: null,
-          });
-          if (result.success && result.data) {
-            finalSupplierId = result.data.id;
-            finalSupplierName = result.data.name;
-            toast.success(`สร้างผู้จำหน่าย "${result.data.name}" สำเร็จ`);
-          } else {
-            toast.error(`สร้างผู้จำหน่ายไม่สำเร็จ: ${result.message}`);
+        // Step 1: Create supplier if needed
+        if (reviewedSupplier) {
+          if (reviewedSupplier.match) {
+            finalSupplierId = reviewedSupplier.match.item.id;
+            finalSupplierName = reviewedSupplier.match.item.name;
+          } else if (reviewedSupplier.newSupplier?.name) {
+            const result = await createSupplier({
+              name: reviewedSupplier.newSupplier.name,
+              code: reviewedSupplier.newSupplier.code || null,
+              contactName: null,
+              phone: null,
+              email: null,
+              address: null,
+              taxId: null,
+              notes: null,
+            });
+            if (result.success && result.data) {
+              finalSupplierId = result.data.id;
+              finalSupplierName = result.data.name;
+            }
           }
         }
-      }
 
-      // Step 2: Batch create products if needed (ERP-style index-based)
-      // Track which reviewedItems indices need new products
-      const unmatchedIndices: number[] = [];
-      const productsToCreate: BatchProductInput[] = [];
-      const skippedItems: { index: number; reason: string }[] = [];
+        // Step 2: Batch create products if needed
+        const unmatchedIndices: number[] = [];
+        const productsToCreate: BatchProductInput[] = [];
 
-      reviewedItems.forEach((item, index) => {
-        // Log each item for debugging
-        console.log(`🔍 ReviewedItem[${index}]:`, {
-          hasMatch: !!item.match,
-          newProductName: item.newProduct?.name || '(undefined)',
-          newProductCategory: item.newProduct?.category || '(undefined)',
-          newProductSku: item.newProduct?.sku || '(undefined)',
-          costPrice: item.newProduct?.costPrice,
-          salePrice: item.newProduct?.salePrice,
+        reviewedItems.forEach((item, index) => {
+          if (!item.match) {
+            const hasName = !!(item.newProduct?.name && item.newProduct.name.trim());
+            const hasCategory = !!(item.newProduct?.category && item.newProduct.category.trim());
+
+            if (hasName && hasCategory) {
+              unmatchedIndices.push(index);
+              productsToCreate.push({
+                name: item.newProduct!.name.trim(),
+                sku: item.newProduct!.sku?.trim() || null,
+                category: item.newProduct!.category.trim(),
+                costPrice: item.newProduct!.costPrice || 0,
+                salePrice: item.newProduct!.salePrice || 0,
+              });
+            }
+          }
         });
 
-        // Check if this is an unmatched item that needs a new product
-        if (!item.match) {
-          // Validate required fields
-          const hasName = !!(item.newProduct?.name && item.newProduct.name.trim());
-          const hasCategory = !!(item.newProduct?.category && item.newProduct.category.trim());
+        const createdProductsMap: Record<number, { id: string; costPrice: number }> = {};
 
-          if (hasName && hasCategory) {
-            unmatchedIndices.push(index);
-            productsToCreate.push({
-              name: item.newProduct!.name.trim(),
-              sku: item.newProduct!.sku?.trim() || null,
-              category: item.newProduct!.category.trim(),
-              costPrice: item.newProduct!.costPrice || 0,
-              salePrice: item.newProduct!.salePrice || 0,
+        if (productsToCreate.length > 0) {
+          const batchResult = await batchCreateProducts(productsToCreate);
+          if (batchResult.success && batchResult.data) {
+            batchResult.data.created.forEach((p, createIndex) => {
+              const originalIndex = unmatchedIndices[createIndex];
+              createdProductsMap[originalIndex] = { id: p.id, costPrice: p.costPrice };
             });
-          } else {
-            // Log why this item was skipped
-            const reason = !hasName && !hasCategory
-              ? 'MISSING_NAME_AND_CATEGORY'
-              : !hasName
-                ? 'MISSING_NAME'
-                : 'MISSING_CATEGORY';
-            console.warn(`⚠️ Skipped item[${index}]:`, reason, {
-              name: item.newProduct?.name,
-              category: item.newProduct?.category,
-            });
-            skippedItems.push({ index, reason });
           }
         }
-      });
 
-      console.log('🔧 Products to create:', productsToCreate.length, productsToCreate);
-      console.log('🔧 Unmatched indices:', unmatchedIndices);
+        // Step 3: Build final result
+        const finalItems = reviewedItems
+          .map((item, index) => {
+            if (item.match) {
+              return {
+                productId: item.match.item.id,
+                productName: item.match.item.name,
+                quantity: item.scanned.quantity || 1,
+                costPrice: item.scanned.unitPrice || item.match.item.costPrice,
+              };
+            } else if (createdProductsMap[index]) {
+              const created = createdProductsMap[index];
+              return {
+                productId: created.id,
+                productName: item.newProduct?.name || '',
+                quantity: item.scanned.quantity || 1,
+                costPrice: item.newProduct?.costPrice || 0,
+              };
+            }
+            return null;
+          })
+          .filter(Boolean) as FinalResult['items'];
 
-      // Warn user about skipped items
-      if (skippedItems.length > 0) {
-        console.warn('⚠️ Skipped items due to missing data:', skippedItems);
-        toast.warning(`ข้ามรายการที่ข้อมูลไม่ครบ ${skippedItems.length} รายการ`);
+        const result: FinalResult = {
+          supplierId: finalSupplierId,
+          supplierName: finalSupplierName,
+          date: scanData?.date,
+          documentNumber: scanData?.documentNumber,
+          items: finalItems,
+        };
+
+        onConfirm(result);
+        onOpenChange(false);
+      } catch (error: any) {
+        console.error('Review confirm error:', error);
       }
-
-      // Map by INDEX (not name) - prevents collision when names are same
-      const createdProductsMap: Record<number, { id: string; costPrice: number }> = {};
-
-      if (productsToCreate.length > 0) {
-        console.log('📤 Sending to batchCreateProducts:', JSON.stringify(productsToCreate, null, 2));
-        const batchResult = await batchCreateProducts(productsToCreate);
-        console.log('🔧 Batch result:', batchResult);
-        if (batchResult.success && batchResult.data) {
-          // Map created products back to original reviewedItems indices
-          batchResult.data.created.forEach((p, createIndex) => {
-            const originalIndex = unmatchedIndices[createIndex];
-            createdProductsMap[originalIndex] = { id: p.id, costPrice: p.costPrice };
-            console.log(`🔧 Mapped: create[${createIndex}] -> reviewedItems[${originalIndex}]`, p.name);
-          });
-          console.log('🔧 Created products map (by index):', createdProductsMap);
-          toast.success(batchResult.message);
-        } else {
-          console.error('❌ Batch create failed:', batchResult.message);
-          toast.error(batchResult.message || 'สร้างสินค้าไม่สำเร็จ');
-        }
-      } else if (unmatchedIndices.length === 0 && reviewedItems.some(i => !i.match)) {
-        // All unmatched items were skipped - something is wrong
-        console.error('❌ All unmatched items were skipped due to missing data!');
-        toast.error('ไม่สามารถสร้างสินค้าได้ - ข้อมูลไม่ครบถ้วน');
-      }
-
-      // Step 3: Build final result (use index-based lookup)
-      const finalItems = reviewedItems
-        .map((item, index) => {
-          console.log('🔧 Processing item[' + index + ']:', item.scanned.name, 'match:', item.match?.item?.id);
-          if (item.match) {
-            return {
-              productId: item.match.item.id,
-              productName: item.match.item.name,
-              quantity: item.scanned.quantity || 1,
-              costPrice: item.scanned.unitPrice || item.match.item.costPrice,
-            };
-          } else if (createdProductsMap[index]) {
-            // Use INDEX to lookup created product (not name)
-            const created = createdProductsMap[index];
-            console.log('🔧 Found created product by index[' + index + ']:', item.newProduct?.name, '->', created.id);
-            return {
-              productId: created.id,
-              productName: item.newProduct?.name || '',
-              quantity: item.scanned.quantity || 1,
-              costPrice: item.newProduct?.costPrice || 0,
-            };
-          }
-          console.log('🔧 Product not found for index[' + index + ']:', item.newProduct?.name);
-          return null;
-        })
-        .filter(Boolean) as FinalResult['items'];
-
-      console.log('🔧 Final items:', finalItems);
-
-      const result: FinalResult = {
-        supplierId: finalSupplierId,
-        supplierName: finalSupplierName,
-        date: scanData?.date,
-        documentNumber: scanData?.documentNumber,
-        items: finalItems,
-      };
-
-      onConfirm(result);
-      onOpenChange(false);
-      toast.success('นำเข้าข้อมูลสำเร็จ!');
-    } catch (error: any) {
-      console.error('Review confirm error:', error);
-      toast.error('เกิดข้อผิดพลาด: ' + error.message);
-    } finally {
-      setIsProcessing(false);
-    }
+    });
   };
 
   // Count matched/unmatched
@@ -563,7 +487,7 @@ export function ScanReviewModal({
                       onChange={(e) => setNewCategoryName(e.target.value)}
                       placeholder="ชื่อหมวดใหม่"
                       className="h-7 w-32 text-xs"
-                      disabled={isAddingCategory}
+                      disabled={isPending}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
@@ -579,9 +503,9 @@ export function ScanReviewModal({
                       size="sm"
                       className="h-7 text-xs px-2"
                       onClick={handleAddCategory}
-                      disabled={isAddingCategory || !newCategoryName.trim()}
+                      disabled={isPending || !newCategoryName.trim()}
                     >
-                      {isAddingCategory ? (
+                      {isPending ? (
                         <Loader2 className="h-3 w-3 animate-spin" />
                       ) : (
                         <Check className="h-3 w-3" />
@@ -596,7 +520,7 @@ export function ScanReviewModal({
                         setShowAddCategory(false);
                         setNewCategoryName('');
                       }}
-                      disabled={isAddingCategory}
+                      disabled={isPending}
                     >
                       ยกเลิก
                     </Button>
@@ -725,11 +649,11 @@ export function ScanReviewModal({
         </div>
 
         <DialogFooter className="gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isProcessing}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
             ยกเลิก
           </Button>
-          <Button onClick={handleConfirm} disabled={isProcessing}>
-            {isProcessing ? (
+          <Button onClick={handleConfirm} disabled={isPending}>
+            {isPending ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 กำลังบันทึก...

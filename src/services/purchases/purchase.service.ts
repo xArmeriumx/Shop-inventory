@@ -12,6 +12,7 @@ import {
   PurchaseStatus,
   GetIncompletePurchasesParams,
   PaginatedResult,
+  MutationResult
 } from '@/types/domain';
 import {
   SerializedPurchase,
@@ -25,6 +26,7 @@ import { PURCHASE_AUDIT_POLICIES } from '@/policies/purchases/purchase.policy';
 import { Security } from '@/services/core/iam/security.service';
 import { paginatedQuery, buildSearchFilter, buildDateRangeFilter } from '@/lib/pagination';
 import { serializePurchase, serializePurchaseItem } from '@/lib/mappers';
+import { PURCHASE_TAGS, INVENTORY_TAGS } from '@/config/cache-tags';
 
 export const CANCEL_PURCHASE_REASONS = {
   WRONG_ENTRY: 'บันทึกผิดพลาด',
@@ -119,7 +121,7 @@ export const PurchaseService: IPurchaseService = {
   /**
    * สร้างการสั่งซื้อเข้าร้าน พร้อมอัปเดตสต็อกและต้นทุน
    */
-  async create(ctx: RequestContext, payload: PurchaseInput, tx?: Prisma.TransactionClient): Promise<SerializedPurchase> {
+  async create(ctx: RequestContext, payload: PurchaseInput, tx?: Prisma.TransactionClient): Promise<MutationResult<SerializedPurchase>> {
     Security.requirePermission(ctx, 'PURCHASE_CREATE');
     const { items, ...purchaseData } = payload;
 
@@ -133,7 +135,7 @@ export const PurchaseService: IPurchaseService = {
       throw new ServiceError(`ไม่ถึงยอดสั่งขั้นต่ำ (MOQ): ${messages}`);
     }
 
-    return AuditService.runWithAudit(
+    const result = await AuditService.runWithAudit(
       ctx,
       PURCHASE_AUDIT_POLICIES.CREATE('New Purchase'),
       async () => {
@@ -192,12 +194,17 @@ export const PurchaseService: IPurchaseService = {
         });
       }
     );
+
+    return {
+      data: result,
+      affectedTags: [PURCHASE_TAGS.LIST, PURCHASE_TAGS.ORDERS]
+    };
   },
 
   /**
    * ยกเลิกการซื้อ (คืนสต็อก และลดยอดใช้จ่าย)
    */
-  async cancel(input: CancelPurchaseInput, ctx: RequestContext) {
+  async cancel(input: CancelPurchaseInput, ctx: RequestContext): Promise<MutationResult<void>> {
     Security.requirePermission(ctx, 'PURCHASE_VOID');
     const { id, reasonCode, reasonDetail } = input;
 
@@ -209,7 +216,7 @@ export const PurchaseService: IPurchaseService = {
     const purchase = await db.purchase.findFirst({ where: { id, shopId: ctx.shopId } });
     if (!purchase) throw new ServiceError('ไม่พบข้อมูลการซื้อ');
 
-    await AuditService.runWithAudit(
+    const result = await AuditService.runWithAudit(
       ctx,
       PURCHASE_AUDIT_POLICIES.CANCEL(purchase.purchaseNumber!, cancelReason),
       async () => {
@@ -266,64 +273,85 @@ export const PurchaseService: IPurchaseService = {
         });
       }
     );
-  },
 
-  async createRequest(payload, ctx) {
-    Security.requirePermission(ctx, 'PURCHASE_CREATE');
-    return await runInTransaction(undefined, async (prisma) => {
-      const { items, purchaseType, notes, supplierId } = payload;
-
-      const productIds = items.map(i => i.productId);
-      const products = await prisma.product.findMany({
-        where: { id: { in: productIds }, shopId: ctx.shopId },
-        select: { id: true, packagingQty: true }
-      });
-      const productPackMap = new Map(products.map(p => [p.id, p.packagingQty]));
-
-      const requestNumber = await SequenceService.generate(ctx, DocumentType.PURCHASE_REQUEST, prisma, {
-        purchaseType: payload.purchaseType,
-      });
-
-      const totalCost = items.reduce(
-        (sum, item) => money.add(sum, calcSubtotal(item.quantity, item.costPrice)),
-        0
-      );
-
-      const pr = await prisma.purchase.create({
-        data: {
-          purchaseNumber: requestNumber,
-          purchaseType: purchaseType,
-          docType: 'REQUEST',
-          status: PurchaseStatus.DRAFT,
-          totalCost: totalCost,
-          notes: notes || null,
-          supplierId: supplierId || null,
-          userId: ctx.userId,
-          shopId: ctx.shopId,
-          items: {
-            create: items.map(item => ({
-              productId: item.productId,
-              quantity: item.quantity,
-              packagingQty: productPackMap.get(item.productId) || 1,
-              costPrice: item.costPrice,
-              subtotal: calcSubtotal(item.quantity, item.costPrice),
-            })),
-          },
-        },
-      });
-
-      return { id: pr.id, requestNumber: pr.purchaseNumber! };
+    const affectedTags = [PURCHASE_TAGS.LIST, PURCHASE_TAGS.DETAIL(id)];
+    result.items.forEach((item: any) => {
+      affectedTags.push(INVENTORY_TAGS.STOCK(item.productId));
     });
+
+    return {
+      data: undefined,
+      affectedTags
+    };
   },
 
-  async approveRequest(prId: string, ctx: RequestContext) {
+  async createRequest(payload: PurchaseRequestInput, ctx: RequestContext): Promise<MutationResult<{ id: string; requestNumber: string }>> {
+    Security.requirePermission(ctx, 'PURCHASE_CREATE');
+    const result = await AuditService.runWithAudit(
+      ctx,
+      PURCHASE_AUDIT_POLICIES.CREATE_REQUEST('New PR'),
+      async () => {
+        return await runInTransaction(undefined, async (prisma) => {
+          const { items, purchaseType, notes, supplierId } = payload;
+
+          const productIds = items.map(i => i.productId);
+          const products = await prisma.product.findMany({
+            where: { id: { in: productIds }, shopId: ctx.shopId },
+            select: { id: true, packagingQty: true }
+          });
+          const productPackMap = new Map(products.map(p => [p.id, p.packagingQty]));
+
+          const requestNumber = await SequenceService.generate(ctx, DocumentType.PURCHASE_REQUEST, prisma, {
+            purchaseType: payload.purchaseType,
+          });
+
+          const totalCost = items.reduce(
+            (sum, item) => money.add(sum, calcSubtotal(item.quantity, item.costPrice)),
+            0
+          );
+
+          const pr = await prisma.purchase.create({
+            data: {
+              purchaseNumber: requestNumber,
+              purchaseType: purchaseType,
+              docType: 'REQUEST',
+              status: PurchaseStatus.DRAFT,
+              totalCost: totalCost,
+              notes: notes || null,
+              supplierId: supplierId || null,
+              userId: ctx.userId,
+              shopId: ctx.shopId,
+              items: {
+                create: items.map(item => ({
+                  productId: item.productId,
+                  quantity: item.quantity,
+                  packagingQty: productPackMap.get(item.productId) || 1,
+                  costPrice: item.costPrice,
+                  subtotal: calcSubtotal(item.quantity, item.costPrice),
+                })),
+              },
+            },
+          });
+
+          return { id: pr.id, requestNumber: pr.purchaseNumber! };
+        });
+      }
+    );
+
+    return {
+      data: result,
+      affectedTags: [PURCHASE_TAGS.LIST, PURCHASE_TAGS.REQUESTS]
+    };
+  },
+
+  async approveRequest(prId: string, ctx: RequestContext): Promise<MutationResult<any>> {
     Security.requirePermission(ctx, 'PURCHASE_UPDATE');
     const pr = await db.purchase.findFirst({ where: { id: prId, shopId: ctx.shopId } });
     if (!pr) throw new ServiceError('ไม่พบใบขอซื้อ');
     if (pr.status === PurchaseStatus.APPROVED) throw new ServiceError('ใบขอซื้อนี้ได้รับการอนุมัติแล้ว');
     if (pr.status === 'CANCELLED') throw new ServiceError('ไม่สามารถอนุมัติใบขอซื้อที่ถูกยกเลิกแล้ว');
 
-    return AuditService.runWithAudit(
+    const result = await AuditService.runWithAudit(
       ctx,
       {
         ...PURCHASE_AUDIT_POLICIES.APPROVE(pr.purchaseNumber ?? prId),
@@ -331,20 +359,26 @@ export const PurchaseService: IPurchaseService = {
         beforeSnapshot: () => ({ status: pr.status }),
       },
       async () => {
-        return db.purchase.update({
+        const updated = await db.purchase.update({
           where: { id: prId, shopId: ctx.shopId },
           data: { status: PurchaseStatus.APPROVED },
         });
+        return updated;
       }
     );
+
+    return {
+      data: result,
+      affectedTags: [PURCHASE_TAGS.LIST, PURCHASE_TAGS.DETAIL(prId), PURCHASE_TAGS.REQUESTS]
+    };
   },
 
-  async convertToPO(prId, ctx) {
+  async convertToPO(prId: string, ctx: RequestContext): Promise<MutationResult<{ id: string; poNumber: string }>> {
     Security.requirePermission(ctx, 'PURCHASE_CREATE');
     const pr = await db.purchase.findFirst({ where: { id: prId, shopId: ctx.shopId } });
     if (!pr) throw new ServiceError('ไม่พบใบขอซื้อ');
 
-    return AuditService.runWithAudit(
+    const result = await AuditService.runWithAudit(
       ctx,
       PURCHASE_AUDIT_POLICIES.CONVERT_PR_TO_PO(pr.purchaseNumber!, 'PO-PENDING'),
       async () => {
@@ -404,6 +438,16 @@ export const PurchaseService: IPurchaseService = {
         });
       }
     );
+
+    return {
+      data: result,
+      affectedTags: [
+        PURCHASE_TAGS.LIST, 
+        PURCHASE_TAGS.DETAIL(prId), 
+        PURCHASE_TAGS.REQUESTS, 
+        PURCHASE_TAGS.ORDERS
+      ]
+    };
   },
 
   async checkMOQ(items, ctx, supplierId) {
@@ -519,12 +563,12 @@ export const PurchaseService: IPurchaseService = {
     );
   },
 
-  async receivePurchase(purchaseId: string, ctx: RequestContext) {
+  async receivePurchase(purchaseId: string, ctx: RequestContext): Promise<MutationResult<any>> {
     Security.requirePermission(ctx, 'PURCHASE_CREATE');
     const purchaseRef = await db.purchase.findFirst({ where: { id: purchaseId, shopId: ctx.shopId } });
     if (!purchaseRef) throw new ServiceError('ไม่พบข้อมูลการสั่งซื้อ');
 
-    await AuditService.runWithAudit(
+    const result = await AuditService.runWithAudit(
       ctx,
       PURCHASE_AUDIT_POLICIES.RECEIVE(purchaseRef.purchaseNumber!),
       async () => {
@@ -588,6 +632,17 @@ export const PurchaseService: IPurchaseService = {
         });
       }
     );
+
+    const affectedTags = [PURCHASE_TAGS.LIST, PURCHASE_TAGS.DETAIL(purchaseId), PURCHASE_TAGS.ORDERS, INVENTORY_TAGS.LIST];
+    result.items.forEach((item: any) => {
+      affectedTags.push(INVENTORY_TAGS.STOCK(item.productId));
+      affectedTags.push(INVENTORY_TAGS.DETAIL(item.productId));
+    });
+
+    return {
+      data: result,
+      affectedTags
+    };
   },
 
   async getIncompleteRequests(params: GetIncompletePurchasesParams, ctx: RequestContext) {
@@ -614,21 +669,35 @@ export const PurchaseService: IPurchaseService = {
     };
   },
 
-  async quickAssignSupplier(ids: string[], supplierId: string, ctx: RequestContext) {
+  async quickAssignSupplier(ids: string[], supplierId: string, ctx: RequestContext): Promise<MutationResult<{ count: number }>> {
     Security.requirePermission(ctx, 'PURCHASE_UPDATE');
-    if (!ids.length) return { success: true, count: 0 };
+    if (!ids.length) return { data: { count: 0 }, affectedTags: [] };
 
-    const result = await db.purchase.updateMany({
-      where: { id: { in: ids }, shopId: ctx.shopId, status: 'DRAFT', supplierId: null },
-      data: { supplierId },
-    });
+    const updateCount = await AuditService.runWithAudit(
+      ctx,
+      {
+        action: 'PURCHASE_QUICK_ASSIGN',
+        targetType: 'Purchase',
+        note: `มอบหมายผู้จำหน่าย ID: ${supplierId} ให้กับ ${ids.length} รายการ`,
+      },
+      async () => {
+        const result = await db.purchase.updateMany({
+          where: { id: { in: ids }, shopId: ctx.shopId, status: 'DRAFT', supplierId: null },
+          data: { supplierId },
+        });
+        return result.count;
+      }
+    );
 
-    return { success: true, count: result.count };
+    return {
+      data: { count: updateCount },
+      affectedTags: [PURCHASE_TAGS.LIST, PURCHASE_TAGS.REQUESTS]
+    };
   },
 
-  async createBulkDraftPRs(entries: { productId: string, quantity: number, supplierId?: string }[], ctx: RequestContext) {
+  async createBulkDraftPRs(entries: { productId: string, quantity: number, supplierId?: string }[], ctx: RequestContext): Promise<MutationResult<{ createdCount: number }>> {
     Security.requirePermission(ctx, 'PURCHASE_CREATE');
-    if (!entries.length) return { success: true, createdCount: 0 };
+    if (!entries.length) return { data: { createdCount: 0 }, affectedTags: [] };
 
     const groupedBySupplier = new Map<string | 'NONE', typeof entries>();
     entries.forEach(item => {
@@ -637,7 +706,7 @@ export const PurchaseService: IPurchaseService = {
       groupedBySupplier.get(key)!.push(item);
     });
 
-    return await runInTransaction(undefined, async (prisma) => {
+    const result = await runInTransaction(undefined, async (prisma) => {
       let prCount = 0;
       for (const [supplierId, items] of Array.from(groupedBySupplier.entries())) {
         const actualSupplierId = supplierId === 'NONE' ? null : supplierId;
@@ -682,7 +751,12 @@ export const PurchaseService: IPurchaseService = {
         });
         prCount++;
       }
-      return { success: true, createdCount: prCount };
+      return { createdCount: prCount };
     });
+
+    return {
+      data: result,
+      affectedTags: [PURCHASE_TAGS.LIST, PURCHASE_TAGS.REQUESTS]
+    };
   }
 };

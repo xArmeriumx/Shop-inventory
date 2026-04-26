@@ -28,6 +28,8 @@ import type {
   GetSalesParams,
   GetPurchasesParams,
   GetCustomersParams,
+  GetQuotationsParams,
+  GetOrderRequestsParams,
   GetIncompletePurchasesParams,
   GetFinanceParams,
   PaginatedResult,
@@ -50,6 +52,8 @@ import type {
   BillingStatus,
   Region,
   SequenceConfig,
+  MutationResult,
+  SerializedShipment,
 } from './domain';
 
 import type { IncomeInput } from '@/schemas/accounting/income.schema';
@@ -61,17 +65,17 @@ import type { SaleInput } from '@/schemas/sales/sale.schema';
 // ============================================================================
 
 export interface IProductService {
-  create(ctx: RequestContext, payload: any, tx?: Prisma.TransactionClient): Promise<SerializedProduct>;
-  update(id: string, ctx: RequestContext, payload: any, tx?: Prisma.TransactionClient): Promise<SerializedProduct>;
+  create(ctx: RequestContext, payload: any, tx?: Prisma.TransactionClient): Promise<MutationResult<SerializedProduct>>;
+  update(id: string, ctx: RequestContext, payload: any, tx?: Prisma.TransactionClient): Promise<MutationResult<SerializedProduct>>;
   getById(id: string, ctx: RequestContext): Promise<SerializedProduct>;
   getList(params: GetProductsParams, ctx: RequestContext): Promise<PaginatedResult<SerializedProduct>>;
-  delete(id: string, ctx: RequestContext): Promise<void>;
+  delete(id: string, ctx: RequestContext): Promise<MutationResult<void>>;
   getForSelect(ctx: RequestContext): Promise<Array<{ id: string; name: string; sku: string | null }>>;
   getForPurchase(ctx: RequestContext): Promise<Array<{ id: string; name: string; sku: string | null; costPrice: number }>>;
   getLowStock(limit: number, ctx: RequestContext): Promise<SerializedProduct[]>;
   getLowStockPaginated(params: GetProductsParams, ctx: RequestContext): Promise<PaginatedResult<SerializedProduct>>;
-  adjustStockManual(productId: string, input: { quantity: number; description: string; type: string }, ctx: RequestContext): Promise<void>;
-  batchCreate(inputs: BatchProductInput[], ctx: RequestContext): Promise<BatchCreateResult>;
+  adjustStockManual(productId: string, input: { quantity: number; description: string; type: string }, ctx: RequestContext): Promise<MutationResult<void>>;
+  batchCreate(inputs: BatchProductInput[], ctx: RequestContext): Promise<MutationResult<BatchCreateResult>>;
   getAvailability(productId: string, ctx: RequestContext): Promise<StockAvailability>;
 }
 
@@ -81,17 +85,22 @@ export interface IProductService {
 
 export interface ICustomerService {
   // Existing CRUD
-  create(ctx: RequestContext, payload: any): Promise<SerializedCustomer>;
-  update(id: string, ctx: RequestContext, payload: any): Promise<SerializedCustomer>;
-  getById(id: string, ctx: RequestContext): Promise<SerializedCustomer>;
+  create(ctx: RequestContext, payload: any): Promise<MutationResult<SerializedCustomer>>;
+  update(id: string, ctx: RequestContext, payload: any): Promise<MutationResult<SerializedCustomer>>;
+  getById(id: string, ctx: RequestContext): Promise<SerializedCustomer | null>;
   getList(params: GetCustomersParams, ctx: RequestContext): Promise<PaginatedResult<SerializedCustomer>>;
-  delete(id: string, ctx: RequestContext): Promise<void>;
+  delete(id: string, ctx: RequestContext): Promise<MutationResult<{ message: string; type: 'delete' | 'archive' }>>;
 
   // UI Support & CRM Intelligence
+  getDeletionImpact(id: string, ctx: RequestContext): Promise<{
+    canHardDelete: boolean;
+    transactionCount: number;
+    impacts: Array<{ label: string; count: number }>;
+  }>;
   getForSelect(ctx: RequestContext): Promise<any[]>;
   getProfile(id: string, ctx: RequestContext): Promise<any>;
   getSalespersonsByRegion(region: string, ctx: RequestContext): Promise<any[]>;
-  batchCreate(inputs: any[], ctx: RequestContext): Promise<any>;
+  batchCreate(inputs: any[], ctx: RequestContext): Promise<MutationResult<any>>;
 
   /**
    * ตรวจสอบสถานะเครดิตของลูกค้า
@@ -111,9 +120,9 @@ export interface ICustomerService {
   // Address Management
   getAddresses(customerId: string, ctx: RequestContext): Promise<any[]>;
   getAddressById(id: string, ctx: RequestContext): Promise<any>;
-  createAddress(customerId: string, ctx: RequestContext, payload: any): Promise<any>;
-  updateAddress(id: string, ctx: RequestContext, payload: any): Promise<any>;
-  deleteAddress(id: string, ctx: RequestContext): Promise<void>;
+  createAddress(customerId: string, ctx: RequestContext, payload: any): Promise<MutationResult<any>>;
+  updateAddress(id: string, ctx: RequestContext, payload: any): Promise<MutationResult<void>>;
+  deleteAddress(id: string, ctx: RequestContext): Promise<MutationResult<void>>;
 }
 
 // ============================================================================
@@ -304,8 +313,8 @@ export interface IStockService {
    */
   recordMovement(
     ctx: RequestContext,
-    params: any, // Using any for params since CreateStockMovementParams is defined in implementaton
-  ): Promise<any>;
+    params: any, 
+  ): Promise<MutationResult<any>>;
 
   /**
    * บันทึกการเคลื่อนไหวสต็อกแบบกลุ่ม
@@ -314,7 +323,7 @@ export interface IStockService {
     ctx: RequestContext,
     movements: any[],
     tx: Prisma.TransactionClient,
-  ): Promise<void>;
+  ): Promise<MutationResult<void>>;
 
   /**
    * ดึงประวัติการเคลื่อนไหวสต็อกของสินค้า (Stock Logs) แบบแบ่งหน้า
@@ -343,10 +352,10 @@ export interface ISaleService {
   // Existing CRUD & Utils
   getList(params: GetSalesParams, ctx: RequestContext, options?: { canViewProfit?: boolean }): Promise<PaginatedResult<SaleListDTO>>;
   getById(id: string, ctx: RequestContext, options?: { canViewProfit?: boolean }): Promise<SaleDetailDTO>;
-  create(ctx: RequestContext, payload: SaleInput): Promise<SaleDetailDTO>;
-  update(id: string, ctx: RequestContext, payload: any): Promise<SaleDetailDTO>;
-  delete(id: string, ctx: RequestContext): Promise<void>;
-  cancel(input: any, ctx: RequestContext): Promise<void>;
+  create(ctx: RequestContext, payload: SaleInput): Promise<MutationResult<SaleDetailDTO>>;
+  update(id: string, ctx: RequestContext, payload: any): Promise<MutationResult<SaleDetailDTO>>;
+  delete(id: string, ctx: RequestContext): Promise<MutationResult<void>>;
+  cancel(input: any, ctx: RequestContext): Promise<MutationResult<void>>;
 
   // Aggregates & Dashboard
   getTodayAggregate(ctx: RequestContext, options?: { canViewProfit?: boolean }): Promise<{
@@ -357,8 +366,8 @@ export interface ISaleService {
   getRecentList(limit: number, ctx: RequestContext, options?: { canViewProfit?: boolean }): Promise<SerializedSale[]>;
 
   // Payment Workflow
-  verifyPayment(id: string, status: 'VERIFIED' | 'REJECTED', note: string | undefined, ctx: RequestContext): Promise<void>;
-  uploadPaymentProof(id: string, proofUrl: string, ctx: RequestContext): Promise<void>;
+  verifyPayment(id: string, status: 'VERIFIED' | 'REJECTED', note: string | undefined, ctx: RequestContext): Promise<MutationResult<void>>;
+  uploadPaymentProof(id: string, proofUrl: string, ctx: RequestContext): Promise<MutationResult<void>>;
 
   /**
    * ยืนยันคำสั่งซื้อ → จองสต็อกอัตโนมัติ
@@ -367,7 +376,7 @@ export interface ISaleService {
   confirmOrder(
     saleId: string,
     ctx: RequestContext,
-  ): Promise<void>;
+  ): Promise<MutationResult<void>>;
 
   /**
    * ออกใบกำกับภาษี → ล็อก fields สำคัญ
@@ -377,7 +386,7 @@ export interface ISaleService {
     saleId: string,
     ctx: RequestContext,
     overrides?: Partial<SequenceConfig>,
-  ): Promise<{ invoiceNumber: string }>;
+  ): Promise<MutationResult<{ invoiceNumber: string }>>;
 
   /**
    * ปล่อยการจอง (ใช้เมื่อยกเลิกการขายที่มีการจองไว้)
@@ -396,7 +405,7 @@ export interface ISaleService {
     saleId: string,
     ctx: RequestContext,
     tx?: Prisma.TransactionClient,
-  ): Promise<void>;
+  ): Promise<MutationResult<void>>;
 
   /**
    * ตรวจสอบว่า field นั้นๆ ถูกล็อกหรือไม่ (ใช้กับ UI)
@@ -405,6 +414,38 @@ export interface ISaleService {
     saleId: string,
     ctx: RequestContext,
   ): Promise<string[]>;
+}
+
+// ============================================================================
+// QUOTATION SERVICE
+// ============================================================================
+
+export interface IQuotationService {
+  list(ctx: RequestContext, params: GetQuotationsParams): Promise<PaginatedResult<any>>;
+  getById(ctx: RequestContext, id: string): Promise<any>;
+  create(ctx: RequestContext, input: any): Promise<MutationResult<any>>;
+  confirm(ctx: RequestContext, id: string): Promise<MutationResult<any>>;
+  cancel(ctx: RequestContext, id: string): Promise<MutationResult<any>>;
+}
+
+// ============================================================================
+// ORDER REQUEST SERVICE
+// ============================================================================
+
+export interface IOrderRequestService {
+  list(ctx: RequestContext, params: GetOrderRequestsParams): Promise<PaginatedResult<any>>;
+  getById(ctx: RequestContext, id: string): Promise<any>;
+  create(ctx: RequestContext, input: any): Promise<MutationResult<any>>;
+  submit(ctx: RequestContext, id: string): Promise<MutationResult<any>>;
+  syncStatus(ctx: RequestContext, id: string, status: any): Promise<MutationResult<any>>;
+}
+
+// ============================================================================
+// POS SALE SERVICE
+// ============================================================================
+
+export interface IPOSSaleService {
+  checkout(ctx: RequestContext, cart: any): Promise<MutationResult<any>>;
 }
 
 // ============================================================================
@@ -418,8 +459,8 @@ export interface IPurchaseService {
   // Existing CRUD
   getList(params: GetPurchasesParams, ctx: RequestContext): Promise<PaginatedResult<any>>;
   getById(id: string, ctx: RequestContext): Promise<SerializedPurchaseWithItems>;
-  create(ctx: RequestContext, payload: any, tx?: Prisma.TransactionClient): Promise<SerializedPurchase>;
-  cancel(input: any, ctx: RequestContext): Promise<void>;
+  create(ctx: RequestContext, payload: any, tx?: Prisma.TransactionClient): Promise<MutationResult<SerializedPurchase>>;
+  cancel(input: any, ctx: RequestContext): Promise<MutationResult<void>>;
 
   /**
    * สร้างใบขอซื้อ (Purchase Request)
@@ -428,7 +469,7 @@ export interface IPurchaseService {
   createRequest(
     payload: PurchaseRequestInput,
     ctx: RequestContext,
-  ): Promise<{ id: string; requestNumber: string }>;
+  ): Promise<MutationResult<{ id: string; requestNumber: string }>>;
 
   /**
    * อนุมัติใบขอซื้อ
@@ -437,7 +478,7 @@ export interface IPurchaseService {
   approveRequest(
     prId: string,
     ctx: RequestContext,
-  ): Promise<any>;
+  ): Promise<MutationResult<any>>;
 
   /**
    * แปลง PR → PO (ดึงข้อมูลจาก PR มาสร้าง PO อัตโนมัติ)
@@ -446,7 +487,7 @@ export interface IPurchaseService {
   convertToPO(
     prId: string,
     ctx: RequestContext,
-  ): Promise<{ id: string; poNumber: string }>;
+  ): Promise<MutationResult<{ id: string; poNumber: string }>>;
 
   /**
    * ตรวจสอบ MOQ ของ Vendor ก่อนบันทึก
@@ -479,7 +520,7 @@ export interface IPurchaseService {
   receivePurchase(
     purchaseId: string,
     ctx: RequestContext,
-  ): Promise<void>;
+  ): Promise<MutationResult<any>>;
 
   /**
    * ดึงข้อมูลเงื่อนไขการสั่งซื้อจากผู้จำหน่าย (MOQ, Note)
@@ -504,7 +545,7 @@ export interface IPurchaseService {
     ids: string[],
     supplierId: string,
     ctx: RequestContext
-  ): Promise<{ success: boolean; count: number }>;
+  ): Promise<MutationResult<{ count: number }>>;
 
   /**
    * สร้างใบขอซื้อแบบกลุ่ม (Bulk PR Generation)
@@ -512,7 +553,7 @@ export interface IPurchaseService {
   createBulkDraftPRs(
     entries: Array<{ productId: string, quantity: number, supplierId?: string }>,
     ctx: RequestContext
-  ): Promise<{ success: boolean; createdCount: number }>;
+  ): Promise<MutationResult<{ createdCount: number }>>;
 }
 
 /** Input สำหรับสร้างใบขอซื้อ */
@@ -537,13 +578,13 @@ export interface PurchaseRequestInput {
  */
 export interface IShippingService {
   // Existing CRUD & Utils
-  getList(params: any, ctx: RequestContext): Promise<PaginatedResult<any>>;
+  getList(params: any, ctx: RequestContext): Promise<PaginatedResult<SerializedShipment>>;
   getById(id: string, ctx: RequestContext): Promise<any>;
-  create(payload: any, ctx: RequestContext): Promise<any>;
-  update(payload: any, ctx: RequestContext): Promise<any>;
-  updateStatus(payload: any, ctx: RequestContext): Promise<any>;
-  delete(id: string, ctx: RequestContext): Promise<void>;
-  cancel(id: string, reason: string | undefined, ctx: RequestContext): Promise<any>;
+  create(payload: any, ctx: RequestContext): Promise<MutationResult<SerializedShipment>>;
+  update(payload: any, ctx: RequestContext): Promise<MutationResult<SerializedShipment>>;
+  updateStatus(payload: any, ctx: RequestContext): Promise<MutationResult<SerializedShipment>>;
+  delete(id: string, ctx: RequestContext): Promise<MutationResult<void>>;
+  cancel(id: string, reason: string | undefined, ctx: RequestContext): Promise<MutationResult<SerializedShipment>>;
 
   // Logistics Logic
   getStats(ctx: RequestContext): Promise<Record<string, number>>;
@@ -561,7 +602,7 @@ export interface IShippingService {
     shipmentId: string,
     newStatus: ShipmentStatus,
     ctx: RequestContext,
-  ): Promise<void>;
+  ): Promise<MutationResult<any>>;
 
   /**
    * จัดลำดับการจัดส่ง (Dispatch Sequence)
@@ -570,7 +611,7 @@ export interface IShippingService {
   updateDispatchSequence(
     shipmentIds: string[],
     ctx: RequestContext,
-  ): Promise<void>;
+  ): Promise<MutationResult<any>>;
 
   /**
    * UC 11: Route Processing (Sort by Distance)
@@ -579,7 +620,7 @@ export interface IShippingService {
     ids: string[],
     type: 'OUTBOUND' | 'INBOUND',
     ctx: RequestContext,
-  ): Promise<any[]>;
+  ): Promise<MutationResult<SerializedShipment[]>>;
 
   /**
    * คำนวณปริมาตรและน้ำหนักบรรทุก (Container Load Calculation)
@@ -613,13 +654,13 @@ export interface IFinanceService {
   generateTaxReport(params: { startDate: string; endDate: string }, ctx: RequestContext): Promise<any>;
 
   // --- COMMANDS ---
-  createIncome(data: IncomeInput, ctx: RequestContext): Promise<SerializedIncome>;
-  updateIncome(id: string, data: IncomeInput, ctx: RequestContext): Promise<SerializedIncome>;
-  deleteIncome(id: string, ctx: RequestContext): Promise<void>;
-  createExpense(data: ExpenseInput, ctx: RequestContext): Promise<SerializedExpense>;
-  updateExpense(id: string, data: ExpenseInput, ctx: RequestContext): Promise<SerializedExpense>;
-  deleteExpense(id: string, ctx: RequestContext): Promise<void>;
-  markAsBilled(saleId: string, ctx: RequestContext): Promise<void>;
+  createIncome(data: IncomeInput, ctx: RequestContext): Promise<MutationResult<SerializedIncome>>;
+  updateIncome(id: string, data: IncomeInput, ctx: RequestContext): Promise<MutationResult<SerializedIncome>>;
+  deleteIncome(id: string, ctx: RequestContext): Promise<MutationResult<void>>;
+  createExpense(data: ExpenseInput, ctx: RequestContext): Promise<MutationResult<SerializedExpense>>;
+  updateExpense(id: string, data: ExpenseInput, ctx: RequestContext): Promise<MutationResult<SerializedExpense>>;
+  deleteExpense(id: string, ctx: RequestContext): Promise<MutationResult<void>>;
+  markAsBilled(saleId: string, ctx: RequestContext): Promise<MutationResult<void>>;
 }
 
 // ============================================================================
@@ -677,4 +718,301 @@ export interface IInventoryAnalyticsService {
    * รวมรายการสินค้าที่ควรสั่งซื้อใหม่ (Suggestions)
    */
   getSuggestions(ctx: RequestContext): Promise<ReorderSuggestion[]>;
+}
+// ============================================================================
+// WAREHOUSE SERVICE
+// ============================================================================
+
+export interface IWarehouseService {
+  /**
+   *ดึงรายชื่อคลังสินค้าทั้งหมด
+   */
+  getWarehouses(ctx: RequestContext): Promise<any[]>;
+
+  /**
+   * สร้างคลังสินค้าใหม่
+   */
+  createWarehouse(
+    ctx: RequestContext,
+    data: { name: string; code: string; address?: string; isDefault?: boolean }
+  ): Promise<MutationResult<any>>;
+
+  /**
+   * ดึงข้อมูลสต็อกแยกตามคลังสินค้า
+   */
+  getProductStockBreakdown(ctx: RequestContext, productId: string): Promise<any[]>;
+
+  /**
+   * ปรับปรุงสต็อกในคลังสินค้าที่ระบุ
+   */
+  adjustWarehouseStock(
+    ctx: RequestContext,
+    params: { warehouseId: string; productId: string; delta: number },
+    tx?: any
+  ): Promise<MutationResult<any>>;
+
+  /**
+   * ซิงค์ยอดสต็อกรวมของสินค้าจากสต็อกย่อยในคลัง
+   */
+  syncGlobalProductStock(ctx: RequestContext, productId: string, tx?: any): Promise<number>;
+
+  /**
+   * ค้นหาคลังสินค้าหลัก
+   */
+  getDefaultWarehouse(ctx: RequestContext): Promise<any>;
+}
+
+// ============================================================================
+// STOCK TAKE SERVICE
+// ============================================================================
+
+export interface IStockTakeService {
+  /**
+   * สร้าง Session การตรวจนับใหม่
+   */
+  createSession(
+    productIds: string[],
+    notes: string | undefined,
+    ctx: RequestContext
+  ): Promise<MutationResult<any>>;
+
+  /**
+   * อัปเดตปริมาณที่นับได้จริงใน Session
+   */
+  updateActualCount(
+    sessionId: string,
+    productId: string,
+    countedQty: number,
+    note: string | undefined,
+    ctx: RequestContext
+  ): Promise<MutationResult<any>>;
+
+  /**
+   * ส่งตรวจ (SUBMIT)
+   */
+  submitSession(sessionId: string, ctx: RequestContext): Promise<MutationResult<any>>;
+
+  /**
+   * อนุมัติและปรับปรุงสต็อก (COMPLETE)
+   */
+  completeSession(sessionId: string, ctx: RequestContext): Promise<MutationResult<any>>;
+
+  /**
+   * ยกเลิก Session
+   */
+  cancelSession(sessionId: string, reason: string, ctx: RequestContext): Promise<MutationResult<any>>;
+
+  /**
+   * ดึงข้อมูลรายละเอียด Session
+   */
+  getSessionDetails(sessionId: string, ctx: RequestContext): Promise<any>;
+}
+
+// ============================================================================
+// STOCK TRANSFER SERVICE
+// ============================================================================
+
+export interface IStockTransferService {
+  createTransfer(
+    ctx: RequestContext,
+    data: {
+      fromWarehouseId: string;
+      toWarehouseId: string;
+      lines: Array<{ productId: string; quantity: number }>;
+      notes?: string;
+    }
+  ): Promise<MutationResult<any>>;
+
+  completeTransfer(ctx: RequestContext, transferId: string): Promise<MutationResult<any>>;
+
+  getTransfers(ctx: RequestContext): Promise<any[]>;
+}
+
+// ============================================================================
+// JOURNAL SERVICE
+// ============================================================================
+
+export interface IJournalService {
+  createEntry(
+    ctx: RequestContext,
+    input: {
+      journalDate: Date;
+      description?: string;
+      lines: Array<{
+        accountId: string;
+        description?: string;
+        debitAmount: number;
+        creditAmount: number;
+        partnerId?: string;
+        partnerType?: string;
+      }>;
+      status?: 'DRAFT' | 'POSTED';
+      sourceType?: string;
+      sourceId?: string;
+      sourceNo?: string;
+      postingPurpose?: string;
+    },
+    tx?: Prisma.TransactionClient
+  ): Promise<MutationResult<any>>;
+
+  postEntry(id: string, ctx: RequestContext): Promise<MutationResult<any>>;
+
+  voidEntry(id: string, ctx: RequestContext): Promise<MutationResult<any>>;
+
+  getEntries(
+    ctx: RequestContext,
+    params: {
+      status?: string;
+      startDate?: Date;
+      endDate?: Date;
+      limit?: number;
+      offset?: number;
+    }
+  ): Promise<PaginatedResult<any>>;
+
+  getEntryBySource(ctx: RequestContext, sourceType: string, sourceId: string): Promise<any>;
+
+  reverseEntry(
+    ctx: RequestContext,
+    originalEntryId: string,
+    tx?: Prisma.TransactionClient
+  ): Promise<MutationResult<any>>;
+}
+
+// ============================================================================
+// BANK SERVICE
+// ============================================================================
+
+export interface IBankService {
+  createBankAccount(data: {
+    shopId: string;
+    userId: string;
+    name: string;
+    bankName: string;
+    accountNo: string;
+    glAccountId: string;
+    currency?: string;
+  }): Promise<MutationResult<any>>;
+
+  importStatement(data: {
+    shopId: string;
+    memberId: string;
+    bankAccountId: string;
+    statementDate: Date;
+    openingBalance: number;
+    closingBalance: number;
+    lines: Array<{
+      bookingDate: Date;
+      valueDate?: Date;
+      description: string;
+      referenceNo?: string;
+      debitAmount: number;
+      creditAmount: number;
+    }>;
+  }): Promise<MutationResult<{ statement: any; linesImported: number }>>;
+
+  getMatchCandidates(bankLineId: string): Promise<any[]>;
+
+  matchLine(
+    bankLineId: string,
+    journalLineIds: string[],
+    memberId: string
+  ): Promise<MutationResult<any>>;
+}
+
+// ============================================================================
+// PURCHASE TAX SERVICE
+// ============================================================================
+
+export interface IPurchaseTaxService {
+  registerFromPurchase(purchaseId: string, ctx: RequestContext): Promise<MutationResult<any>>;
+
+  post(
+    id: string,
+    input: { vendorDocNo: string; vendorDocDate: Date; claimStatus: string },
+    ctx: RequestContext
+  ): Promise<MutationResult<any>>;
+
+  void(id: string, ctx: RequestContext): Promise<MutationResult<any>>;
+
+  getList(params: any, ctx: RequestContext): Promise<PaginatedResult<any>>;
+
+  getById(id: string, ctx: RequestContext): Promise<any>;
+}
+
+// ============================================================================
+// WHT SERVICE
+// ============================================================================
+
+export interface IWhtService {
+  calculate(params: {
+    amount: number | Prisma.Decimal;
+    rate: number | Prisma.Decimal;
+    isGrossUp?: boolean;
+  }): {
+    grossPayableAmount: number;
+    whtBaseAmount: number;
+    whtAmount: number;
+    netPaidAmount: number;
+    rate: number;
+  };
+
+  createEntry(ctx: RequestContext, params: any, tx?: any): Promise<MutationResult<any>>;
+
+  getReportData(
+    ctx: RequestContext,
+    params: { year: number; month: number; formType: any }
+  ): Promise<{ data: any[]; totals: { base: Prisma.Decimal; tax: Prisma.Decimal } }>;
+
+  getCodes(ctx: RequestContext): Promise<any[]>;
+
+  getEntryById(id: string, ctx: RequestContext): Promise<any>;
+
+  issueCertificate(ctx: RequestContext, entryId: string): Promise<MutationResult<any>>;
+
+  voidCertificate(ctx: RequestContext, certId: string): Promise<MutationResult<any>>;
+}
+
+// ============================================================================
+// TAX SETTINGS SERVICE
+// ============================================================================
+
+export interface ITaxSettingsService {
+  getCompanyTaxProfile(ctx: RequestContext): Promise<any>;
+
+  upsertCompanyTaxProfile(input: any, ctx: RequestContext): Promise<MutationResult<any>>;
+
+  listTaxCodes(ctx: RequestContext): Promise<any[]>;
+
+  listActiveTaxCodes(ctx: RequestContext, direction?: 'OUTPUT' | 'INPUT'): Promise<any[]>;
+
+  getTaxCodeByCode(code: string, ctx: RequestContext): Promise<any>;
+
+  createTaxCode(input: any, ctx: RequestContext): Promise<MutationResult<any>>;
+
+  updateTaxCode(code: string, input: any, ctx: RequestContext): Promise<MutationResult<any>>;
+
+  toggleTaxCode(code: string, isActive: boolean, ctx: RequestContext): Promise<MutationResult<any>>;
+
+  getPartnerTaxProfile(
+    partnerId: string,
+    partnerType: 'customer' | 'supplier',
+    ctx: RequestContext
+  ): Promise<any>;
+
+  upsertPartnerTaxProfile(input: any, ctx: RequestContext): Promise<MutationResult<any>>;
+
+  getProductTaxProfile(productId: string, ctx: RequestContext): Promise<any>;
+
+  upsertProductTaxProfile(productId: string, input: any, ctx: RequestContext): Promise<MutationResult<any>>;
+
+  getSalesTaxReport(month: number, year: number, ctx: RequestContext): Promise<any>;
+
+  getPurchaseTaxReport(month: number, year: number, ctx: RequestContext): Promise<any>;
+
+  postSalesTaxEntry(input: any, ctx: RequestContext, tx?: any): Promise<MutationResult<any>>;
+
+  postPurchaseTaxEntry(input: any, ctx: RequestContext, tx?: any): Promise<MutationResult<any>>;
+
+  voidTaxEntries(sourceType: string, sourceId: string, ctx: RequestContext): Promise<MutationResult<void>>;
 }

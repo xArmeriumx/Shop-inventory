@@ -6,6 +6,21 @@ import { logger } from '@/lib/logger';
 /**
  * Standardized Action Wrapper for Server Actions (Phase OB5.2)
  * 
+ * # Goal: POS Stabilization & ERP Action/Service Standardization
+ * 
+ * Stabilize the POS architecture and standardize the ERP Action/Service layers for high-integrity audit trails and maintainable code.
+ * 
+ * ## Phase 1: Resource Migration (POS)
+ * - DONE: Establish RPC Bridge for POS.
+ * - DONE: Fix server module boundaries.
+ * - DONE: Standardize sales channel filtering.
+ * 
+ * ## Phase 2: Inventory Standardization (CURRENT)
+ * - [ ] Centralize ID validation via `entityIdSchema`.
+ * - [ ] Move Audit ownership from Action to Service layer.
+ * - [ ] Implement Metadata-driven revalidation in Services.
+ * - [ ] Cleanup `products.actions.ts`.
+ * 
  * Implements a 4-layer strategy:
  * 1. Business Logic (ServiceError) -> Propagate as safe message
  * 2. Validation (ZodError) -> Map to field-specific error keys

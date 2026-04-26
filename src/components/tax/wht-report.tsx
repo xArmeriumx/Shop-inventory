@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useTransition } from 'react';
 import {
     Card,
     CardContent,
@@ -28,49 +28,48 @@ import { Badge } from '@/components/ui/badge';
 import { Download, FileBarChart, PieChart, Users, Loader2 } from 'lucide-react';
 import { formatCurrency } from '@/lib/formatters';
 import { getWhtEntriesAction } from '@/actions/tax/wht.actions';
-import { toast } from 'sonner';
+import { runActionWithToast } from '@/lib/mutation-utils';
 
 export function WhtReport() {
+    const [isPending, startTransition] = useTransition();
     const [month, setMonth] = useState(new Date().getMonth() + 1);
     const [year, setYear] = useState(new Date().getFullYear());
     const [formType, setFormType] = useState('PND3');
     const [reportData, setReportData] = useState<any>(null);
-    const [loading, setLoading] = useState(false);
 
-    const fetchReport = useCallback(async () => {
-        setLoading(true);
-        try {
-            const result = await getWhtEntriesAction({ year, month, formType });
-            if (result.success && result.data) {
-                // Group by Payee
-                const grouped = (result.data as any).data.reduce((acc: any, curr: any) => {
-                    const key = curr.payeeTaxIdSnapshot;
-                    if (!acc[key]) {
-                        acc[key] = {
-                            name: curr.payeeNameSnapshot,
-                            taxId: curr.payeeTaxIdSnapshot,
-                            count: 0,
-                            gross: 0,
-                            wht: 0
-                        };
-                    }
-                    acc[key].count += 1;
-                    acc[key].gross += Number(curr.grossPayableAmount);
-                    acc[key].wht += Number(curr.whtAmount);
-                    return acc;
-                }, {});
+    const fetchReport = useCallback(() => {
+        startTransition(async () => {
+            await runActionWithToast(getWhtEntriesAction({ year, month, formType }), {
+                successMessage: '', // disable success toast for fetch
+                onSuccess: (result) => {
+                    if (!result) return;
+                    
+                    // Group by Payee
+                    const grouped = (result as any).data.reduce((acc: any, curr: any) => {
+                        const key = curr.payeeTaxIdSnapshot;
+                        if (!acc[key]) {
+                            acc[key] = {
+                                name: curr.payeeNameSnapshot,
+                                taxId: curr.payeeTaxIdSnapshot,
+                                count: 0,
+                                gross: 0,
+                                wht: 0
+                            };
+                        }
+                        acc[key].count += 1;
+                        acc[key].gross += Number(curr.grossPayableAmount);
+                        acc[key].wht += Number(curr.whtAmount);
+                        return acc;
+                    }, {});
 
-                setReportData({
-                    summary: result.data.totals,
-                    payeeGroups: Object.values(grouped),
-                    detailCount: (result.data as any).data.length
-                });
-            }
-        } catch (error) {
-            toast.error('ไม่สามารถดึงข้อมูลรายงานได้');
-        } finally {
-            setLoading(false);
-        }
+                    setReportData({
+                        summary: result.totals,
+                        payeeGroups: Object.values(grouped),
+                        detailCount: (result as any).data.length
+                    });
+                }
+            });
+        });
     }, [year, month, formType]);
 
     useEffect(() => {
@@ -78,8 +77,12 @@ export function WhtReport() {
     }, [fetchReport]);
 
     const handleExport = () => {
-        toast.info('ระบบกำลังเตรียมไฟล์ CSV สำหรับนำส่งกรมสรรพากร (RD Smart Tax)');
-        // Placeholder for real export logic
+        startTransition(async () => {
+            await runActionWithToast(Promise.resolve({ success: true, message: 'ระบบกำลังเตรียมไฟล์ CSV สำหรับนำส่งกรมสรรพากร (RD Smart Tax)', data: null }), {
+                loadingMessage: 'กำลังเตรียมข้อมูลนำส่ง...',
+                successMessage: 'เตรียมข้อมูลสำเร็จ (Placeholder)'
+            });
+        });
     };
 
     return (
@@ -127,7 +130,7 @@ export function WhtReport() {
                         </div>
                     </div>
                 </div>
-                <Button variant="outline" className="h-10" onClick={handleExport} disabled={!reportData || loading}>
+                <Button variant="outline" className="h-10" onClick={handleExport} disabled={!reportData || isPending}>
                     <Download className="w-4 h-4 mr-2" />
                     ส่งออกใบแนบ (CSV)
                 </Button>
@@ -140,7 +143,7 @@ export function WhtReport() {
                         <CardDescription className="flex items-center gap-2">
                             <PieChart className="w-4 h-4" /> ยอดเงินที่จ่ายทั้งหมด
                         </CardDescription>
-                        <CardTitle className="text-2xl">{loading ? '...' : formatCurrency(reportData?.summary?.base || 0)}</CardTitle>
+                        <CardTitle className="text-2xl">{isPending ? '...' : formatCurrency(reportData?.summary?.base || 0)}</CardTitle>
                     </CardHeader>
                 </Card>
                 <Card className="border-l-4 border-l-destructive shadow-sm">
@@ -148,7 +151,7 @@ export function WhtReport() {
                         <CardDescription className="flex items-center gap-2">
                             <FileBarChart className="w-4 h-4" /> ภาษีหัก ณ ที่จ่ายรวม
                         </CardDescription>
-                        <CardTitle className="text-2xl text-destructive">{loading ? '...' : formatCurrency(reportData?.summary?.tax || 0)}</CardTitle>
+                        <CardTitle className="text-2xl text-destructive">{isPending ? '...' : formatCurrency(reportData?.summary?.tax || 0)}</CardTitle>
                     </CardHeader>
                 </Card>
                 <Card className="border-l-4 border-l-green-500 shadow-sm">
@@ -156,7 +159,7 @@ export function WhtReport() {
                         <CardDescription className="flex items-center gap-2">
                             <Users className="w-4 h-4" /> จำนวนผู้ถูกหักภาษี
                         </CardDescription>
-                        <CardTitle className="text-2xl">{loading ? '...' : `${reportData?.payeeGroups?.length || 0} ราย`}</CardTitle>
+                        <CardTitle className="text-2xl">{isPending ? '...' : `${reportData?.payeeGroups?.length || 0} ราย`}</CardTitle>
                         <CardDescription>{reportData?.detailCount || 0} รายการย่อย</CardDescription>
                     </CardHeader>
                 </Card>
@@ -181,7 +184,7 @@ export function WhtReport() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {loading ? (
+                            {isPending ? (
                                 <TableRow>
                                     <TableCell colSpan={6} className="text-center py-20">
                                         <Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" />

@@ -6,6 +6,9 @@ import {
   SHIPMENT_STATUS_TRANSITIONS,
   DocumentType,
   GetShipmentsParams,
+  MutationResult,
+  SerializedShipment,
+  PaginatedResult,
 } from '@/types/domain';
 import { IShippingService } from '@/types/service-contracts';
 import { SequenceService } from '@/services/core/system/sequence.service';
@@ -17,6 +20,7 @@ import { SHIPMENT_AUDIT_POLICIES } from '@/policies/inventory/shipment.policy';
 import { Security } from '@/services/core/iam/security.service';
 import { serializeShipment, serializeSale } from '@/lib/mappers';
 import { Prisma } from '@prisma/client';
+import { LOGISTICS_TAGS, SALES_TAGS } from '@/config/cache-tags';
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING: 'รอจัดส่ง',
@@ -59,7 +63,7 @@ export function getAllowedTransitions(status: ShipmentStatus): ShipmentStatus[] 
 }
 
 export const ShipmentService: IShippingService = {
-  async getList(params: GetShipmentsParams = {}, ctx: RequestContext) {
+  async getList(params: GetShipmentsParams = {}, ctx: RequestContext): Promise<PaginatedResult<SerializedShipment>> {
     const { page = 1, limit = 20, search, startDate, endDate, status } = params;
     const where: Prisma.ShipmentWhereInput = { shopId: ctx.shopId };
 
@@ -191,19 +195,19 @@ export const ShipmentService: IShippingService = {
     }));
   },
 
-  async create(data: any, ctx: RequestContext) {
-    return AuditService.runWithAudit(
+  async create(data: any, ctx: RequestContext): Promise<MutationResult<SerializedShipment>> {
+    const result = await AuditService.runWithAudit(
       ctx,
       SHIPMENT_AUDIT_POLICIES.CREATE('PENDING_SN'),
       async () => {
         try {
           return await runInTransaction(undefined, async (prisma) => {
             const sale = await prisma.sale.findFirst({
-              where: { id: data.saleId, shopId: ctx.shopId, status: 'ACTIVE' },
+              where: { id: data.saleId, shopId: ctx.shopId, status: 'CONFIRMED' }, // Changed status check to matching sale service
               include: { shipments: { select: { id: true, status: true } } },
             });
 
-            if (!sale) throw new ServiceError('ไม่พบรายการขาย หรือรายการถูกยกเลิกแล้ว');
+            if (!sale) throw new ServiceError('ไม่พบรายการขาย หรือรายการยังไม่ได้ยืนยัน');
             const hasActiveShipment = sale.shipments.some(s => s.status !== 'CANCELLED');
             if (hasActiveShipment) throw new ServiceError('รายการขายนี้มี Shipment ที่ยังใช้งานอยู่แล้ว');
 
@@ -248,9 +252,14 @@ export const ShipmentService: IShippingService = {
         }
       }
     );
+
+    return {
+      data: result,
+      affectedTags: [LOGISTICS_TAGS.SHIPMENT.LIST, SALES_TAGS.DETAIL(data.saleId)]
+    };
   },
 
-  async update(input: UpdateShipmentInput, ctx: RequestContext) {
+  async update(input: UpdateShipmentInput, ctx: RequestContext): Promise<MutationResult<SerializedShipment>> {
     const { id, ...data } = input;
     const shipment = await db.shipment.findFirst({ where: { id, shopId: ctx.shopId } });
 
@@ -260,10 +269,14 @@ export const ShipmentService: IShippingService = {
     }
 
     const updated = await db.shipment.update({ where: { id }, data });
-    return serializeShipment(updated);
+
+    return {
+      data: serializeShipment(updated),
+      affectedTags: [LOGISTICS_TAGS.SHIPMENT.LIST, LOGISTICS_TAGS.SHIPMENT.DETAIL(id)]
+    };
   },
 
-  async updateStatus(input: UpdateShipmentStatusInput, ctx: RequestContext) {
+  async updateStatus(input: UpdateShipmentStatusInput, ctx: RequestContext): Promise<MutationResult<SerializedShipment>> {
     const { id, status: newStatus } = input;
     const shipment = await db.shipment.findFirst({ where: { id, shopId: ctx.shopId } });
 
@@ -288,10 +301,14 @@ export const ShipmentService: IShippingService = {
     }
 
     const updated = await db.shipment.update({ where: { id }, data: updateData });
-    return serializeShipment(updated);
+
+    return {
+      data: serializeShipment(updated),
+      affectedTags: [LOGISTICS_TAGS.SHIPMENT.LIST, LOGISTICS_TAGS.SHIPMENT.DETAIL(id)]
+    };
   },
 
-  async cancel(id: string, reason: string | undefined, ctx: RequestContext) {
+  async cancel(id: string, reason: string | undefined, ctx: RequestContext): Promise<MutationResult<SerializedShipment>> {
     const shipment = await db.shipment.findFirst({ where: { id, shopId: ctx.shopId } });
 
     if (!shipment) throw new ServiceError('ไม่พบข้อมูลการจัดส่ง');
@@ -299,7 +316,7 @@ export const ShipmentService: IShippingService = {
       throw new ServiceError(`ไม่สามารถยกเลิกได้ — สถานะ "${STATUS_LABELS[shipment.status]}" เป็นสถานะที่ไม่สามารถยกเลิกได้`);
     }
 
-    return AuditService.runWithAudit(
+    const result = await AuditService.runWithAudit(
       ctx,
       SHIPMENT_AUDIT_POLICIES.CANCEL(shipment.shipmentNumber!, reason),
       async () => {
@@ -314,6 +331,11 @@ export const ShipmentService: IShippingService = {
         return serializeShipment(updated);
       }
     );
+
+    return {
+      data: result,
+      affectedTags: [LOGISTICS_TAGS.SHIPMENT.LIST, LOGISTICS_TAGS.SHIPMENT.DETAIL(id), SALES_TAGS.DETAIL(shipment.saleId || '')]
+    };
   },
 
   async getStats(ctx: RequestContext) {
@@ -338,7 +360,7 @@ export const ShipmentService: IShippingService = {
     return result;
   },
 
-  async updateStatusWithSync(shipmentId: string, newStatus: ShipmentStatus, ctx: RequestContext) {
+  async updateStatusWithSync(shipmentId: string, newStatus: ShipmentStatus, ctx: RequestContext): Promise<MutationResult<any>> {
     const shipmentRef = await db.shipment.findFirst({ where: { id: shipmentId, shopId: ctx.shopId } });
     if (!shipmentRef) throw new ServiceError('ไม่พบข้อมูลการจัดส่ง');
 
@@ -363,7 +385,7 @@ export const ShipmentService: IShippingService = {
             },
           });
 
-          let parentDeliveryStatus = shipment.sale.deliveryStatus;
+          let parentDeliveryStatus = (shipment as any).sale.deliveryStatus;
 
           if (newStatus === 'SHIPPED') {
             await SaleService.completeSale(shipment.saleId, ctx, prisma);
@@ -381,9 +403,19 @@ export const ShipmentService: IShippingService = {
         });
       }
     );
+
+    return {
+      data: undefined,
+      affectedTags: [
+        LOGISTICS_TAGS.SHIPMENT.LIST, 
+        LOGISTICS_TAGS.SHIPMENT.DETAIL(shipmentId), 
+        SALES_TAGS.DETAIL(shipmentRef.saleId || ''),
+        SALES_TAGS.LIST
+      ]
+    };
   },
 
-  async updateDispatchSequence(shipmentIds: string[], ctx: RequestContext) {
+  async updateDispatchSequence(shipmentIds: string[], ctx: RequestContext): Promise<MutationResult<any>> {
     await runInTransaction(undefined, async (prisma) => {
       await Promise.all(shipmentIds.map((id, index) =>
         prisma.shipment.update({
@@ -392,10 +424,15 @@ export const ShipmentService: IShippingService = {
         })
       ));
     });
+
+    return {
+      data: undefined,
+      affectedTags: [LOGISTICS_TAGS.SHIPMENT.LIST]
+    };
   },
 
-  async processRoute(ids: string[], type: 'OUTBOUND' | 'INBOUND', ctx: RequestContext) {
-    return AuditService.runWithAudit(
+  async processRoute(ids: string[], type: 'OUTBOUND' | 'INBOUND', ctx: RequestContext): Promise<MutationResult<SerializedShipment[]>> {
+    const result = await AuditService.runWithAudit(
       ctx,
       SHIPMENT_AUDIT_POLICIES.ROUTE_PROCESSED(type, ids.length),
       async () => {
@@ -435,9 +472,14 @@ export const ShipmentService: IShippingService = {
         await this.updateDispatchSequence(sortedIds, ctx);
 
         const idToIndex = new Map(sortedIds.map((id, index) => [id, index]));
-        return shipments.sort((a, b) => (idToIndex.get(a.id) ?? 0) - (idToIndex.get(b.id) ?? 0));
+        return shipments.sort((a, b) => (idToIndex.get(a.id) ?? 0) - (idToIndex.get(b.id) ?? 0)).map(s => serializeShipment(s));
       }
     );
+
+    return {
+      data: result,
+      affectedTags: [LOGISTICS_TAGS.SHIPMENT.LIST]
+    };
   },
 
   async calculateLoad(id: string, ctx: RequestContext) {
@@ -578,9 +620,14 @@ export const ShipmentService: IShippingService = {
     return customers;
   },
 
-  async delete(id: string, ctx: RequestContext): Promise<void> {
+  async delete(id: string, ctx: RequestContext): Promise<MutationResult<void>> {
     const shipment = await db.shipment.findFirst({ where: { id, shopId: ctx.shopId } });
     if (!shipment) throw new ServiceError('ไม่พบข้อมูลการจัดส่ง');
     await db.shipment.delete({ where: { id } });
+
+    return {
+      data: undefined,
+      affectedTags: [LOGISTICS_TAGS.SHIPMENT.LIST]
+    };
   }
 };

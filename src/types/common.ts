@@ -65,3 +65,12 @@ export interface BaseQueryParams {
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
 }
+
+/**
+ * MutationResult - Internal Service Contract
+ * Used between Service and Action layers to pass data + metadata (like revalidation tags).
+ */
+export interface MutationResult<T = void> {
+    data: T;
+    affectedTags?: string[];
+}

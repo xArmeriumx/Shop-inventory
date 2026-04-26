@@ -1,6 +1,6 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidateTag } from 'next/cache';
 import { StockTakeService } from '@/services/inventory/stock-take.service';
 import { requireShop, requirePermission } from '@/lib/auth-guard';
 import { handleAction } from '@/lib/action-handler';
@@ -15,9 +15,13 @@ export async function createStockTakeAction(productIds: string[], notes?: string
         return PerformanceCollector.run(async () => {
             const ctx = await requireShop();
             await requirePermission('STOCK_ADJUST');
-            const session = await StockTakeService.createSession(productIds, notes, ctx);
-            revalidatePath('/inventory/stock-take');
-            return session;
+            const result = await StockTakeService.createSession(productIds, notes, ctx);
+            
+            if (result.affectedTags) {
+                result.affectedTags.forEach(tag => revalidateTag(tag));
+            }
+            
+            return result.data;
         }, 'inventory:createStockTake');
     }, { context: { action: 'createStockTake', productCount: productIds.length } });
 }
@@ -30,9 +34,13 @@ export async function updateStockTakeItemAction(sessionId: string, productId: st
         return PerformanceCollector.run(async () => {
             const ctx = await requireShop();
             await requirePermission('STOCK_ADJUST');
-            const item = await StockTakeService.updateActualCount(sessionId, productId, countedQty, note, ctx);
-            revalidatePath(`/inventory/stock-take/${sessionId}`);
-            return item;
+            const result = await StockTakeService.updateActualCount(sessionId, productId, countedQty, note, ctx);
+            
+            if (result.affectedTags) {
+                result.affectedTags.forEach(tag => revalidateTag(tag));
+            }
+            
+            return result.data;
         }, 'inventory:updateStockTakeItem');
     }, { context: { action: 'updateStockTakeItem', sessionId, productId, countedQty } });
 }
@@ -45,9 +53,12 @@ export async function submitStockTakeAction(sessionId: string): Promise<ActionRe
         return PerformanceCollector.run(async () => {
             const ctx = await requireShop();
             await requirePermission('STOCK_ADJUST');
-            await StockTakeService.submitSession(sessionId, ctx);
-            revalidatePath(`/inventory/stock-take/${sessionId}`);
-            revalidatePath('/inventory/stock-take');
+            const result = await StockTakeService.submitSession(sessionId, ctx);
+            
+            if (result.affectedTags) {
+                result.affectedTags.forEach(tag => revalidateTag(tag));
+            }
+            
             return null;
         }, 'inventory:submitStockTake');
     }, { context: { action: 'submitStockTake', sessionId } });
@@ -61,10 +72,12 @@ export async function completeStockTakeAction(sessionId: string): Promise<Action
         return PerformanceCollector.run(async () => {
             const ctx = await requireShop();
             await requirePermission('STOCK_TAKE_APPROVE');
-            await StockTakeService.completeSession(sessionId, ctx);
-            revalidatePath(`/inventory/stock-take/${sessionId}`);
-            revalidatePath('/inventory/stock-take');
-            revalidatePath('/inventory');
+            const result = await StockTakeService.completeSession(sessionId, ctx);
+            
+            if (result.affectedTags) {
+                result.affectedTags.forEach(tag => revalidateTag(tag));
+            }
+            
             return null;
         }, 'inventory:completeStockTake');
     }, { context: { action: 'completeStockTake', sessionId } });
@@ -78,9 +91,12 @@ export async function cancelStockTakeAction(sessionId: string, reason: string): 
         return PerformanceCollector.run(async () => {
             const ctx = await requireShop();
             await requirePermission('STOCK_ADJUST');
-            await StockTakeService.cancelSession(sessionId, reason, ctx);
-            revalidatePath(`/inventory/stock-take/${sessionId}`);
-            revalidatePath('/inventory/stock-take');
+            const result = await StockTakeService.cancelSession(sessionId, reason, ctx);
+            
+            if (result.affectedTags) {
+                result.affectedTags.forEach(tag => revalidateTag(tag));
+            }
+            
             return null;
         }, 'inventory:cancelStockTake');
     }, { context: { action: 'cancelStockTake', sessionId, reason } });

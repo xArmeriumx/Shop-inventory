@@ -1,11 +1,10 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidateTag } from 'next/cache';
 import { requirePermission } from '@/lib/auth-guard';
 import { z } from 'zod';
 import { ReturnService } from '@/services';
-import { ActionResponse } from '@/types/common';
-import { handleActionError } from '@/lib/error-handler';
+import { type ActionResponse } from '@/types/domain';
 
 import { PerformanceCollector } from '@/lib/debug/measurement';
 import { handleAction } from '@/lib/action-handler';
@@ -50,17 +49,16 @@ export async function getReturnableSaleItems(saleId: string): Promise<ActionResp
 export async function createReturn(input: CreateReturnInput): Promise<ActionResponse<any>> {
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
-      const ctx = await requirePermission('RETURN_CREATE');
+      const ctx = await requirePermission('RETURN_CREATE' as any);
       const data = createReturnSchema.parse(input);
       const result = await ReturnService.create(data, ctx);
 
-      revalidatePath('/sales');
-      revalidatePath(`/sales/${data.saleId}`);
-      revalidatePath('/returns');
-      revalidatePath('/dashboard');
+      if (result.affectedTags) {
+        result.affectedTags.forEach((tag: string) => revalidateTag(tag));
+      }
 
-      return result;
-    });
+      return result.data;
+    }, 'returns:createReturn');
   }, { context: { action: 'createReturn', saleId: input.saleId } });
 }
 

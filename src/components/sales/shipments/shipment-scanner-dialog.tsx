@@ -16,6 +16,7 @@
 
 import { useState, useRef, useTransition } from 'react';
 import Image from 'next/image';
+import { toast } from 'sonner';
 import {
   Dialog,
   DialogContent,
@@ -40,7 +41,8 @@ import {
   RotateCcw,
   Truck,
 } from 'lucide-react';
-import { toast } from 'sonner';
+import { runActionWithToast } from '@/lib/mutation-utils';
+import { type ActionResponse } from '@/lib/action-handler';
 import { compressImageForOCR } from '@/lib/ocr/compress';
 import { matchParcelsToSales, createShipment } from '@/actions/sales/shipments.actions';
 import type { OcrParcel, ParcelMatch } from '@/actions/sales/shipments.actions';
@@ -228,15 +230,16 @@ export function ShipmentScannerDialog({
       }
 
       // Auto-match with sales
-      const matchResult = await matchParcelsToSales(parcels);
-      if (matchResult.success) {
-        setMatches(matchResult.data);
-        const autoMatched = matchResult.data.filter((m: ParcelMatch) => m.sale).length;
-        toast.success(`พบ ${parcels.length} พัสดุ — จับคู่อัตโนมัติ ${autoMatched} รายการ`);
-      } else {
-        toast.error(matchResult.message);
-      }
-      setStep('review');
+      await runActionWithToast(matchParcelsToSales(parcels), {
+        successMessage: (res) => `พบ ${parcels.length} พัสดุ — จับคู่อัตโนมัติ ${res.filter((m: any) => m.sale).length} รายการ`,
+        onSuccess: (res) => {
+          setMatches(res);
+          setStep('review');
+        },
+        onError: () => {
+          setStep('review');
+        }
+      });
 
     } catch (err: any) {
       stopScanPhase();
@@ -265,8 +268,8 @@ export function ShipmentScannerDialog({
       return;
     }
 
-    setStep('creating');
     startTransition(async () => {
+      setStep('creating');
       let successCount = 0;
       let failCount = 0;
 
@@ -283,19 +286,11 @@ export function ShipmentScannerDialog({
             shippingCost: match.parcel.shippingCost || null,
             recipientName: (match.parcel.recipientName || match.sale?.customerName || 'ผู้รับ') as string,
             recipientPhone: match.parcel.recipientPhone || null,
-            shippingAddress:
-              selectedAddresses[i] ||
-              match.parcel.province ||
-              match.sale?.customerName ||
-              'ไม่ระบุ',
+            shippingAddress: selectedAddresses[i] || match.parcel.province || match.sale?.customerName || 'ไม่ระบุ',
           });
 
-          if (result.success) {
-            successCount++;
-          } else {
-            failCount++;
-            console.error(`[ShipmentScanner] Failed to create shipment ${i}:`, result.message);
-          }
+          if (result.success) successCount++;
+          else failCount++;
         } catch (err) {
           failCount++;
         }
@@ -304,17 +299,18 @@ export function ShipmentScannerDialog({
       setCreatedCount(successCount);
       setStep('done');
 
-      if (successCount > 0) {
-        toast.success(`สร้าง ${successCount} รายการจัดส่งสำเร็จ`);
-        setTimeout(() => {
+      // Standard final report
+      await runActionWithToast(Promise.resolve({
+        success: failCount === 0,
+        message: `สร้าง ${successCount} รายการสำเร็จ` + (failCount > 0 ? `, ล้มเหลว ${failCount} รายการ` : ''),
+        data: null
+      } as ActionResponse<null>), {
+        onSuccess: () => {
+          setTimeout(() => {
             onSuccess?.();
-        }, 100);
-      }
-      if (failCount > 0) {
-        toast.error(`สร้างไม่สำเร็จ ${failCount} รายการ`, {
-            description: 'ระบบข้ามรายการที่มีความขัดแย้งด้านข้อมูล'
-        });
-      }
+          }, 100);
+        }
+      });
     });
   };
 

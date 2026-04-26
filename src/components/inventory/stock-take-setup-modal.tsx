@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     Dialog,
@@ -15,7 +15,6 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ClipboardCheck, Loader2 } from 'lucide-react';
 import { createStockTakeAction } from '@/actions/inventory/stock-take.actions';
-import { toast } from 'sonner';
 import { runActionWithToast } from '@/lib/mutation-utils';
 
 interface StockTakeSetupModalProps {
@@ -28,26 +27,26 @@ interface StockTakeSetupModalProps {
 export function StockTakeSetupModal({ open, onOpenChange, productIds, totalCount }: StockTakeSetupModalProps) {
     const router = useRouter();
     const [notes, setNotes] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
+    const [isPending, startTransition] = useTransition();
 
-    const handleConfirm = async () => {
+    const handleConfirm = () => {
         if (productIds.length === 0) {
-            toast.error('กรุณาเลือกสินค้าอย่างน้อย 1 รายการ');
+            runActionWithToast(Promise.resolve({ success: false, message: 'กรุณาเลือกสินค้าอย่างน้อย 1 รายการ' }));
             return;
         }
 
-        setIsLoading(true);
-        await runActionWithToast(createStockTakeAction(productIds, notes), {
-            successMessage: 'เริ่มรายการตรวจนับและ Snapshot สต็อกเรียบร้อยแล้ว',
-            onSuccess: (result) => {
-                const data = result as any;
-                onOpenChange(false);
-                setTimeout(() => {
-                    router.push(`/inventory/stock-take/${data.id}`);
-                    router.refresh();
-                }, 100);
-            },
-            onFinally: () => setIsLoading(false)
+        startTransition(async () => {
+            await runActionWithToast(createStockTakeAction(productIds, notes), {
+                successMessage: 'เริ่มรายการตรวจนับและ Snapshot สต็อกเรียบร้อยแล้ว',
+                onSuccess: (result) => {
+                    const data = result as any;
+                    onOpenChange(false);
+                    setTimeout(() => {
+                        router.push(`/inventory/stock-take/${data.id}`);
+                        router.refresh();
+                    }, 100);
+                },
+            });
         });
     };
 
@@ -78,11 +77,11 @@ export function StockTakeSetupModal({ open, onOpenChange, productIds, totalCount
                 </div>
 
                 <DialogFooter>
-                    <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isLoading}>
+                    <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isPending}>
                         ยกเลิก
                     </Button>
-                    <Button onClick={handleConfirm} disabled={isLoading} className="gap-2">
-                        {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                    <Button onClick={handleConfirm} disabled={isPending} className="gap-2">
+                        {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
                         เริ่ม Snapshot และตรวจนับ
                     </Button>
                 </DialogFooter>

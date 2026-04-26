@@ -9,7 +9,7 @@ import { StockMovementTable } from './stock-movement-table';
 import { VendorIntelligencePanel } from '@/components/purchases/intelligence/vendor-intelligence-panel';
 import { LocalPagination } from '@/components/ui/local-pagination';
 import { StockMovementType } from '@prisma/client';
-import { toast } from 'sonner';
+import { runActionWithToast } from '@/lib/mutation-utils';
 
 interface ProductHistoryTabProps {
     productId: string;
@@ -28,47 +28,33 @@ export function ProductHistoryTab({ productId }: ProductHistoryTabProps) {
     const [startDate, setStartDate] = useState<string>('');
     const [endDate, setEndDate] = useState<string>('');
 
-    const fetchSummary = React.useCallback(() => {
-        getProductIntelligenceSummary(productId).then(res => {
-            if (res.success) {
-                setSummary(res.data);
-            }
-        }).catch(err => {
-            console.error('Failed to fetch intelligence summary', err);
+    const fetchSummary = useCallback(() => {
+        runActionWithToast(getProductIntelligenceSummary(productId), {
+            successMessage: '',
+            onSuccess: (data) => setSummary(data)
         });
     }, [productId]);
 
-    const fetchHistory = React.useCallback(() => {
+    const fetchHistory = useCallback(() => {
         startTransition(async () => {
-            try {
-                const params: any = { page, limit: 20 };
-                if (type !== 'ALL') params.type = type as StockMovementType;
-                if (startDate) params.startDate = startDate;
-                if (endDate) params.endDate = endDate;
+            const params: any = { page, limit: 20 };
+            if (type !== 'ALL') params.type = type as StockMovementType;
+            if (startDate) params.startDate = startDate;
+            if (endDate) params.endDate = endDate;
 
-                const res = await getProductMovementHistory(productId, params);
-                if (res.success) {
-                    setHistory(res.data);
-                } else {
-                    toast.error(res.message || 'Failed to load history');
-                }
-            } catch (err) {
-                toast.error('Failed to load history');
-                console.error(err);
-            }
+            await runActionWithToast(getProductMovementHistory(productId, params), {
+                successMessage: '',
+                onSuccess: (data) => setHistory(data)
+            });
         });
     }, [productId, page, type, startDate, endDate]);
 
-    const fetchVendors = React.useCallback(() => {
+    const fetchVendors = useCallback(() => {
         setIsVendorsLoading(true);
-        getProductSupplierIntelligence(productId).then(res => {
-            if (res.success) {
-                setVendors(res.data || []);
-            }
-            setIsVendorsLoading(false);
-        }).catch(err => {
-            console.error('Failed to fetch vendor intelligence', err);
-            setIsVendorsLoading(false);
+        runActionWithToast(getProductSupplierIntelligence(productId), {
+            successMessage: '',
+            onSuccess: (data) => setVendors(data || []),
+            onFinally: () => setIsVendorsLoading(false)
         });
     }, [productId]);
 

@@ -4,28 +4,17 @@ import { SequenceService } from '@/services/core/system/sequence.service';
 import { DB_TIMEOUTS } from '@/lib/constants';
 import { Security } from '@/services/core/iam/security.service';
 import { WorkflowService } from '@/services/core/workflow/workflow.service';
-import { DocumentType, ServiceError, type RequestContext } from '@/types/domain';
+import { DocumentType, ServiceError, type RequestContext, type MutationResult } from '@/types/domain';
 import { Permission } from '@prisma/client';
 import { TaxResolutionService } from '@/services/tax/tax-resolution.service';
 import { TaxCalculationService } from '@/services/tax/tax-calculation.service';
 import { TaxSettingsService } from '@/services/tax/tax-settings.service';
 import { PostingService } from '@/services/accounting/posting-engine.service';
 import { JournalService } from '@/services/accounting/journal.service';
+import { INVOICE_TAGS, SALES_TAGS, ACCOUNTING_TAGS } from '@/config/cache-tags';
 
 import { GetInvoicesParams } from './sales.types';
 
-/**
- * InvoiceService — จัดการใบแจ้งหนี้ / Invoice (Billing Module)
- *
- * Flow: Sale (SO Confirmed) → createFromSale → Draft → post → Posted → markPaid → Paid
- *
- * T2 Tax Rules:
- * - ทุก line ต้องผ่าน TaxResolutionService เพื่อเลือก tax code
- * - ทุก line ต้องผ่าน TaxCalculationService เพื่อคิดเลข
- * - header snapshot ทั้งหมดล็อกทันทีที่สร้าง
- * - tax snapshot ห้ามแก้หลัง POSTED
- * - payment อัปเดตได้แค่ paidAmount / residualAmount / paymentStatus
- */
 export const InvoiceService = {
 
     async list(ctx: RequestContext, params: GetInvoicesParams = {}) {
@@ -93,7 +82,7 @@ export const InvoiceService = {
      * 4. payment ห้ามแตะ taxAmount / taxableBase
      * 5. หลัง POSTED → สร้าง SalesTaxEntry
      */
-    async createFromSale(ctx: RequestContext, saleId: string, tx?: Prisma.TransactionClient) {
+    async createFromSale(ctx: RequestContext, saleId: string, tx?: Prisma.TransactionClient): Promise<MutationResult<any>> {
         Security.require(ctx, 'INVOICE_CREATE' as Permission);
 
         if (!ctx.memberId) {
@@ -313,15 +302,19 @@ export const InvoiceService = {
             return invoice;
         };
 
-        if (tx) return await execute(tx);
-        return await db.$transaction(async (tx) => await execute(tx), { timeout: DB_TIMEOUTS.EXTENDED });
+        const result = tx ? await execute(tx) : await db.$transaction(async (tx) => await execute(tx), { timeout: DB_TIMEOUTS.EXTENDED });
+
+        return {
+            data: result,
+            affectedTags: [INVOICE_TAGS.LIST, INVOICE_TAGS.STATS, SALES_TAGS.DETAIL(saleId), SALES_TAGS.LIST]
+        };
     },
 
     /**
      * post — เปลี่ยน status เป็น POSTED และสร้าง SalesTaxEntry
      * Rule: ห้ามแก้ tax snapshot หลัง POSTED
      */
-    async post(ctx: RequestContext, id: string, tx?: Prisma.TransactionClient) {
+    async post(ctx: RequestContext, id: string, tx?: Prisma.TransactionClient): Promise<MutationResult<any>> {
         Security.require(ctx, 'INVOICE_POST' as Permission);
 
         const execute = async (tx: Prisma.TransactionClient) => {
@@ -369,8 +362,12 @@ export const InvoiceService = {
             });
         };
 
-        if (tx) return await execute(tx);
-        return await db.$transaction(async (tx) => await execute(tx), { timeout: DB_TIMEOUTS.EXTENDED });
+        const result = tx ? await execute(tx) : await db.$transaction(async (tx) => await execute(tx), { timeout: DB_TIMEOUTS.EXTENDED });
+
+        return {
+            data: result,
+            affectedTags: [INVOICE_TAGS.LIST, INVOICE_TAGS.DETAIL(id), INVOICE_TAGS.STATS, ACCOUNTING_TAGS.JOURNAL]
+        };
     },
 
     /**
@@ -392,7 +389,7 @@ export const InvoiceService = {
         }
     },
 
-    async markPaid(ctx: RequestContext, id: string, tx?: Prisma.TransactionClient) {
+    async markPaid(ctx: RequestContext, id: string, tx?: Prisma.TransactionClient): Promise<MutationResult<any>> {
         const client = tx || db;
         const invoice = await (client as any).invoice.findUnique({ where: { id } });
         if (!invoice || invoice.shopId !== ctx.shopId) throw new ServiceError('ไม่พบใบแจ้งหนี้');
@@ -403,7 +400,7 @@ export const InvoiceService = {
         if (invoice.status === 'CANCELLED') throw new ServiceError('ไม่สามารถชำระ Invoice ที่ยกเลิกแล้วได้');
         if (invoice.status === 'PAID') throw new ServiceError('Invoice นี้ชำระแล้ว');
 
-        return (client as any).invoice.update({
+        const result = await (client as any).invoice.update({
             where: { id },
             data: {
                 status: 'PAID',
@@ -412,9 +409,14 @@ export const InvoiceService = {
                 paymentStatus: 'PAID',
             },
         });
+
+        return {
+            data: result,
+            affectedTags: [INVOICE_TAGS.LIST, INVOICE_TAGS.DETAIL(id), INVOICE_TAGS.STATS]
+        };
     },
 
-    async cancel(ctx: RequestContext, id: string) {
+    async cancel(ctx: RequestContext, id: string): Promise<MutationResult<any>> {
         Security.require(ctx, 'INVOICE_CANCEL' as Permission);
         const invoice = await (db as any).invoice.findUnique({ where: { id } });
         if (!invoice || invoice.shopId !== ctx.shopId) throw new ServiceError('ไม่พบใบแจ้งหนี้');
@@ -426,7 +428,7 @@ export const InvoiceService = {
             await TaxSettingsService.voidTaxEntries('INVOICE', invoice.id, ctx);
         }
 
-        return (db as any).$transaction(async (tx: any) => {
+        const result = await (db as any).$transaction(async (tx: any) => {
             // Find and reverse Accounting Journal (Phase A1.5)
             const journal = await (tx as any).journalEntry.findFirst({
                 where: {
@@ -450,6 +452,11 @@ export const InvoiceService = {
                 },
             });
         });
+
+        return {
+            data: result,
+            affectedTags: [INVOICE_TAGS.LIST, INVOICE_TAGS.DETAIL(id), INVOICE_TAGS.STATS, ACCOUNTING_TAGS.JOURNAL]
+        };
     },
 
     async getStats(ctx: RequestContext) {
@@ -507,7 +514,7 @@ export const InvoiceService = {
      * bulkPost — Post รายการ Invoice ค้างทั้งหมดเข้า Ledger
      * ใช้โดย Accountant หลังจากตั้งค่า CoA เรียบร้อยแล้ว
      */
-    async bulkPost(ctx: RequestContext): Promise<{ success: number; failed: number; errors: string[] }> {
+    async bulkPost(ctx: RequestContext): Promise<MutationResult<{ success: number; failed: number; errors: string[] }>> {
         Security.require(ctx, 'INVOICE_POST' as Permission);
 
         // ดึงรายการ Invoice ที่ PAID แต่ยังไม่ได้ Post
@@ -535,6 +542,9 @@ export const InvoiceService = {
             }
         }
 
-        return { success, failed, errors };
+        return {
+            data: { success, failed, errors },
+            affectedTags: [INVOICE_TAGS.LIST, INVOICE_TAGS.STATS, ACCOUNTING_TAGS.JOURNAL]
+        };
     }
 };

@@ -1,9 +1,8 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidateTag } from 'next/cache';
 import { requirePermission } from '@/lib/auth-guard';
 import { purchaseSchema, type PurchaseInput } from '@/schemas/purchases/purchase.schema';
-import { handleActionError } from '@/lib/error-handler';
 import { PurchaseService, type GetPurchasesParams, type CancelPurchaseInput } from '@/services';
 import { ActionResponse } from '@/types/common';
 import { SerializedPurchase } from '@/types/serialized';
@@ -45,11 +44,13 @@ export async function createPurchase(input: PurchaseInput): Promise<ActionRespon
       const ctx = await requirePermission('PURCHASE_CREATE');
       const validated = purchaseSchema.parse(input);
 
-      const purchase = await PurchaseService.create(ctx, validated);
-      revalidatePath('/purchases');
-      revalidatePath('/products');
-      revalidatePath('/dashboard');
-      return purchase;
+      const result = await PurchaseService.create(ctx, validated);
+      
+      if (result.affectedTags) {
+        result.affectedTags.forEach(tag => revalidateTag(tag));
+      }
+      
+      return result.data;
     }, 'purchases:createPurchase');
   }, { context: { action: 'createPurchase' } });
 }
@@ -61,8 +62,12 @@ export async function createPurchaseRequest(input: PurchaseInput): Promise<Actio
       const validated = purchaseSchema.parse(input);
 
       const result = await PurchaseService.createRequest(validated, ctx);
-      revalidatePath('/purchases');
-      return result;
+      
+      if (result.affectedTags) {
+        result.affectedTags.forEach(tag => revalidateTag(tag));
+      }
+      
+      return result.data;
     }, 'purchases:createPurchaseRequest');
   }, { context: { action: 'createPurchaseRequest' } });
 }
@@ -71,9 +76,13 @@ export async function approvePurchaseRequest(id: string): Promise<ActionResponse
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
       const ctx = await requirePermission('APPROVAL_ACTION');
-      await PurchaseService.approveRequest(id, ctx);
-      revalidatePath('/purchases');
-      revalidatePath(`/purchases/${id}`);
+      const result = await PurchaseService.approveRequest(id, ctx);
+      
+      if (result.affectedTags) {
+        result.affectedTags.forEach(tag => revalidateTag(tag));
+      }
+      
+      return null;
     }, 'purchases:approvePurchaseRequest');
   }, { context: { action: 'approvePurchaseRequest', prId: id } });
 }
@@ -83,9 +92,12 @@ export async function convertToPurchaseOrder(id: string): Promise<ActionResponse
     return PerformanceCollector.run(async () => {
       const ctx = await requirePermission('PURCHASE_CREATE');
       const result = await PurchaseService.convertToPO(id, ctx);
-      revalidatePath('/purchases');
-      revalidatePath('/products');
-      return result;
+      
+      if (result.affectedTags) {
+        result.affectedTags.forEach(tag => revalidateTag(tag));
+      }
+      
+      return result.data;
     }, 'purchases:convertToPurchaseOrder');
   }, { context: { action: 'convertToPurchaseOrder', prId: id } });
 }
@@ -94,10 +106,13 @@ export async function cancelPurchase(input: CancelPurchaseInput): Promise<Action
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
       const ctx = await requirePermission('PURCHASE_VOID');
-      await PurchaseService.cancel(input, ctx);
-      revalidatePath('/purchases');
-      revalidatePath('/products');
-      revalidatePath('/dashboard');
+      const result = await PurchaseService.cancel(input, ctx);
+      
+      if (result.affectedTags) {
+        result.affectedTags.forEach(tag => revalidateTag(tag));
+      }
+      
+      return null;
     }, 'purchases:cancelPurchase');
   }, { context: { action: 'cancelPurchase', purchaseId: input.id } });
 }
@@ -106,10 +121,13 @@ export async function receivePurchase(id: string): Promise<ActionResponse> {
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
       const ctx = await requirePermission('PURCHASE_CREATE');
-      await PurchaseService.receivePurchase(id, ctx);
-      revalidatePath('/purchases');
-      revalidatePath('/products');
-      revalidatePath('/dashboard');
+      const result = await PurchaseService.receivePurchase(id, ctx);
+      
+      if (result.affectedTags) {
+        result.affectedTags.forEach(tag => revalidateTag(tag));
+      }
+      
+      return null;
     }, 'purchases:receivePurchase');
   }, { context: { action: 'receivePurchase', purchaseId: id } });
 }
@@ -122,9 +140,12 @@ export async function createPRFromSuggestions(entries: { productId: string, quan
     return PerformanceCollector.run(async () => {
       const ctx = await requirePermission('PURCHASE_CREATE');
       const result = await PurchaseService.createBulkDraftPRs(entries, ctx);
-      revalidatePath('/purchases');
-      revalidatePath('/intelligence');
-      return result;
+      
+      if (result.affectedTags) {
+        result.affectedTags.forEach(tag => revalidateTag(tag));
+      }
+      
+      return result.data;
     }, 'purchases:createPRFromSuggestions');
   }, { context: { action: 'createPRFromSuggestions', entryCount: entries.length } });
 }

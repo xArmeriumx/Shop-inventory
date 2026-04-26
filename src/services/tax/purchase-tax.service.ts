@@ -6,6 +6,9 @@ import { TaxCalculationService } from './tax-calculation.service';
 import { format } from 'date-fns';
 import { Permission } from '@prisma/client';
 
+import { IPurchaseTaxService } from '@/types/service-contracts';
+import { TAX_TAGS } from '@/config/cache-tags';
+
 /**
  * PurchaseTaxService — บริหารจัดการเอกสารภาษีซื้อ (Document Lifecycle)
  * 
@@ -15,7 +18,7 @@ import { Permission } from '@prisma/client';
  * 3. จัดการสถานะการลงบัญชี (Post) และการยกเลิก (Void)
  * 4. บันทึกรายงานภาษีซื้อ (PurchaseTaxEntry) เมื่อมีการยืนยัน
  */
-export const PurchaseTaxService = {
+export const PurchaseTaxService: IPurchaseTaxService = {
     /**
      * สร้างเอกสารภาษีซื้อจาก Purchase Order (PO)
      * snap ข้อมูล ณ ปัจจุบันเพื่อทำ Audit Trail ที่สมบูรณ์
@@ -83,7 +86,10 @@ export const PurchaseTaxService = {
                 }
             });
 
-            return doc;
+            return {
+                data: doc,
+                affectedTags: [TAX_TAGS.PURCHASE_TAX.LIST]
+            };
         });
     },
 
@@ -140,7 +146,10 @@ export const PurchaseTaxService = {
                 });
             }
 
-            return postedDoc;
+            return {
+                data: postedDoc,
+                affectedTags: [TAX_TAGS.PURCHASE_TAX.LIST, TAX_TAGS.PURCHASE_TAX.DETAIL(id)]
+            };
         });
     },
 
@@ -171,7 +180,10 @@ export const PurchaseTaxService = {
                 }
             });
 
-            return voidedDoc;
+            return {
+                data: voidedDoc,
+                affectedTags: [TAX_TAGS.PURCHASE_TAX.LIST, TAX_TAGS.PURCHASE_TAX.DETAIL(id)]
+            };
         });
     },
 
@@ -211,7 +223,17 @@ export const PurchaseTaxService = {
             (db as any).purchaseTaxDocument.count({ where })
         ]);
 
-        return { data, total, page, limit };
+        return {
+            data,
+            pagination: {
+                page,
+                limit,
+                total,
+                totalPages: Math.ceil(total / limit),
+                hasNextPage: page * limit < total,
+                hasPrevPage: page > 1,
+            },
+        };
     },
 
     /**

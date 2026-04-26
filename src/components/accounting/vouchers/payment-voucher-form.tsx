@@ -5,6 +5,8 @@ import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { paymentVoucherSchema, PaymentVoucherInput, getPaymentVoucherDefaultValues } from '@/schemas/accounting/voucher.schema';
 import { createPaymentVoucherAction } from '@/actions/accounting/voucher.actions';
+import { runActionWithToast, mapActionErrorsToForm } from '@/lib/mutation-utils';
+import { useTransition } from 'react';
 import { FormField } from '@/components/ui/form-field';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -12,7 +14,6 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { VoucherAllocationTable } from './voucher-allocation-table';
-import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { Save, X, Truck, Calendar, CreditCard, FileText, Loader2 } from 'lucide-react';
 import { SafeBoundary } from '@/components/ui/safe-boundary';
@@ -24,7 +25,7 @@ interface PaymentVoucherFormProps {
 
 export const PaymentVoucherForm: React.FC<PaymentVoucherFormProps> = ({ suppliers }) => {
     const router = useRouter();
-    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isPending, startTransition] = useTransition();
 
     const methods = useForm<PaymentVoucherInput>({
         resolver: zodResolver(paymentVoucherSchema),
@@ -35,21 +36,21 @@ export const PaymentVoucherForm: React.FC<PaymentVoucherFormProps> = ({ supplier
     const supplierId = watch('supplierId');
     const totalAmount = watch('totalAmount');
 
-    const onSubmit = async (data: PaymentVoucherInput) => {
-        setIsSubmitting(true);
-        try {
-            const res = await createPaymentVoucherAction(data);
-            if (res.success) {
-                toast.success(res.message);
-                router.push('/accounting/payments');
-            } else {
-                toast.error(res.message || 'บันทึกไม่สำเร็จ');
-            }
-        } catch (error: any) {
-            toast.error(error.message || 'เกิดข้อผิดพลาด');
-        } finally {
-            setIsSubmitting(false);
-        }
+    const onSubmit = (data: PaymentVoucherInput) => {
+        startTransition(async () => {
+            await runActionWithToast(createPaymentVoucherAction(data), {
+                successMessage: 'บันทึกใบสำคัญจ่ายเงินสำเร็จ',
+                onSuccess: () => {
+                    router.push('/accounting/payments');
+                    router.refresh();
+                },
+                onError: (result) => {
+                    if (result.errors) {
+                        mapActionErrorsToForm(methods, result.errors);
+                    }
+                }
+            });
+        });
     };
 
     return (
@@ -176,10 +177,10 @@ export const PaymentVoucherForm: React.FC<PaymentVoucherFormProps> = ({ supplier
                         </Button>
                         <Button
                             type="submit"
-                            disabled={isSubmitting}
+                            disabled={isPending}
                             className="rounded-full px-8 bg-black hover:bg-zinc-800 text-white gap-2 shadow-lg hover:shadow-xl transition-all active:scale-95"
                         >
-                            {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                            {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                             บันทึกใบสำคัญ
                         </Button>
                     </div>

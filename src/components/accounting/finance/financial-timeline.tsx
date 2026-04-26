@@ -24,9 +24,10 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { voidPaymentAction } from '@/actions/accounting/payments.actions';
-import { toast } from 'sonner';
+import { runActionWithToast } from '@/lib/mutation-utils';
 import { Guard } from '@/components/core/auth/guard';
 import { Permission } from '@prisma/client';
+import { useTransition } from 'react';
 
 interface Payment {
     id: string;
@@ -55,19 +56,16 @@ export function FinancialTimeline({
     saleId,
     invoiceId
 }: FinancialTimelineProps) {
-    const handleVoid = async (paymentId: string) => {
+    const [isPending, startTransition] = useTransition();
+
+    const handleVoid = (paymentId: string) => {
         if (!confirm('ยืนยันการยกเลิกรายการชำระเงินนี้?')) return;
 
-        try {
-            const result = await voidPaymentAction(paymentId, { saleId, invoiceId });
-            if (result.success) {
-                toast.success('ยกเลิกรายการชำระเงินสำเร็จ');
-            } else {
-                toast.error(result.message || 'เกิดข้อผิดพลาดในการยกเลิกรายการ');
-            }
-        } catch (error) {
-            toast.error('เกิดข้อผิดพลาดในการเชื่อมต่อ');
-        }
+        startTransition(async () => {
+            await runActionWithToast(voidPaymentAction(paymentId, { saleId, invoiceId }), {
+                successMessage: 'ยกเลิกรายการชำระเงินสำเร็จ',
+            });
+        });
     };
 
     return (
