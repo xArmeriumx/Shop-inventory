@@ -41,21 +41,24 @@ export async function runActionWithToast<T>(
         }
 
         // กรณีสำเร็จ: แสดงข้อความ (ถ้ามี)
-        const showSuccess = options?.showSuccessToast ?? true;
-        if (showSuccess) {
-            let msg = result.message || 'ทำรายการสำเร็จ';
+        // ถ้า successMessage เป็น '' (string ว่าง) = ไม่ต้องการ Toast (Explicit Suppress)
+        const explicitlySuppressed = options?.successMessage === '';
+        const showSuccess = options?.showSuccessToast ?? !explicitlySuppressed;
+        
+        if (showSuccess && !explicitlySuppressed) {
+            let msg: string;
             
-            if (options?.successMessage) {
-                if (typeof options.successMessage === 'function') {
-                    msg = options.successMessage(result.data);
-                } else {
-                    msg = options.successMessage;
-                }
+            if (typeof options?.successMessage === 'function') {
+                msg = options.successMessage(result.data);
+            } else {
+                // ถ้า successMessage เป็น string ที่มีค่า ใช้เลย
+                // ถ้าไม่มี ใช้ message จาก Server หรือ fallback default
+                msg = options?.successMessage || result.message || 'ทำรายการสำเร็จ';
             }
             
             toast.success(msg, { id: toastId });
         } else {
-            // Remove loading toast if it was shown
+            // ไม่แสดง Toast — แค่ dismiss loading toast ถ้ามี
             toast.dismiss(toastId);
         }
 
