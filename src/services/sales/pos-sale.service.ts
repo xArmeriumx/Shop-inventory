@@ -211,7 +211,6 @@ export const POSSaleService = {
                         paidAmount: totals.netAmount,
                         residualAmount: 0,
                         channel: 'POS',
-                        salesFlowMode: 'RETAIL', // legacy field — will be removed in future
                         items: {
                             create: calculation.lines.map((line, idx) => ({
                                 productId: cart.items[idx].productId,

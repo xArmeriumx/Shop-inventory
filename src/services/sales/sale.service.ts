@@ -191,7 +191,7 @@ export const SaleService: ISaleService = {
               items: { create: saleItemsToCreate },
               status: SaleStatus.CONFIRMED,
               bookingStatus: BookingStatus.RESERVED,
-              salesFlowMode: 'ERP',
+              channel: 'ERP',
             } as Prisma.SaleUncheckedCreateInput,
             include: { items: true, customer: true },
           });
@@ -295,7 +295,10 @@ export const SaleService: ISaleService = {
       ...(paymentMethod && { paymentMethod }),
       ...(channel && { channel }),
       ...(status && { status }),
-      ...(params.salesFlowMode && { salesFlowMode: params.salesFlowMode as any }),
+      // salesFlowMode filter: migrated to channel — RETAIL=POS, ERP=ERP
+      ...(params.salesFlowMode && {
+        channel: params.salesFlowMode === 'RETAIL' ? 'POS' : 'ERP',
+      }),
     };
 
     const result = await paginatedQuery(db.sale, {

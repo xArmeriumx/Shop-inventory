@@ -546,7 +546,6 @@ model Sale {
   paymentVerifiedAt  DateTime?
   paymentVerifiedBy  String?
   channel            String             @default("WALK_IN")
-  salesFlowMode      SalesFlowMode      @default(RETAIL)
   
   // Tax Snapshot (G10 Standard)
   taxMode            String             @default("INCLUSIVE")

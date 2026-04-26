@@ -89,7 +89,6 @@ export function POSInterface({ initialProducts, categories, promptPayId }: POSIn
     }, 3000); // 3 seconds - fast enough for real-time feel
 
     return () => clearInterval(refreshInterval);
-    return () => clearInterval(refreshInterval);
   }, [isPaymentOpen, isProcessing]);
 
   // Fetch customers on mount

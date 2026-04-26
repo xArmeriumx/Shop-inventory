@@ -60,6 +60,7 @@ export interface GetSalesParams extends BaseQueryParams {
     channel?: string;
     status?: SaleStatus;
     customerId?: string;
+    /** @deprecated ใช้ channel แทน: 'POS' | 'ERP' | 'WALK_IN' */
     salesFlowMode?: 'RETAIL' | 'ERP';
 }
 
