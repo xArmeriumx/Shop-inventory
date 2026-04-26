@@ -437,7 +437,7 @@ export interface IOrderRequestService {
   getById(ctx: RequestContext, id: string): Promise<any>;
   create(ctx: RequestContext, input: any): Promise<MutationResult<any>>;
   submit(ctx: RequestContext, id: string): Promise<MutationResult<any>>;
-  syncStatus(ctx: RequestContext, id: string, status: any): Promise<MutationResult<any>>;
+  syncStatus(ctx: RequestContext, id: string, status: any, tx?: Prisma.TransactionClient): Promise<MutationResult<any>>;
 }
 
 // ============================================================================

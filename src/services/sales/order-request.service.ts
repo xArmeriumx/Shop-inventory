@@ -158,8 +158,9 @@ export const OrderRequestService: IOrderRequestService = {
     /**
      * Sync Status — อัปเดตสถานะตามเอกสาร PR/PO ที่เกี่ยวข้อง
      */
-    async syncStatus(ctx: RequestContext, id: string, status: OrderRequestStatus): Promise<MutationResult<any>> {
-        const result = await db.orderRequest.update({
+    async syncStatus(ctx: RequestContext, id: string, status: OrderRequestStatus, tx?: Prisma.TransactionClient): Promise<MutationResult<any>> {
+        const client = tx || db;
+        const result = await (client as any).orderRequest.update({
             where: { id },
             data: { status },
         });

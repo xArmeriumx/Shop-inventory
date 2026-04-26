@@ -103,17 +103,23 @@ export const ApprovalService = {
                 },
             });
 
-            // 3. ปรับปรุง Instance Status
-            if (input.action === 'REJECT') {
-                // ถ้า Reject คือจบเลย
-                await (tx as any).approvalInstance.update({
-                    where: { id: instance.id },
-                    data: { status: ApprovalStatus.REJECTED },
-                });
+                // 3. ปรับปรุง Instance Status
+                if (input.action === 'REJECT') {
+                    // ถ้า Reject คือจบเลย
+                    await (tx as any).approvalInstance.update({
+                        where: { id: instance.id },
+                        data: { status: ApprovalStatus.REJECTED },
+                    });
 
-                // TODO: Sync status กลับไปยัง document ต้นทางถ้าจำเป็น
-                return ApprovalStatus.REJECTED;
-            } else {
+                    // Sync status กลับไปยัง document ต้นทาง
+                    if (instance.documentType === 'ORDER_REQUEST') {
+                        const { OrderRequestService } = await import('@/services/sales/order-request.service');
+                        const { OrderRequestStatus } = await import('@/types/domain');
+                        await OrderRequestService.syncStatus(ctx, instance.documentId, OrderRequestStatus.CANCELLED, tx as any);
+                    }
+                    
+                    return ApprovalStatus.REJECTED;
+                } else {
                 // ถ้า Approve ตรวจสอบว่ามีระดับถัดไปไหม
                 const nextStep = instance.steps.find((s: any) => s.level === (instance.currentLevel + 1));
 
@@ -131,7 +137,13 @@ export const ApprovalService = {
                         data: { status: ApprovalStatus.APPROVED },
                     });
 
-                    // TODO: Trigger business logic เมื่ออนุมัติครบ (เช่น PO เปลี่ยน status เป็น ORDERED)
+                    // Trigger business logic เมื่ออนุมัติครบ (เช่น OrderRequest เปลี่ยน status เป็น APPROVED)
+                    if (instance.documentType === 'ORDER_REQUEST') {
+                        const { OrderRequestService } = await import('@/services/sales/order-request.service');
+                        const { OrderRequestStatus } = await import('@/types/domain');
+                        await OrderRequestService.syncStatus(ctx, instance.documentId, OrderRequestStatus.APPROVED, tx as any);
+                    }
+
                     return ApprovalStatus.APPROVED;
                 }
             }
