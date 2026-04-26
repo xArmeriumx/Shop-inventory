@@ -33,7 +33,8 @@ export function OrderRequestActions({ requestId, status }: OrderRequestActionsPr
         });
     };
 
-    if (status !== OrderRequestStatus.DRAFT) return null;
+    // Show if Draft OR if Submitted but stuck (backend handles the check)
+    if (status !== OrderRequestStatus.DRAFT && status !== OrderRequestStatus.SUBMITTED) return null;
 
     return (
         <Button
