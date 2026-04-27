@@ -6,6 +6,7 @@ import { AuditService } from '@/services/core/system/audit.service';
 import { WAREHOUSE_AUDIT_POLICIES } from '@/policies/inventory/warehouse.policy';
 import { INVENTORY_TAGS } from '@/config/cache-tags';
 import { IWarehouseService } from '@/types/service-contracts';
+import { StockEngine } from '@/services/inventory/stock-engine.service';
 
 /**
  * WarehouseService — Manage physical storage locations
@@ -148,10 +149,14 @@ export const WarehouseService: IWarehouseService = {
         });
 
         const totalStock = stocks.reduce((sum: number, s: any) => sum + s.quantity, 0);
+        const totalReserved = stocks.reduce((sum: number, s: any) => sum + (s.reservedStock || 0), 0);
 
         await tx.product.update({
             where: { id: productId },
-            data: { stock: totalStock }
+            data: {
+                stock: totalStock,
+                reservedStock: totalReserved
+            }
         });
 
         return totalStock;
@@ -192,5 +197,52 @@ export const WarehouseService: IWarehouseService = {
                 shopId: ctx.shopId
             }
         });
+    },
+
+    /**
+     * Transfer stock between warehouses atomatically
+     */
+    async transferStock(
+        ctx: RequestContext,
+        input: { productId: string; fromWarehouseId: string; toWarehouseId: string; quantity: number; notes?: string }
+    ): Promise<MutationResult<void>> {
+        const { productId, fromWarehouseId, toWarehouseId, quantity, notes } = input;
+
+        if (quantity <= 0) throw new ServiceError('จำนวนที่โอนต้องมากกว่า 0');
+        if (fromWarehouseId === toWarehouseId) throw new ServiceError('คลังต้นทางและปลายทางต้องเป็นคนละคลังกัน');
+
+        await runInTransaction(undefined, async (prisma) => {
+            // Check source stock
+            const sourceStock = await prisma.warehouseStock.findUnique({
+                where: { productId_warehouseId: { productId, warehouseId: fromWarehouseId } }
+            });
+
+            if (!sourceStock || sourceStock.quantity < quantity) {
+                throw new ServiceError('สต็อกในคลังต้นทางไม่เพียงพอ');
+            }
+
+            // Execute using StockEngine for SSOT/Log integrity
+            await StockEngine.executeBulkMovements(ctx, [
+                {
+                    productId,
+                    warehouseId: fromWarehouseId,
+                    delta: -quantity,
+                    type: 'TRANSFER_OUT',
+                    note: `Transfer to ${toWarehouseId}. ${notes || ''}`
+                },
+                {
+                    productId,
+                    warehouseId: toWarehouseId,
+                    delta: quantity,
+                    type: 'TRANSFER_IN',
+                    note: `Transfer from ${fromWarehouseId}. ${notes || ''}`
+                }
+            ], prisma);
+        });
+
+        return {
+            data: undefined,
+            affectedTags: [INVENTORY_TAGS.STOCK(productId), INVENTORY_TAGS.DETAIL(productId)]
+        };
     }
 };

@@ -329,8 +329,8 @@ model Warehouse {
 
 enum InventoryMode {
   SIMPLE
-  SINGLE_WAREHOUSE
-  MULTI_WAREHOUSE
+  SINGLE
+  MULTI
 }
 
 model WarehouseStock {
@@ -339,6 +339,7 @@ model WarehouseStock {
   warehouseId String
   shopId      String
   quantity    Int       @default(0)
+  reservedStock Int     @default(0)
   minStock    Int?
   binLocation String?
   createdAt   DateTime  @default(now())

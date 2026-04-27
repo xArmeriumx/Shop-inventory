@@ -5,6 +5,8 @@ import { SectionHeader } from '@/components/ui/section-header';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getProducts } from '@/actions/inventory/products.actions';
+import { getShop } from '@/actions/core/shop.actions';
+import { getWarehousesAction } from '@/actions/inventory/warehouse.actions';
 import { ProductsTable } from '@/components/inventory/products/products-table';
 import { ProductsToolbar } from '@/components/inventory/products/products-toolbar';
 import { ProductImportButton } from '@/components/inventory/products/product-import-button';
@@ -29,7 +31,11 @@ async function ProductsContent({ searchParams }: ProductsPageProps) {
   const search = params.search || '';
   const category = params.category || '';
 
-  const result = await getProducts({ page, search, category });
+  const [result, shopRes, warehousesRes] = await Promise.all([
+    getProducts({ page, search, category }),
+    getShop(),
+    getWarehousesAction(),
+  ]);
 
   if (!result.success || !result.data) {
     return (
@@ -41,11 +47,17 @@ async function ProductsContent({ searchParams }: ProductsPageProps) {
   }
 
   const { data: products, pagination } = result.data;
+  const inventoryMode = (shopRes.success && shopRes.data?.inventoryMode) ? shopRes.data.inventoryMode : 'SIMPLE';
+  const warehouses = warehousesRes.success ? warehousesRes.data : [];
 
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <StartStockTakeButton productIds={(products as any[]).map((p: any) => p.id)} />
+        <StartStockTakeButton
+          productIds={(products as any[]).map((p: any) => p.id)}
+          inventoryMode={inventoryMode}
+          warehouses={warehouses}
+        />
       </div>
       <ProductsToolbar search={search} category={category} />
       <ProductsTable products={products} pagination={pagination} />

@@ -48,7 +48,7 @@ export async function createProduct(input: ProductInput): Promise<ActionResponse
       const validated = productSchema.parse(input);
 
       const result = await ProductService.create(ctx, validated);
-      
+
       if (result.affectedTags) {
         result.affectedTags.forEach(tag => revalidateTag(tag));
       }
@@ -65,9 +65,9 @@ export async function updateProduct(id: string, input: ProductUpdateInput): Prom
       const validatedId = entityIdSchema.parse(id);
       const ctx = await requirePermission('PRODUCT_UPDATE');
       const validated = productUpdateSchema.parse(input);
-      
+
       const result = await ProductService.update(validatedId, ctx, validated);
-      
+
       if (result.affectedTags) {
         result.affectedTags.forEach(tag => revalidateTag(tag));
       }
@@ -83,9 +83,9 @@ export async function deleteProduct(id: string): Promise<ActionResponse<null>> {
     return PerformanceCollector.run(async () => {
       const validatedId = entityIdSchema.parse(id);
       const ctx = await requirePermission('PRODUCT_DELETE');
-      
+
       const result = await ProductService.delete(validatedId, ctx);
-      
+
       if (result.affectedTags) {
         result.affectedTags.forEach(tag => revalidateTag(tag));
       }
@@ -130,6 +130,7 @@ export interface AdjustStockInputManual {
   quantity: number;
   note: string;
   reason?: string;
+  warehouseId?: string;
 }
 
 export async function adjustStock(productId: string, input: AdjustStockInputManual): Promise<ActionResponse<null>> {
@@ -137,11 +138,12 @@ export async function adjustStock(productId: string, input: AdjustStockInputManu
     return PerformanceCollector.run(async () => {
       const validatedId = entityIdSchema.parse(productId);
       const ctx = await requirePermission('PRODUCT_UPDATE');
-      
+
       const result = await ProductService.adjustStockManual(validatedId, {
         quantity: input.quantity,
         description: input.reason || input.note,
-        type: input.type
+        type: input.type,
+        warehouseId: input.warehouseId,
       }, ctx);
 
       if (result.affectedTags) {
@@ -168,7 +170,7 @@ export async function batchCreateProducts(inputs: BatchProductInput[]): Promise<
     return PerformanceCollector.run(async () => {
       const ctx = await requirePermission('PRODUCT_CREATE');
       const result = await ProductService.batchCreate(inputs, ctx);
-      
+
       if (result.affectedTags) {
         result.affectedTags.forEach(tag => revalidateTag(tag));
       }

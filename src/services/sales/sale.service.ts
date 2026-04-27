@@ -80,26 +80,60 @@ export const SaleService: ISaleService = {
           const productIds = items.map(item => item.productId);
           const products = await prisma.product.findMany({
             where: { id: { in: productIds } },
-            // 🛡️ Bug #10 Fix: include isSaleable in select
             select: { id: true, name: true, stock: true, reservedStock: true, costPrice: true, packagingQty: true, isSaleable: true },
           });
           const productDataMap = new Map<string, any>(products.map(p => [p.id, p]));
 
+          // Resolve warehouse for each item (SSOT: StockEngine owns this logic)
+          const defaultWhId = await StockEngine.resolveWarehouse(ctx, undefined, prisma);
+          const resolvedWarehouseIds = items.map(item => item.warehouseId || defaultWhId);
+
+          // Pre-fetch WarehouseStock for items that specify a warehouseId
+          const itemsWithWarehouse = items
+            .map((item, idx) => ({ item, warehouseId: resolvedWarehouseIds[idx] }))
+            .filter(({ item }) => !!item.warehouseId); // only items that explicitly specify
+
+          const warehouseStockMap = new Map<string, number>(); // key: `${productId}:${warehouseId}`
+          if (itemsWithWarehouse.length > 0) {
+            const warehouseStocks = await (prisma as any).warehouseStock.findMany({
+              where: {
+                OR: itemsWithWarehouse.map(({ item, warehouseId }) => ({
+                  productId: item.productId,
+                  warehouseId,
+                })),
+              },
+              select: { productId: true, warehouseId: true, quantity: true },
+            });
+            for (const ws of warehouseStocks) {
+              warehouseStockMap.set(`${ws.productId}:${ws.warehouseId}`, Number(ws.quantity));
+            }
+          }
+
           const stockErrors: string[] = [];
-          for (const item of items) {
+          for (let idx = 0; idx < items.length; idx++) {
+            const item = items[idx];
             const product = productDataMap.get(item.productId);
             if (!product) {
               stockErrors.push(`ไม่พบสินค้า ID: ${item.productId}`);
               continue;
             }
-            // 🛡️ Bug #10 Fix: check isSaleable flag
             if (product.isSaleable === false) {
               stockErrors.push(`"${product.name}" ไม่ได้เปิดให้ขาย กรุณาติดต่อผู้ดูแลระบบ`);
               continue;
             }
-            const available = Number(money.subtract(product.stock, product.reservedStock || 0));
-            if (available < item.quantity) {
-              stockErrors.push(`"${product.name}" มีสต็อกไม่พอ (ต้องการ ${item.quantity}, มีอยู่ ${available})`);
+
+            // Per-warehouse validation (Server Invariant #6 & #7)
+            if (item.warehouseId) {
+              const whQty = warehouseStockMap.get(`${item.productId}:${item.warehouseId}`) ?? 0;
+              if (whQty < item.quantity) {
+                stockErrors.push(`"${product.name}" คงเหลือในคลังนี้ไม่พอ (ต้องการ ${item.quantity}, คงเหลือในคลัง ${whQty})`);
+              }
+            } else {
+              // Fallback: global stock check for SIMPLE/SINGLE mode
+              const available = Number(money.subtract(product.stock, product.reservedStock || 0));
+              if (available < item.quantity) {
+                stockErrors.push(`"${product.name}" มีสต็อกไม่พอ (ต้องการ ${item.quantity}, มีอยู่ ${available})`);
+              }
             }
           }
 
@@ -129,14 +163,12 @@ export const SaleService: ISaleService = {
           const calculation = ComputationEngine.calculateTotals(
             computationItems,
             { type: saleData.discountType as any, value: saleData.discountValue || 0 },
-            { 
+            {
               rate: Number(saleData.taxRate) || 0,
               mode: saleData.taxMode === 'NO_VAT' ? 'EXCLUSIVE' : (saleData.taxMode as any),
               kind: saleData.taxMode === 'NO_VAT' ? 'NO_VAT' : 'VAT' as any
             }
           );
-
-          const defaultWhId = await StockEngine.resolveWarehouse(ctx, undefined, prisma);
 
           const saleItemsToCreate = calculation.lines.map((res, idx) => ({
             productId: items[idx].productId,
@@ -149,7 +181,7 @@ export const SaleService: ISaleService = {
             discountAmount: res.lineDiscount,
             taxAmount: res.taxAmount,
             taxableAmount: res.taxableBase,
-            warehouseId: items[idx].warehouseId || defaultWhId, // Support multi-warehouse per item
+            warehouseId: resolvedWarehouseIds[idx], // use pre-resolved value
           }));
 
           // SSOT: Use SALE_ORDER (SO) as the primary identifier for Sales (Orders)
@@ -499,7 +531,7 @@ export const SaleService: ISaleService = {
             await Promise.all(fullSale.items.map(item => {
               const alreadyReturned = item.returnItems.reduce((sum: number, ri: any) => sum + ri.quantity, 0);
               const releaseQty = item.quantity - alreadyReturned;
-              if (releaseQty > 0) return StockService.releaseStock(item.productId, releaseQty, ctx, prisma);
+              if (releaseQty > 0) return StockService.releaseStock(item.productId, releaseQty, ctx, prisma, (item as any).warehouseId);
               return Promise.resolve();
             }));
           } else if (fullSale.bookingStatus === BookingStatus.DEDUCTED) {
@@ -672,6 +704,21 @@ export const SaleService: ISaleService = {
               undefined,
               { label: 'ไปที่หน้าตรวจสอบการชำระเงิน', href: `/sales/${saleId}` }
             );
+          }
+
+          // Server Invariant #4 (Phase 7.6): Legacy records missing warehouseId cannot be completed in MULTI mode
+          const shop = await prisma.shop.findUnique({ where: { id: ctx.shopId }, select: { inventoryMode: true } });
+          const isMultiMode = shop?.inventoryMode === 'MULTI';
+
+          if (isMultiMode) {
+            const missingWarehouseItems = fullSale.items.filter(item => !(item as any).warehouseId);
+            if (missingWarehouseItems.length > 0) {
+              throw new ServiceError(
+                `ไม่สามารถปิดรายการขายได้ เนื่องจากมีรายการสินค้าที่ยังไม่ได้ระบุคลังสินค้า (พบ ${missingWarehouseItems.length} รายการ)`,
+                undefined,
+                { label: 'แก้ไขรายการขาย', href: `/sales/${saleId}/edit` }
+              );
+            }
           }
 
           for (const item of fullSale.items) {

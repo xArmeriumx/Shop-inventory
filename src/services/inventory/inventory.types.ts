@@ -82,4 +82,6 @@ export interface AdjustStockInput {
     type: 'ADD' | 'REMOVE' | 'SET';
     quantity: number;
     description: string;
+    warehouseId?: string;
+    reasonCode?: string;
 }

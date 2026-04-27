@@ -29,62 +29,89 @@ import { ErrorAction } from '@/types/domain';
 interface StockAdjustmentDialogProps {
   productId: string;
   currentStock: number;
+  inventoryMode: string;
+  warehouses: any[];
+  warehouseStocks?: any[];
 }
 
-export function StockAdjustmentDialog({ productId, currentStock }: StockAdjustmentDialogProps) {
+export function StockAdjustmentDialog({
+  productId,
+  currentStock,
+  inventoryMode,
+  warehouses,
+  warehouseStocks = []
+}: StockAdjustmentDialogProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [type, setType] = useState('ADD');
   const [quantity, setQuantity] = useState<number>(0);
+  const [warehouseId, setWarehouseId] = useState<string>('');
   const [errorInfo, setErrorInfo] = useState<{ message: string; action?: ErrorAction } | null>(null);
+
+  // Determine which stock to display based on selected warehouse
+  const getDisplayStock = () => {
+    if ((inventoryMode === 'MULTI' || inventoryMode === 'SINGLE') && warehouseId) {
+      const ws = warehouseStocks.find(s => s.warehouseId === warehouseId);
+      return ws ? Number(ws.quantity) : 0;
+    }
+    return currentStock; // Global stock for SIMPLE
+  };
+
+  const activeStock = getDisplayStock();
 
   const calculateNewStock = () => {
     switch (type) {
-      case 'ADD': return currentStock + (quantity || 0);
-      case 'REMOVE': return currentStock - (quantity || 0);
+      case 'ADD': return activeStock + (quantity || 0);
+      case 'REMOVE': return activeStock - (quantity || 0);
       case 'SET': return quantity || 0;
-      default: return currentStock;
+      default: return activeStock;
     }
   };
 
   const newStock = calculateNewStock();
-  const diff = newStock - currentStock;
+  const diff = newStock - activeStock;
 
-    async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-        e.preventDefault();
-        
-        const formData = new FormData(e.currentTarget);
-        const reason = formData.get('reason') as string;
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
 
-        // Safe UI validation
-        if ((type !== 'SET' && (!quantity || quantity <= 0)) || (type === 'SET' && quantity < 0)) {
-            setErrorInfo({ message: 'กรุณาระบุจำนวนที่ถูกต้อง' });
-            return;
-        }
+    const formData = new FormData(e.currentTarget);
+    const reason = formData.get('reason') as string;
 
-        if (!reason || reason.trim().length === 0) {
-            setErrorInfo({ message: 'กรุณาระบุเหตุผลที่ปรับปรุงสต็อก' });
-            return;
-        }
-
-        startTransition(async () => {
-            await runActionWithToast(adjustStock(productId, {
-                type: type as 'ADD' | 'REMOVE' | 'SET',
-                quantity,
-                note: reason,
-            }), {
-                successMessage: 'ปรับปรุงสต็อกสำเร็จ',
-                onSuccess: () => {
-                    setOpen(false);
-                    router.refresh();
-                },
-                onError: (result) => {
-                    setErrorInfo({ message: result.message || 'เกิดข้อผิดพลาด', action: result.action });
-                }
-            });
-        });
+    // Safe UI validation
+    if (inventoryMode === 'MULTI' && !warehouseId) {
+      setErrorInfo({ message: 'กรุณาเลือกคลังสินค้า' });
+      return;
     }
+
+    if ((type !== 'SET' && (!quantity || quantity <= 0)) || (type === 'SET' && quantity < 0)) {
+      setErrorInfo({ message: 'กรุณาระบุจำนวนที่ถูกต้อง' });
+      return;
+    }
+
+    if (!reason || reason.trim().length === 0) {
+      setErrorInfo({ message: 'กรุณาระบุเหตุผลที่ปรับปรุงสต็อก' });
+      return;
+    }
+
+    startTransition(async () => {
+      await runActionWithToast(adjustStock(productId, {
+        type: type as 'ADD' | 'REMOVE' | 'SET',
+        quantity,
+        note: reason,
+        warehouseId: warehouseId || undefined,
+      }), {
+        successMessage: 'ปรับปรุงสต็อกสำเร็จ',
+        onSuccess: () => {
+          setOpen(false);
+          router.refresh();
+        },
+        onError: (result) => {
+          setErrorInfo({ message: result.message || 'เกิดข้อผิดพลาด', action: result.action });
+        }
+      });
+    });
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -113,22 +140,43 @@ export function StockAdjustmentDialog({ productId, currentStock }: StockAdjustme
                 </SelectContent>
               </Select>
             </div>
-            
+
+            {/* Warehouse Selector for MULTI and SINGLE mode */}
+            {(inventoryMode === 'MULTI' || inventoryMode === 'SINGLE') && (
+              <div className="space-y-2">
+                <Label>คลังสินค้า {inventoryMode === 'MULTI' ? '*' : ''}</Label>
+                <Select
+                  value={warehouseId}
+                  onValueChange={setWarehouseId}
+                  disabled={inventoryMode === 'SINGLE'}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="เลือกคลังสินค้า..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {warehouses.filter(w => w.isActive).map((w) => (
+                      <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             <div className="p-4 bg-muted rounded-lg space-y-2">
-                <div className="flex justify-between text-sm">
-                    <span>สต็อกปัจจุบัน:</span>
-                    <span className="font-medium">{currentStock}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                    <span>ยอดที่ปรับปรุง:</span>
-                    <span className={diff > 0 ? "text-green-600 font-medium" : diff < 0 ? "text-red-600 font-medium" : ""}>
-                        {diff > 0 ? "+" : ""}{diff}
-                    </span>
-                </div>
-                <div className="flex justify-between text-sm border-t pt-2 mt-2">
-                    <span className="font-semibold">สต็อกใหม่:</span>
-                    <span className="font-bold text-lg">{newStock}</span>
-                </div>
+              <div className="flex justify-between text-sm">
+                <span>{inventoryMode === 'MULTI' && warehouseId ? "คงเหลือในคลังนี้:" : "คงเหลือในคลังรวม:"}</span>
+                <span className="font-medium">{activeStock}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span>ยอดที่ปรับปรุง:</span>
+                <span className={diff > 0 ? "text-green-600 font-medium" : diff < 0 ? "text-red-600 font-medium" : ""}>
+                  {diff > 0 ? "+" : ""}{diff}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm border-t pt-2 mt-2">
+                <span className="font-semibold">สต็อกใหม่:</span>
+                <span className="font-bold text-lg">{newStock}</span>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -152,9 +200,9 @@ export function StockAdjustmentDialog({ productId, currentStock }: StockAdjustme
               />
             </div>
             {errorInfo && (
-              <GuidedErrorAlert 
-                message={errorInfo.message} 
-                action={errorInfo.action} 
+              <GuidedErrorAlert
+                message={errorInfo.message}
+                action={errorInfo.action}
                 className="mt-2"
               />
             )}

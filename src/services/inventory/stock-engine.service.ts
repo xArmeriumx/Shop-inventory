@@ -12,7 +12,9 @@ export type StockMovementType =
   | 'ADJUSTMENT'
   | 'TRANSFER_IN'
   | 'TRANSFER_OUT'
-  | 'STOCK_TAKE';
+  | 'STOCK_TAKE'
+  | 'RESERVATION'
+  | 'RELEASE';
 
 export interface StockMovementInput {
   warehouseId: string;
@@ -46,23 +48,68 @@ export const StockEngine = {
     const { warehouseId, productId, delta } = input;
 
     return await runInTransaction(tx, async (prisma) => {
-      // 1. Update WarehouseStock (SSOT)
+      // 1. Calculate Deltas based on Type
+      let quantityDelta = 0;
+      let reservedDelta = 0;
+
+      switch (input.type) {
+        case 'RESERVATION':
+          reservedDelta = delta;
+          break;
+        case 'RELEASE':
+          reservedDelta = -Math.abs(delta);
+          break;
+        case 'SALE':
+          quantityDelta = -Math.abs(delta);
+          // If we had a reservation, we release it as we deduct on-hand
+          // Note: In a simple system, we assume SALE is preceded by RESERVATION
+          reservedDelta = -Math.abs(delta);
+          break;
+        case 'SALE_CANCEL':
+        case 'RETURN':
+        case 'PURCHASE':
+        case 'TRANSFER_IN':
+          quantityDelta = Math.abs(delta);
+          break;
+        case 'TRANSFER_OUT':
+          quantityDelta = -Math.abs(delta);
+          break;
+        case 'STOCK_TAKE':
+        case 'ADJUSTMENT':
+          quantityDelta = delta; // Can be pos or neg
+          break;
+        default:
+          quantityDelta = delta;
+      }
+
+      // 2. Update WarehouseStock (SSOT)
       const warehouseStock = await (prisma as any).warehouseStock.upsert({
         where: {
           productId_warehouseId: { productId, warehouseId }
         },
         update: {
-          quantity: { increment: delta }
+          quantity: { increment: quantityDelta },
+          reservedStock: { increment: reservedDelta }
         },
         create: {
           productId,
           warehouseId,
           shopId: ctx.shopId,
-          quantity: delta
+          quantity: Math.max(0, quantityDelta),
+          reservedStock: Math.max(0, reservedDelta)
         }
       });
 
-      // 2. Sync Global Product Stock
+      // Clamp reservedStock to not go negative
+      if (warehouseStock.reservedStock < 0) {
+        await (prisma as any).warehouseStock.update({
+          where: { id: warehouseStock.id },
+          data: { reservedStock: 0 }
+        });
+        warehouseStock.reservedStock = 0;
+      }
+
+      // 3. Sync Global Product Stock
       const newGlobalQty = await WarehouseService.syncGlobalProductStock(ctx, productId, prisma);
 
       // 3. Create StockLog (with warehouseId and balance)

@@ -184,6 +184,19 @@ function SalesItemsSection({
     }
   };
 
+  // SINGLE mode: auto-preselect the first active warehouse for all items
+  const fieldsLength = fields.length;
+  useEffect(() => {
+    if (inventoryMode === 'SINGLE' && warehouses.length > 0) {
+      const defaultWh = warehouses.find(w => w.isActive) ?? warehouses[0];
+      fields.forEach((_, idx) => {
+        const current = watch(`items.${idx}.warehouseId`);
+        if (!current) setValue(`items.${idx}.warehouseId`, defaultWh.id);
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inventoryMode, warehouses, fieldsLength]);
+
   return (
     <Card>
       <CardHeader>
@@ -250,23 +263,61 @@ function SalesItemsSection({
                   onChange={(e) => {
                     const p = products.find(x => x.id === e.target.value);
                     setValue(`items.${index}.productId`, e.target.value);
-                    if (p) setValue(`items.${index}.salePrice`, p.salePrice);
+                    if (p) {
+                      setValue(`items.${index}.salePrice`, p.salePrice);
+
+                      // Auto-assignment (Phase 7.5): Pick warehouse with most stock
+                      if (inventoryMode === 'MULTI' && p.warehouseStocks?.length > 0) {
+                        const bestWh = [...p.warehouseStocks].sort((a, b) => Number(b.quantity) - Number(a.quantity))[0];
+                        if (bestWh && bestWh.quantity > 0) {
+                          setValue(`items.${index}.warehouseId`, bestWh.warehouseId);
+                        }
+                      }
+                    }
                   }}
                 >
                   <option value="">เลือกสินค้า</option>
-                  {products.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name} {p.sku && `(${p.sku})`} - ยอดรวม: {p.stock - (p.reservedStock || 0)}</option>
-                  ))}
+                  {products.map((p) => {
+                    // คงเหลือในคลัง: show per-warehouse stock when in MULTI and warehouse is selected
+                    const selectedWhId = watch(`items.${index}.warehouseId`);
+                    let stockDisplay = p.stock - (p.reservedStock || 0);
+                    if ((inventoryMode === 'MULTI' || inventoryMode === 'SINGLE') && selectedWhId) {
+                      const ws = p.warehouseStocks?.find((s: any) => s.warehouseId === selectedWhId);
+                      stockDisplay = ws ? Number(ws.quantity) : 0;
+                    }
+                    return (
+                      <option key={p.id} value={p.id}>
+                        {p.name} {p.sku && `(${p.sku})`} - คงเหลือในคลัง: {stockDisplay}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 
-              {inventoryMode === 'MULTI_WAREHOUSE' && (
+              {/* MULTI: user selects per item | SINGLE: preselect + read-only */}
+              {(inventoryMode === 'MULTI' || inventoryMode === 'SINGLE') && (
                 <div className="md:col-span-2 space-y-2">
-                  <Label>คลังสินค้า *</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>คลังสินค้า {inventoryMode === 'MULTI' ? '*' : ''}</Label>
+                    {inventoryMode === 'MULTI' && product && (
+                      <button
+                        type="button"
+                        title="แนะนำคลังที่มีของมากที่สุด"
+                        className="text-[10px] text-primary hover:underline"
+                        onClick={() => {
+                          const bestWh = [...product.warehouseStocks].sort((a, b) => Number(b.quantity) - Number(a.quantity))[0];
+                          if (bestWh) setValue(`items.${index}.warehouseId`, bestWh.warehouseId);
+                        }}
+                      >
+                        Auto-pick
+                      </button>
+                    )}
+                  </div>
                   <select
                     {...register(`items.${index}.warehouseId` as const)}
                     className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm font-medium"
-                    required
+                    disabled={inventoryMode === 'SINGLE'}
+                    required={inventoryMode === 'MULTI'}
                   >
                     <option value="">เลือกคลัง...</option>
                     {warehouses.filter(w => w.isActive).map((w) => (
@@ -277,7 +328,7 @@ function SalesItemsSection({
               )}
 
               <div className={cn(
-                inventoryMode === 'MULTI_WAREHOUSE' ? "md:col-span-1" : "md:col-span-2",
+                (inventoryMode === 'MULTI' || inventoryMode === 'SINGLE') ? "md:col-span-1" : "md:col-span-2",
                 "space-y-2"
               )}>
                 <Label>จำนวน *</Label>
@@ -288,7 +339,7 @@ function SalesItemsSection({
                   className={cn(isStockInsufficient && "border-red-500 focus-visible:ring-red-500")}
                 />
                 {isStockInsufficient && product && (
-                  <p className="text-[10px] text-red-600 font-bold animate-pulse">สั่งซื้อได้สูงสุดในคลังนี้: {availableStock}</p>
+                  <p className="text-[10px] text-red-600 font-bold animate-pulse">คงเหลือในคลังนี้: {availableStock}</p>
                 )}
               </div>
               <div className="md:col-span-2 space-y-2">
@@ -418,7 +469,7 @@ export function SaleForm() {
     if (!p) return false;
 
     let available = 0;
-    if (inventoryMode === 'MULTI_WAREHOUSE' && item.warehouseId) {
+    if (inventoryMode === 'MULTI' && item.warehouseId) {
       const whStock = p.warehouseStocks?.find((ws: any) => ws.warehouseId === item.warehouseId);
       available = whStock ? Number(whStock.quantity) : 0;
     } else {
@@ -585,7 +636,7 @@ export function SaleForm() {
             disabled={
               isPending ||
               items.some(i => !i.productId) ||
-              (inventoryMode === 'MULTI_WAREHOUSE' && items.some(i => !i.warehouseId)) ||
+              (inventoryMode === 'MULTI' && items.some(i => !i.warehouseId)) ||
               stockShortageItems.length > 0
             }
           >

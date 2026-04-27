@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     Dialog,
@@ -13,8 +13,15 @@ import {
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { ClipboardCheck, Loader2 } from 'lucide-react';
+import { ClipboardCheck, Loader2, Warehouse } from 'lucide-react';
 import { createStockTakeAction } from '@/actions/inventory/stock-take.actions';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { runActionWithToast } from '@/lib/mutation-utils';
 
 interface StockTakeSetupModalProps {
@@ -22,12 +29,30 @@ interface StockTakeSetupModalProps {
     onOpenChange: (open: boolean) => void;
     productIds: string[]; // List of IDs to audit
     totalCount: number;
+    inventoryMode: string;
+    warehouses: any[];
 }
 
-export function StockTakeSetupModal({ open, onOpenChange, productIds, totalCount }: StockTakeSetupModalProps) {
+export function StockTakeSetupModal({
+    open,
+    onOpenChange,
+    productIds,
+    totalCount,
+    inventoryMode,
+    warehouses
+}: StockTakeSetupModalProps) {
     const router = useRouter();
     const [notes, setNotes] = useState('');
+    const [warehouseId, setWarehouseId] = useState<string>('');
     const [isPending, startTransition] = useTransition();
+
+    // SINGLE mode: auto-select the first active warehouse
+    useEffect(() => {
+        if (inventoryMode === 'SINGLE' && warehouses.length > 0) {
+            const defaultWh = warehouses.find(w => w.isActive) ?? warehouses[0];
+            setWarehouseId(defaultWh.id);
+        }
+    }, [inventoryMode, warehouses, open]);
 
     const handleConfirm = () => {
         if (productIds.length === 0) {
@@ -35,8 +60,13 @@ export function StockTakeSetupModal({ open, onOpenChange, productIds, totalCount
             return;
         }
 
+        if (inventoryMode === 'MULTI' && !warehouseId) {
+            runActionWithToast(Promise.resolve({ success: false, message: 'กรุณาเลือกคลังสินค้าที่ต้องการตรวจนับ' }));
+            return;
+        }
+
         startTransition(async () => {
-            await runActionWithToast(createStockTakeAction(productIds, notes), {
+            await runActionWithToast(createStockTakeAction(productIds, notes, warehouseId || undefined), {
                 successMessage: 'เริ่มรายการตรวจนับและ Snapshot สต็อกเรียบร้อยแล้ว',
                 onSuccess: (result) => {
                     const data = result as any;
@@ -65,6 +95,35 @@ export function StockTakeSetupModal({ open, onOpenChange, productIds, totalCount
                 </DialogHeader>
 
                 <div className="grid gap-4 py-4">
+                    {/* Warehouse Selector for MULTI and SINGLE mode */}
+                    {(inventoryMode === 'MULTI' || inventoryMode === 'SINGLE') && (
+                        <div className="space-y-2">
+                            <Label className="flex items-center gap-1">
+                                <Warehouse className="w-4 h-4 text-muted-foreground" />
+                                คลังสินค้าที่ตรวจนับ {inventoryMode === 'MULTI' ? '*' : ''}
+                            </Label>
+                            <Select
+                                value={warehouseId}
+                                onValueChange={setWarehouseId}
+                                disabled={inventoryMode === 'SINGLE'}
+                            >
+                                <SelectTrigger className="w-full">
+                                    <SelectValue placeholder="เลือกคลังพัสดุ..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {warehouses.filter(w => w.isActive).map((w) => (
+                                        <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            {inventoryMode === 'SINGLE' && (
+                                <p className="text-[10px] text-muted-foreground italic">
+                                    ระบบล็อกคลังสินค้าหลักสำหรับโหมดค่าย่อย
+                                </p>
+                            )}
+                        </div>
+                    )}
+
                     <div className="space-y-2">
                         <Label>หมายเหตุสำหรับการตรวจสอบ (Optional)</Label>
                         <Textarea

@@ -38,6 +38,19 @@ export async function getWarehousesAction(): Promise<ActionResponse<any>> {
 }
 
 /**
+ * Product Detail: Warehouse Breakdown Tab
+ * Returns WarehouseStock rows for a product — per warehouse with updatedAt
+ */
+export async function getProductStockBreakdownAction(productId: string): Promise<ActionResponse<any>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requirePermission('PRODUCT_VIEW');
+      return WarehouseService.getProductStockBreakdown(ctx as any, productId);
+    }, 'inventory:getProductStockBreakdown');
+  }, { context: { action: 'getProductStockBreakdown', productId } });
+}
+
+/**
  * Mobile Lookup: Search product by SKU or Name
  */
 export async function quickSearchProduct(query: string): Promise<ActionResponse<any>> {
@@ -174,7 +187,7 @@ export async function confirmReceipt(purchaseId: string): Promise<ActionResponse
             productId: item.productId,
             delta: item.quantity
           }, tx);
-          
+
           if (result.affectedTags) {
             result.affectedTags.forEach(tag => revalidateTag(tag));
           }
@@ -186,4 +199,26 @@ export async function confirmReceipt(purchaseId: string): Promise<ActionResponse
       return null;
     });
   }, { context: { action: 'confirmReceipt' } });
+}
+export async function transferStockAction(input: {
+  productId: string;
+  fromWarehouseId: string;
+  toWarehouseId: string;
+  quantity: number;
+  notes?: string;
+}): Promise<ActionResponse<null>> {
+  return handleAction(async () => {
+    return PerformanceCollector.run(async () => {
+      const ctx = await requireShop();
+      await requirePermission('STOCK_ADJUST');
+
+      const result = await WarehouseService.transferStock(ctx as any, input);
+
+      if (result.affectedTags) {
+        result.affectedTags.forEach(tag => revalidateTag(tag));
+      }
+
+      return null;
+    }, 'inventory:transferStock');
+  }, { context: { action: 'transferStock', ...input } });
 }

@@ -1,24 +1,23 @@
-import { db, runInTransaction } from '@/lib/db';
+import { db } from '@/lib/db';
 import {
   RequestContext,
   ServiceError,
   StockMovement,
-  DocumentType,
   StockAvailability,
   MutationResult
 } from '@/types/domain';
 import { IStockService } from '@/types/service-contracts';
-import { SequenceService } from '@/services/core/system/sequence.service';
 import { AuditService } from '@/services/core/system/audit.service';
 import { STOCK_AUDIT_POLICIES } from '@/policies/inventory/stock.policy';
 import { Prisma } from '@prisma/client';
-import { DEFAULT_LOW_STOCK_THRESHOLD } from '@/lib/constants';
 import { INVENTORY_TAGS } from '@/config/cache-tags';
+import { StockEngine } from '@/services/inventory/stock-engine.service';
 
 export interface CreateStockMovementParams {
   productId: string;
   type: StockMovement;
   quantity: number;
+  warehouseId?: string | null;
   note?: string;
   referenceId?: string;
   referenceType?: string;
@@ -40,131 +39,57 @@ export const StockService: IStockService = {
       productId,
       type,
       quantity,
+      warehouseId,
       note,
       saleId,
       purchaseId,
       deliveryOrderId,
       returnId,
       tx,
-      requireStock = true,
     } = params;
 
     const result = await AuditService.runWithAudit(
       ctx,
       STOCK_AUDIT_POLICIES.MOVE(productId, type as any, quantity, note),
       async () => {
-        const executor = tx || db;
+        // Resolve warehouse
+        const resolvedWhId = await StockEngine.resolveWarehouse(ctx, warehouseId || undefined, tx);
 
-        // ดึงข้อมูลสินค้าและสต็อกล่าสุด (Lock for update ถ้าอยู่ใน transaction)
-        const product = await executor.product.findUnique({
-          where: { id: productId },
-          select: { stock: true, reservedStock: true, minStock: true, shopId: true, version: true },
-        });
+        // Delegate to StockEngine (SSOT)
+        const moveResult = await StockEngine.executeMovement(ctx, {
+          productId,
+          warehouseId: resolvedWhId,
+          delta: quantity,
+          type: type as any,
+          note,
+          saleId,
+          purchaseId,
+          deliveryOrderId,
+          returnId,
+          referenceId: params.referenceId,
+          referenceType: params.referenceType
+        }, tx);
 
-        if (!product) throw new ServiceError('ไม่พบสินค้า');
-        if (product.shopId !== ctx.shopId) throw new ServiceError('ไม่มีสิทธิ์จัดการสินค้านี้');
-
-        // คำนวณสต็อกใหม่
-        let newStock = Number(product.stock);
-        let newReserved = Number(product.reservedStock || 0);
-
-        // Logic ตามความหมายทางธุรกิจของ ERP
-        switch (type) {
-          case 'PURCHASE': // รับเข้าจากใบสั่งซื้อ
-          case 'RETURN': // รับเข้าจากการคืนสินค้า
-            newStock += quantity;
-            break;
-
-          case 'CANCEL': // จ่ายออกทั่วไป
-          case 'SALE_CANCEL' as any: // In case of cancel sale
-            newStock += quantity;
-            break;
-
-          case 'SALE': // ตัดสต็อกจากการขาย (ลด Stock, ลด Reserved)
-            if (requireStock && product.stock < quantity) {
-              throw new ServiceError(`สต็อกไม่เพียงพอ (คงเหลือ: ${product.stock}, ต้องการ: ${quantity})`);
-            }
-            newStock -= quantity;
-            if (product.reservedStock >= quantity) {
-              newReserved -= quantity;
-            }
-            break;
-
-          case 'RESERVATION': // จองสต็อก (เพิ่ม Reserved, Stock เท่าเดิม)
-            if (requireStock && (product.stock - (product.reservedStock || 0)) < quantity) {
-              throw new ServiceError(`สต็อกพร้อมขายไม่เพียงพอ (คงเหลือ: ${product.stock}, จองแล้ว: ${product.reservedStock}, ต้องการจองเพิ่ม: ${quantity})`);
-            }
-            newReserved += quantity;
-            break;
-
-          case 'RELEASE': // ปล่อยการจอง (ลด Reserved, Stock เท่าเดิม)
-            newReserved = Math.max(0, (product.reservedStock || 0) - quantity);
-            break;
-
-          default:
-            if (type === 'ADJUSTMENT' as any) {
-              newStock += quantity; 
-              if (newStock < 0) {
-                throw new ServiceError(`ไม่สามารถลดสต็อกได้ เนื่องจากสต็อกจะติดลบ (คงเหลือ: ${product.stock}, ต้องการลด: ${Math.abs(quantity)})`);
-              }
-            }
-        }
-
-        // Optimistic Locking
-        try {
-          await executor.product.update({
-            where: { id: productId, version: product.version },
-            data: {
-              stock: newStock,
-              reservedStock: newReserved,
-              isLowStock: newStock <= (product.minStock ?? DEFAULT_LOW_STOCK_THRESHOLD),
-              version: { increment: 1 },
-            },
-          });
-        } catch (e) {
-          if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {
-            throw new ServiceError('ข้อมูลสินค้ามีการเปลี่ยนแปลงโดยผู้ใช้อื่น กรุณาลองใหม่อีกครั้ง (Concurrency Conflict)');
-          }
-          throw e;
-        }
-
-        // บันทึก Log
-        const log = await (executor as any).stockLog.create({
-          data: {
-            type,
-            productId,
-            quantity,
-            balance: newStock,
-            note,
-            saleId,
-            purchaseId,
-            deliveryOrderId,
-            returnId,
-            userId: ctx.userId,
-            memberId: ctx.memberId || null,
-            shopId: ctx.shopId,
-          } as any,
-        });
-
-        return log;
+        return moveResult;
       },
       tx
     );
 
     return {
       data: result,
-      affectedTags: [INVENTORY_TAGS.STOCK(productId), INVENTORY_TAGS.LIST]
+      affectedTags: [INVENTORY_TAGS.STOCK(productId), INVENTORY_TAGS.LIST, INVENTORY_TAGS.DETAIL(productId)]
     };
   },
 
   /**
    * จองสต็อกสินค้า (เมื่อ Sale เปลี่ยนสถานะเป็น CONFIRMED)
    */
-  async reserveStock(productId: string, quantity: number, ctx: RequestContext, tx: Prisma.TransactionClient): Promise<any> {
+  async reserveStock(productId: string, quantity: number, ctx: RequestContext, tx: Prisma.TransactionClient, warehouseId?: string | null): Promise<any> {
     const result = await this.recordMovement(ctx, {
       productId,
       type: 'RESERVATION',
       quantity,
+      warehouseId,
       note: 'จองสินค้าสำหรับรายการขาย',
       ctx,
       tx,
@@ -175,11 +100,12 @@ export const StockService: IStockService = {
   /**
    * ปล่อยการจอง (เมื่อ Sale ถูก Cancel ก่อนส่งของ)
    */
-  async releaseStock(productId: string, quantity: number, ctx: RequestContext, tx: Prisma.TransactionClient): Promise<any> {
+  async releaseStock(productId: string, quantity: number, ctx: RequestContext, tx: Prisma.TransactionClient, warehouseId?: string | null): Promise<any> {
     const result = await this.recordMovement(ctx, {
       productId,
       type: 'RELEASE',
       quantity,
+      warehouseId,
       note: 'คืนสต็อกจากการยกเลิกรายการขาย',
       ctx,
       tx,
@@ -191,11 +117,12 @@ export const StockService: IStockService = {
   /**
    * ตัดสต็อกจริงเมื่อส่งสินค้า
    */
-  async deductStock(productId: string, quantity: number, ctx: RequestContext, tx?: Prisma.TransactionClient, docRef?: { saleId?: string; deliveryOrderId?: string }): Promise<any> {
+  async deductStock(productId: string, quantity: number, ctx: RequestContext, tx?: Prisma.TransactionClient, docRef?: { saleId?: string; deliveryOrderId?: string }, warehouseId?: string | null): Promise<any> {
     const result = await this.recordMovement(ctx, {
       productId,
       type: 'SALE',
       quantity,
+      warehouseId,
       saleId: docRef?.saleId,
       deliveryOrderId: docRef?.deliveryOrderId,
       note: `ตัดสต็อกสำหรับรายการขาย`,
@@ -217,9 +144,9 @@ export const StockService: IStockService = {
     if (!product || product.shopId !== ctx.shopId) throw new ServiceError('ไม่พบสินค้า');
 
     return {
-      onHand: product.stock,
-      reserved: product.reservedStock,
-      available: product.stock - product.reservedStock,
+      onHand: Number(product.stock),
+      reserved: Number(product.reservedStock),
+      available: Number(product.stock) - Number(product.reservedStock),
       isLowStock: !!product.isLowStock,
       minStock: product.minStock || 0,
     };
@@ -256,9 +183,10 @@ export const StockService: IStockService = {
     return { allAvailable: shortages.length === 0, shortages };
   },
 
-  async bulkReserveStock(items: Array<{ productId: string; quantity: number }>, ctx: RequestContext, tx: Prisma.TransactionClient) {
+  async bulkReserveStock(items: Array<{ productId: string; quantity: number; warehouseId?: string | null }>, ctx: RequestContext, tx: Prisma.TransactionClient) {
     const movements = items.map(item => ({
       productId: item.productId,
+      warehouseId: item.warehouseId,
       type: 'RESERVATION',
       quantity: item.quantity,
       note: 'จองสินค้าสำหรับรายการขาย (Bulk)',
@@ -266,9 +194,10 @@ export const StockService: IStockService = {
     await this.recordMovements(ctx, movements, tx);
   },
 
-  async bulkReleaseStock(items: Array<{ productId: string; quantity: number }>, ctx: RequestContext, tx: Prisma.TransactionClient) {
+  async bulkReleaseStock(items: Array<{ productId: string; quantity: number; warehouseId?: string | null }>, ctx: RequestContext, tx: Prisma.TransactionClient) {
     const movements = items.map(item => ({
       productId: item.productId,
+      warehouseId: item.warehouseId,
       type: 'RELEASE',
       quantity: item.quantity,
       note: 'คืนสต็อกจากการยกเลิกรายการขาย (Bulk)',
@@ -276,9 +205,10 @@ export const StockService: IStockService = {
     await this.recordMovements(ctx, movements, tx);
   },
 
-  async bulkDeductStock(items: Array<{ productId: string; quantity: number }>, ctx: RequestContext, tx: Prisma.TransactionClient, docRef?: { saleId?: string; deliveryOrderId?: string }) {
+  async bulkDeductStock(items: Array<{ productId: string; quantity: number; warehouseId?: string | null }>, ctx: RequestContext, tx: Prisma.TransactionClient, docRef?: { saleId?: string; deliveryOrderId?: string }) {
     const movements = items.map(item => ({
       productId: item.productId,
+      warehouseId: item.warehouseId,
       type: 'SALE',
       quantity: item.quantity,
       saleId: docRef?.saleId,
@@ -299,57 +229,20 @@ export const StockService: IStockService = {
         note: `ประมวลผลสต็อกจำนวน ${movements.length} รายการ`,
       },
       async () => {
-        const productIds = Array.from(new Set(movements.map(m => m.productId)));
-        const products = await tx.product.findMany({
-          where: { id: { in: productIds } },
-          select: { id: true, stock: true, reservedStock: true, minStock: true, shopId: true, version: true },
-        });
-
-        const productMap = new Map(products.map(p => [p.id, p]));
-
-        for (const movement of movements) {
-          const { productId, type, quantity } = movement;
-          const product = productMap.get(productId);
-          if (!product) continue;
-
-          let newStock = Number(product.stock);
-          let newReserved = Number(product.reservedStock || 0);
-
-          switch (type) {
-            case 'RESERVATION': newReserved += quantity; break;
-            case 'RELEASE': newReserved = Math.max(0, newReserved - quantity); break;
-            case 'SALE':
-              newStock -= quantity;
-              if (newReserved >= quantity) newReserved -= quantity;
-              break;
-            case 'PURCHASE':
-            case 'RETURN':
-            case 'SALE_CANCEL':
-              newStock += quantity;
-              break;
-            default: newStock += quantity;
-          }
-
-          await tx.product.update({
-            where: { id: productId, version: product.version },
-            data: {
-              stock: newStock,
-              reservedStock: newReserved,
-              isLowStock: newStock <= (product.minStock ?? DEFAULT_LOW_STOCK_THRESHOLD),
-              version: { increment: 1 },
-            },
-          });
-        }
-
-        await (tx as any).stockLog.createMany({
-          data: movements.map(m => ({
-            ...m,
-            memberId: ctx.memberId || null,
-            shopId: ctx.shopId,
-            userId: ctx.userId,
-            balance: productMap.get(m.productId)!.stock
-          })) as any,
-        });
+        // Wrap everything in StockEngine bulk process for warehouse-consistent logic
+        await StockEngine.executeBulkMovements(ctx, movements.map(m => ({
+          productId: m.productId,
+          warehouseId: m.warehouseId, // Might be null/undefined, engine will resolve
+          delta: m.quantity,
+          type: m.type,
+          note: m.note,
+          saleId: m.saleId,
+          purchaseId: m.purchaseId,
+          deliveryOrderId: m.deliveryOrderId,
+          returnId: m.returnId,
+          referenceId: m.referenceId,
+          referenceType: m.referenceType
+        })), tx);
       },
       tx
     );

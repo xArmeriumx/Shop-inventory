@@ -8,9 +8,11 @@ import { Guard } from '@/components/core/auth/guard';
 
 interface StartStockTakeButtonProps {
     productIds: string[];
+    inventoryMode: string;
+    warehouses: any[];
 }
 
-export function StartStockTakeButton({ productIds }: StartStockTakeButtonProps) {
+export function StartStockTakeButton({ productIds, inventoryMode, warehouses }: StartStockTakeButtonProps) {
     const [open, setOpen] = useState(false);
 
     return (
@@ -29,6 +31,8 @@ export function StartStockTakeButton({ productIds }: StartStockTakeButtonProps) 
                 onOpenChange={setOpen}
                 productIds={productIds}
                 totalCount={productIds.length}
+                inventoryMode={inventoryMode}
+                warehouses={warehouses}
             />
         </Guard>
     );

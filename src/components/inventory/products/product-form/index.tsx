@@ -28,9 +28,11 @@ interface Category {
 interface ProductFormProps {
     product?: SerializedProduct;
     categories: Category[];
+    inventoryMode?: string;
+    warehouses?: any[];
 }
 
-export function ProductForm({ product, categories }: ProductFormProps) {
+export function ProductForm({ product, categories, inventoryMode = 'SIMPLE', warehouses = [] }: ProductFormProps) {
     const router = useRouter();
     const { methods, onSubmit, isPending, isEdit } = useProductForm(product);
 
@@ -77,7 +79,12 @@ export function ProductForm({ product, categories }: ProductFormProps) {
                                 {/* TAB 2: PRICING & SALES */}
                                 <TabsContent value="pricing" className="mt-0 outline-none space-y-6">
                                     <div className="grid gap-8 lg:grid-cols-2">
-                                        <PricingSection isEdit={isEdit} product={product} />
+                                        <PricingSection
+                                            isEdit={isEdit}
+                                            product={product}
+                                            inventoryMode={inventoryMode}
+                                            warehouses={warehouses}
+                                        />
                                         <SafeBoundary variant="compact" componentName="ErpSettings">
                                             <ErpSettingsSection />
                                         </SafeBoundary>

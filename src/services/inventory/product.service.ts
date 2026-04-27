@@ -367,13 +367,15 @@ export const ProductService: IProductService = {
           }
 
           if (change !== 0) {
-            const whId = await StockEngine.resolveWarehouse(ctx, undefined, prisma);
+            // SSOT: resolveWarehouse — ใช้ warehouseId ที่ส่งมา หรือ fallback ไป default
+            const whId = await StockEngine.resolveWarehouse(ctx, input.warehouseId, prisma);
             await StockEngine.executeMovement(ctx, {
               warehouseId: whId,
               productId: productId,
               delta: change,
               type: 'ADJUSTMENT',
-              note: `${notePrefix} ${input.description}`
+              note: `${notePrefix} ${input.description}`,
+              reasonCode: input.reasonCode,
             }, prisma);
           }
 

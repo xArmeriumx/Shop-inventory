@@ -10,17 +10,17 @@ import { ActionResponse } from '@/types/common';
 /**
  * Create a new stock-take session
  */
-export async function createStockTakeAction(productIds: string[], notes?: string): Promise<ActionResponse<any>> {
+export async function createStockTakeAction(productIds: string[], notes?: string, warehouseId?: string): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
             const ctx = await requireShop();
             await requirePermission('STOCK_ADJUST');
-            const result = await StockTakeService.createSession(productIds, notes, ctx);
-            
+            const result = await StockTakeService.createSession(productIds, notes, ctx, warehouseId);
+
             if (result.affectedTags) {
                 result.affectedTags.forEach(tag => revalidateTag(tag));
             }
-            
+
             return result.data;
         }, 'inventory:createStockTake');
     }, { context: { action: 'createStockTake', productCount: productIds.length } });
@@ -35,11 +35,11 @@ export async function updateStockTakeItemAction(sessionId: string, productId: st
             const ctx = await requireShop();
             await requirePermission('STOCK_ADJUST');
             const result = await StockTakeService.updateActualCount(sessionId, productId, countedQty, note, ctx);
-            
+
             if (result.affectedTags) {
                 result.affectedTags.forEach(tag => revalidateTag(tag));
             }
-            
+
             return result.data;
         }, 'inventory:updateStockTakeItem');
     }, { context: { action: 'updateStockTakeItem', sessionId, productId, countedQty } });
@@ -54,11 +54,11 @@ export async function submitStockTakeAction(sessionId: string): Promise<ActionRe
             const ctx = await requireShop();
             await requirePermission('STOCK_ADJUST');
             const result = await StockTakeService.submitSession(sessionId, ctx);
-            
+
             if (result.affectedTags) {
                 result.affectedTags.forEach(tag => revalidateTag(tag));
             }
-            
+
             return null;
         }, 'inventory:submitStockTake');
     }, { context: { action: 'submitStockTake', sessionId } });
@@ -73,11 +73,11 @@ export async function completeStockTakeAction(sessionId: string): Promise<Action
             const ctx = await requireShop();
             await requirePermission('STOCK_TAKE_APPROVE');
             const result = await StockTakeService.completeSession(sessionId, ctx);
-            
+
             if (result.affectedTags) {
                 result.affectedTags.forEach(tag => revalidateTag(tag));
             }
-            
+
             return null;
         }, 'inventory:completeStockTake');
     }, { context: { action: 'completeStockTake', sessionId } });
@@ -92,11 +92,11 @@ export async function cancelStockTakeAction(sessionId: string, reason: string): 
             const ctx = await requireShop();
             await requirePermission('STOCK_ADJUST');
             const result = await StockTakeService.cancelSession(sessionId, reason, ctx);
-            
+
             if (result.affectedTags) {
                 result.affectedTags.forEach(tag => revalidateTag(tag));
             }
-            
+
             return null;
         }, 'inventory:cancelStockTake');
     }, { context: { action: 'cancelStockTake', sessionId, reason } });

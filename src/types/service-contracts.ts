@@ -54,6 +54,7 @@ import type {
   SequenceConfig,
   MutationResult,
   SerializedShipment,
+  AdjustStockInput,
 } from './domain';
 
 import type { IncomeInput } from '@/schemas/accounting/income.schema';
@@ -74,7 +75,7 @@ export interface IProductService {
   getForPurchase(ctx: RequestContext): Promise<Array<{ id: string; name: string; sku: string | null; costPrice: number }>>;
   getLowStock(limit: number, ctx: RequestContext): Promise<SerializedProduct[]>;
   getLowStockPaginated(params: GetProductsParams, ctx: RequestContext): Promise<PaginatedResult<SerializedProduct>>;
-  adjustStockManual(productId: string, input: { quantity: number; description: string; type: string }, ctx: RequestContext): Promise<MutationResult<void>>;
+  adjustStockManual(productId: string, input: AdjustStockInput, ctx: RequestContext): Promise<MutationResult<void>>;
   batchCreate(inputs: BatchProductInput[], ctx: RequestContext): Promise<MutationResult<BatchCreateResult>>;
   getAvailability(productId: string, ctx: RequestContext): Promise<StockAvailability>;
 }
@@ -231,6 +232,7 @@ export interface IStockService {
     quantity: number,
     ctx: RequestContext,
     tx: Prisma.TransactionClient,
+    warehouseId?: string | null
   ): Promise<void>;
 
   /**
@@ -243,7 +245,8 @@ export interface IStockService {
     quantity: number,
     ctx: RequestContext,
     tx?: Prisma.TransactionClient,
-    docRef?: { saleId?: string; deliveryOrderId?: string }
+    docRef?: { saleId?: string; deliveryOrderId?: string },
+    warehouseId?: string | null
   ): Promise<any>;
 
   /**
@@ -256,6 +259,7 @@ export interface IStockService {
     quantity: number,
     ctx: RequestContext,
     tx: Prisma.TransactionClient,
+    warehouseId?: string | null
   ): Promise<void>;
 
   /**
@@ -264,7 +268,7 @@ export interface IStockService {
    * - ทำงานภายใน Transaction เดียว
    */
   bulkReserveStock(
-    items: Array<{ productId: string; quantity: number }>,
+    items: Array<{ productId: string; quantity: number; warehouseId?: string | null }>,
     ctx: RequestContext,
     tx: Prisma.TransactionClient,
   ): Promise<void>;
@@ -273,7 +277,7 @@ export interface IStockService {
    * ตัดสต็อกจริงแบบกลุ่ม (Bulk Deduction)
    */
   bulkDeductStock(
-    items: Array<{ productId: string; quantity: number }>,
+    items: Array<{ productId: string; quantity: number; warehouseId?: string | null }>,
     ctx: RequestContext,
     tx: Prisma.TransactionClient,
     docRef?: { saleId?: string; deliveryOrderId?: string }
@@ -283,7 +287,7 @@ export interface IStockService {
    * ปล่อยการจองแบบกลุ่ม (Bulk Release)
    */
   bulkReleaseStock(
-    items: Array<{ productId: string; quantity: number }>,
+    items: Array<{ productId: string; quantity: number; warehouseId?: string | null }>,
     ctx: RequestContext,
     tx: Prisma.TransactionClient,
   ): Promise<void>;
@@ -313,7 +317,7 @@ export interface IStockService {
    */
   recordMovement(
     ctx: RequestContext,
-    params: any, 
+    params: any,
   ): Promise<MutationResult<any>>;
 
   /**
@@ -765,6 +769,14 @@ export interface IWarehouseService {
    * ตรวจสอบและสร้างคลังสินค้าหลักหากยังไม่มี (Auto-provision)
    */
   ensureDefaultWarehouse(ctx: RequestContext, tx?: any): Promise<any>;
+
+  /**
+   * โอนย้ายสินค้าระหว่างคลังสินค้า
+   */
+  transferStock(
+    ctx: RequestContext,
+    input: { productId: string; fromWarehouseId: string; toWarehouseId: string; quantity: number; notes?: string }
+  ): Promise<MutationResult<void>>;
 }
 
 // ============================================================================

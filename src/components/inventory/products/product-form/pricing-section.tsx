@@ -8,7 +8,17 @@ import { StockAdjustmentDialog } from '@/components/inventory/products/stock-adj
 import type { ProductFormValues } from '@/schemas/inventory/product-form.schema';
 import type { SerializedProduct } from '@/services';
 
-export function PricingSection({ isEdit, product }: { isEdit: boolean; product?: SerializedProduct }) {
+export function PricingSection({
+    isEdit,
+    product,
+    inventoryMode = 'SIMPLE',
+    warehouses = []
+}: {
+    isEdit: boolean;
+    product?: SerializedProduct;
+    inventoryMode?: string;
+    warehouses?: any[];
+}) {
     const { register } = useFormContext<ProductFormValues>();
     const { hasPermission } = usePermissions();
 
@@ -38,7 +48,7 @@ export function PricingSection({ isEdit, product }: { isEdit: boolean; product?:
                 />
             </FormField>
 
-            <FormField name="stock" label="จำนวนในสต็อก" required>
+            <FormField name="stock" label="คงเหลือในคลังรวม" required>
                 <Input
                     id="stock"
                     type="number"
@@ -47,7 +57,13 @@ export function PricingSection({ isEdit, product }: { isEdit: boolean; product?:
                     disabled={isEdit}
                 />
                 {isEdit && product && (
-                    <StockAdjustmentDialog productId={product.id} currentStock={product.stock} />
+                    <StockAdjustmentDialog
+                        productId={product.id}
+                        currentStock={product.stock}
+                        inventoryMode={inventoryMode}
+                        warehouses={warehouses}
+                        warehouseStocks={product.warehouseStocks}
+                    />
                 )}
             </FormField>
 
