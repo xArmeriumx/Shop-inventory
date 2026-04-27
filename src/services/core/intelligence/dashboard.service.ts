@@ -10,27 +10,51 @@ export const DashboardService = {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    // 1. Resolve Sale IDs for warehouse filtering (Prisma aggregate doesn't support relation filtering)
+    // ── Helper: Build warehouse-scoped Sale filter ────────────────────────
+    // Best Practice: Prisma `aggregate` doesn't support relation filters,
+    // so for aggregate queries we resolve matching Sale IDs first via Sale.findMany
+    // using Prisma's native `items: { some: { warehouseId } }` (top-down).
+    const whSaleFilter = warehouseId
+      ? { items: { some: { warehouseId } } }
+      : {};
+
+    // For aggregate: resolve Sale IDs by date scopes
     let todayWhSaleIds: string[] | undefined = undefined;
     let allWhSaleIds: string[] | undefined = undefined;
 
     if (warehouseId) {
-      // For today's aggregates
-      const todayItems = await db.saleItem.findMany({
-        where: { warehouseId, sale: { date: { gte: today, lt: tomorrow }, status: { not: "CANCELLED" } } },
-        select: { saleId: true }
-      });
-      todayWhSaleIds = Array.from(new Set(todayItems.map(si => si.saleId)));
-
-      // For recent sales (no date limit)
-      const allItems = await db.saleItem.findMany({
-        where: { warehouseId, sale: { status: { not: "CANCELLED" } } },
-        select: { saleId: true },
-        take: 100, // Limit resolution for performance
-        orderBy: { sale: { date: 'desc' } }
-      });
-      allWhSaleIds = Array.from(new Set(allItems.map(si => si.saleId)));
+      const [todaySaleList, allSaleList] = await Promise.all([
+        // Today's sales that have at least one item from this warehouse
+        db.sale.findMany({
+          where: {
+            shopId: ctx.shopId,
+            date: { gte: today, lt: tomorrow },
+            status: { not: "CANCELLED" },
+            ...whSaleFilter,
+          },
+          select: { id: true },
+        }),
+        // All-time recent sales from this warehouse
+        db.sale.findMany({
+          where: {
+            shopId: ctx.shopId,
+            status: { not: "CANCELLED" },
+            ...whSaleFilter,
+          },
+          select: { id: true },
+          orderBy: { date: 'desc' },
+          take: 50,
+        }),
+      ]);
+      todayWhSaleIds = todaySaleList.map(s => s.id);
+      allWhSaleIds = allSaleList.map(s => s.id);
     }
+
+    // ── Helper: Safe ID filter (handles empty arrays correctly) ──────────
+    const idFilter = (ids: string[] | undefined) =>
+      ids !== undefined
+        ? { id: ids.length > 0 ? { in: ids } : { equals: 'NON_EXISTENT_ID' } }
+        : {};
 
     const [
       todaySales,
@@ -39,21 +63,23 @@ export const DashboardService = {
       lowStockCount,
       recentSales,
       lowStockProducts,
-      _unusedPendingPayments, // item 7 in promise.all
+      _unusedPendingPayments,
       pendingShipments,
       todayExpenses,
       stockProducts,
     ] = await Promise.all([
+      // 1. Today's revenue aggregate (uses pre-resolved IDs)
       db.sale.aggregate({
         where: {
           shopId: ctx.shopId,
           date: { gte: today, lt: tomorrow },
           status: { not: "CANCELLED" },
-          ...(todayWhSaleIds && { id: { in: todayWhSaleIds.length > 0 ? todayWhSaleIds : ['NON_EXISTENT'] } })
+          ...idFilter(todayWhSaleIds),
         },
         _sum: { netAmount: true, profit: true },
         _count: true,
       }),
+      // 2. Today's income (not warehouse-scoped — income isn't tied to warehouses)
       (db as any).income.aggregate({
         where: {
           shopId: ctx.shopId,
@@ -63,6 +89,7 @@ export const DashboardService = {
         _sum: { amount: true },
         _count: true,
       }),
+      // 3. Total active products (warehouse-scoped via WarehouseStock relation)
       db.product.count({
         where: {
           shopId: ctx.shopId,
@@ -70,6 +97,7 @@ export const DashboardService = {
           ...(warehouseId && { warehouseStocks: { some: { warehouseId } } })
         },
       }),
+      // 4. Low stock products
       db.product.count({
         where: {
           shopId: ctx.shopId,
@@ -78,11 +106,12 @@ export const DashboardService = {
           ...(warehouseId && { warehouseStocks: { some: { warehouseId } } })
         },
       }),
+      // 5. Recent sales (uses pre-resolved IDs for all-time scope)
       db.sale.findMany({
         where: {
           shopId: ctx.shopId,
           status: { not: "CANCELLED" },
-          ...(allWhSaleIds && { id: { in: allWhSaleIds.length > 0 ? allWhSaleIds : ['NON_EXISTENT'] } })
+          ...idFilter(allWhSaleIds),
         },
         select: {
           id: true, invoiceNumber: true, date: true, customerName: true,
@@ -91,6 +120,7 @@ export const DashboardService = {
         orderBy: { date: "desc" },
         take: 5,
       }),
+      // 6. Low stock product details
       db.product.findMany({
         where: {
           shopId: ctx.shopId,
@@ -102,7 +132,9 @@ export const DashboardService = {
         orderBy: { stock: "asc" },
         take: 5,
       }),
+      // 7. (Unused placeholder)
       Promise.resolve({ _count: 0, _sum: { netAmount: null } }),
+      // 8. Pending shipments
       db.shipment.count({
         where: {
           shopId: ctx.shopId,
@@ -110,6 +142,7 @@ export const DashboardService = {
           ...(warehouseId && { warehouseId })
         },
       }),
+      // 9. Today's expenses (not warehouse-scoped)
       db.expense.aggregate({
         where: {
           shopId: ctx.shopId, date: { gte: today, lt: tomorrow }, deletedAt: null,
@@ -117,6 +150,7 @@ export const DashboardService = {
         _sum: { amount: true },
         _count: true,
       }),
+      // 10. Stock value calculation
       warehouseId ?
         db.warehouseStock.findMany({
           where: { warehouseId },
@@ -285,15 +319,25 @@ export const DashboardService = {
     const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const firstDayOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
-    // Resolve Sale IDs for warehouse filtering
-    let warehouseSaleIds: string[] | undefined = undefined;
+    // Top-down ID resolution: Sale → items.some (Prisma best practice)
+    let monthSaleIds: string[] | undefined = undefined;
     if (warehouseId) {
-      const saleItems = await db.saleItem.findMany({
-        where: { warehouseId, sale: { date: { gte: firstDayOfMonth, lt: firstDayOfNextMonth }, status: { not: "CANCELLED" } } },
-        select: { saleId: true }
+      const matchingSales = await db.sale.findMany({
+        where: {
+          shopId: ctx.shopId,
+          date: { gte: firstDayOfMonth, lt: firstDayOfNextMonth },
+          status: { not: "CANCELLED" },
+          items: { some: { warehouseId } },
+        },
+        select: { id: true },
       });
-      warehouseSaleIds = Array.from(new Set(saleItems.map(si => si.saleId)));
+      monthSaleIds = matchingSales.map(s => s.id);
     }
+
+    const idFilter = (ids: string[] | undefined) =>
+      ids !== undefined
+        ? { id: ids.length > 0 ? { in: ids } : { equals: 'NON_EXISTENT_ID' } }
+        : {};
 
     const [monthlySales, monthlyIncomes] = await Promise.all([
       db.sale.aggregate({
@@ -301,7 +345,7 @@ export const DashboardService = {
           shopId: ctx.shopId,
           date: { gte: firstDayOfMonth, lt: firstDayOfNextMonth },
           status: { not: "CANCELLED" },
-          ...(warehouseSaleIds && { id: { in: warehouseSaleIds.length > 0 ? warehouseSaleIds : ['NON_EXISTENT'] } })
+          ...idFilter(monthSaleIds),
         },
         _sum: { netAmount: true, profit: true },
         _count: true,
@@ -339,15 +383,25 @@ export const DashboardService = {
     startDate.setDate(startDate.getDate() - days + 1);
     startDate.setHours(0, 0, 0, 0);
 
-    // Resolve Sale IDs for warehouse filtering
-    let warehouseSaleIds: string[] | undefined = undefined;
+    // Top-down ID resolution for chart data
+    let chartSaleIds: string[] | undefined = undefined;
     if (warehouseId) {
-      const saleItems = await db.saleItem.findMany({
-        where: { warehouseId, sale: { date: { gte: startDate, lte: endDate }, status: { not: "CANCELLED" } } },
-        select: { saleId: true }
+      const matchingSales = await db.sale.findMany({
+        where: {
+          shopId: ctx.shopId,
+          date: { gte: startDate, lte: endDate },
+          status: { not: "CANCELLED" },
+          items: { some: { warehouseId } },
+        },
+        select: { id: true },
       });
-      warehouseSaleIds = Array.from(new Set(saleItems.map(si => si.saleId)));
+      chartSaleIds = matchingSales.map(s => s.id);
     }
+
+    const idFilter = (ids: string[] | undefined) =>
+      ids !== undefined
+        ? { id: ids.length > 0 ? { in: ids } : { equals: 'NON_EXISTENT_ID' } }
+        : {};
 
     const [sales, incomes] = await Promise.all([
       db.sale.findMany({
@@ -355,7 +409,7 @@ export const DashboardService = {
           shopId: ctx.shopId,
           date: { gte: startDate, lte: endDate },
           status: { not: "CANCELLED" },
-          ...(warehouseSaleIds && { id: { in: warehouseSaleIds.length > 0 ? warehouseSaleIds : ['NON_EXISTENT'] } })
+          ...idFilter(chartSaleIds),
         },
         select: { date: true, netAmount: true },
         orderBy: { date: "asc" },
