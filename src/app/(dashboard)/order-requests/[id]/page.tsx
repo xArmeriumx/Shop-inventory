@@ -12,6 +12,7 @@ import { Send, FileText, Printer } from 'lucide-react';
 import { notFound } from 'next/navigation';
 import { OrderRequestActions } from '@/components/sales/order-requests/order-request-actions';
 import { ApprovalActions } from '@/components/core/approvals/approval-actions';
+import { ConvertToPOButton } from '@/components/purchases/conversion/convert-to-po-button';
 
 export const metadata: Metadata = {
     title: 'รายละเอียดคำขอซื้อ | ERP System',
@@ -49,6 +50,9 @@ export default async function OrderRequestDetailPage({ params }: { params: { id:
                         </Button>
                         <OrderRequestActions requestId={request.id} status={request.status} />
                         <ApprovalActions documentId={request.id} documentType="ORDER_REQUEST" status={request.status} />
+                        {request.status === OrderRequestStatus.APPROVED && (
+                            <ConvertToPOButton orderRequestId={request.id} />
+                        )}
                     </div>
                 }
             />
