@@ -3,15 +3,15 @@ import { RequestContext, ServiceError } from '@/types/domain';
 import { Prisma } from '@prisma/client';
 import { WarehouseService } from './warehouse.service';
 
-export type StockMovementType = 
-  | 'SALE' 
-  | 'SALE_CANCEL' 
-  | 'PURCHASE' 
-  | 'RETURN' 
+export type StockMovementType =
+  | 'SALE'
+  | 'SALE_CANCEL'
+  | 'PURCHASE'
+  | 'RETURN'
   | 'PURCHASE_RETURN'
-  | 'ADJUSTMENT' 
-  | 'TRANSFER_IN' 
-  | 'TRANSFER_OUT' 
+  | 'ADJUSTMENT'
+  | 'TRANSFER_IN'
+  | 'TRANSFER_OUT'
   | 'STOCK_TAKE';
 
 export interface StockMovementInput {
@@ -74,8 +74,8 @@ export const StockEngine = {
           productId,
           quantity: delta,
           balance: newGlobalQty, // Total stock after movement
-          // warehouseId: warehouseId, // TODO: Uncomment after migration
-          // warehouseBalance: warehouseStock.quantity, // TODO: Uncomment after migration
+          warehouseId: warehouseId,
+          warehouseBalance: warehouseStock.quantity,
           note: input.note,
           reasonCode: input.reasonCode,
           referenceId: input.referenceId,
@@ -105,9 +105,9 @@ export const StockEngine = {
     if (warehouseId) return warehouseId;
     const defaultWh = await WarehouseService.getDefaultWarehouse(ctx);
     if (!defaultWh) {
-        // Fallback to auto-provisioning if missing
-        const provisioned = await WarehouseService.ensureDefaultWarehouse(ctx, tx);
-        return provisioned.id;
+      // Fallback to auto-provisioning if missing
+      const provisioned = await WarehouseService.ensureDefaultWarehouse(ctx, tx);
+      return provisioned.id;
     }
     return defaultWh.id;
   },
