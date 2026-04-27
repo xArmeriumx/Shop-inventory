@@ -14,24 +14,19 @@ import { IWarehouseService } from '@/types/service-contracts';
  * Product.stock MUST equal SUM(WarehouseStock.quantity) Across all warehouses.
  */
 export const WarehouseService: IWarehouseService = {
-    /**
-     * Get all active warehouses for the shop
-     */
     async getWarehouses(ctx: RequestContext) {
-        return await (db as any).warehouse.findMany({
+        return await db.warehouse.findMany({
             where: { shopId: ctx.shopId, isActive: true },
             orderBy: { createdAt: 'asc' }
         });
     },
 
-    /**
-     * Create a new warehouse
-     */
     async createWarehouse(ctx: RequestContext, data: {
         name: string;
         code: string;
         address?: string;
         isDefault?: boolean;
+        isActive?: boolean;
     }): Promise<MutationResult<any>> {
         return AuditService.runWithAudit(
             ctx,
@@ -41,7 +36,7 @@ export const WarehouseService: IWarehouseService = {
                     Security.requirePermission(ctx, Permission.WAREHOUSE_MANAGE);
 
                     // Check for duplicate code
-                    const existing = await (tx as any).warehouse.findFirst({
+                    const existing = await tx.warehouse.findFirst({
                         where: { shopId: ctx.shopId, code: data.code }
                     });
 
@@ -49,13 +44,13 @@ export const WarehouseService: IWarehouseService = {
 
                     // If this is default, unset others
                     if (data.isDefault) {
-                        await (tx as any).warehouse.updateMany({
+                        await tx.warehouse.updateMany({
                             where: { shopId: ctx.shopId },
                             data: { isDefault: false }
                         });
                     }
 
-                    return await (tx as any).warehouse.create({
+                    return await tx.warehouse.create({
                         data: {
                             ...data,
                             shopId: ctx.shopId
@@ -75,7 +70,7 @@ export const WarehouseService: IWarehouseService = {
      * Get stock levels for a product across all warehouses
      */
     async getProductStockBreakdown(ctx: RequestContext, productId: string) {
-        return await (db as any).warehouseStock.findMany({
+        return await db.warehouseStock.findMany({
             where: { shopId: ctx.shopId, productId },
             include: { warehouse: true }
         });
@@ -108,13 +103,13 @@ export const WarehouseService: IWarehouseService = {
             return await AuditService.runWithAudit(
                 ctx,
                 WAREHOUSE_AUDIT_POLICIES.ADJUST_STOCK(
-                    warehouse?.name || 'Unknown', 
-                    product?.name || 'Unknown', 
+                    warehouse?.name || 'Unknown',
+                    product?.name || 'Unknown',
                     delta
                 ),
                 async () => {
                     // 1. Get or Create WarehouseStock record
-                    const warehouseStock = await (prisma as any).warehouseStock.upsert({
+                    const warehouseStock = await prisma.warehouseStock.upsert({
                         where: {
                             productId_warehouseId: { productId, warehouseId }
                         },
@@ -148,13 +143,13 @@ export const WarehouseService: IWarehouseService = {
      * MAINTAINS SSOT
      */
     async syncGlobalProductStock(ctx: RequestContext, productId: string, tx: any = db): Promise<number> {
-        const stocks = await (tx as any).warehouseStock.findMany({
+        const stocks = await tx.warehouseStock.findMany({
             where: { productId }
         });
 
         const totalStock = stocks.reduce((sum: number, s: any) => sum + s.quantity, 0);
 
-        await (tx as any).product.update({
+        await tx.product.update({
             where: { id: productId },
             data: { stock: totalStock }
         });
@@ -166,13 +161,13 @@ export const WarehouseService: IWarehouseService = {
      * Find default warehouse for the shop
      */
     async getDefaultWarehouse(ctx: RequestContext) {
-        const warehouse = await (db as any).warehouse.findFirst({
+        const warehouse = await db.warehouse.findFirst({
             where: { shopId: ctx.shopId, isDefault: true }
         });
 
         if (!warehouse) {
             // Fallback to first active one if no default set
-            return await (db as any).warehouse.findFirst({
+            return await db.warehouse.findFirst({
                 where: { shopId: ctx.shopId, isActive: true }
             });
         }
@@ -180,19 +175,15 @@ export const WarehouseService: IWarehouseService = {
         return warehouse;
     },
 
-    /**
-     * Ensure a default warehouse exists for the shop.
-     * Auto-provisions WH-MAIN if no warehouse exists.
-     */
     async ensureDefaultWarehouse(ctx: RequestContext, tx: any = db): Promise<any> {
-        const existing = await (tx as any).warehouse.findFirst({
+        const existing = await tx.warehouse.findFirst({
             where: { shopId: ctx.shopId }
         });
 
         if (existing) return existing;
 
         // Auto-provision WH-MAIN
-        return await (tx as any).warehouse.create({
+        return await tx.warehouse.create({
             data: {
                 name: 'คลังสินค้าหลัก',
                 code: 'WH-MAIN',
