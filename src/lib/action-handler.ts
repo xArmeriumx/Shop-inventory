@@ -57,12 +57,12 @@ export async function handleAction<T>(
             throw error;
         }
 
-        if (error instanceof ServiceError) {
+        if (error instanceof ServiceError || (error as any)?.name === 'ServiceError') {
             return {
                 success: false,
-                message: error.message,
-                errors: error.errors,
-                action: error.action,
+                message: (error as any).message,
+                errors: (error as any).errors,
+                action: (error as any).action,
             };
         }
 
