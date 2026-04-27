@@ -10,12 +10,10 @@ export const DashboardService = {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    // ── Helper: Build warehouse-scoped Sale filter ────────────────────────
-    // Best Practice: Prisma `aggregate` doesn't support relation filters,
-    // so for aggregate queries we resolve matching Sale IDs first via Sale.findMany
-    // using Prisma's native `items: { some: { warehouseId } }` (top-down).
+    // 1. Resolve Sale IDs for warehouse filtering (Prisma aggregate doesn't support relation filters)
+    // Best Practice: Use top-down Sale -> items.some filter including null for legacy data safety
     const whSaleFilter = warehouseId
-      ? { items: { some: { warehouseId } } }
+      ? { items: { some: { OR: [{ warehouseId }, { warehouseId: null }] } } }
       : {};
 
     // For aggregate: resolve Sale IDs by date scopes
@@ -327,7 +325,7 @@ export const DashboardService = {
           shopId: ctx.shopId,
           date: { gte: firstDayOfMonth, lt: firstDayOfNextMonth },
           status: { not: "CANCELLED" },
-          items: { some: { warehouseId } },
+          items: { some: { OR: [{ warehouseId }, { warehouseId: null }] } },
         },
         select: { id: true },
       });
@@ -391,7 +389,7 @@ export const DashboardService = {
           shopId: ctx.shopId,
           date: { gte: startDate, lte: endDate },
           status: { not: "CANCELLED" },
-          items: { some: { warehouseId } },
+          items: { some: { OR: [{ warehouseId }, { warehouseId: null }] } },
         },
         select: { id: true },
       });
