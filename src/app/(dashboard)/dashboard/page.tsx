@@ -36,7 +36,10 @@ async function DashboardContent({ warehouseId }: { warehouseId?: string }) {
     todayExpenses: { total: 0, count: 0 },
     stockValue: { total: 0, itemCount: 0 },
     governanceHealth: { score: 100, status: 'HEALTHY', incidents: [] },
-    operational: { sme: {}, advanced: {} }
+    operational: {
+      sme: { pendingSales: 0, pendingProcurement: 0, pendingShipments: 0, recentStockMoves: [] },
+      advanced: { prToOrder: 0, incompleteShipments: 0, stuckDocs: 0, governanceIncidents: 0 }
+    }
   };
 
   const monthlyStats = monthlyStatsRes.success ? monthlyStatsRes.data : {

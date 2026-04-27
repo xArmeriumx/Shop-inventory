@@ -10,6 +10,16 @@ export const DashboardService = {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
+    // 1. Resolve Sale IDs for warehouse filtering (Prisma aggregate doesn't support relation filtering)
+    let warehouseSaleIds: string[] | undefined = undefined;
+    if (warehouseId) {
+      const saleItems = await db.saleItem.findMany({
+        where: { warehouseId, sale: { date: { gte: today, lt: tomorrow }, status: { not: "CANCELLED" } } },
+        select: { saleId: true }
+      });
+      warehouseSaleIds = Array.from(new Set(saleItems.map(si => si.saleId)));
+    }
+
     const [
       todaySales,
       todayIncomes,
@@ -17,7 +27,7 @@ export const DashboardService = {
       lowStockCount,
       recentSales,
       lowStockProducts,
-      pendingPayments,
+      _unusedPendingPayments, // item 7 in promise.all
       pendingShipments,
       todayExpenses,
       stockProducts,
@@ -27,6 +37,7 @@ export const DashboardService = {
           shopId: ctx.shopId,
           date: { gte: today, lt: tomorrow },
           status: { not: "CANCELLED" },
+          ...(warehouseSaleIds && { id: { in: warehouseSaleIds } })
         },
         _sum: { netAmount: true, profit: true },
         _count: true,
@@ -59,7 +70,7 @@ export const DashboardService = {
         where: {
           shopId: ctx.shopId,
           status: { not: "CANCELLED" },
-          ...(warehouseId && { items: { some: { warehouseId } } })
+          ...(warehouseSaleIds && { id: { in: warehouseSaleIds } })
         },
         select: {
           id: true, invoiceNumber: true, date: true, customerName: true,
@@ -112,11 +123,11 @@ export const DashboardService = {
 
     const totalStockValue = warehouseId ?
       (stockProducts as any[]).reduce(
-        (sum: number, ws: any) => money.add(sum, money.multiply(toNumber(ws.product?.costPrice), ws.quantity)),
+        (sum: number, ws: any) => money.add(sum, money.multiply(toNumber(ws.product?.costPrice), ws.quantity || 0)),
         0
       ) :
       (stockProducts as any[]).reduce(
-        (sum: number, p: any) => money.add(sum, money.multiply(toNumber(p.costPrice), p.stock)),
+        (sum: number, p: any) => money.add(sum, money.multiply(toNumber(p.costPrice), p.stock || 0)),
         0
       );
 
@@ -262,13 +273,23 @@ export const DashboardService = {
     const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const firstDayOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
+    // Resolve Sale IDs for warehouse filtering
+    let warehouseSaleIds: string[] | undefined = undefined;
+    if (warehouseId) {
+      const saleItems = await db.saleItem.findMany({
+        where: { warehouseId, sale: { date: { gte: firstDayOfMonth, lt: firstDayOfNextMonth }, status: { not: "CANCELLED" } } },
+        select: { saleId: true }
+      });
+      warehouseSaleIds = Array.from(new Set(saleItems.map(si => si.saleId)));
+    }
+
     const [monthlySales, monthlyIncomes] = await Promise.all([
       db.sale.aggregate({
         where: {
           shopId: ctx.shopId,
           date: { gte: firstDayOfMonth, lt: firstDayOfNextMonth },
           status: { not: "CANCELLED" },
-          ...(warehouseId && { items: { some: { warehouseId } } })
+          ...(warehouseSaleIds && { id: { in: warehouseSaleIds } })
         },
         _sum: { netAmount: true, profit: true },
         _count: true,
@@ -306,13 +327,23 @@ export const DashboardService = {
     startDate.setDate(startDate.getDate() - days + 1);
     startDate.setHours(0, 0, 0, 0);
 
+    // Resolve Sale IDs for warehouse filtering
+    let warehouseSaleIds: string[] | undefined = undefined;
+    if (warehouseId) {
+      const saleItems = await db.saleItem.findMany({
+        where: { warehouseId, sale: { date: { gte: startDate, lte: endDate }, status: { not: "CANCELLED" } } },
+        select: { saleId: true }
+      });
+      warehouseSaleIds = Array.from(new Set(saleItems.map(si => si.saleId)));
+    }
+
     const [sales, incomes] = await Promise.all([
       db.sale.findMany({
         where: {
           shopId: ctx.shopId,
           date: { gte: startDate, lte: endDate },
           status: { not: "CANCELLED" },
-          ...(warehouseId && { items: { some: { warehouseId } } })
+          ...(warehouseSaleIds && { id: { in: warehouseSaleIds } })
         },
         select: { date: true, netAmount: true },
         orderBy: { date: "asc" },

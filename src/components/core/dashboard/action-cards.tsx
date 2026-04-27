@@ -64,6 +64,8 @@ export function ActionableSmeDashboard({ metrics, lowStockCount }: OperationalMe
     },
   ];
 
+  const recentStockMoves = metrics?.recentStockMoves || [];
+
   return (
     <div className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -76,11 +78,11 @@ export function ActionableSmeDashboard({ metrics, lowStockCount }: OperationalMe
             <CardContent>
               <div className="flex items-baseline justify-between">
                 <div>
-                  <div className="text-2xl font-bold">{card.value}</div>
+                  <div className="text-2xl font-bold">{card.value ?? 0}</div>
                   <p className="text-xs text-muted-foreground mt-1">{card.description}</p>
                 </div>
                 <Button variant={(card.variant as any) || "outline"} size="sm" className="h-8 text-xs px-2" asChild>
-                  <Link href={card.href}>{card.buttonText}</Link>
+                  <Link href={card.href || "#"}>{card.buttonText}</Link>
                 </Button>
               </div>
             </CardContent>
@@ -102,13 +104,13 @@ export function ActionableSmeDashboard({ metrics, lowStockCount }: OperationalMe
           </div>
         </CardHeader>
         <CardContent className="pt-4 px-0">
-          {metrics.recentStockMoves.length === 0 ? (
+          {recentStockMoves.length === 0 ? (
             <div className="py-8 text-center text-sm text-muted-foreground px-6">
               ไม่มีรายงานการปรับสต็อกในขณะนี้
             </div>
           ) : (
             <div className="divide-y">
-              {metrics.recentStockMoves.map((move) => (
+              {recentStockMoves.map((move) => (
                 <div key={move.id} className="flex items-center justify-between py-3 px-6 hover:bg-muted/30 transition-colors">
                   <div className="space-y-0.5">
                     <p className="text-sm font-medium leading-none">
