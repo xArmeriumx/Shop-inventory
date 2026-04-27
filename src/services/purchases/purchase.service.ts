@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PurchaseInput } from '@/schemas/purchases/purchase.schema';
 import { StockService } from '@/services/inventory/stock.service';
 import { money, calcSubtotal } from '@/lib/money';
+import { StockEngine } from '@/services/inventory/stock-engine.service';
 
 import {
   RequestContext,
@@ -442,9 +443,9 @@ export const PurchaseService: IPurchaseService = {
     return {
       data: result,
       affectedTags: [
-        PURCHASE_TAGS.LIST, 
-        PURCHASE_TAGS.DETAIL(prId), 
-        PURCHASE_TAGS.REQUESTS, 
+        PURCHASE_TAGS.LIST,
+        PURCHASE_TAGS.DETAIL(prId),
+        PURCHASE_TAGS.REQUESTS,
         PURCHASE_TAGS.ORDERS
       ]
     };
@@ -563,7 +564,7 @@ export const PurchaseService: IPurchaseService = {
     );
   },
 
-  async receivePurchase(purchaseId: string, ctx: RequestContext): Promise<MutationResult<any>> {
+  async receivePurchase(purchaseId: string, ctx: RequestContext, warehouseId?: string): Promise<MutationResult<any>> {
     Security.requirePermission(ctx, 'PURCHASE_CREATE');
     const purchaseRef = await db.purchase.findFirst({ where: { id: purchaseId, shopId: ctx.shopId } });
     if (!purchaseRef) throw new ServiceError('ไม่พบข้อมูลการสั่งซื้อ');
@@ -582,6 +583,8 @@ export const PurchaseService: IPurchaseService = {
           if (!fullPurchase) throw new ServiceError('ไม่พบข้อมูลการสั่งซื้อ');
           if (fullPurchase.status === PurchaseStatus.RECEIVED) throw new ServiceError('รายการนี้ได้รับสินค้าไปแล้ว');
 
+          const resolvedWhId = await StockEngine.resolveWarehouse(ctx, warehouseId, prisma);
+
           const productIds = fullPurchase.items.map(item => item.productId);
           const currentProducts = await prisma.product.findMany({
             where: { id: { in: productIds }, shopId: ctx.shopId },
@@ -593,6 +596,7 @@ export const PurchaseService: IPurchaseService = {
             ctx,
             fullPurchase.items.map(item => ({
               productId: item.productId,
+              warehouseId: resolvedWhId,
               type: 'PURCHASE' as const,
               quantity: item.quantity,
               userId: ctx.userId,

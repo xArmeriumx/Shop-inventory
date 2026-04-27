@@ -261,6 +261,10 @@ export const StockService: IStockService = {
     const [data, total] = await Promise.all([
       (db as any).stockLog.findMany({
         where: { productId, shopId: ctx.shopId },
+        include: {
+          warehouse: { select: { name: true } },
+          user: { select: { name: true } }
+        },
         orderBy: { createdAt: 'desc' },
         skip,
         take: limit,

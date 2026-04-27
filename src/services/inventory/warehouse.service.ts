@@ -144,18 +144,21 @@ export const WarehouseService: IWarehouseService = {
      * MAINTAINS SSOT
      */
     async syncGlobalProductStock(ctx: RequestContext, productId: string, tx: any = db): Promise<number> {
-        const stocks = await tx.warehouseStock.findMany({
-            where: { productId }
-        });
+        const [product, stocks] = await Promise.all([
+            tx.product.findUnique({ where: { id: productId, shopId: ctx.shopId }, select: { minStock: true } }),
+            tx.warehouseStock.findMany({ where: { productId, shopId: ctx.shopId } })
+        ]);
 
         const totalStock = stocks.reduce((sum: number, s: any) => sum + s.quantity, 0);
         const totalReserved = stocks.reduce((sum: number, s: any) => sum + (s.reservedStock || 0), 0);
+        const isLow = totalStock < (product?.minStock || 0);
 
         await tx.product.update({
             where: { id: productId },
             data: {
                 stock: totalStock,
-                reservedStock: totalReserved
+                reservedStock: totalReserved,
+                isLowStock: isLow
             }
         });
 

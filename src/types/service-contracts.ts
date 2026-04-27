@@ -524,6 +524,7 @@ export interface IPurchaseService {
   receivePurchase(
     purchaseId: string,
     ctx: RequestContext,
+    warehouseId?: string,
   ): Promise<MutationResult<any>>;
 
   /**

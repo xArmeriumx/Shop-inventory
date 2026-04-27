@@ -10,6 +10,7 @@ export const returnItemSchema = z.object({
     quantity: z.coerce.number().min(1, 'จำนวนต้องอย่างน้อย 1'),
     refundPerUnit: z.coerce.number().min(0, 'ราคาคืนเงินต้องไม่ติดลบ'),
     maxReturnable: z.number(), // Used for client-side validation logic
+    warehouseId: z.string().optional().nullable(),
 });
 
 export const returnFormSchema = z.object({

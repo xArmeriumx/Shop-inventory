@@ -4,7 +4,7 @@ import { money, toNumber } from '@/lib/money';
 import { AuditService } from '@/services/core/system/audit.service';
 
 export const DashboardService = {
-  async getDashboardStats(ctx: RequestContext) {
+  async getDashboardStats(ctx: RequestContext, warehouseId?: string) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
@@ -41,13 +41,26 @@ export const DashboardService = {
         _count: true,
       }),
       db.product.count({
-        where: { shopId: ctx.shopId, isActive: true },
+        where: {
+          shopId: ctx.shopId,
+          isActive: true,
+          ...(warehouseId && { warehouseStocks: { some: { warehouseId } } })
+        },
       }),
       db.product.count({
-        where: { shopId: ctx.shopId, isActive: true, isLowStock: true },
+        where: {
+          shopId: ctx.shopId,
+          isActive: true,
+          isLowStock: true,
+          ...(warehouseId && { warehouseStocks: { some: { warehouseId } } })
+        },
       }),
       db.sale.findMany({
-        where: { shopId: ctx.shopId, status: { not: "CANCELLED" } },
+        where: {
+          shopId: ctx.shopId,
+          status: { not: "CANCELLED" },
+          ...(warehouseId && { items: { some: { warehouseId } } })
+        },
         select: {
           id: true, invoiceNumber: true, date: true, customerName: true,
           totalAmount: true, profit: true, customer: { select: { name: true } },
@@ -56,14 +69,23 @@ export const DashboardService = {
         take: 5,
       }),
       db.product.findMany({
-        where: { shopId: ctx.shopId, isActive: true, isLowStock: true },
+        where: {
+          shopId: ctx.shopId,
+          isActive: true,
+          isLowStock: true,
+          ...(warehouseId && { warehouseStocks: { some: { warehouseId } } })
+        },
         select: { id: true, name: true, sku: true, stock: true, minStock: true },
         orderBy: { stock: "asc" },
         take: 5,
       }),
       Promise.resolve({ _count: 0, _sum: { netAmount: null } }),
       db.shipment.count({
-        where: { shopId: ctx.shopId, status: "PENDING" },
+        where: {
+          shopId: ctx.shopId,
+          status: "PENDING",
+          ...(warehouseId && { warehouseId })
+        },
       }),
       db.expense.aggregate({
         where: {
@@ -72,21 +94,31 @@ export const DashboardService = {
         _sum: { amount: true },
         _count: true,
       }),
-      db.product.findMany({
-        where: { shopId: ctx.shopId, isActive: true, stock: { gt: 0 } },
-        select: { costPrice: true, stock: true },
-      }),
-    ]);
+      warehouseId ?
+        db.warehouseStock.findMany({
+          where: { warehouseId },
+          select: { quantity: true, product: { select: { costPrice: true } } }
+        }) :
+        db.product.findMany({
+          where: { shopId: ctx.shopId, isActive: true, stock: { gt: 0 } },
+          select: { costPrice: true, stock: true },
+        }),
+    ] as any);
 
     const salesRevenue = toNumber(todaySales._sum?.netAmount);
     const incomeRevenue = toNumber(todayIncomes._sum?.amount);
     const totalRevenue = money.add(salesRevenue, incomeRevenue);
     const salesProfit = toNumber(todaySales._sum?.profit);
 
-    const totalStockValue = stockProducts.reduce(
-      (sum: number, p: any) => money.add(sum, money.multiply(toNumber(p.costPrice), p.stock)),
-      0
-    );
+    const totalStockValue = warehouseId ?
+      (stockProducts as any[]).reduce(
+        (sum: number, ws: any) => money.add(sum, money.multiply(toNumber(ws.product?.costPrice), ws.quantity)),
+        0
+      ) :
+      (stockProducts as any[]).reduce(
+        (sum: number, p: any) => money.add(sum, money.multiply(toNumber(p.costPrice), p.stock)),
+        0
+      );
 
     return {
       todaySales: {
@@ -171,34 +203,34 @@ export const DashboardService = {
       }),
       // ADV 2: Shipment พิกัดไม่ครบ
       db.shipment.count({
-        where: { 
-          shopId: ctx.shopId, 
+        where: {
+          shopId: ctx.shopId,
           status: { notIn: ['CANCELLED', 'DELIVERED'] },
           OR: [{ latitude: null }, { longitude: null }]
         }
       }),
       // ADV 3: Stuck Sales (> 3 days)
       db.sale.count({
-        where: { 
-          shopId: ctx.shopId, 
+        where: {
+          shopId: ctx.shopId,
           status: { in: ['DRAFT', 'CONFIRMED'] },
           createdAt: { lt: limitDate }
         }
       }),
       // ADV 4: Stuck Purchases (> 3 days)
       db.purchase.count({
-        where: { 
-          shopId: ctx.shopId, 
+        where: {
+          shopId: ctx.shopId,
           status: { in: ['DRAFT', 'PENDING', 'APPROVED', 'ORDERED'] },
           createdAt: { lt: limitDate }
         }
       }),
       // ADV 5: Governance Incidents Today
       db.auditLog.count({
-        where: { 
-          shopId: ctx.shopId, 
-          status: 'DENIED', 
-          createdAt: { gte: new Date(new Date().setHours(0,0,0,0)) } 
+        where: {
+          shopId: ctx.shopId,
+          status: 'DENIED',
+          createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) }
         }
       }),
     ]);
@@ -225,7 +257,7 @@ export const DashboardService = {
     };
   },
 
-  async getMonthlyStats(ctx: RequestContext) {
+  async getMonthlyStats(ctx: RequestContext, warehouseId?: string) {
     const now = new Date();
     const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const firstDayOfNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
@@ -236,6 +268,7 @@ export const DashboardService = {
           shopId: ctx.shopId,
           date: { gte: firstDayOfMonth, lt: firstDayOfNextMonth },
           status: { not: "CANCELLED" },
+          ...(warehouseId && { items: { some: { warehouseId } } })
         },
         _sum: { netAmount: true, profit: true },
         _count: true,
@@ -265,7 +298,7 @@ export const DashboardService = {
     };
   },
 
-  async getSalesChartData(days = 7, ctx: RequestContext) {
+  async getSalesChartData(days = 7, ctx: RequestContext, warehouseId?: string) {
     const endDate = new Date();
     endDate.setHours(23, 59, 59, 999);
 
@@ -279,6 +312,7 @@ export const DashboardService = {
           shopId: ctx.shopId,
           date: { gte: startDate, lte: endDate },
           status: { not: "CANCELLED" },
+          ...(warehouseId && { items: { some: { warehouseId } } })
         },
         select: { date: true, netAmount: true },
         orderBy: { date: "asc" },

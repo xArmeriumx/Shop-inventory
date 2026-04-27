@@ -230,7 +230,7 @@ function SalesItemsSection({
           // SSOT: Calculate availability based on SELECTED warehouse if in MULTI mode
           let availableStock = 0;
           if (product) {
-            if (inventoryMode === 'MULTI_WAREHOUSE' && selectedWarehouseId) {
+            if (inventoryMode === 'MULTI' && selectedWarehouseId) {
               const whStock = product.warehouseStocks?.find((ws: any) => ws.warehouseId === selectedWarehouseId);
               availableStock = whStock ? Number(whStock.quantity) : 0;
             } else {

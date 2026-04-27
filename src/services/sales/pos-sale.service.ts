@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { Prisma, Permission } from '@prisma/client';
 import { InvoiceService } from './invoice.service';
 import { StockService } from '@/services/inventory/stock.service';
+import { StockEngine } from '@/services/inventory/stock-engine.service';
 import { SequenceService } from '@/services/core/system/sequence.service';
 import { ComputationEngine, CalculationItemInput } from '@/services/core/finance/computation.service';
 import { AuditService } from '@/services/core/system/audit.service';
@@ -45,6 +46,7 @@ export interface POSCartInput {
     taxRate?: number;
     discountType?: 'FIXED' | 'PERCENT' | 'NONE';
     discountValue?: number;
+    sourceWarehouseId?: string;
 }
 
 // ============================================================================
@@ -102,8 +104,19 @@ export const POSSaleService: IPOSSaleService = {
 
                 const productMap = new Map(products.map(p => [p.id, p]));
 
-                // ── 2. Validate Stock ──────────────────────────────────────
+                // ── 2. Validate Stock (Warehouse-aware) ────────────────────────
                 const stockErrors: string[] = [];
+                const warehouseId = cart.sourceWarehouseId || await StockEngine.resolveWarehouse(ctx, undefined, tx);
+
+                // Fetch WarehouseStock for these products in this warehouse
+                const warehouseStocks = await tx.warehouseStock.findMany({
+                    where: {
+                        productId: { in: productIds },
+                        warehouseId: warehouseId
+                    }
+                });
+                const whStockMap = new Map(warehouseStocks.map(ws => [ws.productId, ws]));
+
                 for (const item of cart.items) {
                     const product = productMap.get(item.productId);
                     if (!product) {
@@ -114,9 +127,14 @@ export const POSSaleService: IPOSSaleService = {
                         stockErrors.push(`"${product.name}" ไม่ได้เปิดให้ขาย`);
                         continue;
                     }
-                    const available = Number(product.stock) - Number(product.reservedStock || 0);
+
+                    const whStock = whStockMap.get(item.productId);
+                    const onHand = whStock ? Number(whStock.quantity) : 0;
+                    const reserved = whStock ? Number((whStock as any).reservedStock || 0) : 0;
+                    const available = onHand - reserved;
+
                     if (available < item.quantity) {
-                        stockErrors.push(`"${product.name}" สต็อกไม่พอ (มี ${available}, ต้องการ ${item.quantity})`);
+                        stockErrors.push(`"${product.name}" สต็อกในคลังไม่พอ (มี ${available}, ต้องการ ${item.quantity})`);
                     }
                 }
 
@@ -197,6 +215,7 @@ export const POSSaleService: IPOSSaleService = {
                                 discountAmount: line.lineDiscount,
                                 taxAmount: line.taxAmount,
                                 taxableAmount: line.taxableBase,
+                                warehouseId: warehouseId,
                             })),
                         },
                     } as Prisma.SaleUncheckedCreateInput,
@@ -205,7 +224,7 @@ export const POSSaleService: IPOSSaleService = {
 
                 // ── 6. Deduct Stock (Bulk — 1 findMany + N updates) ───────
                 await StockService.bulkDeductStock(
-                    cart.items.map(item => ({ productId: item.productId, quantity: item.quantity })),
+                    cart.items.map(item => ({ productId: item.productId, quantity: item.quantity, warehouseId })),
                     ctx,
                     tx,
                     { saleId: sale.id }
@@ -229,7 +248,7 @@ export const POSSaleService: IPOSSaleService = {
             message: `ยอด ${result.sale.netAmount} บาท`,
             link: `/sales/${result.sale.id}`,
             groupKey: `pos:${ctx.shopId}:${new Date().toDateString()}`,
-        }).catch(() => {});
+        }).catch(() => { });
 
         const productIds = Array.from(new Set(cart.items.map(i => i.productId)));
 

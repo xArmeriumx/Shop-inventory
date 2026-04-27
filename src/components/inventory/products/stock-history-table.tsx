@@ -26,6 +26,9 @@ interface StockLog {
   user: {
     name: string | null;
   };
+  warehouse?: {
+    name: string | null;
+  } | null;
 }
 
 import { Button } from '@/components/ui/button';
@@ -96,14 +99,14 @@ export function StockHistoryTable(props: StockHistoryTableProps) {
   // We'll leave it to the parent to provide the handler or we can fallback to simple navigation here if needed.
   // For this specific use case, we updated the parent to pass historyPage param, so we need a client-side wrapper in the parent OR simply use Link/router here if we want self-contained.
   // However, since this is a table component, best practice is to accept a handler.
-  
+
   // Let's assume parent passes the handler. If not, and we have pagination, buttons won't do anything unless we wire them.
   // Given we are in a server component world for the page, but this might be a client component (it has 'use client' at top? No, let's check).
   // Ah, the file doesn't have 'use client'. But it imports hooks? No, it imports UI components.
   // Wait, `StockHistoryTable` imports `ClientDate` which is client.
   // To make buttons interactive, this component needs to be client-side OR use <form> actions / or standard Links.
   // Since we used onClick, this MUST be a client component.
-  
+
   return (
     <div className="space-y-4">
       <div className="rounded-md border">
@@ -114,6 +117,7 @@ export function StockHistoryTable(props: StockHistoryTableProps) {
               <TableHead>รายการ</TableHead>
               <TableHead className="text-right">จำนวน</TableHead>
               <TableHead className="text-right">คงเหลือ</TableHead>
+              <TableHead>คลังสินค้า</TableHead>
               <TableHead>อ้างอิง</TableHead>
               <TableHead>หมายเหตุ</TableHead>
               <TableHead>ผู้ทำรายการ</TableHead>
@@ -137,6 +141,9 @@ export function StockHistoryTable(props: StockHistoryTableProps) {
                 <TableCell className="text-right font-bold">
                   {log.balance}
                 </TableCell>
+                <TableCell className="text-sm font-medium">
+                  {log.warehouse?.name || '-'}
+                </TableCell>
                 <TableCell className="text-sm">
                   {((log.type === 'SALE' || log.type === 'SALE_CANCEL' || log.type === 'RESERVATION' || log.type === 'RELEASE') && log.saleId) ? (
                     <Link href={`/sales/${log.saleId}`} className="text-blue-600 hover:underline inline-flex items-center gap-1">
@@ -156,7 +163,7 @@ export function StockHistoryTable(props: StockHistoryTableProps) {
                   {!log.saleId && !log.purchaseId && !log.returnId && <span className="text-muted-foreground">-</span>}
                 </TableCell>
                 <TableCell className="text-sm max-w-[200px] truncate" title={log.note || ''}>
-                   {log.note || '-'}
+                  {log.note || '-'}
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
                   {log.user.name || 'Unknown'}

@@ -51,22 +51,22 @@ export async function getComparisonReport(
   }, { context: { action: 'getComparisonReport' } });
 }
 
-export async function getStockValueReport(): Promise<ActionResponse<any>> {
+export async function getStockValueReport(warehouseId?: string): Promise<ActionResponse<any>> {
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
       const ctx = await requirePermission('PRODUCT_VIEW');
-      return ReportService.getStockValueReport(ctx);
+      return ReportService.getStockValueReport(ctx, warehouseId);
     });
-  }, { context: { action: 'getStockValueReport' } });
+  }, { context: { action: 'getStockValueReport', warehouseId } });
 }
 
-export async function getInventoryTurnover(startDate?: string, endDate?: string): Promise<ActionResponse<any>> {
+export async function getInventoryTurnover(startDate?: string, endDate?: string, warehouseId?: string): Promise<ActionResponse<any>> {
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
       const ctx = await requirePermission('REPORT_VIEW_SALES');
-      return ReportService.getInventoryTurnover(startDate, endDate, ctx);
+      return ReportService.getInventoryTurnover(startDate, endDate, ctx, warehouseId);
     });
-  }, { context: { action: 'getInventoryTurnover' } });
+  }, { context: { action: 'getInventoryTurnover', warehouseId } });
 }
 
 export async function getSalesByCategory(startDate?: string, endDate?: string): Promise<ActionResponse<any>> {

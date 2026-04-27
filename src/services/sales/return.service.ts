@@ -27,6 +27,7 @@ export interface ReturnItemInput {
   productId: string;
   quantity: number;
   refundPerUnit: number;
+  warehouseId?: string | null;
 }
 
 export interface CreateReturnInput {
@@ -142,7 +143,7 @@ export const ReturnService = {
               quantity: item.quantity,
               refundPerUnit: item.refundPerUnit,
               refundAmount,
-              warehouseId: (saleItem as any).warehouseId || null, // Preserve the source warehouse
+              warehouseId: item.warehouseId || (saleItem as any).warehouseId || null, // Priority: Input > Origin
             });
           }
 

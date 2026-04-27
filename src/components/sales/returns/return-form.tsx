@@ -25,6 +25,7 @@ import { ArrowLeft, Search, RotateCcw, Plus, Minus, Trash2 } from 'lucide-react'
 
 import { getReturnableSaleItems, createReturn } from '@/actions/sales/returns.actions';
 import { getSales } from '@/actions/sales/sales.actions';
+import { getWarehousesAction } from '@/actions/inventory/warehouse.actions';
 import { formatCurrency } from '@/lib/formatters';
 import { returnFormSchema, getReturnFormDefaults, type ReturnFormValues } from '@/schemas/sales/return-form.schema';
 
@@ -49,11 +50,11 @@ function SaleSelectionSection({
     if (!saleSearch.trim()) return;
     setIsSearching(true);
     await runActionWithToast(getSales({ page: 1, limit: 10, search: saleSearch.trim() }), {
-        showSuccessToast: false,
-        onSuccess: (resp) => {
-            setSaleResults(resp.data.filter((s: any) => s.status !== 'CANCELLED'));
-        },
-        onFinally: () => setIsSearching(false),
+      showSuccessToast: false,
+      onSuccess: (resp) => {
+        setSaleResults(resp.data.filter((s: any) => s.status !== 'CANCELLED'));
+      },
+      onFinally: () => setIsSearching(false),
     });
   };
 
@@ -102,8 +103,16 @@ function ReturnItemsSection() {
   const { control, register, watch, setValue } = useFormContext<ReturnFormValues>();
   const { fields, append, remove } = useFieldArray({ control, name: 'items' });
   const [returnablePool, setReturnablePool] = useState<any[]>([]);
+  const [warehouses, setWarehouses] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const saleId = watch('saleId');
+
+  useEffect(() => {
+    runActionWithToast(getWarehousesAction(), {
+      showSuccessToast: false,
+      onSuccess: (res) => setWarehouses(res.data || []),
+    });
+  }, []);
 
   useEffect(() => {
     if (saleId) {
@@ -111,10 +120,10 @@ function ReturnItemsSection() {
       runActionWithToast(getReturnableSaleItems(saleId), {
         showSuccessToast: false,
         onSuccess: (res) => {
-            setReturnablePool(res.data || []);
+          setReturnablePool(res.data || []);
         },
         onError: () => {
-            setReturnablePool([]);
+          setReturnablePool([]);
         },
         onFinally: () => setIsLoading(false),
       });
@@ -140,7 +149,15 @@ function ReturnItemsSection() {
                       <p className="font-medium text-sm">{item.productName}</p>
                       <p className="text-xs text-muted-foreground">คืนได้: {item.maxReturnable} ชิ้น | ราคา: {formatCurrency(item.netPerUnit)}/ชิ้น</p>
                     </div>
-                    <Button size="sm" variant="outline" onClick={() => append({ saleItemId: item.saleItemId, productId: item.productId, productName: item.productName, quantity: 1, refundPerUnit: item.netPerUnit, maxReturnable: item.maxReturnable })}>
+                    <Button size="sm" variant="outline" onClick={() => append({
+                      saleItemId: item.saleItemId,
+                      productId: item.productId,
+                      productName: item.productName,
+                      quantity: 1,
+                      refundPerUnit: item.netPerUnit,
+                      maxReturnable: item.maxReturnable,
+                      warehouseId: item.warehouseId || null
+                    })}>
                       <Plus className="h-3 w-3 mr-1" /> เลือก
                     </Button>
                   </div>
@@ -172,6 +189,22 @@ function ReturnItemsSection() {
                           <div className="flex items-center gap-1">
                             <Label className="text-xs">คืน/ชิ้น</Label>
                             <Input type="number" step="0.01" {...register(`items.${index}.refundPerUnit` as const)} className="w-24 h-7 text-sm" />
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Label className="text-xs">คืนเข้าคลัง</Label>
+                            <Select
+                              value={watch(`items.${index}.warehouseId`) || ''}
+                              onValueChange={v => setValue(`items.${index}.warehouseId`, v)}
+                            >
+                              <SelectTrigger className="h-7 text-xs w-32 border-dashed">
+                                <SelectValue placeholder="เลือกคลัง..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {warehouses.map(w => (
+                                  <SelectItem key={w.id} value={w.id} className="text-xs">{w.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </div>
                           <Badge variant="secondary" className="text-xs">= {formatCurrency((qty * refund).toString())}</Badge>
                         </div>

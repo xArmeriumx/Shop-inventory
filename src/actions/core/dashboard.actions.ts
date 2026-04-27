@@ -9,16 +9,16 @@ import { PerformanceCollector } from "@/lib/debug/measurement";
  * Get core dashboard statistics
  * Contract: Returns a full stats object even on failure (Selective UI hardening)
  */
-export async function getDashboardStats() {
+export async function getDashboardStats(warehouseId?: string) {
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
       const ctx = await requirePermission("SALE_VIEW");
-      
+
       // Auto-provision WH-MAIN for legacy shops if missing
       await WarehouseService.ensureDefaultWarehouse(ctx);
 
       const [stats, operational] = await Promise.all([
-        DashboardService.getDashboardStats(ctx),
+        DashboardService.getDashboardStats(ctx, warehouseId),
         DashboardService.getOperationalMetrics(ctx),
       ]);
       return { ...stats, operational };
@@ -32,11 +32,11 @@ export async function getDashboardStats() {
 /**
  * Get monthly summary stats
  */
-export async function getMonthlyStats() {
+export async function getMonthlyStats(warehouseId?: string) {
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
       const ctx = await requirePermission("SALE_VIEW" as any);
-      return DashboardService.getMonthlyStats(ctx);
+      return DashboardService.getMonthlyStats(ctx, warehouseId);
     }, 'core:getMonthlyStats');
   }, { context: { action: 'getMonthlyStats' } });
 }
@@ -44,11 +44,11 @@ export async function getMonthlyStats() {
 /**
  * Get sales chart data
  */
-export async function getSalesChartData(days = 7) {
+export async function getSalesChartData(days = 7, warehouseId?: string) {
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
       const ctx = await requirePermission("SALE_VIEW" as any);
-      return DashboardService.getSalesChartData(days, ctx);
+      return DashboardService.getSalesChartData(days, ctx, warehouseId);
     }, 'core:getSalesChartData');
   }, { context: { action: 'getSalesChartData', days } });
 }

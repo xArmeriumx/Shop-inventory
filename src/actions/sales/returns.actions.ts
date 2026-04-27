@@ -18,6 +18,7 @@ const returnItemSchema = z.object({
   productId: z.string().min(1, 'ไม่พบสินค้า'),
   quantity: z.number().int().min(1, 'จำนวนต้องมากกว่า 0'),
   refundPerUnit: z.number().min(0, 'ราคาคืนต้องไม่ติดลบ'),
+  warehouseId: z.string().optional().nullable(),
 });
 
 const createReturnSchema = z.object({

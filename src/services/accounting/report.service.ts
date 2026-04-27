@@ -515,7 +515,7 @@ export async function getComparisonReport(
  * Stock Value Report with Dead Stock detection
  * Shows per-product stock value and identifies items with no sales in 90+ days
  */
-export async function getStockValueReport(ctx: RequestContext) {
+export async function getStockValueReport(ctx: RequestContext, warehouseId?: string) {
 
   // Parallel fetch: all active products + last sale date per product
   const [products, lastSaleByProduct] = await Promise.all([
@@ -524,6 +524,7 @@ export async function getStockValueReport(ctx: RequestContext) {
         shopId: ctx.shopId,
         isActive: true,
         deletedAt: null,
+        ...(warehouseId && { warehouseStocks: { some: { warehouseId } } })
       },
       select: {
         id: true,
@@ -535,6 +536,7 @@ export async function getStockValueReport(ctx: RequestContext) {
         stock: true,
         minStock: true,
         isLowStock: true,
+        ...(warehouseId && { warehouseStocks: { where: { warehouseId }, select: { quantity: true } } })
       },
       orderBy: { name: 'asc' },
     }),
@@ -589,11 +591,13 @@ export async function getStockValueReport(ctx: RequestContext) {
   let deadStockCount = 0;
   let deadStockValue = 0;
 
-  const items = products.map(p => {
+  const items = products.map((p: any) => {
     const costPrice = toNumber(p.costPrice);
     const salePrice = toNumber(p.salePrice);
-    const stockValueCost = money.multiply(costPrice, p.stock);
-    const stockValueRetail = money.multiply(salePrice, p.stock);
+    const currentStock = warehouseId ? (p.warehouseStocks?.[0]?.quantity || 0) : p.stock;
+
+    const stockValueCost = money.multiply(costPrice, currentStock);
+    const stockValueRetail = money.multiply(salePrice, currentStock);
     const margin = salePrice > 0
       ? money.round(((salePrice - costPrice) / salePrice) * 100, 1)
       : 0;
@@ -607,9 +611,9 @@ export async function getStockValueReport(ctx: RequestContext) {
 
     totalCostValue = money.add(totalCostValue, stockValueCost);
     totalRetailValue = money.add(totalRetailValue, stockValueRetail);
-    totalUnits += p.stock;
+    totalUnits += currentStock;
 
-    if (isDead && p.stock > 0) {
+    if (isDead && currentStock > 0) {
       deadStockCount++;
       deadStockValue = money.add(deadStockValue, stockValueCost);
     }
@@ -621,7 +625,7 @@ export async function getStockValueReport(ctx: RequestContext) {
       category: p.category || '',
       costPrice,
       salePrice,
-      stock: p.stock,
+      stock: currentStock,
       stockValueCost,
       stockValueRetail,
       margin,
@@ -651,7 +655,7 @@ export async function getStockValueReport(ctx: RequestContext) {
  * Turnover Rate = COGS in period / Average Inventory Value (at cost)
  * Days Sales of Inventory = Period Days / Turnover Rate
  */
-export async function getInventoryTurnover(startDate: string | undefined, endDate: string | undefined, ctx: RequestContext) {
+export async function getInventoryTurnover(startDate: string | undefined, endDate: string | undefined, ctx: RequestContext, warehouseId?: string) {
 
   const now = new Date();
   const start = startDate ? new Date(startDate) : new Date(now.getFullYear(), now.getMonth(), 1);
@@ -668,26 +672,37 @@ export async function getInventoryTurnover(startDate: string | undefined, endDat
         shopId: ctx.shopId,
         date: { gte: start, lte: end },
         status: { not: 'CANCELLED' },
+        ...(warehouseId && { items: { some: { warehouseId } } })
       },
       _sum: { totalCost: true },
     }),
 
     // Current inventory value (snapshot approximation)
-    db.product.findMany({
-      where: {
-        shopId: ctx.shopId,
-        isActive: true,
-        stock: { gt: 0 },
-      },
-      select: { costPrice: true, stock: true },
-    }),
-  ]);
+    warehouseId ?
+      db.warehouseStock.findMany({
+        where: { warehouseId },
+        select: { quantity: true, product: { select: { costPrice: true } } }
+      }) :
+      db.product.findMany({
+        where: {
+          shopId: ctx.shopId,
+          isActive: true,
+          stock: { gt: 0 },
+        },
+        select: { costPrice: true, stock: true },
+      }),
+  ] as any);
 
   const cogs = toNumber(cogsAggregate._sum.totalCost);
-  const avgInventoryValue = products.reduce(
-    (sum, p) => money.add(sum, money.multiply(toNumber(p.costPrice), p.stock)),
-    0
-  );
+  const avgInventoryValue = warehouseId ?
+    (products as any[]).reduce(
+      (sum, ws) => money.add(sum, money.multiply(toNumber(ws.product?.costPrice), ws.quantity)),
+      0
+    ) :
+    (products as any[]).reduce(
+      (sum, p) => money.add(sum, money.multiply(toNumber(p.costPrice), p.stock)),
+      0
+    );
 
   const turnoverRate = avgInventoryValue > 0
     ? money.round(cogs / avgInventoryValue, 2)
