@@ -14,6 +14,7 @@ export const PurchaseStatus = {
     APPROVED: 'APPROVED',
     ORDERED: 'ORDERED',
     RECEIVED: 'RECEIVED',
+    PARTIALLY_RECEIVED: 'PARTIALLY_RECEIVED',
     CANCELLED: 'CANCELLED',
     ACTIVE: 'ACTIVE',
 } as const;
@@ -48,4 +49,16 @@ export interface GetOrderRequestsParams extends BaseQueryParams {
 
 export interface GetSuppliersParams extends BaseQueryParams {
     groupCode?: string;
+}
+
+export interface CreatePurchaseReceiptInput {
+    purchaseId: string;
+    receivedDate?: Date;
+    notes?: string;
+    lineItems: Array<{
+        purchaseItemId: string;
+        productId: string;
+        receivedQuantity: number;
+        warehouseId: string;
+    }>;
 }

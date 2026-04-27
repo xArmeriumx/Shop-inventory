@@ -36,6 +36,7 @@ model User {
   memberships     ShopMember[]
   stockLogs       StockLog[]
   suppliers       Supplier[]
+  purchaseReceipts PurchaseReceipt[]
 }
 
 model LookupType {
@@ -151,6 +152,8 @@ model Shop {
   whtCertificates       WhtCertificate[]
   whtCodes              WhtCode[]
   whtEntries            WhtEntry[]
+  purchaseReceipts      PurchaseReceipt[]
+  purchaseReceiptLines  PurchaseReceiptLine[]
 }
 
 model OnboardingProgress {
@@ -232,6 +235,7 @@ model ShopMember {
   stockTransfers         StockTransfer[]
   whtEntries             WhtEntry[]
   customers              Customer[]            @relation("CustomerToShopMember")
+  purchaseReceipts      PurchaseReceipt[]
 
   @@unique([userId, shopId])
   @@index([userId, permissionVersion])
@@ -276,6 +280,7 @@ model Product {
   user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   purchaseItems       PurchaseItem[]
   purchaseReturnItems PurchaseReturnItem[]
+  purchaseReceiptLines PurchaseReceiptLine[]
   quotationLines      QuotationLine[]
   returnItems         ReturnItem[]
   saleItems           SaleItem[]
@@ -312,6 +317,7 @@ model Warehouse {
   incomingTransfers StockTransfer[]  @relation("ToWarehouse")
   shop              Shop             @relation(fields: [shopId], references: [id], onDelete: Cascade)
   stocks            WarehouseStock[]
+  purchaseReceiptLines PurchaseReceiptLine[]
 
   @@unique([shopId, code])
   @@index([shopId])
@@ -487,6 +493,7 @@ model Purchase {
   purchaseTaxLinks PurchaseTaxDocumentLink[]
   stockLogs        StockLog[]
   whtEntries       WhtEntry[]
+  purchaseReceipts PurchaseReceipt[]
 
   @@unique([shopId, purchaseNumber])
   @@index([userId])
@@ -504,12 +511,14 @@ model PurchaseItem {
   purchaseId          String
   productId           String
   quantity            Int
+  receivedQuantity    Int                  @default(0)
   costPrice           Decimal              @db.Decimal(10, 2)
   subtotal            Decimal              @db.Decimal(10, 2)
   packagingQty        Int                  @default(1)
   product             Product              @relation(fields: [productId], references: [id])
   purchase            Purchase             @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
   purchaseReturnItems PurchaseReturnItem[]
+  receiptLines        PurchaseReceiptLine[]
 
   @@index([purchaseId])
   @@index([productId])
@@ -699,6 +708,7 @@ model StockLog {
   createdAt          DateTime          @default(now())
   shopId             String
   purchaseId         String?
+  purchaseReceiptId  String?
   saleId             String?
   returnId           String?
   memberId           String?
@@ -710,6 +720,7 @@ model StockLog {
   member             ShopMember?       @relation("StockLogToMember", fields: [memberId], references: [id])
   product            Product           @relation(fields: [productId], references: [id])
   purchase           Purchase?         @relation(fields: [purchaseId], references: [id])
+  purchaseReceipt    PurchaseReceipt?  @relation(fields: [purchaseReceiptId], references: [id])
   purchaseReturn     PurchaseReturn?   @relation(fields: [purchaseReturnId], references: [id])
   return             Return?           @relation(fields: [returnId], references: [id])
   sale               Sale?             @relation(fields: [saleId], references: [id])
@@ -2118,4 +2129,50 @@ enum BankLineMatchStatus {
   MATCHED
   IGNORED
   ADJUSTED
+}
+
+model PurchaseReceipt {
+  id              String                @id @default(cuid())
+  shopId          String
+  purchaseId      String
+  receiptNumber   String                // e.g., GR-2404-0001
+  receivedDate    DateTime              @default(now())
+  notes           String?
+  status          String                @default("COMPLETED")
+  userId          String
+  memberId        String?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  
+  purchase        Purchase              @relation(fields: [purchaseId], references: [id])
+  shop            Shop                  @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  user            User                  @relation(fields: [userId], references: [id])
+  member          ShopMember?           @relation(fields: [memberId], references: [id])
+  lines           PurchaseReceiptLine[]
+  stockLogs       StockLog[]
+  
+  @@index([purchaseId])
+  @@index([shopId])
+  @@index([userId])
+}
+
+model PurchaseReceiptLine {
+  id                String            @id @default(cuid())
+  receiptId         String
+  purchaseItemId    String
+  productId         String
+  quantity          Int               // Received in this specific receipt
+  warehouseId       String
+  shopId            String
+  
+  receipt           PurchaseReceipt   @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  purchaseItem      PurchaseItem      @relation(fields: [purchaseItemId], references: [id])
+  product           Product           @relation(fields: [productId], references: [id])
+  warehouse         Warehouse         @relation(fields: [warehouseId], references: [id])
+  shop              Shop              @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  
+  @@index([receiptId])
+  @@index([purchaseItemId])
+  @@index([productId])
+  @@index([warehouseId])
 }

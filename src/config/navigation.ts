@@ -78,7 +78,7 @@ export const mainNavGroups: NavGroup[] = [
         items: [
             { title: 'สินค้า (Products)', href: '/products', icon: Package, permission: 'PRODUCT_VIEW', id: 'sidebar-products' },
             { title: 'คลังสินค้า (Warehouses)', href: '/inventory/warehouses', icon: Truck, permission: 'WAREHOUSE_MANAGE' },
-            { title: 'จัดการตัวแทนจำหน่าย/รับเข้า', href: '/warehouse/receive', icon: PackageCheck, permission: 'WAREHOUSE_MANAGE' }, // Integration
+            { title: 'จัดการตัวแทนจำหน่าย/รับเข้า', href: '/purchases/receiving', icon: PackageCheck, permission: 'WAREHOUSE_MANAGE' }, // Integration
             { title: 'ใบโอนสินค้า', href: '/inventory/transfers', icon: ArrowRightLeft, permission: 'PRODUCT_UPDATE' },
             { title: 'ตรวจนับสต็อก', href: '/inventory/stock-take', icon: ClipboardCheck, permission: 'STOCK_ADJUST' },
             { title: 'ปรับสต็อก (Manual Adjust)', href: '/warehouse/adjust', icon: Activity, permission: 'STOCK_ADJUST' }, // Integration
@@ -89,6 +89,7 @@ export const mainNavGroups: NavGroup[] = [
         items: [
             { title: 'ขอซื้อสินค้า (PR)', href: '/order-requests', icon: ClipboardList, permission: 'ORDER_REQUEST_VIEW' },
             { title: 'สั่งซื้อสินค้า (PO)', href: '/purchases', icon: Receipt, permission: 'PURCHASE_VIEW' },
+            { title: 'รับสินค้า (Receiving)', href: '/purchases/receiving', icon: PackageCheck, permission: 'PURCHASE_CREATE' },
             { title: 'ผู้จำหน่าย (Suppliers)', href: '/suppliers', icon: Truck, permission: 'PURCHASE_VIEW' },
         ]
     },

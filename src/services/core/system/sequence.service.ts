@@ -137,6 +137,12 @@ const DEFAULT_CONFIGS: Record<string, Omit<SequenceConfig, 'documentType'>> = {
     padLength: 5,
     useBuddhistYear: false,
   },
+  [DocumentType.PURCHASE_RECEIPT]: {
+    format: SequenceFormat.STANDARD,
+    resetCycle: 'MONTHLY',
+    padLength: 5,
+    useBuddhistYear: false,
+  },
 };
 
 // ============================================================================

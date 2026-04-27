@@ -13,7 +13,7 @@ const PDFDownloadLink = dynamic(
 );
 
 interface PdfPrintTriggerProps {
-    type: 'INVOICE' | 'PURCHASE' | 'WHT_CERTIFICATE';
+    type: 'INVOICE' | 'PURCHASE' | 'WHT_CERTIFICATE' | 'PURCHASE_RECEIPT';
     documentData: any;
     fileName?: string;
     variant?: 'default' | 'outline' | 'ghost' | 'link' | 'secondary' | 'destructive';
@@ -46,12 +46,14 @@ export function PdfPrintTrigger({
         Promise.all([
             import('../templates/invoice-pdf'),
             import('../templates/purchase-order-pdf'),
-            import('../templates/wht-certificate-pdf')
-        ]).then(([inv, pur, wht]) => {
+            import('../templates/wht-certificate-pdf'),
+            import('../templates/purchase-receipt-pdf')
+        ]).then(([inv, pur, wht, rec]) => {
             setTemplates({
                 InvoicePDF: inv.InvoicePDF,
                 PurchaseOrderPDF: pur.PurchaseOrderPDF,
-                WhtCertificatePDF: wht.WhtCertificatePDF
+                WhtCertificatePDF: wht.WhtCertificatePDF,
+                PurchaseReceiptPDF: rec.PurchaseReceiptPDF
             });
         }).catch(err => {
             console.error('Failed to load PDF templates:', err);
@@ -77,7 +79,7 @@ export function PdfPrintTrigger({
         );
     }
 
-    const { InvoicePDF, PurchaseOrderPDF, WhtCertificatePDF } = templates;
+    const { InvoicePDF, PurchaseOrderPDF, WhtCertificatePDF, PurchaseReceiptPDF } = templates;
 
     return (
         <PDFDownloadLink
@@ -86,6 +88,8 @@ export function PdfPrintTrigger({
                     <InvoicePDF data={documentData} />
                 ) : type === 'PURCHASE' ? (
                     <PurchaseOrderPDF data={documentData} />
+                ) : type === 'PURCHASE_RECEIPT' ? (
+                    <PurchaseReceiptPDF data={documentData} />
                 ) : (
                     <WhtCertificatePDF data={documentData} />
                 )

@@ -19,6 +19,7 @@ export const DocumentType = {
     PAYMENT: 'RCP',
     STOCK_TRANSFER: 'ST',
     PURCHASE_RETURN: 'DBN',
+    PURCHASE_RECEIPT: 'RCT',
 } as const;
 
 export type DocumentType = (typeof DocumentType)[keyof typeof DocumentType];
