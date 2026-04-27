@@ -245,7 +245,11 @@ export interface IStockService {
     quantity: number,
     ctx: RequestContext,
     tx?: Prisma.TransactionClient,
-    docRef?: { saleId?: string; deliveryOrderId?: string },
+    docRef?: {
+      saleId?: string;
+      deliveryOrderId?: string;
+      validation?: 'STRICT' | 'WARN' | 'ALLOW_NEGATIVE'
+    },
     warehouseId?: string | null
   ): Promise<any>;
 
@@ -280,7 +284,11 @@ export interface IStockService {
     items: Array<{ productId: string; quantity: number; warehouseId?: string | null }>,
     ctx: RequestContext,
     tx: Prisma.TransactionClient,
-    docRef?: { saleId?: string; deliveryOrderId?: string }
+    docRef?: {
+      saleId?: string;
+      deliveryOrderId?: string;
+      validation?: 'STRICT' | 'WARN' | 'ALLOW_NEGATIVE'
+    }
   ): Promise<void>;
 
   /**

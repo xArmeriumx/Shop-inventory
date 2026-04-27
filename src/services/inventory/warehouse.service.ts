@@ -231,6 +231,7 @@ export const WarehouseService: IWarehouseService = {
                     warehouseId: fromWarehouseId,
                     delta: -quantity,
                     type: 'TRANSFER_OUT',
+                    validation: 'STRICT',
                     note: `Transfer to ${toWarehouseId}. ${notes || ''}`
                 },
                 {

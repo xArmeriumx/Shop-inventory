@@ -205,20 +205,43 @@ export const StockService: IStockService = {
     await this.recordMovements(ctx, movements, tx);
   },
 
-  async bulkDeductStock(items: Array<{ productId: string; quantity: number; warehouseId?: string | null }>, ctx: RequestContext, tx: Prisma.TransactionClient, docRef?: { saleId?: string; deliveryOrderId?: string }) {
+  async bulkDeductStock(
+    items: Array<{ productId: string; quantity: number; warehouseId?: string | null }>,
+    ctx: RequestContext,
+    tx: Prisma.TransactionClient,
+    docRef?: { saleId?: string; deliveryOrderId?: string; validation?: 'STRICT' | 'WARN' | 'ALLOW_NEGATIVE' }
+  ) {
     const movements = items.map(item => ({
       productId: item.productId,
       warehouseId: item.warehouseId,
-      type: 'SALE',
+      type: 'SALE' as const,
       quantity: item.quantity,
       saleId: docRef?.saleId,
       deliveryOrderId: docRef?.deliveryOrderId,
+      validation: docRef?.validation,
       note: `ตัดสต็อกสำหรับรายการขาย (Bulk)`,
     }));
     await this.recordMovements(ctx, movements, tx);
   },
 
-  async recordMovements(ctx: RequestContext, movements: any[], tx: Prisma.TransactionClient): Promise<MutationResult<void>> {
+  async recordMovements(
+    ctx: RequestContext,
+    movements: Array<{
+      productId: string;
+      warehouseId?: string | null;
+      type: any;
+      quantity: number;
+      validation?: any;
+      note?: string;
+      saleId?: string;
+      purchaseId?: string;
+      deliveryOrderId?: string;
+      returnId?: string;
+      referenceId?: string;
+      referenceType?: string;
+    }>,
+    tx: Prisma.TransactionClient
+  ): Promise<MutationResult<void>> {
     if (movements.length === 0) return { data: undefined, affectedTags: [] };
 
     await AuditService.runWithAudit(
@@ -232,9 +255,10 @@ export const StockService: IStockService = {
         // Wrap everything in StockEngine bulk process for warehouse-consistent logic
         await StockEngine.executeBulkMovements(ctx, movements.map(m => ({
           productId: m.productId,
-          warehouseId: m.warehouseId, // Might be null/undefined, engine will resolve
+          warehouseId: m.warehouseId as string, // Might be null/undefined, engine will resolve
           delta: m.quantity,
           type: m.type,
+          validation: m.validation, // Propagate validation mode
           note: m.note,
           saleId: m.saleId,
           purchaseId: m.purchaseId,

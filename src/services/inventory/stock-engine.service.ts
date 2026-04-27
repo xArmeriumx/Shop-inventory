@@ -3,6 +3,8 @@ import { RequestContext, ServiceError } from '@/types/domain';
 import { Prisma } from '@prisma/client';
 import { WarehouseService } from './warehouse.service';
 
+export type ValidationMode = 'STRICT' | 'WARN' | 'ALLOW_NEGATIVE';
+
 export type StockMovementType =
   | 'SALE'
   | 'SALE_CANCEL'
@@ -21,6 +23,7 @@ export interface StockMovementInput {
   productId: string;
   delta: number;
   type: StockMovementType;
+  validation?: ValidationMode;
   note?: string;
   reasonCode?: string;
   referenceId?: string;
@@ -82,7 +85,24 @@ export const StockEngine = {
           quantityDelta = delta;
       }
 
-      // 2. Update WarehouseStock (SSOT)
+      // 2. Security Guard: Prevent negative stock if STRICT validation is enabled
+      // We fetch the current stock within the transaction to ensure consistency
+      const currentStock = await (prisma as any).warehouseStock.findUnique({
+        where: { productId_warehouseId: { productId, warehouseId } },
+        select: { quantity: true, reservedStock: true, product: { select: { name: true } } }
+      });
+
+      const validationMode = input.validation || 'ALLOW_NEGATIVE'; // Default for legacy/adjustment
+      const potentialQty = (currentStock?.quantity || 0) + quantityDelta;
+
+      if (validationMode === 'STRICT' && potentialQty < 0) {
+        throw new ServiceError(
+          `สต็อกไม่เพียงพอ: ${currentStock?.product?.name || productId} ในคลังที่เลือกมีไม่เพียงพอ (ต้องการ ${Math.abs(quantityDelta)}, มีอยู่ ${currentStock?.quantity || 0})`,
+          { stock: ['INSUFFICIENT_STOCK'] }
+        );
+      }
+
+      // 3. Update WarehouseStock (SSOT)
       const warehouseStock = await (prisma as any).warehouseStock.upsert({
         where: {
           productId_warehouseId: { productId, warehouseId }
@@ -95,7 +115,7 @@ export const StockEngine = {
           productId,
           warehouseId,
           shopId: ctx.shopId,
-          quantity: Math.max(0, quantityDelta),
+          quantity: potentialQty < 0 ? 0 : potentialQty, // Guard against negative even if not STRICT (clamping)
           reservedStock: Math.max(0, reservedDelta)
         }
       });

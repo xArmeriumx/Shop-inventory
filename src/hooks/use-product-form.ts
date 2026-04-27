@@ -26,7 +26,7 @@ import { runActionWithToast, mapActionErrorsToForm } from '@/lib/mutation-utils'
  * - Handle business/inventory rules (stays in service)
  * - Handle complex data normalization (stays in schema)
  */
-export function useProductForm(product?: SerializedProduct) {
+export function useProductForm(product?: SerializedProduct, warehouses: any[] = []) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const isEdit = !!product;
@@ -35,6 +35,22 @@ export function useProductForm(product?: SerializedProduct) {
         resolver: zodResolver(productFormSchema),
         defaultValues: getProductFormDefaults(product),
     });
+
+    // Initialize multi-warehouse stocks for NEW product
+    const { reset, getValues } = methods;
+    const initialStocksInitialized = !!getValues('initialStocks')?.length;
+
+    if (!isEdit && warehouses.length > 0 && !initialStocksInitialized) {
+        reset({
+            ...getProductFormDefaults(product),
+            initialStocks: warehouses.map(w => ({
+                warehouseId: w.id,
+                warehouseName: w.name,
+                quantity: 0,
+                binLocation: '',
+            })),
+        });
+    }
 
     const { handleSubmit, setError } = methods;
 
@@ -79,7 +95,7 @@ export function useProductForm(product?: SerializedProduct) {
 
                     // Field Mapping
                     mapActionErrorsToForm(methods, result.errors);
-                    
+
                     // Root Error Mapping from message
                     if (result.message && !result.errors) {
                         methods.setError('root', { message: result.message });

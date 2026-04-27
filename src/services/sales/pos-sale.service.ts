@@ -227,7 +227,7 @@ export const POSSaleService: IPOSSaleService = {
                     cart.items.map(item => ({ productId: item.productId, quantity: item.quantity, warehouseId })),
                     ctx,
                     tx,
-                    { saleId: sale.id }
+                    { saleId: sale.id, validation: 'STRICT' }
                 );
 
                 // ── 7. Create Invoice + tryPost + markPaid ─────────────────

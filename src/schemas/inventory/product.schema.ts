@@ -70,6 +70,12 @@ export const productSchema = z.object({
   images: z.array(z.string().url('รูปแบบ URL รูปภาพไม่ถูกต้อง')).optional().default([]),
   isActive: z.boolean().optional().default(true),
   isSaleable: z.boolean().optional().default(true),
+  initialStocks: z.array(z.object({
+    warehouseId: z.string(),
+    warehouseName: z.string(),
+    quantity: z.number().int().min(0).default(0),
+    binLocation: z.string().optional().default(''),
+  })).optional().default([]),
 });
 
 export const productUpdateSchema = productSchema.partial().extend({

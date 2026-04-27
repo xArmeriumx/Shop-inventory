@@ -46,31 +46,47 @@ export const ProductService: IProductService = {
             if (existing) throw new ServiceError('รหัสสินค้า (SKU) นี้มีอยู่แล้ว', { sku: ['SKU นี้มีอยู่แล้ว'] });
           }
 
+          const { initialStocks, ...productData } = payload as any;
+
           const newProduct = await prisma.product.create({
             data: {
-              ...payload,
+              ...productData,
               stock: 0,
-              description: payload.description || null,
-              sku: payload.sku || null,
-              isActive: payload.isActive ?? payload.isSaleable ?? true,
-              isSaleable: payload.isSaleable ?? payload.isActive ?? true,
-              metadata: (payload.metadata as Prisma.InputJsonValue) ?? Prisma.JsonNull,
+              description: productData.description || null,
+              sku: productData.sku || null,
+              isActive: productData.isActive ?? productData.isSaleable ?? true,
+              isSaleable: productData.isSaleable ?? productData.isActive ?? true,
+              metadata: (productData.metadata as Prisma.InputJsonValue) ?? Prisma.JsonNull,
               userId: ctx.userId,
               memberId: ctx.memberId || null,
               shopId: ctx.shopId,
             } as any,
           });
 
-          const initialStock = payload.stock ?? 0;
-          if (initialStock > 0) {
-            const whId = await StockEngine.resolveWarehouse(ctx, undefined, prisma);
-            await StockEngine.executeMovement(ctx, {
-              warehouseId: whId,
+          const stocksToInit = initialStocks || [];
+
+          if (stocksToInit.length > 0) {
+            // Process multi-warehouse initial levels
+            await StockEngine.executeBulkMovements(ctx, initialStocks.map((item: any) => ({
+              warehouseId: item.warehouseId,
               productId: newProduct.id,
-              delta: initialStock,
+              delta: item.quantity,
               type: 'ADJUSTMENT',
-              note: 'Initial Stock (Genesis)'
-            }, prisma);
+              note: `Initial Stock (Genesis) - Location: ${item.binLocation || 'N/A'}`
+            })), prisma);
+          } else {
+            // Fallback: Legacy/Simple single-stock import
+            const initialStock = payload.stock ?? 0;
+            if (initialStock > 0) {
+              const whId = await StockEngine.resolveWarehouse(ctx, undefined, prisma);
+              await StockEngine.executeMovement(ctx, {
+                warehouseId: whId,
+                productId: newProduct.id,
+                delta: initialStock,
+                type: 'ADJUSTMENT',
+                note: 'Initial Stock (Genesis)'
+              }, prisma);
+            }
           }
 
           return newProduct;

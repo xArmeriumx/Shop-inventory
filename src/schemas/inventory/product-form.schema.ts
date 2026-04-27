@@ -80,6 +80,12 @@ export const productFormSchema = z.object({
         binLocation: z.string().trim().optional().default(''),
     }).default({}),
     warehouseStocks: z.array(z.any()).optional().default([]),
+    initialStocks: z.array(z.object({
+        warehouseId: z.string(),
+        warehouseName: z.string(),
+        quantity: z.coerce.number().int().min(0, 'จำนวนต้องไม่ติดลบ').default(0),
+        binLocation: z.string().trim().optional().default(''),
+    })).optional().default([]),
 });
 
 export type ProductFormValues = z.infer<typeof productFormSchema>;
@@ -113,5 +119,6 @@ export function getProductFormDefaults(product?: any): ProductFormValues {
             binLocation: metadata.binLocation ?? '',
         },
         warehouseStocks: product?.warehouseStocks ?? [],
+        initialStocks: product?.initialStocks ?? [], // Used for creation
     };
 }

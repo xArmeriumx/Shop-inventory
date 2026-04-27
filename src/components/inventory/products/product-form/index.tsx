@@ -34,7 +34,7 @@ interface ProductFormProps {
 
 export function ProductForm({ product, categories, inventoryMode = 'SIMPLE', warehouses = [] }: ProductFormProps) {
     const router = useRouter();
-    const { methods, onSubmit, isPending, isEdit } = useProductForm(product);
+    const { methods, onSubmit, isPending, isEdit } = useProductForm(product, warehouses);
 
     const images = methods.watch('images');
 

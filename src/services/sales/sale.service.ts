@@ -727,6 +727,7 @@ export const SaleService: ISaleService = {
               productId: item.productId,
               delta: -item.quantity,
               type: 'SALE',
+              validation: 'STRICT', // Phase 1: Hard Guard
               note: `ขายสินค้า ${fullSale.invoiceNumber}`,
               saleId: fullSale.id,
             }, prisma);
