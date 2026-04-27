@@ -11,13 +11,25 @@ export const DashboardService = {
     tomorrow.setDate(tomorrow.getDate() + 1);
 
     // 1. Resolve Sale IDs for warehouse filtering (Prisma aggregate doesn't support relation filtering)
-    let warehouseSaleIds: string[] | undefined = undefined;
+    let todayWhSaleIds: string[] | undefined = undefined;
+    let allWhSaleIds: string[] | undefined = undefined;
+
     if (warehouseId) {
-      const saleItems = await db.saleItem.findMany({
+      // For today's aggregates
+      const todayItems = await db.saleItem.findMany({
         where: { warehouseId, sale: { date: { gte: today, lt: tomorrow }, status: { not: "CANCELLED" } } },
         select: { saleId: true }
       });
-      warehouseSaleIds = Array.from(new Set(saleItems.map(si => si.saleId)));
+      todayWhSaleIds = Array.from(new Set(todayItems.map(si => si.saleId)));
+
+      // For recent sales (no date limit)
+      const allItems = await db.saleItem.findMany({
+        where: { warehouseId, sale: { status: { not: "CANCELLED" } } },
+        select: { saleId: true },
+        take: 100, // Limit resolution for performance
+        orderBy: { sale: { date: 'desc' } }
+      });
+      allWhSaleIds = Array.from(new Set(allItems.map(si => si.saleId)));
     }
 
     const [
@@ -37,7 +49,7 @@ export const DashboardService = {
           shopId: ctx.shopId,
           date: { gte: today, lt: tomorrow },
           status: { not: "CANCELLED" },
-          ...(warehouseSaleIds && { id: { in: warehouseSaleIds } })
+          ...(todayWhSaleIds && { id: { in: todayWhSaleIds.length > 0 ? todayWhSaleIds : ['NON_EXISTENT'] } })
         },
         _sum: { netAmount: true, profit: true },
         _count: true,
@@ -70,7 +82,7 @@ export const DashboardService = {
         where: {
           shopId: ctx.shopId,
           status: { not: "CANCELLED" },
-          ...(warehouseSaleIds && { id: { in: warehouseSaleIds } })
+          ...(allWhSaleIds && { id: { in: allWhSaleIds.length > 0 ? allWhSaleIds : ['NON_EXISTENT'] } })
         },
         select: {
           id: true, invoiceNumber: true, date: true, customerName: true,
@@ -289,7 +301,7 @@ export const DashboardService = {
           shopId: ctx.shopId,
           date: { gte: firstDayOfMonth, lt: firstDayOfNextMonth },
           status: { not: "CANCELLED" },
-          ...(warehouseSaleIds && { id: { in: warehouseSaleIds } })
+          ...(warehouseSaleIds && { id: { in: warehouseSaleIds.length > 0 ? warehouseSaleIds : ['NON_EXISTENT'] } })
         },
         _sum: { netAmount: true, profit: true },
         _count: true,
@@ -343,7 +355,7 @@ export const DashboardService = {
           shopId: ctx.shopId,
           date: { gte: startDate, lte: endDate },
           status: { not: "CANCELLED" },
-          ...(warehouseSaleIds && { id: { in: warehouseSaleIds } })
+          ...(warehouseSaleIds && { id: { in: warehouseSaleIds.length > 0 ? warehouseSaleIds : ['NON_EXISTENT'] } })
         },
         select: { date: true, netAmount: true },
         orderBy: { date: "asc" },

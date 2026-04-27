@@ -10,7 +10,7 @@ import { WarehouseFilter } from '@/components/shared/warehouse-filter';
 
 // ─── Data Fetcher ─────────────────────────────────────────────────────────────
 
-async function DashboardContent({ warehouseId }: { warehouseId?: string }) {
+async function DashboardContent({ warehouseId, warehouseName }: { warehouseId?: string; warehouseName?: string }) {
   const [statsRes, monthlyStatsRes, ctx] = await Promise.all([
     getDashboardStats(warehouseId),
     getMonthlyStats(warehouseId),
@@ -60,6 +60,7 @@ async function DashboardContent({ warehouseId }: { warehouseId?: string }) {
       <DashboardTemplate
         stats={stats}
         monthlyStats={monthlyStats}
+        warehouseName={warehouseName}
         isAdmin={isAdmin}
         formatCurrency={formatCurrency}
         formatDate={formatDate}
@@ -74,12 +75,21 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
   const warehouseId = searchParams.warehouseId;
   const warehousesRes = await getWarehousesAction();
   const warehouses = warehousesRes.data || [];
+  const activeWarehouse = warehouses.find((w: any) => w.id === warehouseId);
 
   return (
     <div>
       <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">Dashboard</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl sm:text-3xl font-bold">Dashboard</h1>
+            {activeWarehouse && (
+              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-100 text-indigo-700 text-xs font-medium animate-in fade-in zoom-in duration-300">
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                {activeWarehouse.name}
+              </div>
+            )}
+          </div>
           <p className="text-sm sm:text-base text-muted-foreground">ภาพรวมการดำเนินงาน</p>
         </div>
 
@@ -89,7 +99,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
       </div>
 
       <Suspense fallback={<DashboardSkeleton />}>
-        <DashboardContent warehouseId={warehouseId} />
+        <DashboardContent
+          warehouseId={warehouseId}
+          warehouseName={activeWarehouse?.name}
+        />
       </Suspense>
     </div>
   );

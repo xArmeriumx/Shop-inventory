@@ -12,6 +12,7 @@ import { GovernanceHealthCard } from '@/components/core/dashboard/governance-hea
 interface DashboardTemplateProps {
     stats: any;              // typed by the caller (getDashboardStats return)
     monthlyStats: any;       // typed by the caller (getMonthlyStats return)
+    warehouseName?: string;
     isAdmin: boolean;
     formatCurrency: (v: string) => string;
     formatDate: (v: any) => string;
@@ -45,11 +46,11 @@ export function DashboardSkeleton() {
  * Composes all sections using typed props passed down from page.tsx.
  * Does NOT fetch data — data is fetched in page.tsx and passed here.
  */
-export function DashboardTemplate({ stats, monthlyStats, isAdmin, formatCurrency, formatDate }: DashboardTemplateProps) {
+export function DashboardTemplate({ stats, monthlyStats, warehouseName, isAdmin, formatCurrency, formatDate }: DashboardTemplateProps) {
     return (
         <div className="space-y-4 sm:space-y-6">
             {/* KPI Row */}
-            <DashboardSummaryGrid stats={stats} />
+            <DashboardSummaryGrid stats={stats} warehouseName={warehouseName} />
 
             {/* SME Operational Priorities */}
             <SafeBoundary variant="compact" componentName="Dashboard:ActionableSme">

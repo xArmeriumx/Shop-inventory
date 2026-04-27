@@ -40,20 +40,30 @@ export function WarehouseFilter({
 
     return (
         <div className={`flex items-center gap-2 ${className}`}>
-            <Building2 className="h-4 w-4 text-muted-foreground" />
+            <Building2 className={`h-4 w-4 ${activeWarehouseId ? 'text-indigo-600' : 'text-muted-foreground'}`} />
             <Select
                 value={activeWarehouseId || 'ALL'}
                 onValueChange={handleValueChange}
                 disabled={isPending}
             >
-                <SelectTrigger className="w-[180px] bg-background h-9">
-                    <SelectValue placeholder={placeholder} />
+                <SelectTrigger className={`w-[200px] h-9 transition-all duration-200 ${activeWarehouseId
+                        ? 'bg-indigo-50/50 border-indigo-200 ring-indigo-200 text-indigo-900 font-medium'
+                        : 'bg-background'
+                    }`}>
+                    <div className="flex items-center gap-2 truncate">
+                        {activeWarehouseId && <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />}
+                        <SelectValue placeholder={placeholder} />
+                    </div>
                 </SelectTrigger>
                 <SelectContent>
-                    <SelectItem value="ALL">คลังสินค้าทั้งหมด</SelectItem>
+                    <SelectItem value="ALL" className="font-medium">คลังสินค้าทั้งหมด</SelectItem>
+                    <div className="h-px bg-muted my-1" />
                     {warehouses.map((w) => (
                         <SelectItem key={w.id} value={w.id}>
-                            {w.name}
+                            <div className="flex items-center gap-2">
+                                <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                                {w.name}
+                            </div>
                         </SelectItem>
                     ))}
                 </SelectContent>
