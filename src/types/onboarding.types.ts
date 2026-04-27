@@ -116,6 +116,8 @@ export const SETUP_ITEM_KEYS = {
     HAS_CUSTOMER: 'has_customer',      // Customer.count > 0
     HAS_SUPPLIER: 'has_supplier',      // Supplier.count > 0
     SIGNATORY: 'signatory',         // Shop.signatoryName != null
+    INVENTORY_MODE: 'inventory_mode', // Shop.inventoryMode != 'SIMPLE' (optional)
+    WAREHOUSE_SETUP: 'warehouse_setup', // Warehouse.count > 1 for MULTI
 
     // Level 2: First Transaction Readiness
     FIRST_SALE: 'first_sale',        // Sale.count > 0
@@ -140,6 +142,8 @@ export const SETUP_ITEM_LEVELS: Record<SetupItemKey, 1 | 2 | 3> = {
     [SETUP_ITEM_KEYS.HAS_CUSTOMER]: 1,
     [SETUP_ITEM_KEYS.HAS_SUPPLIER]: 1,
     [SETUP_ITEM_KEYS.SIGNATORY]: 1,
+    [SETUP_ITEM_KEYS.INVENTORY_MODE]: 1,
+    [SETUP_ITEM_KEYS.WAREHOUSE_SETUP]: 1,
     [SETUP_ITEM_KEYS.FIRST_SALE]: 2,
     [SETUP_ITEM_KEYS.FIRST_PURCHASE]: 2,
     [SETUP_ITEM_KEYS.FIRST_INVOICE]: 2,

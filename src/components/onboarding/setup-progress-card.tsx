@@ -31,6 +31,8 @@ const ITEM_META: Record<string, {
     [SETUP_ITEM_KEYS.HAS_CUSTOMER]: { label: 'ลูกค้าในระบบ', description: 'เพิ่มลูกค้าอย่างน้อย 1 ราย', actionLabel: 'เพิ่มลูกค้า', actionHref: '/customers/new' },
     [SETUP_ITEM_KEYS.HAS_SUPPLIER]: { label: 'ผู้จัดจำหน่าย', description: 'เพิ่ม Supplier อย่างน้อย 1 ราย', actionLabel: 'เพิ่ม Supplier', actionHref: '/suppliers/new' },
     [SETUP_ITEM_KEYS.SIGNATORY]: { label: 'ผู้มีอำนาจลงนาม', description: 'จำเป็นสำหรับ WHT และ 50ทวิ', actionLabel: 'ตั้งค่าร้าน', actionHref: '/settings' },
+    [SETUP_ITEM_KEYS.INVENTORY_MODE]: { label: 'ตั้งค่าโหมดคลังสินค้า', description: 'เลือกรูปแบบการจัดการสต็อกที่เหมาะสม', actionLabel: 'ตั้งค่าโหมด', actionHref: '/settings/shop' },
+    [SETUP_ITEM_KEYS.WAREHOUSE_SETUP]: { label: 'จัดการสาขาคลังสินค้า', description: 'สำหรับธุรกิจที่มีแหล่งเก็บของหลายที่', actionLabel: 'จัดการคลัง', actionHref: '/inventory/warehouses' },
     [SETUP_ITEM_KEYS.FIRST_SALE]: { label: 'บันทึกการขายครั้งแรก', description: 'ทดสอบ End-to-End Sales Flow', actionLabel: 'สร้างการขาย', actionHref: '/sales/new' },
     [SETUP_ITEM_KEYS.FIRST_PURCHASE]: { label: 'สั่งซื้อครั้งแรก', description: 'ทดสอบ Procurement Cycle', actionLabel: 'สร้างใบสั่งซื้อ', actionHref: '/purchases/new' },
     [SETUP_ITEM_KEYS.FIRST_INVOICE]: { label: 'ออกใบแจ้งหนี้ครั้งแรก', description: 'Billing Cycle ครบวงจร', actionLabel: 'สร้างใบแจ้งหนี้', actionHref: '/sales/invoices/new' },

@@ -3,20 +3,6 @@
  * OnboardingService — Phase OB1 (Fixed)
  * ============================================================================
  * Orchestrates the Genesis Wizard and Setup Progress system.
- *
- * Design principles:
- * - Setup readiness is DERIVED from real system counts (never stored as flags)
- * - Wizard draft is autosaved in OnboardingProgress.wizardDraft (JSON)
- * - All multi-step creation runs inside a single DB transaction
- * - Industry presets auto-seed product categories on genesis completion
- * - isDemo flag on seed data prevents accounting/tax contamination
- *
- * Fix Notes (v1.1):
- * - BankAccount requires glAccountId (FK to Account) — skipped at genesis,
- *   user creates it properly from Settings > Accounting after wizard
- * - LookupType.code is a Prisma enum (LookupTypeCode), not a plain string
- * - promptPayId / inviteEmail empty strings coerced to null
- * - Added wizardDraftVersion support (v1)
  */
 import { db, runInTransaction } from '@/lib/db';
 import { ServiceError } from '@/types/common';
@@ -44,11 +30,6 @@ import type {
 } from '@/schemas/core/onboarding.schema';
 import type { Permission } from '@prisma/client';
 
-// ============================================================================
-// RBAC: Permissions for Owner role (auto-assigned at genesis)
-// Only use Permission values that exist in the Prisma enum
-// ============================================================================
-
 const OWNER_PERMISSIONS: Permission[] = [
   'PRODUCT_VIEW', 'PRODUCT_CREATE', 'PRODUCT_UPDATE', 'PRODUCT_DELETE', 'PRODUCT_VIEW_COST',
   'STOCK_VIEW_HISTORY', 'STOCK_ADJUST', 'STOCK_TAKE_APPROVE', 'WAREHOUSE_MANAGE',
@@ -70,30 +51,17 @@ const OWNER_PERMISSIONS: Permission[] = [
   'TAX_SETTINGS_VIEW', 'TAX_SETTINGS_MANAGE', 'TAX_REPORT_VIEW', 'TAX_REPORT_POST',
 ];
 
-// ============================================================================
-// Service
-// ============================================================================
-
 const CURRENT_WIZARD_VERSION = 1;
 
 export const OnboardingService = {
-
-  // --------------------------------------------------------------------------
-  // CHECK: Has the user already created a shop?
-  // --------------------------------------------------------------------------
   async hasShop(userId: string): Promise<boolean> {
     const membership = await db.shopMember.findFirst({ where: { userId } });
     return !!membership;
   },
 
-  // --------------------------------------------------------------------------
-  // WIZARD: Save a partial draft step (autosave pattern)
-  // --------------------------------------------------------------------------
   async saveDraft(shopId: string, step: number, data: Record<string, unknown>): Promise<void> {
     const existing = await (db as any).onboardingProgress.findUnique({ where: { shopId } });
     const draftState = (existing?.wizardDraft as any) ?? { v: CURRENT_WIZARD_VERSION };
-
-    // Version Check: If draft is from an old schema version, reset to current version
     const currentDraft = draftState.v === CURRENT_WIZARD_VERSION ? (draftState.steps ?? {}) : {};
 
     const updatedDraft = {
@@ -117,23 +85,13 @@ export const OnboardingService = {
     });
   },
 
-  // --------------------------------------------------------------------------
-  // WIZARD: Get current draft (for resume)
-  // --------------------------------------------------------------------------
   async getDraft(shopId: string): Promise<Record<string, unknown>> {
     const progress = await (db as any).onboardingProgress.findUnique({ where: { shopId } });
     const draftState = (progress?.wizardDraft as any);
-
-    if (!draftState || draftState.v !== CURRENT_WIZARD_VERSION) {
-      return {};
-    }
-
+    if (!draftState || draftState.v !== CURRENT_WIZARD_VERSION) return {};
     return (draftState.steps as Record<string, unknown>) ?? {};
   },
 
-  // --------------------------------------------------------------------------
-  // GENESIS: Create shop + all genesis data in one atomic transaction
-  // --------------------------------------------------------------------------
   async createShop(
     userId: string,
     userName: string | null | undefined,
@@ -143,13 +101,9 @@ export const OnboardingService = {
     step4: GenesisStep4Input,
     step5: GenesisStep5Input,
   ) {
-    // Guard: prevent duplicate shop creation
     const existingMembership = await db.shopMember.findFirst({ where: { userId } });
-    if (existingMembership) {
-      throw new ServiceError('คุณมีร้านค้าอยู่แล้ว');
-    }
+    if (existingMembership) throw new ServiceError('คุณมีร้านค้าอยู่แล้ว');
 
-    // Coerce empty strings to null before persisting
     const promptPay = step3.promptPayId?.trim() || null;
     const inviteEmail = step4.inviteEmail?.trim() || null;
 
@@ -170,161 +124,132 @@ export const OnboardingService = {
       },
       async () => {
         return runInTransaction(undefined, async (tx) => {
-
-      // ── Step A: Create the Shop ──────────────────────────────────────────
-      const shop = await tx.shop.create({
-        data: {
-          userId,
-          name: step1.name,
-          phone: step1.phone,
-          logo: step1.logo ?? null,
-          taxId: step2.taxId ?? null,
-          address: step2.address ?? null,
-          invoicePrefix: step3.invoicePrefix,
-          promptPayId: promptPay,
-          defaultCurrency: step3.defaultCurrency,
-          fiscalYearStart: step3.fiscalYearStart,
-          industryType: step1.industryType,
-          onboardingMode: step5.onboardingMode,
-          legalEntityName: step2.legalEntityName ?? null,
-          onboardingCompletedAt: new Date(),
-          genesisStep: 5,
-        } as any,
-      });
-
-      // ── Step A.1: Create Default Warehouse ────────────────────────────────
-      const defaultWarehouse = await tx.warehouse.create({
-        data: {
-          name: 'คลังสินค้าหลัก',
-          code: 'WH-MAIN',
-          isDefault: true,
-          isActive: true,
-          shopId: shop.id,
-        }
-      });
-
-      // ── Step B: Create Owner Role ──────────────────────────────────────────
-      const ownerRole = await tx.role.create({
-        data: {
-          name: 'Owner',
-          description: 'เจ้าของร้าน — มีสิทธิ์ทั้งหมด',
-          permissions: OWNER_PERMISSIONS,
-          isSystem: true,
-          isDefault: false,
-          shopId: shop.id,
-        },
-      });
-
-      // ── Step C: Create Owner Membership ───────────────────────────────────
-      await tx.shopMember.create({
-        data: {
-          userId,
-          shopId: shop.id,
-          roleId: ownerRole.id,
-          isOwner: true,
-        },
-      });
-
-      // ── Step D: CompanyTaxProfile (if VAT registered) ─────────────────────
-      if (step2.isVatRegistered && step2.taxId) {
-        await (tx as any).companyTaxProfile.create({
-          data: {
-            shopId: shop.id,
-            isVatRegistered: true,
-            taxPayerId: step2.taxId,
-            branchCode: step2.branchCode ?? '00000',
-            registeredAddress: step2.address ?? '',
-            legalName: step2.legalEntityName ?? step1.name,
-          },
-        });
-      }
-
-      // ── Step E: BankAccount ─────────────────────────────────────────────
-      // NOTE: BankAccount requires glAccountId (FK to Account/Chart of Accounts).
-      // A GL Account doesn't exist yet at genesis — user configures this post-wizard
-      // from Settings > Accounting. Skipping here intentionally.
-      // The setup checklist item BANK_ACCOUNT will prompt them to complete this.
-
-      // ── Step F: Pre-seed Role Templates (if TEAM selected) ────────────────
-      if (step4.roleTemplate === RoleTemplate.TEAM) {
-        await tx.role.createMany({
-          data: [
-            {
-              name: 'ผู้จัดการ',
-              description: 'จัดการยอดขาย สต็อก และรายงาน',
-              permissions: ['SALE_VIEW', 'SALE_CREATE', 'PRODUCT_VIEW', 'STOCK_VIEW_HISTORY', 'REPORT_VIEW_SALES', 'REPORT_EXPORT', 'CUSTOMER_VIEW'],
-              isSystem: false,
-              isDefault: false,
-              shopId: shop.id,
-            },
-            {
-              name: 'พนักงานขาย',
-              description: 'บันทึกการขายและดูสต็อก',
-              permissions: ['SALE_VIEW', 'SALE_CREATE', 'PRODUCT_VIEW', 'CUSTOMER_VIEW', 'CUSTOMER_CREATE'],
-              isSystem: false,
-              isDefault: true,
-              shopId: shop.id,
-            },
-            {
-              name: 'พนักงานสต็อก',
-              description: 'จัดการสินค้าและสต็อก',
-              permissions: ['PRODUCT_VIEW', 'PRODUCT_CREATE', 'PRODUCT_UPDATE', 'STOCK_VIEW_HISTORY', 'STOCK_ADJUST'],
-              isSystem: false,
-              isDefault: false,
-              shopId: shop.id,
-            },
-          ],
-        });
-      }
-
-      // ── Step G: Industry preset — seed product categories ─────────────────
-      const preset = INDUSTRY_PRESETS[step1.industryType as IndustryType];
-      if (preset?.defaultCategories?.length) {
-        // LookupType.code is a Prisma enum (LookupTypeCode) — use the enum value directly
-        const lookupType = await tx.lookupType.findUnique({
-          where: { code: LookupTypeCode.PRODUCT_CATEGORY },
-        });
-
-        if (lookupType) {
-          await tx.lookupValue.createMany({
-            data: preset.defaultCategories.map((name, idx) => ({
-              lookupTypeId: lookupType.id,
-              shopId: shop.id,
+          const shop = await tx.shop.create({
+            data: {
               userId,
-              code: `CAT_${idx + 1}`,
-              name,
-              order: idx,
-              isActive: true,
-            })),
-            skipDuplicates: true,
+              name: step1.name,
+              phone: step1.phone,
+              logo: step1.logo ?? null,
+              taxId: step2.taxId ?? null,
+              address: step2.address ?? null,
+              invoicePrefix: step3.invoicePrefix,
+              promptPayId: promptPay,
+              defaultCurrency: step3.defaultCurrency,
+              fiscalYearStart: step3.fiscalYearStart,
+              industryType: step1.industryType,
+              onboardingMode: step5.onboardingMode,
+              legalEntityName: step2.legalEntityName ?? null,
+              onboardingCompletedAt: new Date(),
+              genesisStep: 5,
+            } as any,
           });
-        }
-      }
 
-      // ── Step H: Demo data seeding ─────────────────────────────────────────
-      if (step5.onboardingMode === OnboardingMode.DEMO) {
-        await OnboardingService._seedDemoData(shop.id, userId, tx, defaultWarehouse.id);
-      }
+          const defaultWarehouse = await tx.warehouse.create({
+            data: {
+              name: 'คลังสินค้าหลัก',
+              code: 'WH-MAIN',
+              isDefault: true,
+              isActive: true,
+              shopId: shop.id,
+            }
+          });
 
-      // ── Step I: Initialize OnboardingProgress ─────────────────────────────
-      await (tx as any).onboardingProgress.create({
-        data: {
-          shopId: shop.id,
-          wizardDraft: null,
-          tutorialTrack: 0,
-          tutorialStep: 0,
-          dismissedSetupItems: [],
-        },
+          const ownerRole = await tx.role.create({
+            data: {
+              name: 'Owner',
+              description: 'เจ้าของร้าน — มีสิทธิ์ทั้งหมด',
+              permissions: OWNER_PERMISSIONS,
+              isSystem: true,
+              isDefault: false,
+              shopId: shop.id,
+            },
+          });
+
+          await tx.shopMember.create({
+            data: {
+              userId, shopId: shop.id, roleId: ownerRole.id, isOwner: true,
+            },
+          });
+
+          if (step2.isVatRegistered && step2.taxId) {
+            await (tx as any).companyTaxProfile.create({
+              data: {
+                shopId: shop.id,
+                isVatRegistered: true,
+                taxPayerId: step2.taxId,
+                branchCode: step2.branchCode ?? '00000',
+                registeredAddress: step2.address ?? '',
+                legalName: step2.legalEntityName ?? step1.name,
+              },
+            });
+          }
+
+          if (step4.roleTemplate === RoleTemplate.TEAM) {
+            await tx.role.createMany({
+              data: [
+                {
+                  name: 'ผู้จัดการ',
+                  description: 'จัดการยอดขาย สต็อก และรายงาน',
+                  permissions: ['SALE_VIEW', 'SALE_CREATE', 'PRODUCT_VIEW', 'STOCK_VIEW_HISTORY', 'REPORT_VIEW_SALES', 'REPORT_EXPORT', 'CUSTOMER_VIEW'],
+                  isSystem: false, isDefault: false, shopId: shop.id,
+                },
+                {
+                  name: 'พนักงานขาย',
+                  description: 'บันทึกการขายและดูสต็อก',
+                  permissions: ['SALE_VIEW', 'SALE_CREATE', 'PRODUCT_VIEW', 'CUSTOMER_VIEW', 'CUSTOMER_CREATE'],
+                  isSystem: false, isDefault: true, shopId: shop.id,
+                },
+                {
+                  name: 'พนักงานสต็อก',
+                  description: 'จัดการสินค้าและสต็อก',
+                  permissions: ['PRODUCT_VIEW', 'PRODUCT_CREATE', 'PRODUCT_UPDATE', 'STOCK_VIEW_HISTORY', 'STOCK_ADJUST'],
+                  isSystem: false, isDefault: false, shopId: shop.id,
+                },
+              ],
+            });
+          }
+
+          const preset = INDUSTRY_PRESETS[step1.industryType as IndustryType];
+          if (preset?.defaultCategories?.length) {
+            const lookupType = await tx.lookupType.findUnique({
+              where: { code: LookupTypeCode.PRODUCT_CATEGORY },
+            });
+
+            if (lookupType) {
+              await tx.lookupValue.createMany({
+                data: preset.defaultCategories.map((name, idx) => ({
+                  lookupTypeId: lookupType.id,
+                  shopId: shop.id,
+                  userId,
+                  code: `CAT_${idx + 1}`,
+                  name,
+                  order: idx,
+                  isActive: true,
+                })),
+                skipDuplicates: true,
+              });
+            }
+          }
+
+          if (step5.onboardingMode === OnboardingMode.DEMO) {
+            await OnboardingService._seedDemoData(shop.id, userId, tx, defaultWarehouse.id);
+          }
+
+          await (tx as any).onboardingProgress.create({
+            data: {
+              shopId: shop.id,
+              wizardDraft: null,
+              tutorialTrack: 0,
+              tutorialStep: 0,
+              dismissedSetupItems: [],
+            },
+          });
+
+          return shop;
+        });
       });
-
-        return shop;
-      });
-    });
   },
 
-  // --------------------------------------------------------------------------
-  // SETUP PROGRESS: Derive readiness from real system state (never stored)
-  // --------------------------------------------------------------------------
   async getSetupProgress(shopId: string): Promise<SetupProgressReport> {
     const [
       taxProfileCount,
@@ -342,6 +267,7 @@ export const OnboardingService = {
       bankStatementCount,
       taxCodeCount,
       whtCodeCount,
+      warehouseCount,
       progress,
     ] = await Promise.all([
       (db as any).companyTaxProfile.count({ where: { shopId } }),
@@ -350,7 +276,7 @@ export const OnboardingService = {
       db.product.count({ where: { shopId, deletedAt: null } }),
       db.customer.count({ where: { shopId, deletedAt: null } }),
       db.supplier.count({ where: { shopId, deletedAt: null } }),
-      db.shop.findUnique({ where: { id: shopId }, select: { signatoryName: true } as any }),
+      db.shop.findUnique({ where: { id: shopId }, select: { signatoryName: true, inventoryMode: true } as any }),
       db.sale.count({ where: { shopId, status: { not: 'CANCELLED' } } }),
       db.purchase.count({ where: { shopId, status: { not: 'CANCELLED' } } }),
       (db as any).invoice.count({ where: { shopId } }),
@@ -359,11 +285,11 @@ export const OnboardingService = {
       db.bankStatement.count({ where: { bankAccount: { shopId } } }),
       (db as any).taxCode.count({ where: { shopId } }),
       (db as any).whtCode.count({ where: { shopId } }),
+      db.warehouse.count({ where: { shopId, isActive: true } }),
       (db as any).onboardingProgress.findUnique({ where: { shopId } }),
     ]);
 
     const dismissedItems: string[] = progress?.dismissedSetupItems ?? [];
-
     const derivedStatus: Record<SetupItemKey, boolean> = {
       [SETUP_ITEM_KEYS.TAX_PROFILE]: taxProfileCount > 0,
       [SETUP_ITEM_KEYS.BANK_ACCOUNT]: bankAccountCount > 0,
@@ -380,6 +306,8 @@ export const OnboardingService = {
       [SETUP_ITEM_KEYS.BANK_RECONCILE]: bankStatementCount > 0,
       [SETUP_ITEM_KEYS.VAT_SETTINGS]: taxCodeCount > 0,
       [SETUP_ITEM_KEYS.WHT_SETTINGS]: whtCodeCount > 0,
+      [SETUP_ITEM_KEYS.INVENTORY_MODE]: (shop as any)?.inventoryMode !== 'SIMPLE',
+      [SETUP_ITEM_KEYS.WAREHOUSE_SETUP]: warehouseCount > 1 || (shop as any)?.inventoryMode !== 'MULTI',
     };
 
     const items: SetupItemStatus[] = (Object.keys(SETUP_ITEM_KEYS) as Array<keyof typeof SETUP_ITEM_KEYS>).map((k) => {
@@ -407,9 +335,6 @@ export const OnboardingService = {
     };
   },
 
-  // --------------------------------------------------------------------------
-  // SETUP PROGRESS: Dismiss a checklist item
-  // --------------------------------------------------------------------------
   async dismissSetupItem(shopId: string, itemKey: SetupItemKey): Promise<void> {
     const progress = await (db as any).onboardingProgress.findUnique({ where: { shopId } });
     const current: string[] = progress?.dismissedSetupItems ?? [];
@@ -422,9 +347,6 @@ export const OnboardingService = {
     }
   },
 
-  // --------------------------------------------------------------------------
-  // TUTORIAL: Update tutorial progress
-  // --------------------------------------------------------------------------
   async updateTutorialProgress(shopId: string, track: number, step: number): Promise<void> {
     await (db as any).onboardingProgress.upsert({
       where: { shopId },
@@ -441,11 +363,7 @@ export const OnboardingService = {
     });
   },
 
-  // --------------------------------------------------------------------------
-  // PRIVATE: Seed demo data (tagged with [DEMO] prefix)
-  // --------------------------------------------------------------------------
   async _seedDemoData(shopId: string, userId: string, tx: any, defaultWarehouseId?: string): Promise<void> {
-    // Demo Customer
     await tx.customer.create({
       data: {
         shopId, userId,
@@ -455,7 +373,6 @@ export const OnboardingService = {
       },
     });
 
-    // Demo Supplier
     await tx.supplier.create({
       data: {
         shopId, userId,
@@ -464,7 +381,6 @@ export const OnboardingService = {
       },
     });
 
-    // Demo Products (5 items)
     const demoProducts = [
       { name: '[DEMO] สินค้า A', sku: 'DEMO-001', costPrice: 100, salePrice: 150, stock: 50, shopId, userId, category: 'สินค้าทดสอบ' },
       { name: '[DEMO] สินค้า B', sku: 'DEMO-002', costPrice: 200, salePrice: 280, stock: 30, shopId, userId, category: 'สินค้าทดสอบ' },
@@ -474,13 +390,9 @@ export const OnboardingService = {
     ];
 
     const ctx: RequestContext = { shopId, userId, permissions: [], isOwner: true };
-
     for (const p of demoProducts) {
       const { stock, ...productData } = p;
-      const product = await tx.product.create({
-        data: { ...productData, stock: 0 }
-      });
-      
+      const product = await tx.product.create({ data: { ...productData, stock: 0 } });
       if (defaultWarehouseId && stock > 0) {
         await WarehouseService.adjustWarehouseStock(ctx, {
           warehouseId: defaultWarehouseId,

@@ -3,7 +3,7 @@
 import { useTransition } from 'react';
 import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Store, Phone, MapPin, FileText, QrCode, Save, Info, ShoppingCart, TrendingUp } from 'lucide-react';
+import { Store, Phone, MapPin, FileText, QrCode, Save, Info, LayoutTemplate } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,7 +20,7 @@ interface ShopSettingsProps {
 
 export function ShopSettings({ shopData }: ShopSettingsProps) {
     const [isPending, startTransition] = useTransition();
-    
+
     const methods = useForm<ShopFormValues>({
         resolver: zodResolver(shopFormSchema),
         defaultValues: getShopFormDefaults(shopData),
@@ -58,11 +58,11 @@ export function ShopSettings({ shopData }: ShopSettingsProps) {
                         <div className="grid gap-6 md:grid-cols-2">
                             <FormField name="name" label="ชื่อร้าน (Business Name)" required hint="จะปรากฏที่หัวเอกสารทุกฉบับ">
                                 <div className="relative group">
-                                    <Input 
-                                        id="shopName" 
-                                        {...methods.register('name')} 
-                                        placeholder="ระบุชื่อร้านของคุณ" 
-                                        className="pl-9 bg-muted/20 focus-visible:bg-background transition-colors" 
+                                    <Input
+                                        id="shopName"
+                                        {...methods.register('name')}
+                                        placeholder="ระบุชื่อร้านของคุณ"
+                                        className="pl-9 bg-muted/20 focus-visible:bg-background transition-colors"
                                         disabled={isPending}
                                     />
                                     <Store className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
@@ -71,11 +71,11 @@ export function ShopSettings({ shopData }: ShopSettingsProps) {
 
                             <FormField name="phone" label="เบอร์โทรศัพท์ติดต่อ" hint="ใช้ในการติดต่อรับการชำระเงิน">
                                 <div className="relative group">
-                                    <Input 
-                                        id="shopPhone" 
-                                        {...methods.register('phone')} 
-                                        placeholder="0xx-xxx-xxxx" 
-                                        className="pl-9 bg-muted/20 focus-visible:bg-background transition-colors" 
+                                    <Input
+                                        id="shopPhone"
+                                        {...methods.register('phone')}
+                                        placeholder="0xx-xxx-xxxx"
+                                        className="pl-9 bg-muted/20 focus-visible:bg-background transition-colors"
                                         disabled={isPending}
                                     />
                                     <Phone className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
@@ -85,12 +85,12 @@ export function ShopSettings({ shopData }: ShopSettingsProps) {
 
                         <FormField name="address" label="ที่อยู่ร้าน / ที่อยู่จดทะเบียน" hint="ที่อยู่ฉบับเต็มสำหรับออกใบกำกับภาษี">
                             <div className="relative group">
-                                <Textarea 
-                                    id="shopAddress" 
-                                    {...methods.register('address')} 
-                                    placeholder="88/8 หมู่ 8 แขวง... เขต... กรุงเทพฯ..." 
-                                    rows={3} 
-                                    className="pl-9 pt-2 bg-muted/20 focus-visible:bg-background transition-colors resize-none" 
+                                <Textarea
+                                    id="shopAddress"
+                                    {...methods.register('address')}
+                                    placeholder="88/8 หมู่ 8 แขวง... เขต... กรุงเทพฯ..."
+                                    rows={3}
+                                    className="pl-9 pt-2 bg-muted/20 focus-visible:bg-background transition-colors resize-none"
                                     disabled={isPending}
                                 />
                                 <MapPin className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
@@ -100,30 +100,48 @@ export function ShopSettings({ shopData }: ShopSettingsProps) {
                         <div className="grid gap-6 md:grid-cols-2">
                             <FormField name="taxId" label="เลขประจำตัวผู้เสียภาษี" hint="13 หลักสำหรับออกใบกำกับภาษี">
                                 <div className="relative group">
-                                    <Input 
-                                        id="shopTaxId" 
-                                        {...methods.register('taxId')} 
-                                        placeholder="0123456789012" 
-                                        className="pl-9 bg-muted/20 focus-visible:bg-background transition-colors font-mono" 
+                                    <Input
+                                        id="shopTaxId"
+                                        {...methods.register('taxId')}
+                                        placeholder="0123456789012"
+                                        className="pl-9 bg-muted/20 focus-visible:bg-background transition-colors font-mono"
                                         disabled={isPending}
                                     />
                                     <FileText className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
                                 </div>
                             </FormField>
-                        </div>
 
-                        <div className="grid gap-6 md:grid-cols-2">
-                             <FormField name="promptPayId" label="PromptPay ID" hint="เบอร์มือถือ หรือ เลขบัตรประชาชน">
+                            <FormField name="promptPayId" label="PromptPay ID" hint="เบอร์มือถือ หรือ เลขบัตรประชาชน">
                                 <div className="relative group">
-                                    <Input 
-                                        id="shopPromptPayId" 
-                                        {...methods.register('promptPayId')} 
-                                        placeholder="สำหรับรับเงินผ่าน QR Code" 
-                                        className="pl-9 bg-muted/20 focus-visible:bg-background transition-colors font-mono" 
+                                    <Input
+                                        id="shopPromptPayId"
+                                        {...methods.register('promptPayId')}
+                                        placeholder="สำหรับรับเงินผ่าน QR Code"
+                                        className="pl-9 bg-muted/20 focus-visible:bg-background transition-colors font-mono"
                                         disabled={isPending}
                                     />
                                     <QrCode className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
                                 </div>
+                            </FormField>
+                        </div>
+
+                        <div className="pt-4 border-t">
+                            <div className="flex items-center gap-2 mb-4">
+                                <LayoutTemplate className="h-5 w-5 text-primary" />
+                                <h3 className="font-semibold">การจัดการคลังสินค้า (Inventory Logic)</h3>
+                            </div>
+
+                            <FormField name="inventoryMode" label="รูปแบบการจัดการคลัง" hint="เลือกโหมดที่เหมาะสมกับธุรกิจของคุณ">
+                                <select
+                                    id="inventoryMode"
+                                    {...methods.register('inventoryMode')}
+                                    className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                                    disabled={isPending}
+                                >
+                                    <option value="SIMPLE">SIMPLE - คลังเดียว (ใช้งานง่ายที่สุด)</option>
+                                    <option value="SINGLE">SINGLE - ย่อยค่าย (ล็อกคลังหลัก 1 แห่ง)</option>
+                                    <option value="MULTI">MULTI - หลายคลัง (จัดการแยกสาขา/ที่เก็บ)</option>
+                                </select>
                             </FormField>
                         </div>
 
