@@ -148,16 +148,15 @@ export const DashboardService = {
         _sum: { amount: true },
         _count: true,
       }),
-      // 10. Stock value data: Fetch only items with quantity > 0 for performance
-      warehouseId ?
-        db.warehouseStock.findMany({
-          where: { warehouseId, shopId: ctx.shopId, quantity: { gt: 0 } },
-          select: { quantity: true, product: { select: { costPrice: true } } }
-        }) :
-        db.product.findMany({
-          where: { shopId: ctx.shopId, isActive: true, stock: { gt: 0 } },
-          select: { costPrice: true, stock: true },
-        }),
+      // 10. Stock value data: Always fetch from WarehouseStock for SSOT
+      db.warehouseStock.findMany({
+        where: {
+          shopId: ctx.shopId,
+          quantity: { gt: 0 },
+          ...(warehouseId && { warehouseId })
+        },
+        select: { quantity: true, product: { select: { costPrice: true } } }
+      }),
     ] as any);
 
     const salesRevenue = toNumber(todaySales._sum?.netAmount);
@@ -165,15 +164,10 @@ export const DashboardService = {
     const totalRevenue = money.add(salesRevenue, incomeRevenue);
     const salesProfit = toNumber(todaySales._sum?.profit);
 
-    const totalStockValue = warehouseId ?
-      (stockProducts as any[]).reduce(
-        (sum: number, ws: any) => money.add(sum, money.multiply(toNumber(ws.product?.costPrice), ws.quantity || 0)),
-        0
-      ) :
-      (stockProducts as any[]).reduce(
-        (sum: number, p: any) => money.add(sum, money.multiply(toNumber(p.costPrice), p.stock || 0)),
-        0
-      );
+    const totalStockValue = (stockProducts as any[]).reduce(
+      (sum: number, ws: any) => money.add(sum, money.multiply(toNumber(ws.product?.costPrice), ws.quantity || 0)),
+      0
+    );
 
     return {
       todaySales: {
