@@ -61,15 +61,15 @@ export function WarehouseFormModal({ isOpen, onClose, initialData }: WarehouseFo
                 <form onSubmit={methods.handleSubmit(onSubmit)} className="space-y-4 py-4">
                     <div className="grid grid-cols-2 gap-4">
                         <FormField name="code" label="รหัสคลัง (Code)" required>
-                            <Input placeholder="WH001" disabled={!!initialData} />
+                            <Input placeholder="WH001" disabled={!!initialData} {...methods.register('code')} />
                         </FormField>
                         <FormField name="name" label="ชื่อคลัง (Warehouse Name)" required>
-                            <Input placeholder="คลังกลาง / หน้าร้าน" />
+                            <Input placeholder="คลังกลาง / หน้าร้าน" {...methods.register('name')} />
                         </FormField>
                     </div>
 
                     <FormField name="address" label="ที่อยู่ / รายละเอียด">
-                        <Input placeholder="ระบุตำแหน่งหรือที่ตั้ง" />
+                        <Input placeholder="ระบุตำแหน่งหรือที่ตั้ง" {...methods.register('address')} />
                     </FormField>
 
                     <div className="flex flex-col gap-3 pt-2">
