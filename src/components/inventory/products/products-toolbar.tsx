@@ -7,12 +7,16 @@ import { useUrlFilters } from '@/hooks/use-url-filters';
 import { PRODUCT_CATEGORIES } from '@/lib/constants';
 import { Search, X } from 'lucide-react';
 
+import { WarehouseFilter } from '@/components/shared/warehouse-filter';
+
 interface ProductsToolbarProps {
   search: string;
   category: string;
+  warehouseId?: string;
+  warehouses: any[];
 }
 
-export function ProductsToolbar({ search, category }: ProductsToolbarProps) {
+export function ProductsToolbar({ search, category, warehouseId, warehouses }: ProductsToolbarProps) {
   const { updateFilters, clearFilters, isPending } = useUrlFilters();
   const [searchValue, setSearchValue] = useState(search);
 
@@ -48,6 +52,11 @@ export function ProductsToolbar({ search, category }: ProductsToolbarProps) {
             <option key={cat.value} value={cat.value}>{cat.label}</option>
           ))}
         </select>
+
+        <WarehouseFilter
+          warehouses={warehouses}
+          activeWarehouseId={warehouseId}
+        />
 
         {hasFilters && (
           <Button variant="ghost" size="sm" onClick={clearFilters}>

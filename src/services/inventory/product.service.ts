@@ -225,7 +225,7 @@ export const ProductService: IProductService = {
    * ดึงข้อมูลสินค้า (แสดงผลแบบ List / Pagination)
    */
   async getList(params: GetProductsParams = {}, ctx: RequestContext): Promise<PaginatedResult<SerializedProduct>> {
-    const { page = 1, limit = 20, search, category, sortBy = 'createdAt', sortOrder = 'desc', lowStockOnly = false } = params;
+    const { page = 1, limit = 20, search, category, sortBy = 'createdAt', sortOrder = 'desc', lowStockOnly = false, warehouseId } = params;
     const searchFilter = buildSearchFilter(search, ['name', 'sku', 'description']);
     const whereClause = {
       shopId: ctx.shopId,
@@ -233,6 +233,9 @@ export const ProductService: IProductService = {
       ...(searchFilter && searchFilter),
       ...(category && { category }),
       ...(lowStockOnly && { isLowStock: true }),
+      ...(warehouseId && {
+        warehouseStocks: { some: { warehouseId } }
+      }),
     };
     const result = await paginatedQuery<Product>(db.product, {
       where: whereClause,

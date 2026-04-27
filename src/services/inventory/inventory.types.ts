@@ -3,6 +3,7 @@ import { BaseQueryParams } from '@/types/common';
 export interface GetProductsParams extends BaseQueryParams {
     category?: string;
     lowStockOnly?: boolean;
+    warehouseId?: string;
 }
 
 export interface BatchProductInput {

@@ -20,6 +20,7 @@ interface ProductsPageProps {
     page?: string;
     search?: string;
     category?: string;
+    warehouseId?: string;
   }>;
 }
 
@@ -30,9 +31,10 @@ async function ProductsContent({ searchParams }: ProductsPageProps) {
   const page = Number(params.page) || 1;
   const search = params.search || '';
   const category = params.category || '';
+  const warehouseId = params.warehouseId || '';
 
   const [result, shopRes, warehousesRes] = await Promise.all([
-    getProducts({ page, search, category }),
+    getProducts({ page, search, category, warehouseId }),
     getShop(),
     getWarehousesAction(),
   ]);
@@ -59,7 +61,12 @@ async function ProductsContent({ searchParams }: ProductsPageProps) {
           warehouses={warehouses}
         />
       </div>
-      <ProductsToolbar search={search} category={category} />
+      <ProductsToolbar
+        search={search}
+        category={category}
+        warehouseId={warehouseId}
+        warehouses={warehouses}
+      />
       <ProductsTable products={products} pagination={pagination} />
     </div>
   );

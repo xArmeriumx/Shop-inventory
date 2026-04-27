@@ -6,7 +6,7 @@ import { formatCurrency, formatDate } from '@/lib/formatters';
 import { DashboardTemplate, DashboardSkeleton } from '@/components/core/dashboard/dashboard-template';
 import { SetupProgressCard } from '@/components/onboarding/setup-progress-card';
 import { getWarehousesAction } from '@/actions/inventory/warehouse.actions';
-import { WarehouseFilter } from './warehouse-filter';
+import { WarehouseFilter } from '@/components/shared/warehouse-filter';
 
 // ─── Data Fetcher ─────────────────────────────────────────────────────────────
 
