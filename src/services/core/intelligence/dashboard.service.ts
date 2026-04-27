@@ -11,9 +11,9 @@ export const DashboardService = {
     tomorrow.setDate(tomorrow.getDate() + 1);
 
     // 1. Resolve Sale IDs for warehouse filtering (Prisma aggregate doesn't support relation filters)
-    // Best Practice: Use top-down Sale -> items.some filter including null for legacy data safety
+    // Top-down: Use Sale -> items.some to find sales with items from this warehouse
     const whSaleFilter = warehouseId
-      ? { items: { some: { OR: [{ warehouseId }, { warehouseId: null }] } } }
+      ? { items: { some: { warehouseId } } } as any
       : {};
 
     // For aggregate: resolve Sale IDs by date scopes
@@ -148,10 +148,10 @@ export const DashboardService = {
         _sum: { amount: true },
         _count: true,
       }),
-      // 10. Stock value calculation
+      // 10. Stock value data: Fetch only items with quantity > 0 for performance
       warehouseId ?
         db.warehouseStock.findMany({
-          where: { warehouseId },
+          where: { warehouseId, shopId: ctx.shopId, quantity: { gt: 0 } },
           select: { quantity: true, product: { select: { costPrice: true } } }
         }) :
         db.product.findMany({
@@ -325,7 +325,7 @@ export const DashboardService = {
           shopId: ctx.shopId,
           date: { gte: firstDayOfMonth, lt: firstDayOfNextMonth },
           status: { not: "CANCELLED" },
-          items: { some: { OR: [{ warehouseId }, { warehouseId: null }] } },
+          items: { some: { warehouseId } },
         },
         select: { id: true },
       });
@@ -389,7 +389,7 @@ export const DashboardService = {
           shopId: ctx.shopId,
           date: { gte: startDate, lte: endDate },
           status: { not: "CANCELLED" },
-          items: { some: { OR: [{ warehouseId }, { warehouseId: null }] } },
+          items: { some: { warehouseId } },
         },
         select: { id: true },
       });
