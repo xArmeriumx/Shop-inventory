@@ -52,9 +52,7 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
           <TabsList>
             <TabsTrigger value="edit">ข้อมูลสินค้า</TabsTrigger>
             <TabsTrigger value="history">ประวัติสต็อก</TabsTrigger>
-            {inventoryMode !== 'SIMPLE' && (
-              <TabsTrigger value="warehouse">สต็อกตามคลัง</TabsTrigger>
-            )}
+            <TabsTrigger value="warehouse">สต็อกตามคลัง</TabsTrigger>
             <TabsTrigger value="audit">บันทึกการแก้ไข</TabsTrigger>
             <TabsTrigger value="barcode">บาร์โค้ด</TabsTrigger>
           </TabsList>
@@ -74,11 +72,9 @@ export default async function EditProductPage({ params }: EditProductPageProps) 
             <ProductHistoryTab productId={params.id} />
           </TabsContent>
 
-          {inventoryMode !== 'SIMPLE' && (
-            <TabsContent value="warehouse">
-              <ProductWarehouseTab productId={params.id} />
-            </TabsContent>
-          )}
+          <TabsContent value="warehouse">
+            <ProductWarehouseTab productId={params.id} />
+          </TabsContent>
 
           <TabsContent value="audit">
             <ProductAuditTab productId={params.id} />

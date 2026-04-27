@@ -51,12 +51,12 @@ export function ProductsTable({ products, pagination }: ProductsTableProps) {
 
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(`ต้องการลบสินค้า "${name}" หรือไม่?`)) return;
-    
+
     startTransition(async () => {
-        await runActionWithToast(deleteProduct(id), {
-          successMessage: 'ลบสินค้าสำเร็จ',
-          onSuccess: () => router.refresh()
-        });
+      await runActionWithToast(deleteProduct(id), {
+        successMessage: 'ลบสินค้าสำเร็จ',
+        onSuccess: () => router.refresh()
+      });
     });
   };
 
@@ -121,6 +121,17 @@ export function ProductsTable({ products, pagination }: ProductsTableProps) {
                           <Badge variant="secondary" className="sm:hidden text-[10px] px-1.5 py-0">
                             {getCategoryLabel(product.category)}
                           </Badge>
+                          {/* Warehouse Badges */}
+                          {product.warehouseStocks?.map((ws: any) => (
+                            <Badge
+                              key={ws.id}
+                              variant="outline"
+                              className="text-[9px] h-3.5 px-1 bg-sky-50/50 text-sky-700 border-sky-100 whitespace-nowrap"
+                              title={`${ws.warehouse.name}: ${ws.quantity} หน่วย`}
+                            >
+                              {ws.warehouse.code || ws.warehouse.name}: {ws.quantity}
+                            </Badge>
+                          ))}
                         </div>
                       </div>
                     </TableCell>

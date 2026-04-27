@@ -61,6 +61,16 @@ export function StockHistoryTable(props: StockHistoryTableProps) {
         return 'default';
       case 'WASTE':
         return 'destructive';
+      case 'TRANSFER_IN':
+        return 'secondary';
+      case 'TRANSFER_OUT':
+        return 'secondary';
+      case 'RESERVATION':
+        return 'outline';
+      case 'RELEASE':
+        return 'outline';
+      case 'STOCK_TAKE':
+        return 'secondary';
       default:
         return 'outline';
     }
@@ -80,6 +90,16 @@ export function StockHistoryTable(props: StockHistoryTableProps) {
         return 'ของเสีย';
       case 'CANCEL':
         return 'ยกเลิกรายการ';
+      case 'TRANSFER_IN':
+        return 'โอนเข้า';
+      case 'TRANSFER_OUT':
+        return 'โอนออก';
+      case 'RESERVATION':
+        return 'จองสต็อก';
+      case 'RELEASE':
+        return 'ยกเลิกการจอง';
+      case 'STOCK_TAKE':
+        return 'ตรวจนับสต็อก';
       default:
         return type;
     }

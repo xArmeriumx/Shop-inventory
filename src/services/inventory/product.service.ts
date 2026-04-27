@@ -239,6 +239,11 @@ export const ProductService: IProductService = {
       page,
       limit,
       orderBy: { [sortBy]: sortOrder },
+      include: {
+        warehouseStocks: {
+          include: { warehouse: { select: { name: true, code: true } } }
+        }
+      }
     });
     return {
       ...result,
