@@ -1,6 +1,8 @@
 import { db, runInTransaction } from '@/lib/db';
 import { ProductInput } from '@/schemas/inventory/product.schema';
 import { StockService } from '@/services/inventory/stock.service';
+import { WarehouseService } from '@/services/inventory/warehouse.service';
+import { StockEngine } from '@/services/inventory/stock-engine.service';
 import { AuditService } from '@/services/core/system/audit.service';
 import { Prisma, Product } from '@prisma/client';
 import { paginatedQuery, buildSearchFilter } from '@/lib/pagination';
@@ -61,16 +63,14 @@ export const ProductService: IProductService = {
 
           const initialStock = payload.stock ?? 0;
           if (initialStock > 0) {
-            await StockService.recordMovement(ctx, {
+            const whId = await StockEngine.resolveWarehouse(ctx, undefined, prisma);
+            await StockEngine.executeMovement(ctx, {
+              warehouseId: whId,
               productId: newProduct.id,
+              delta: initialStock,
               type: 'ADJUSTMENT',
-              quantity: initialStock,
-              userId: ctx.userId,
-              memberId: ctx.memberId,
-              shopId: ctx.shopId,
-              note: 'สต็อกเริ่มต้น (สร้างสินค้าใหม่)',
-              tx: prisma,
-            });
+              note: 'Initial Stock (Genesis)'
+            }, prisma);
           }
 
           return newProduct;
@@ -122,13 +122,14 @@ export const ProductService: IProductService = {
           // 4. Stock adjustment logic
           if (payload.stock !== undefined && payload.stock !== existingP.stock) {
             const diff = payload.stock - existingP.stock;
-            await StockService.recordMovement(ctx, {
+            const whId = await StockEngine.resolveWarehouse(ctx, undefined, prisma);
+            await StockEngine.executeMovement(ctx, {
+              warehouseId: whId,
               productId: id,
+              delta: diff,
               type: 'ADJUSTMENT',
-              quantity: diff,
-              note: 'ปรับปรุงสต็อก (แก้ไขสินค้า)',
-              tx: prisma,
-            });
+              note: `Product Update (Manual stock override)`
+            }, prisma);
           }
 
           const { stock, version, ...otherData } = payload;
@@ -364,15 +365,14 @@ export const ProductService: IProductService = {
           }
 
           if (change !== 0) {
-            await StockService.recordMovement(ctx, {
+            const whId = await StockEngine.resolveWarehouse(ctx, undefined, prisma);
+            await StockEngine.executeMovement(ctx, {
+              warehouseId: whId,
               productId: productId,
+              delta: change,
               type: 'ADJUSTMENT',
-              quantity: change,
-              userId: ctx.userId,
-              shopId: ctx.shopId,
-              note: `${notePrefix} ${input.description}`,
-              tx: prisma,
-            });
+              note: `${notePrefix} ${input.description}`
+            }, prisma);
           }
           
           // Capture After
@@ -475,13 +475,14 @@ export const ProductService: IProductService = {
 
               if (input.stock !== undefined && current && input.stock !== current.stock) {
                 const diff = input.stock - current.stock;
-                await StockService.recordMovement(ctx, {
+                const whId = await StockEngine.resolveWarehouse(ctx, undefined, prisma);
+                await StockEngine.executeMovement(ctx, {
+                  warehouseId: whId,
                   productId: updated.id,
+                  delta: diff,
                   type: 'ADJUSTMENT',
-                  quantity: diff,
-                  note: `[Batch Import] ปรับสต็อก: ${input.name}`,
-                  tx: prisma,
-                });
+                  note: `[Batch Import] ปรับสต็อก: ${input.name}`
+                }, prisma);
               }
 
               created.push({ id: updated.id, name: updated.name, costPrice: Number(updated.costPrice) });
@@ -502,13 +503,14 @@ export const ProductService: IProductService = {
 
               const initialStock = input.stock ?? 0;
               if (initialStock > 0) {
-                await StockService.recordMovement(ctx, {
+                const whId = await StockEngine.resolveWarehouse(ctx, undefined, prisma);
+                await StockEngine.executeMovement(ctx, {
+                  warehouseId: whId,
                   productId: createdP.id,
+                  delta: initialStock,
                   type: 'ADJUSTMENT',
-                  quantity: initialStock,
-                  note: `[Batch Import] สต็อกเริ่มต้น: ${input.name}`,
-                  tx: prisma,
-                });
+                  note: `[Batch Import] สต็อกเริ่มต้น: ${input.name}`
+                }, prisma);
               }
 
               created.push({ id: createdP.id, name: createdP.name, costPrice: Number(createdP.costPrice) });

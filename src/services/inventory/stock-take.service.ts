@@ -2,6 +2,7 @@ import { db, runInTransaction } from '@/lib/db';
 import { RequestContext, ServiceError, MutationResult } from '@/types/domain';
 import { StockTakeStatus, Prisma } from '@prisma/client';
 import { StockService } from '@/services/inventory/stock.service';
+import { StockEngine } from '@/services/inventory/stock-engine.service';
 import { AuditService } from '@/services/core/system/audit.service';
 import { INVENTORY_TAGS } from '@/config/cache-tags';
 import { STOCK_TAKE_AUDIT_POLICIES } from '@/policies/inventory/stock-take.policy';
@@ -11,34 +12,45 @@ export const StockTakeService: IStockTakeService = {
     /**
      * สร้าง Session การตรวจนับใหม่และ Snapshot สต็อกปัจจุบัน
      */
-    async createSession(productIds: string[], notes: string | undefined, ctx: RequestContext): Promise<MutationResult<any>> {
+    async createSession(productIds: string[], notes: string | undefined, ctx: RequestContext, warehouseId?: string): Promise<MutationResult<any>> {
         const result = await AuditService.runWithAudit(
             ctx,
             STOCK_TAKE_AUDIT_POLICIES.CREATE(productIds.length),
             async () => {
                 return runInTransaction(undefined, async (prisma) => {
-                    // 1. ดึงข้อมูลสินค้าที่ต้องการตรวจนับ
+                    // 1. Resolve Warehouse
+                    const resolvedWhId = await StockEngine.resolveWarehouse(ctx, warehouseId, prisma);
+
+                    // 2. ดึงข้อมูลสินค้าที่ต้องการตรวจนับ พร้อมสต็อกในคลังนั้น
                     const products = await prisma.product.findMany({
                         where: { id: { in: productIds }, shopId: ctx.shopId },
-                        select: { id: true, stock: true }
+                        include: {
+                            warehouseStocks: {
+                                where: { warehouseId: resolvedWhId }
+                            }
+                        }
                     });
 
                     if (products.length === 0) throw new ServiceError('ไม่พบสินค้าที่เลือก');
 
-                    // 2. สร้าง Session
+                    // 3. สร้าง Session
                     const session = await (prisma as any).stockTakeSession.create({
                         data: {
                             shopId: ctx.shopId,
                             createdByMemberId: ctx.memberId!,
                             notes,
                             status: 'DRAFT',
+                            warehouseId: resolvedWhId,
                             items: {
-                                create: products.map(p => ({
-                                    productId: p.id,
-                                    systemOnHandQty: p.stock,
-                                    differenceQty: 0, 
-                                    isCounted: false
-                                }))
+                                create: products.map(p => {
+                                    const whStock = p.warehouseStocks[0];
+                                    return {
+                                        productId: p.id,
+                                        systemOnHandQty: whStock?.quantity || 0,
+                                        differenceQty: 0, 
+                                        isCounted: false
+                                    };
+                                })
                             }
                         },
                         include: { items: true }
@@ -153,13 +165,15 @@ export const StockTakeService: IStockTakeService = {
                     for (const item of (session as any).items) {
                         if (!item.isCounted || item.differenceQty === 0) continue;
 
-                        await StockService.recordMovement(ctx, {
+                        await StockEngine.executeMovement(ctx, {
+                            warehouseId: session.warehouseId,
                             productId: item.productId,
-                            type: 'ADJUSTMENT' as any, 
-                            quantity: item.differenceQty,
+                            delta: item.differenceQty,
+                            type: 'STOCK_TAKE',
                             note: `Stock reconciliation (Session: ${session.id})`,
-                            tx: prisma
-                        });
+                            referenceId: session.id,
+                            referenceType: 'StockTakeSession'
+                        }, prisma);
                         
                         affectedProductIds.push(item.productId);
                     }

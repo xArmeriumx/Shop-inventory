@@ -3,6 +3,7 @@ import { RequestContext, ServiceError, DocumentType } from '@/types/domain';
 import { Security } from '@/services/core/iam/security.service';
 import { SequenceService } from '@/services/core/system/sequence.service';
 import { WarehouseService } from './warehouse.service';
+import { StockEngine } from './stock-engine.service';
 
 import { IStockTransferService } from '@/types/service-contracts';
 import { INVENTORY_TAGS } from '@/config/cache-tags';
@@ -75,17 +76,25 @@ export const StockTransferService: IStockTransferService = {
             // 2. Perform Movement
             for (const line of transfer.lines) {
                 // Deduct from Source
-                await WarehouseService.adjustWarehouseStock(ctx, {
+                await StockEngine.executeMovement(ctx, {
                     warehouseId: transfer.fromWarehouseId,
                     productId: line.productId,
-                    delta: -line.quantity
+                    delta: -line.quantity,
+                    type: 'TRANSFER_OUT',
+                    note: `โอนไปยังคลัง ${transfer.toWarehouseId} (โอนเลขที่ ${transfer.transferNo})`,
+                    referenceId: transfer.id,
+                    referenceType: 'StockTransfer'
                 }, tx);
 
                 // Add to Destination
-                await WarehouseService.adjustWarehouseStock(ctx, {
+                await StockEngine.executeMovement(ctx, {
                     warehouseId: transfer.toWarehouseId,
                     productId: line.productId,
-                    delta: line.quantity
+                    delta: line.quantity,
+                    type: 'TRANSFER_IN',
+                    note: `รับโอนจากคลัง ${transfer.fromWarehouseId} (โอนเลขที่ ${transfer.transferNo})`,
+                    referenceId: transfer.id,
+                    referenceType: 'StockTransfer'
                 }, tx);
             }
 

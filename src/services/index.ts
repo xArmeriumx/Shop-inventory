@@ -68,6 +68,7 @@ export * from './inventory/stock-take.service';
 export * from './inventory/stock-transfer.service';
 export * from './inventory/stock.service';
 export * from './inventory/warehouse.service';
+export * from './inventory/stock-engine.service';
 
 // --- TYPES & CONTRACTS (Shared) ---
 export * from '../types/serialized';

@@ -3,6 +3,7 @@ import { RequestContext, ServiceError, DocumentType, MutationResult } from '@/ty
 import { CreatePurchaseReceiptInput, PurchaseStatus } from './purchases.types';
 import { SequenceService } from '../core/system/sequence.service';
 import { WarehouseService } from '../inventory/warehouse.service';
+import { StockEngine } from '../inventory/stock-engine.service';
 import { INVENTORY_TAGS } from '@/config/cache-tags';
 import { Prisma } from '@prisma/client';
 
@@ -80,29 +81,18 @@ export const PurchaseReceiptService = {
         });
 
         // Update Stock
-        await WarehouseService.adjustWarehouseStock(ctx, {
+        await StockEngine.executeMovement(ctx, {
           warehouseId: line.warehouseId,
           productId: line.productId,
-          delta: line.receivedQuantity
+          delta: line.receivedQuantity,
+          type: 'PURCHASE',
+          note: `รับสินค้าตามใบรับของ ${receipt.receiptNumber}`,
+          purchaseId: purchase.id,
+          purchaseReceiptId: receipt.id,
+          referenceId: receipt.id,
+          referenceType: 'PurchaseReceipt'
         }, tx);
 
-        // Create Stock Log
-        await (tx as any).stockLog.create({
-          data: {
-            type: 'PURCHASE',
-            productId: line.productId,
-            quantity: line.receivedQuantity,
-            balance: 0,
-            note: `รับเข้าคลังสินค้า (จาก PO: ${purchase.purchaseNumber})`,
-            referenceId: receipt.id,
-            referenceType: 'PURCHASE_RECEIPT',
-            purchaseId: purchase.id,
-            purchaseReceiptId: receipt.id,
-            userId: ctx.userId,
-            memberId: ctx.memberId,
-            shopId: ctx.shopId,
-          }
-        });
       }
 
       // 6. Update Purchase Order Status

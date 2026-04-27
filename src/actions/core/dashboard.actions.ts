@@ -1,7 +1,7 @@
 "use server";
 
 import { requirePermission } from "@/lib/auth-guard";
-import { DashboardService } from "@/services";
+import { DashboardService, WarehouseService } from "@/services";
 import { handleAction } from "@/lib/action-handler";
 import { PerformanceCollector } from "@/lib/debug/measurement";
 
@@ -13,6 +13,10 @@ export async function getDashboardStats() {
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
       const ctx = await requirePermission("SALE_VIEW");
+      
+      // Auto-provision WH-MAIN for legacy shops if missing
+      await WarehouseService.ensureDefaultWarehouse(ctx);
+
       const [stats, operational] = await Promise.all([
         DashboardService.getDashboardStats(ctx),
         DashboardService.getOperationalMetrics(ctx),

@@ -13,6 +13,7 @@ const saleItemSchema = z.object({
   costPrice: z.number().min(0).optional(),
   // G4: Item-level discount (ส่วนลดต่อชิ้น เป็นบาท)
   discountAmount: z.number().min(0, 'ส่วนลดต้องไม่ติดลบ').default(0),
+  warehouseId: z.string().optional().nullable(),
 });
 
 export const saleSchema = z.object({

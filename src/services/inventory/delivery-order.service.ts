@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { SequenceService } from '@/services/core/system/sequence.service';
 import { StockService } from '@/services/inventory/stock.service';
+import { WarehouseService } from '@/services/inventory/warehouse.service';
 import { InvoiceService } from '@/services/sales/invoice.service';
 import { AuditService, AUDIT_ACTIONS } from '@/services/core/system/audit.service';
 import { Security } from '@/services/core/iam/security.service';
@@ -295,19 +296,16 @@ export const DeliveryOrderService = {
                 }
 
                 // ── 1. Deduct Stock ─────────────────────────────────────────
-                await StockService.recordMovements(
-                    ctx,
-                    delivery.items.map((item: any) => ({
+                const defaultWh = await WarehouseService.getDefaultWarehouse(ctx);
+                if (!defaultWh) throw new ServiceError('ไม่พบคลังสินค้าหลัก กรุณาสร้างคลังสินค้าก่อน');
+
+                for (const item of delivery.items) {
+                    await WarehouseService.adjustWarehouseStock(ctx, {
+                        warehouseId: defaultWh.id,
                         productId: item.productId,
-                        type: 'SALE' as const,
-                        quantity: item.quantity,
-                        saleId: delivery.saleId,
-                        deliveryOrderId: delivery.id,
-                        note: `ตัดสต็อกจาก DO: ${delivery.deliveryNo}`,
-                        requireStock: true,
-                    })),
-                    tx
-                );
+                        delta: -item.quantity
+                    }, tx);
+                }
 
                 // ── 2. Update DO → DELIVERED ────────────────────────────────
                 await (tx as any).deliveryOrder.update({

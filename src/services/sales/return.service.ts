@@ -1,6 +1,7 @@
 import { db, runInTransaction } from '@/lib/db';
 import { Prisma } from '@prisma/client';
 import { StockService } from '@/services/inventory/stock.service';
+import { StockEngine } from '@/services/inventory/stock-engine.service';
 import { NotificationService } from '@/services/core/intelligence/notification.service';
 import {
   ServiceError,
@@ -141,6 +142,7 @@ export const ReturnService = {
               quantity: item.quantity,
               refundPerUnit: item.refundPerUnit,
               refundAmount,
+              warehouseId: (saleItem as any).warehouseId || null, // Preserve the source warehouse
             });
           }
 
@@ -164,20 +166,17 @@ export const ReturnService = {
           });
 
           // Stock restoration logic
-          await StockService.recordMovements(
-            ctx,
-            returnItemsData.map(item => ({
+          for (const item of returnItemsData) {
+            await StockEngine.executeMovement(ctx, {
+              warehouseId: item.warehouseId || (await StockEngine.resolveWarehouse(ctx, undefined, prisma)),
               productId: item.productId,
-              type: 'RETURN' as const,
-              quantity: item.quantity,
-              userId: ctx.userId,
-              shopId: ctx.shopId,
+              delta: item.quantity,
+              type: 'RETURN',
+              note: `คืนสินค้า ${returnRecord.returnNumber} (${input.reason})`,
               returnId: returnRecord.id,
               saleId: input.saleId,
-              note: `คืนสินค้า ${returnRecord.returnNumber} (${input.reason})`,
-            })),
-            prisma
-          );
+            }, prisma);
+          }
 
           let totalReturnCost = 0;
           for (const item of input.items) {

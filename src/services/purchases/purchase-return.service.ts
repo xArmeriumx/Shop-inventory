@@ -1,6 +1,7 @@
 import { db, runInTransaction } from '@/lib/db';
 import { Prisma } from '@prisma/client';
 import { StockService } from '@/services/inventory/stock.service';
+import { StockEngine } from '@/services/inventory/stock-engine.service';
 import {
     ServiceError,
     RequestContext,
@@ -88,18 +89,15 @@ export const PurchaseReturnService = {
                     });
 
                     // Stock Movement (Deduct stock since we are returning it to supplier)
-                    await StockService.recordMovements(
-                        ctx,
-                        returnItemsData.map(item => ({
+                    for (const item of returnItemsData) {
+                        await StockEngine.executeMovement(ctx, {
+                            warehouseId: await StockEngine.resolveWarehouse(ctx, undefined, prisma),
                             productId: item.productId,
-                            type: 'RETURN' as any, // Or custom type if needed
-                            quantity: -item.quantity, // Negative for deduction
-                            userId: ctx.userId,
-                            shopId: ctx.shopId,
+                            delta: -item.quantity,
+                            type: 'PURCHASE_RETURN',
                             note: `ส่งคืนสินค้า ${returnRecord.returnNumber} (${input.reason})`
-                        })),
-                        prisma
-                    );
+                        }, prisma);
+                    }
 
                     // Update Purchase Totals (Optional: reduce residualAmount if applicable)
                     if (input.recoveryMethod === 'CREDIT') {

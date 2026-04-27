@@ -2,6 +2,7 @@ import { db, runInTransaction } from '@/lib/db';
 import { Prisma, Permission } from '@prisma/client';
 import { SaleInput } from '@/schemas/sales/sale.schema';
 import { StockService } from '@/services/inventory/stock.service';
+import { StockEngine } from '@/services/inventory/stock-engine.service';
 import { NotificationService } from '@/services/core/intelligence/notification.service';
 import { JournalService } from '@/services/accounting/journal.service';
 import { money, calcSubtotal, calcProfit, toNumber } from '@/lib/money';
@@ -135,6 +136,8 @@ export const SaleService: ISaleService = {
             }
           );
 
+          const defaultWhId = await StockEngine.resolveWarehouse(ctx, undefined, prisma);
+
           const saleItemsToCreate = calculation.lines.map((res, idx) => ({
             productId: items[idx].productId,
             quantity: res.qty,
@@ -146,6 +149,7 @@ export const SaleService: ISaleService = {
             discountAmount: res.lineDiscount,
             taxAmount: res.taxAmount,
             taxableAmount: res.taxableBase,
+            warehouseId: items[idx].warehouseId || defaultWhId, // Support multi-warehouse per item
           }));
 
           // SSOT: Use SALE_ORDER (SO) as the primary identifier for Sales (Orders)
@@ -499,22 +503,19 @@ export const SaleService: ISaleService = {
               return Promise.resolve();
             }));
           } else if (fullSale.bookingStatus === BookingStatus.DEDUCTED) {
-            const movements = fullSale.items
-              .map(item => {
-                const restoreQty = item.quantity - item.returnItems.reduce((sum: number, ri: any) => sum + ri.quantity, 0);
-                return restoreQty > 0 ? {
+            for (const item of fullSale.items) {
+              const restoreQty = item.quantity - item.returnItems.reduce((sum: number, ri: any) => sum + ri.quantity, 0);
+              if (restoreQty > 0) {
+                await StockEngine.executeMovement(ctx, {
+                  warehouseId: (item as any).warehouseId || (await StockEngine.resolveWarehouse(ctx, undefined, prisma)),
                   productId: item.productId,
-                  type: 'SALE_CANCEL' as const,
-                  quantity: restoreQty,
-                  saleId: fullSale.id,
-                  userId: ctx.userId,
-                  shopId: fullSale.shopId || ctx.shopId,
+                  delta: restoreQty,
+                  type: 'SALE_CANCEL',
                   note: `ยกเลิกการขาย ${fullSale.invoiceNumber} - ${cancelReason}`,
-                } : null;
-              })
-              .filter(Boolean) as any[];
-
-            if (movements.length > 0) await StockService.recordMovements(ctx, movements, prisma);
+                  saleId: fullSale.id,
+                }, prisma);
+              }
+            }
           }
 
           return fullSale;
@@ -673,7 +674,16 @@ export const SaleService: ISaleService = {
             );
           }
 
-          await StockService.bulkDeductStock(fullSale.items, ctx, prisma, { saleId });
+          for (const item of fullSale.items) {
+            await StockEngine.executeMovement(ctx, {
+              warehouseId: (item as any).warehouseId || (await StockEngine.resolveWarehouse(ctx, undefined, prisma)),
+              productId: item.productId,
+              delta: -item.quantity,
+              type: 'SALE',
+              note: `ขายสินค้า ${fullSale.invoiceNumber}`,
+              saleId: fullSale.id,
+            }, prisma);
+          }
 
           await prisma.sale.update({
             where: { id: saleId, shopId: ctx.shopId },

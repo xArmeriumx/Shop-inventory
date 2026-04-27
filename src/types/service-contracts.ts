@@ -760,6 +760,11 @@ export interface IWarehouseService {
    * ค้นหาคลังสินค้าหลัก
    */
   getDefaultWarehouse(ctx: RequestContext): Promise<any>;
+
+  /**
+   * ตรวจสอบและสร้างคลังสินค้าหลักหากยังไม่มี (Auto-provision)
+   */
+  ensureDefaultWarehouse(ctx: RequestContext, tx?: any): Promise<any>;
 }
 
 // ============================================================================
@@ -773,7 +778,8 @@ export interface IStockTakeService {
   createSession(
     productIds: string[],
     notes: string | undefined,
-    ctx: RequestContext
+    ctx: RequestContext,
+    warehouseId?: string
   ): Promise<MutationResult<any>>;
 
   /**

@@ -21,6 +21,7 @@
 import { db, runInTransaction } from '@/lib/db';
 import { ServiceError } from '@/types/common';
 import { AuditService } from './audit.service';
+import { WarehouseService } from '../../inventory/warehouse.service';
 import { LookupTypeCode } from '@prisma/client';
 import type { RequestContext } from '@/types/common';
 import {
@@ -191,6 +192,17 @@ export const OnboardingService = {
         } as any,
       });
 
+      // ── Step A.1: Create Default Warehouse ────────────────────────────────
+      const defaultWarehouse = await tx.warehouse.create({
+        data: {
+          name: 'คลังสินค้าหลัก',
+          code: 'WH-MAIN',
+          isDefault: true,
+          isActive: true,
+          shopId: shop.id,
+        }
+      });
+
       // ── Step B: Create Owner Role ──────────────────────────────────────────
       const ownerRole = await tx.role.create({
         data: {
@@ -291,7 +303,7 @@ export const OnboardingService = {
 
       // ── Step H: Demo data seeding ─────────────────────────────────────────
       if (step5.onboardingMode === OnboardingMode.DEMO) {
-        await OnboardingService._seedDemoData(shop.id, userId, tx);
+        await OnboardingService._seedDemoData(shop.id, userId, tx, defaultWarehouse.id);
       }
 
       // ── Step I: Initialize OnboardingProgress ─────────────────────────────
@@ -432,7 +444,7 @@ export const OnboardingService = {
   // --------------------------------------------------------------------------
   // PRIVATE: Seed demo data (tagged with [DEMO] prefix)
   // --------------------------------------------------------------------------
-  async _seedDemoData(shopId: string, userId: string, tx: any): Promise<void> {
+  async _seedDemoData(shopId: string, userId: string, tx: any, defaultWarehouseId?: string): Promise<void> {
     // Demo Customer
     await tx.customer.create({
       data: {
@@ -453,15 +465,30 @@ export const OnboardingService = {
     });
 
     // Demo Products (5 items)
-    await tx.product.createMany({
-      data: [
-        { name: '[DEMO] สินค้า A', sku: 'DEMO-001', costPrice: 100, salePrice: 150, stock: 50, shopId, userId, category: 'สินค้าทดสอบ' },
-        { name: '[DEMO] สินค้า B', sku: 'DEMO-002', costPrice: 200, salePrice: 280, stock: 30, shopId, userId, category: 'สินค้าทดสอบ' },
-        { name: '[DEMO] สินค้า C', sku: 'DEMO-003', costPrice: 50, salePrice: 80, stock: 100, shopId, userId, category: 'สินค้าทดสอบ' },
-        { name: '[DEMO] สินค้า D', sku: 'DEMO-004', costPrice: 500, salePrice: 650, stock: 20, shopId, userId, category: 'สินค้าทดสอบ' },
-        { name: '[DEMO] สินค้า E', sku: 'DEMO-005', costPrice: 30, salePrice: 45, stock: 200, shopId, userId, category: 'สินค้าทดสอบ' },
-      ],
-    });
+    const demoProducts = [
+      { name: '[DEMO] สินค้า A', sku: 'DEMO-001', costPrice: 100, salePrice: 150, stock: 50, shopId, userId, category: 'สินค้าทดสอบ' },
+      { name: '[DEMO] สินค้า B', sku: 'DEMO-002', costPrice: 200, salePrice: 280, stock: 30, shopId, userId, category: 'สินค้าทดสอบ' },
+      { name: '[DEMO] สินค้า C', sku: 'DEMO-003', costPrice: 50, salePrice: 80, stock: 100, shopId, userId, category: 'สินค้าทดสอบ' },
+      { name: '[DEMO] สินค้า D', sku: 'DEMO-004', costPrice: 500, salePrice: 650, stock: 20, shopId, userId, category: 'สินค้าทดสอบ' },
+      { name: '[DEMO] สินค้า E', sku: 'DEMO-005', costPrice: 30, salePrice: 45, stock: 200, shopId, userId, category: 'สินค้าทดสอบ' },
+    ];
+
+    const ctx: RequestContext = { shopId, userId, permissions: [], isOwner: true };
+
+    for (const p of demoProducts) {
+      const { stock, ...productData } = p;
+      const product = await tx.product.create({
+        data: { ...productData, stock: 0 }
+      });
+      
+      if (defaultWarehouseId && stock > 0) {
+        await WarehouseService.adjustWarehouseStock(ctx, {
+          warehouseId: defaultWarehouseId,
+          productId: product.id,
+          delta: stock
+        }, tx);
+      }
+    }
   },
 
   async getTutorialState(shopId: string) {

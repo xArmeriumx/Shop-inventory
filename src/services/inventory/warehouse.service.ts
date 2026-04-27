@@ -178,5 +178,28 @@ export const WarehouseService: IWarehouseService = {
         }
 
         return warehouse;
+    },
+
+    /**
+     * Ensure a default warehouse exists for the shop.
+     * Auto-provisions WH-MAIN if no warehouse exists.
+     */
+    async ensureDefaultWarehouse(ctx: RequestContext, tx: any = db): Promise<any> {
+        const existing = await (tx as any).warehouse.findFirst({
+            where: { shopId: ctx.shopId }
+        });
+
+        if (existing) return existing;
+
+        // Auto-provision WH-MAIN
+        return await (tx as any).warehouse.create({
+            data: {
+                name: 'คลังสินค้าหลัก',
+                code: 'WH-MAIN',
+                isDefault: true,
+                isActive: true,
+                shopId: ctx.shopId
+            }
+        });
     }
 };
