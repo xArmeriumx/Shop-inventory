@@ -23,6 +23,8 @@ import { createSale } from '@/actions/sales/sales.actions';
 import { getProductsForSelect } from '@/actions/inventory/products.actions';
 import { getCustomersForSelect } from '@/actions/sales/customers.actions';
 import { getMyProfile } from '@/actions/core/auth.actions';
+import { getShop } from '@/actions/core/shop.actions';
+import { getWarehousesAction } from '@/actions/inventory/warehouse.actions';
 import { getQuotationDetail } from '@/actions/sales/quotations.actions';
 import { formatCurrency } from '@/lib/formatters';
 import { PAYMENT_METHODS } from '@/lib/constants';
@@ -141,9 +143,13 @@ function SalesInfoSection({
 
 function SalesItemsSection({
   products,
+  warehouses,
+  inventoryMode,
   onScanResult
 }: {
   products: any[],
+  warehouses: any[],
+  inventoryMode: string,
   onScanResult: (res: SaleScanResult) => void
 }) {
   const { control, register, watch, setValue } = useFormContext<SaleFormValues>();
@@ -201,13 +207,25 @@ function SalesItemsSection({
 
         {fields.map((field, index) => {
           const selectedProductId = watch(`items.${index}.productId`);
+          const selectedWarehouseId = watch(`items.${index}.warehouseId`);
           const product = products.find(p => p.id === selectedProductId);
           const quantity = watch(`items.${index}.quantity`);
           const salePrice = watch(`items.${index}.salePrice`);
           const discountAmount = watch(`items.${index}.discountAmount`);
           const lineTotal = (Number(quantity) || 0) * ((Number(salePrice) || 0) - (Number(discountAmount) || 0));
 
-          const isStockInsufficient = product ? (Number(quantity) || 0) > (product.stock - (product.reservedStock || 0)) : false;
+          // SSOT: Calculate availability based on SELECTED warehouse if in MULTI mode
+          let availableStock = 0;
+          if (product) {
+            if (inventoryMode === 'MULTI_WAREHOUSE' && selectedWarehouseId) {
+              const whStock = product.warehouseStocks?.find((ws: any) => ws.warehouseId === selectedWarehouseId);
+              availableStock = whStock ? Number(whStock.quantity) : 0;
+            } else {
+              availableStock = product.stock - (product.reservedStock || 0);
+            }
+          }
+
+          const isStockInsufficient = product ? (Number(quantity) || 0) > availableStock : false;
 
           return (
             <div key={field.id} className={cn(
@@ -237,11 +255,31 @@ function SalesItemsSection({
                 >
                   <option value="">เลือกสินค้า</option>
                   {products.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name} {p.sku && `(${p.sku})`} - ว่าง: {p.stock - (p.reservedStock || 0)}</option>
+                    <option key={p.id} value={p.id}>{p.name} {p.sku && `(${p.sku})`} - ยอดรวม: {p.stock - (p.reservedStock || 0)}</option>
                   ))}
                 </select>
               </div>
-              <div className="md:col-span-2 space-y-2">
+
+              {inventoryMode === 'MULTI_WAREHOUSE' && (
+                <div className="md:col-span-2 space-y-2">
+                  <Label>คลังสินค้า *</Label>
+                  <select
+                    {...register(`items.${index}.warehouseId` as const)}
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm font-medium"
+                    required
+                  >
+                    <option value="">เลือกคลัง...</option>
+                    {warehouses.filter(w => w.isActive).map((w) => (
+                      <option key={w.id} value={w.id}>{w.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className={cn(
+                inventoryMode === 'MULTI_WAREHOUSE' ? "md:col-span-1" : "md:col-span-2",
+                "space-y-2"
+              )}>
                 <Label>จำนวน *</Label>
                 <Input
                   type="number"
@@ -250,7 +288,7 @@ function SalesItemsSection({
                   className={cn(isStockInsufficient && "border-red-500 focus-visible:ring-red-500")}
                 />
                 {isStockInsufficient && product && (
-                  <p className="text-[10px] text-red-600 font-bold animate-pulse">สั่งซื้อได้สูงสุด: {product.stock - (product.reservedStock || 0)}</p>
+                  <p className="text-[10px] text-red-600 font-bold animate-pulse">สั่งซื้อได้สูงสุดในคลังนี้: {availableStock}</p>
                 )}
               </div>
               <div className="md:col-span-2 space-y-2">
@@ -291,6 +329,8 @@ export function SaleForm() {
   const { hasPermission } = usePermissions();
   const [products, setProducts] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
+  const [warehouses, setWarehouses] = useState<any[]>([]);
+  const [inventoryMode, setInventoryMode] = useState<string>('SIMPLE');
   const [aiFilled, setAiFilled] = useState<Set<string>>(new Set());
 
   const methods = useForm<SaleFormValues>({
@@ -301,12 +341,24 @@ export function SaleForm() {
   const { handleSubmit, setValue, watch, control } = methods;
 
   useEffect(() => {
-    Promise.all([getProductsForSelect(), getCustomersForSelect(), getMyProfile()]).then(([psRes, csRes]) => {
+    Promise.all([
+      getProductsForSelect(),
+      getCustomersForSelect(),
+      getMyProfile(),
+      getShop(),
+      getWarehousesAction()
+    ]).then(([psRes, csRes, profRes, shopRes, whRes]) => {
       if (psRes.success && psRes.data) {
         setProducts(psRes.data.map((p: any) => ({ ...p, salePrice: Number(p.salePrice), costPrice: Number(p.costPrice) })));
       }
       if (csRes.success && csRes.data) {
         setCustomers(csRes.data);
+      }
+      if (shopRes.success && shopRes.data) {
+        setInventoryMode(shopRes.data.inventoryMode || 'SIMPLE');
+      }
+      if (whRes.success && whRes.data) {
+        setWarehouses(whRes.data);
       }
     });
   }, []);
@@ -317,7 +369,7 @@ export function SaleForm() {
       getQuotationDetail(quotationId).then((res) => {
         if (res.success && res.data) {
           const q = res.data;
-          
+
           // 1. Set Customer
           if (q.customerId) {
             setValue('customerId', q.customerId);
@@ -353,12 +405,28 @@ export function SaleForm() {
   const allValues = watch();
   const calculation = computeSaleTotals(allValues, products);
   const { totals } = calculation;
-  
+
   const totalAmount = totals.subtotalAmount;
   const billDiscountAmount = totals.billDiscountAmount;
   const netAmount = totals.netAmount;
   const totalCost = totals.totalCost;
   const profit = totals.totalProfit;
+
+  // --- Stock Validation (Task 0.3): Reactive calculation for UI ---
+  const stockShortageItems = items.filter(item => {
+    const p = products.find(prod => prod.id === item.productId);
+    if (!p) return false;
+
+    let available = 0;
+    if (inventoryMode === 'MULTI_WAREHOUSE' && item.warehouseId) {
+      const whStock = p.warehouseStocks?.find((ws: any) => ws.warehouseId === item.warehouseId);
+      available = whStock ? Number(whStock.quantity) : 0;
+    } else {
+      available = p.stock - (p.reservedStock || 0);
+    }
+
+    return (Number(item.quantity) || 0) > available;
+  });
 
   const handleScanResult = (result: SaleScanResult) => {
     const filled = new Set<string>();
@@ -403,15 +471,6 @@ export function SaleForm() {
       discountValue: data.showDiscount ? (Number(data.discountValue) || 0) : null,
     };
 
-    // --- Stock Validation (Task 0.3) ---
-    const insufficientItems = data.items.filter(item => {
-      const p = products.find(prod => prod.id === item.productId);
-      if (!p) return false;
-      const available = p.stock - (p.reservedStock || 0);
-      return (Number(item.quantity) || 0) > available;
-    });
-
-
     startTransition(async () => {
       await runActionWithToast(createSale(payload), {
         successMessage: 'บันทึกใบสั่งขายสำเร็จ',
@@ -439,7 +498,12 @@ export function SaleForm() {
         )}
 
         <SalesInfoSection customers={customers} aiFilled={aiFilled} />
-        <SalesItemsSection products={products} onScanResult={handleScanResult} />
+        <SalesItemsSection
+          products={products}
+          warehouses={warehouses}
+          inventoryMode={inventoryMode}
+          onScanResult={handleScanResult}
+        />
 
         <Card>
           <CardHeader><CardTitle className="text-base">หลักฐานการชำระเงิน</CardTitle></CardHeader>
@@ -451,15 +515,15 @@ export function SaleForm() {
         <Card className="border-primary/20 shadow-md">
           <CardContent className="pt-6 space-y-3">
             <div className="flex justify-between text-sm">
-               <span className="text-muted-foreground flex items-center gap-1.5"><Plus className="h-3 w-3" /> ยอดรวมสินค้า (ก่อนหักส่วนลดบิล)</span>
-               <span className="font-mono font-bold">{formatCurrency(totalAmount.toString())}</span>
+              <span className="text-muted-foreground flex items-center gap-1.5"><Plus className="h-3 w-3" /> ยอดรวมสินค้า (ก่อนหักส่วนลดบิล)</span>
+              <span className="font-mono font-bold">{formatCurrency(totalAmount.toString())}</span>
             </div>
-            
+
             <div className="space-y-2">
               <button type="button" onClick={() => setValue('showDiscount', !showDiscount)} className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-primary hover:text-primary/80 transition-colors">
                 <Tag className="h-3 w-3" /> {showDiscount ? 'ยกเลิกส่วนลดท้ายบิล' : '▸ เพิ่มส่วนลดท้ายบิล'}
               </button>
-              
+
               {showDiscount && (
                 <div className="animate-in slide-in-from-top-2 flex items-center gap-2 rounded-xl border border-dashed p-3 bg-primary/5">
                   <select {...methods.register('discountType')} className="h-9 w-24 rounded-lg border border-input bg-background px-2 text-sm font-bold">
@@ -480,35 +544,35 @@ export function SaleForm() {
             )}
 
             <div className="pt-2 border-t border-dashed space-y-1">
-               <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>ฐานภาษี (Taxable Base)</span>
-                  <span className="font-mono">{formatCurrency(totals.taxableBaseAmount.toString())}</span>
-               </div>
-               <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>ภาษีมูลค่าเพิ่ม (VAT {allValues.taxRate}%) - {allValues.taxMode === 'INCLUSIVE' ? 'รวมในราคาแล้ว' : allValues.taxMode === 'EXCLUSIVE' ? 'แยกนอก' : 'ไม่มี'}</span>
-                  <span className="font-mono">{formatCurrency(totals.taxAmount.toString())}</span>
-               </div>
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>ฐานภาษี (Taxable Base)</span>
+                <span className="font-mono">{formatCurrency(totals.taxableBaseAmount.toString())}</span>
+              </div>
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>ภาษีมูลค่าเพิ่ม (VAT {allValues.taxRate}%) - {allValues.taxMode === 'INCLUSIVE' ? 'รวมในราคาแล้ว' : allValues.taxMode === 'EXCLUSIVE' ? 'แยกนอก' : 'ไม่มี'}</span>
+                <span className="font-mono">{formatCurrency(totals.taxAmount.toString())}</span>
+              </div>
             </div>
 
             <div className="flex justify-between border-t pt-3 items-baseline">
-               <span className="font-bold text-sm uppercase tracking-tighter opacity-70">ยอดรวมสุทธิ (Net Total)</span>
-               <span className="text-3xl font-black tracking-tighter text-primary font-mono">{formatCurrency(netAmount.toString())}</span>
+              <span className="font-bold text-sm uppercase tracking-tighter opacity-70">ยอดรวมสุทธิ (Net Total)</span>
+              <span className="text-3xl font-black tracking-tighter text-primary font-mono">{formatCurrency(netAmount.toString())}</span>
             </div>
 
             {hasPermission('SALE_VIEW_PROFIT') && (
               <div className="mt-4 p-3 rounded-2xl bg-muted/40 space-y-1.5 border border-border/50">
                 <div className="flex justify-between text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                   <span>ต้นทุนรวม (Total Cost)</span>
-                   <span className="font-mono">{formatCurrency(totalCost.toString())}</span>
+                  <span>ต้นทุนรวม (Total Cost)</span>
+                  <span className="font-mono">{formatCurrency(totalCost.toString())}</span>
                 </div>
                 <div className="flex justify-between items-center pt-1 border-t border-border/50 border-dashed">
-                   <span className="text-xs font-black uppercase tracking-tighter">กำไรขั้นต้น (GP)</span>
-                   <span className={cn(
-                     "text-lg font-black font-mono tracking-tight",
-                     profit >= 0 ? "text-emerald-600" : "text-destructive"
-                   )}>
-                     {formatCurrency(profit.toString())}
-                   </span>
+                  <span className="text-xs font-black uppercase tracking-tighter">กำไรขั้นต้น (GP)</span>
+                  <span className={cn(
+                    "text-lg font-black font-mono tracking-tight",
+                    profit >= 0 ? "text-emerald-600" : "text-destructive"
+                  )}>
+                    {formatCurrency(profit.toString())}
+                  </span>
                 </div>
               </div>
             )}
@@ -516,7 +580,17 @@ export function SaleForm() {
         </Card>
 
         <div className="flex gap-2">
-          <Button type="submit" disabled={isPending || items.some(i => !i.productId)}>{isPending ? 'กำลังบันทึก...' : 'บันทึกการขาย'}</Button>
+          <Button
+            type="submit"
+            disabled={
+              isPending ||
+              items.some(i => !i.productId) ||
+              (inventoryMode === 'MULTI_WAREHOUSE' && items.some(i => !i.warehouseId)) ||
+              stockShortageItems.length > 0
+            }
+          >
+            {isPending ? 'กำลังบันทึก...' : 'บันทึกการขาย'}
+          </Button>
           <Button type="button" variant="outline" onClick={() => router.back()}>ยกเลิก</Button>
         </div>
       </form>

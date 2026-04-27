@@ -6,6 +6,7 @@ import { ComputationEngine, CalculationItemInput } from '@/services/core/finance
  */
 export const saleItemSchema = z.object({
     productId: z.string().min(1, 'กรุณาเลือกสินค้า'),
+    warehouseId: z.string().optional().nullable(),
     quantity: z.coerce.number().min(1, 'จำนวนต้องมากกว่า 0'),
     salePrice: z.coerce.number().min(0, 'ราคาต้องไม่ติดลบ'),
     discountAmount: z.coerce.number().min(0).default(0),
@@ -26,7 +27,7 @@ export const saleFormSchema = z.object({
     showDiscount: z.boolean().default(false),
     discountType: z.enum(['FIXED', 'PERCENT']).nullable().optional(),
     discountValue: z.coerce.number().min(0).nullable().optional(),
-    
+
     // Tax Configuration (Situational Resolution)
     taxMode: z.enum(['INCLUSIVE', 'EXCLUSIVE', 'NO_VAT']).default('INCLUSIVE'),
     taxRate: z.coerce.number().min(0).default(7),

@@ -150,10 +150,10 @@ export const ProductService: IProductService = {
                 version: { increment: 1 },
               },
             });
-            
+
             // Attach after snapshot for audit
             (ctx as any).auditMetadata.after = updatedProduct;
-            
+
             return updatedProduct;
           } catch (e) {
             if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2025') {
@@ -263,6 +263,7 @@ export const ProductService: IProductService = {
   async getForSelect(ctx: RequestContext): Promise<SerializedProduct[]> {
     const products = await db.product.findMany({
       where: { shopId: ctx.shopId, isActive: true, deletedAt: null, stock: { gt: 0 } },
+      include: { warehouseStocks: true },
       orderBy: { name: 'asc' },
     });
     return products.map(p => serializeProduct(p));
@@ -274,6 +275,7 @@ export const ProductService: IProductService = {
   async getForPurchase(ctx: RequestContext): Promise<SerializedProduct[]> {
     const products = await db.product.findMany({
       where: { shopId: ctx.shopId, isActive: true, deletedAt: null },
+      include: { warehouseStocks: true },
       orderBy: { name: 'asc' },
     });
     return products.map(p => serializeProduct(p));
@@ -336,7 +338,7 @@ export const ProductService: IProductService = {
           });
 
           if (!product || product.shopId !== ctx.shopId) throw new ServiceError('ไม่พบสินค้า');
-          
+
           // Attach for Audit
           (ctx as any).auditMetadata = { before: product };
 
@@ -374,7 +376,7 @@ export const ProductService: IProductService = {
               note: `${notePrefix} ${input.description}`
             }, prisma);
           }
-          
+
           // Capture After
           const after = await prisma.product.findUnique({
             where: { id: productId },
