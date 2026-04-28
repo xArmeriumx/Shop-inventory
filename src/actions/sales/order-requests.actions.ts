@@ -11,7 +11,7 @@ import { handleAction } from '@/lib/action-handler';
 export async function getOrderRequests(params: any = {}): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
-            const ctx = await requirePermission('ORDER_REQUEST_VIEW' as any);
+            const ctx = await requirePermission('ORDER_REQUEST_VIEW');
             return OrderRequestService.list(ctx, params);
         }, 'sales:getOrderRequests');
     }, { context: { action: 'getOrderRequests' } });
@@ -20,7 +20,7 @@ export async function getOrderRequests(params: any = {}): Promise<ActionResponse
 export async function createOrderRequest(input: OrderRequestInput): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
-            const ctx = await requirePermission('ORDER_REQUEST_CREATE' as any);
+            const ctx = await requirePermission('ORDER_REQUEST_CREATE');
             const validated = orderRequestSchema.parse(input);
             const result = await OrderRequestService.create(ctx, validated as any);
 
@@ -36,7 +36,7 @@ export async function createOrderRequest(input: OrderRequestInput): Promise<Acti
 export async function submitOrderRequest(id: string): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
-            const ctx = await requirePermission('ORDER_REQUEST_SUBMIT' as any);
+            const ctx = await requirePermission('ORDER_REQUEST_SUBMIT');
             const result = await OrderRequestService.submit(ctx, id);
 
             if (result.affectedTags) {

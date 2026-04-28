@@ -1954,6 +1954,7 @@ enum Permission {
   SUPPLIER_CREATE
   SUPPLIER_UPDATE
   SUPPLIER_DELETE
+  INCOME_VIEW
 }
 
 enum TransferStatus {

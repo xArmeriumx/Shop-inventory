@@ -38,7 +38,7 @@ type CreateReturnInput = z.infer<typeof createReturnSchema>;
 export async function getReturnableSaleItems(saleId: string): Promise<ActionResponse<any>> {
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
-      const ctx = await requirePermission('RETURN_CREATE' as any);
+      const ctx = await requirePermission('RETURN_CREATE');
       return ReturnService.getReturnableSaleItems(saleId, ctx);
     }, 'returns:getReturnableSaleItems');
   }, { context: { action: 'getReturnableSaleItems', saleId } });
@@ -50,7 +50,7 @@ export async function getReturnableSaleItems(saleId: string): Promise<ActionResp
 export async function createReturn(input: CreateReturnInput): Promise<ActionResponse<any>> {
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
-      const ctx = await requirePermission('RETURN_CREATE' as any);
+      const ctx = await requirePermission('RETURN_CREATE');
       const data = createReturnSchema.parse(input);
       const result = await ReturnService.create(data, ctx);
 
@@ -73,7 +73,7 @@ export async function getReturns(options?: {
 }): Promise<ActionResponse<any>> {
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
-      const ctx = await requirePermission('RETURN_VIEW' as any);
+      const ctx = await requirePermission('RETURN_VIEW');
       return ReturnService.getList(options || {}, ctx);
     }, 'returns:getReturns');
   }, { context: { action: 'getReturns' } });
@@ -85,7 +85,7 @@ export async function getReturns(options?: {
 export async function getReturnById(returnId: string): Promise<ActionResponse<any>> {
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
-      const ctx = await requirePermission('RETURN_VIEW' as any);
+      const ctx = await requirePermission('RETURN_VIEW');
       return ReturnService.getById(returnId, ctx);
     }, 'returns:getReturnById');
   }, { context: { action: 'getReturnById', returnId } });

@@ -58,7 +58,7 @@ export async function postInvoice(id: string): Promise<ActionResponse> {
 export async function markInvoicePaid(id: string): Promise<ActionResponse> {
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
-            const ctx = await requirePermission('FINANCE_VIEW_LEDGER' as any);
+            const ctx = await requirePermission('FINANCE_VIEW_LEDGER');
             const result = await InvoiceService.markPaid(ctx, id);
             
             if (result.affectedTags) {
@@ -97,7 +97,7 @@ export async function getInvoiceStats(): Promise<ActionResponse<any>> {
 export async function bulkPostInvoices(): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
-            const ctx = await requirePermission('INVOICE_POST' as any);
+            const ctx = await requirePermission('INVOICE_POST');
             const result = await InvoiceService.bulkPost(ctx);
             
             if (result.affectedTags) {

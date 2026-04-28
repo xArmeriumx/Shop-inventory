@@ -6,6 +6,8 @@ import { purchaseSchema, type PurchaseInput } from '@/schemas/purchases/purchase
 import { PurchaseService, type GetPurchasesParams, type CancelPurchaseInput } from '@/services';
 import { ActionResponse } from '@/types/common';
 import { SerializedPurchase } from '@/types/serialized';
+import { entityIdSchema } from '@/schemas/shared';
+import { z } from 'zod';
 
 import { PerformanceCollector } from '@/lib/debug/measurement';
 import { handleAction } from '@/lib/action-handler';
@@ -120,8 +122,12 @@ export async function cancelPurchase(input: CancelPurchaseInput): Promise<Action
 export async function receivePurchase(id: string, warehouseId?: string): Promise<ActionResponse> {
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
+      const validatedId = entityIdSchema.parse(id);
+      const validatedWarehouseId = warehouseId
+        ? z.string().cuid().parse(warehouseId)
+        : undefined;
       const ctx = await requirePermission('PURCHASE_CREATE');
-      const result = await PurchaseService.receivePurchase(id, ctx, warehouseId);
+      const result = await PurchaseService.receivePurchase(validatedId, ctx, validatedWarehouseId);
 
       if (result.affectedTags) {
         result.affectedTags.forEach(tag => revalidateTag(tag));

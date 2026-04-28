@@ -32,7 +32,7 @@ export async function getLookupValues(typeCode: LookupTypeCode): Promise<ActionR
 export async function getLookupValuesForSettings(typeCode: LookupTypeCode): Promise<ActionResponse<any[]>> {
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
-      const ctx = await requirePermission('SETTINGS_SHOP' as any);
+      const ctx = await requirePermission('SETTINGS_SHOP');
       return LookupService.getLookupValuesForSettings(typeCode, ctx);
     }, 'lookups:getLookupValuesForSettings');
   }, { context: { action: 'getLookupValuesForSettings', typeCode } });
@@ -46,7 +46,7 @@ export async function quickAddCategory(
 ): Promise<ActionResponse<{ id: string; name: string }>> {
   return handleAction(async () => {
     // FIX: Tighten permission for quick add to prevent data pollution
-    const ctx = await requirePermission('SETTINGS_SHOP' as any);
+    const ctx = await requirePermission('SETTINGS_SHOP');
     
     const created = await LookupService.quickAddCategory(typeCode, name, ctx);
     
@@ -72,7 +72,7 @@ export async function createLookupValue(
   input: any
 ): Promise<ActionResponse<any>> {
   return handleAction(async () => {
-    const ctx = await requirePermission('SETTINGS_SHOP' as any);
+    const ctx = await requirePermission('SETTINGS_SHOP');
     const validated = lookupValueSchema.parse(input);
     
     const result = await LookupService.createLookupValue(typeCode, validated, ctx);
@@ -98,7 +98,7 @@ export async function updateLookupValue(
   input: any
 ): Promise<ActionResponse<any>> {
   return handleAction(async () => {
-    const ctx = await requirePermission('SETTINGS_SHOP' as any);
+    const ctx = await requirePermission('SETTINGS_SHOP');
     
     const before = await LookupService.getLookupValueById(id, ctx);
     const validated = lookupValueSchema.partial().parse(input);
@@ -124,7 +124,7 @@ export async function updateLookupValue(
 
 export async function deleteLookupValue(id: string): Promise<ActionResponse<null>> {
   return handleAction(async () => {
-    const ctx = await requirePermission('SETTINGS_SHOP' as any);
+    const ctx = await requirePermission('SETTINGS_SHOP');
     
     const before = await LookupService.getLookupValueById(id, ctx);
     await LookupService.deleteLookupValue(id, ctx);
@@ -147,7 +147,7 @@ export async function deleteLookupValue(id: string): Promise<ActionResponse<null
 
 export async function seedDefaultLookupValues(): Promise<ActionResponse<null>> {
   return handleAction(async () => {
-    const ctx = await requirePermission('SETTINGS_SHOP' as any);
+    const ctx = await requirePermission('SETTINGS_SHOP');
     await LookupService.seedDefaultLookupValues(ctx);
     
     revalidatePath('/settings/categories');

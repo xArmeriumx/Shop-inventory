@@ -8,7 +8,7 @@ import { CustomerService } from '@/services';
 
 export async function getCustomerAddresses(customerId: string): Promise<ActionResponse<any[]>> {
   return handleAction(async () => {
-    const ctx = await requirePermission('CUSTOMER_VIEW' as any);
+    const ctx = await requirePermission('CUSTOMER_VIEW');
     return CustomerService.getAddresses(customerId, ctx);
   }, { context: { action: 'getCustomerAddresses', customerId } });
 }

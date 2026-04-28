@@ -63,7 +63,7 @@ export async function updateCustomer(id: string, input: CustomerInput): Promise<
 export async function deleteCustomer(id: string): Promise<ActionResponse<any>> {
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
-      const ctx = await requirePermission('CUSTOMER_DELETE' as any);
+      const ctx = await requirePermission('CUSTOMER_DELETE');
       const result = await CustomerService.delete(id, ctx);
 
       if (result.affectedTags) {
@@ -78,7 +78,7 @@ export async function deleteCustomer(id: string): Promise<ActionResponse<any>> {
 export async function getCustomerDeletionImpact(id: string): Promise<ActionResponse<any>> {
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
-      const ctx = await requirePermission('CUSTOMER_VIEW' as any);
+      const ctx = await requirePermission('CUSTOMER_VIEW');
       return CustomerService.getDeletionImpact(id, ctx);
     }, 'sales:getCustomerDeletionImpact');
   }, { context: { action: 'sales:getCustomerDeletionImpact', id } });

@@ -18,7 +18,7 @@ import { POSSaleService, type POSCartInput } from '@/services/sales/pos-sale.ser
 export async function posCheckout(cart: POSCartInput): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
-            const ctx = await requirePermission('POS_ACCESS' as any);
+            const ctx = await requirePermission('POS_ACCESS');
             const result = await POSSaleService.checkout(ctx, cart);
 
             // Revalidate using tags from MutationResult

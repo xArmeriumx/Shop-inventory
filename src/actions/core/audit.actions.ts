@@ -1,16 +1,14 @@
 'use server';
 
-import { requireAuth } from '@/lib/auth-guard';
+import { requirePermission } from '@/lib/auth-guard';
 import { AuditService, type AuditQueryOptions, type AuditStatus } from '@/services/core/system/audit.service';
-import { Security } from '@/services/core/iam/security.service';
 import { ExportService } from '@/services/core/intelligence/export.service';
 import { ServiceError } from '@/types/domain';
-
 import { handleAction, type ActionResponse } from '@/lib/action-handler';
 
 /**
  * Fetch paginated audit logs for the current shop.
- * Requires SETTINGS_ROLES or higher permission for basic audit trail visibility.
+ * Requires AUDIT_VIEW permission (owner bypass included via requirePermission).
  */
 export async function getAuditLogs(options: {
   page?: number;
@@ -24,14 +22,8 @@ export async function getAuditLogs(options: {
   endDate?: string;
 } = {}): Promise<ActionResponse<any>> {
   return handleAction(async () => {
-    const sessionCtx = await requireAuth();
-    if (!sessionCtx.shopId) {
-      throw new ServiceError('กรุณาเลือกร้านค้าเพื่อดูข้อมูล');
-    }
-    const ctx = sessionCtx as any;
-
-    Security.requireAnyPermission(ctx, ['SETTINGS_ROLES' as any, 'SETTINGS_SHOP' as any]);
-
+    // Use `requirePermission` which handles: auth, shopId check, RBAC (owner bypass)
+    const ctx = await requirePermission('AUDIT_VIEW');
     return await AuditService.getActivityLog(ctx.shopId, options);
   }, { context: { action: 'getAuditLogs', options } });
 }
@@ -42,14 +34,7 @@ export async function getAuditLogs(options: {
  */
 export async function getSecurityMetrics(): Promise<ActionResponse<any>> {
   return handleAction(async () => {
-    const sessionCtx = await requireAuth();
-    if (!sessionCtx.shopId) {
-      throw new ServiceError('กรุณาเลือกร้านค้าเพื่อดูข้อมูล');
-    }
-    const ctx = sessionCtx as any;
-
-    Security.requirePermission(ctx, 'SETTINGS_SHOP' as any);
-
+    const ctx = await requirePermission('SETTINGS_SHOP');
     return await AuditService.getSecurityDashboardMetrics(ctx.shopId);
   }, { context: { action: 'getSecurityMetrics' } });
 }
@@ -60,14 +45,7 @@ export async function getSecurityMetrics(): Promise<ActionResponse<any>> {
  */
 export async function exportAuditLogsAction(startDate: string, endDate: string, format: 'CSV' | 'JSON' = 'CSV'): Promise<ActionResponse<any>> {
   return handleAction(async () => {
-    const sessionCtx = await requireAuth();
-    if (!sessionCtx.shopId) {
-      throw new ServiceError('กรุณาเลือกร้านค้าเพื่อทำการ Export');
-    }
-    const ctx = sessionCtx as any;
-
-    Security.requirePermission(ctx, 'SETTINGS_SHOP' as any);
-
+    const ctx = await requirePermission('SETTINGS_SHOP');
     return await ExportService.exportAuditLogsData(startDate, endDate, ctx, format);
   }, { context: { action: 'exportAuditLogsAction', startDate, endDate, format } });
 }

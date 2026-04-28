@@ -45,7 +45,7 @@ export async function exportCustomersData() {
 export async function exportIncomesData(startDate: string, endDate: string) {
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
-      const ctx = await requirePermission('INCOME_VIEW' as any, { rateLimitPolicy: 'export' });
+      const ctx = await requirePermission('INCOME_VIEW', { rateLimitPolicy: 'export' });
       return ExportService.exportIncomesData(startDate, endDate, ctx);
     }, 'core:exportIncomesData');
   }, { skipSerialize: true });

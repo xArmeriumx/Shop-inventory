@@ -34,7 +34,7 @@ export async function getDashboardStats() {
 export async function getMonthlyStats() {
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
-      const ctx = await requirePermission("SALE_VIEW" as any);
+      const ctx = await requirePermission("SALE_VIEW");
       return DashboardService.getMonthlyStats(ctx);
     }, 'core:getMonthlyStats');
   }, { context: { action: 'getMonthlyStats' } });
@@ -46,7 +46,7 @@ export async function getMonthlyStats() {
 export async function getSalesChartData(days = 7) {
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
-      const ctx = await requirePermission("SALE_VIEW" as any);
+      const ctx = await requirePermission("SALE_VIEW");
       return DashboardService.getSalesChartData(days, ctx);
     }, 'core:getSalesChartData');
   }, { context: { action: 'getSalesChartData', days } });

@@ -10,7 +10,7 @@ import { ACCOUNTING_TAGS } from '@/config/cache-tags';
 export async function createBankAccountAction(data: any): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
-            const ctx = await requirePermission('FINANCE_CONFIG' as any);
+            const ctx = await requirePermission('FINANCE_CONFIG');
             const result = await BankService.createBankAccount({
                 ...data,
                 shopId: ctx.shopId,
@@ -25,7 +25,7 @@ export async function createBankAccountAction(data: any): Promise<ActionResponse
 export async function importStatementAction(data: any): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
-            const ctx = await requirePermission('FINANCE_CONFIG' as any);
+            const ctx = await requirePermission('FINANCE_CONFIG');
             const result = await BankService.importStatement({
                 ...data,
                 shopId: ctx.shopId,
@@ -40,7 +40,7 @@ export async function importStatementAction(data: any): Promise<ActionResponse<a
 export async function matchLineAction(bankLineId: string, journalLineIds: string[]): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
-            const ctx = await requirePermission('FINANCE_CONFIG' as any);
+            const ctx = await requirePermission('FINANCE_CONFIG');
             const result = await BankService.matchLine(bankLineId, journalLineIds, ctx.memberId!);
             revalidateTag(ACCOUNTING_TAGS.JOURNAL);
             return result.data;

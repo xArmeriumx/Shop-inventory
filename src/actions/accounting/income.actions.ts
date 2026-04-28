@@ -29,7 +29,7 @@ export async function getIncome(id: string): Promise<ActionResponse<any>> {
 export async function createIncome(input: IncomeInput): Promise<ActionResponse<any>> {
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
-      const ctx = await requirePermission('FINANCE_CONFIG' as any);
+      const ctx = await requirePermission('FINANCE_CONFIG');
       const validated = incomeSchema.parse(input);
       const result = await FinanceService.createIncome(validated, ctx);
       
@@ -45,7 +45,7 @@ export async function createIncome(input: IncomeInput): Promise<ActionResponse<a
 export async function updateIncome(id: string, input: IncomeInput): Promise<ActionResponse<any>> {
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
-      const ctx = await requirePermission('FINANCE_CONFIG' as any);
+      const ctx = await requirePermission('FINANCE_CONFIG');
       const validated = incomeSchema.parse(input);
       const result = await FinanceService.updateIncome(id, validated, ctx);
       

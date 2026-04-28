@@ -42,7 +42,7 @@ export async function getJournalsAction(params: {
 export async function createJournalAction(data: any): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
-            const ctx = await requirePermission('FINANCE_CONFIG' as any);
+            const ctx = await requirePermission('FINANCE_CONFIG');
             const result = await JournalService.createEntry(ctx, {
                 ...data,
                 journalDate: new Date(data.journalDate),
@@ -59,7 +59,7 @@ export async function createJournalAction(data: any): Promise<ActionResponse<any
 export async function postJournalAction(id: string): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
-            const ctx = await requirePermission('FINANCE_CONFIG' as any);
+            const ctx = await requirePermission('FINANCE_CONFIG');
             const result = await JournalService.postEntry(id, ctx);
             revalidateTag(ACCOUNTING_TAGS.JOURNAL);
             return result.data;

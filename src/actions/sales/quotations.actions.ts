@@ -11,7 +11,7 @@ import { handleAction } from '@/lib/action-handler';
 export async function getQuotations(params: any = {}): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
-            const ctx = await requirePermission('QUOTATION_VIEW' as any);
+            const ctx = await requirePermission('QUOTATION_VIEW');
             return QuotationService.list(ctx, params);
         }, 'sales:getQuotations');
     }, { context: { action: 'getQuotations' } });
@@ -20,7 +20,7 @@ export async function getQuotations(params: any = {}): Promise<ActionResponse<an
 export async function createQuotation(input: QuotationInput): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
-            const ctx = await requirePermission('QUOTATION_CREATE' as any);
+            const ctx = await requirePermission('QUOTATION_CREATE');
             const validated = quotationSchema.parse(input);
             const result = await QuotationService.create(ctx, validated);
 
@@ -36,7 +36,7 @@ export async function createQuotation(input: QuotationInput): Promise<ActionResp
 export async function confirmQuotation(id: string): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
-            const ctx = await requirePermission('QUOTATION_CONFIRM' as any);
+            const ctx = await requirePermission('QUOTATION_CONFIRM');
             const result = await QuotationService.confirm(ctx, id);
 
             if (result.affectedTags) {
@@ -51,7 +51,7 @@ export async function confirmQuotation(id: string): Promise<ActionResponse<any>>
 export async function cancelQuotation(id: string): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
-            const ctx = await requirePermission('QUOTATION_EDIT' as any);
+            const ctx = await requirePermission('QUOTATION_EDIT');
             const result = await QuotationService.cancel(ctx, id);
 
             if (result.affectedTags) {
@@ -66,7 +66,7 @@ export async function cancelQuotation(id: string): Promise<ActionResponse<any>> 
 export async function getQuotationDetail(id: string): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
-            const ctx = await requirePermission('QUOTATION_VIEW' as any);
+            const ctx = await requirePermission('QUOTATION_VIEW');
             return QuotationService.getById(ctx, id);
         }, `sales:getQuotationDetail:${id}`);
     }, { context: { action: 'getQuotationDetail', id } });

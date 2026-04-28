@@ -14,7 +14,7 @@ import { roleFormSchema } from '@/schemas/core/role-form.schema';
 export async function getRoles() {
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
-      const ctx = await requirePermission('SETTINGS_ROLES' as any);
+      const ctx = await requirePermission('SETTINGS_ROLES');
       return IamService.getRoles(ctx);
     }, 'iam:getRoles');
   }, { context: { action: 'getRoles' } });
@@ -23,7 +23,7 @@ export async function getRoles() {
 export async function getRole(id: string) {
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
-      const ctx = await requirePermission('SETTINGS_ROLES' as any);
+      const ctx = await requirePermission('SETTINGS_ROLES');
       return IamService.getRole(id, ctx);
     }, 'iam:getRole');
   }, { context: { action: 'getRole', roleId: id } });
