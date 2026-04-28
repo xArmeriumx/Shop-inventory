@@ -148,10 +148,11 @@ export const PaymentService = {
             }
 
             // 6. Sync Snapshots (Recalculate from Ledger)
-            await this.recalculateDocumentBalance(
-                data.invoiceId ? { invoiceId: data.invoiceId } : { saleId: data.saleId! },
-                tx
-            );
+            const balanceTarget = data.invoiceId ? { invoiceId: data.invoiceId }
+                : data.saleId ? { saleId: data.saleId }
+                    : data.purchaseId ? { purchaseId: data.purchaseId }
+                        : { expenseId: data.expenseId! };
+            await this.recalculateDocumentBalance(balanceTarget as any, tx);
 
             // 7. Audit Log
             await AuditService.runWithAudit(ctx, {
@@ -297,7 +298,9 @@ export const PaymentService = {
             parentId = (target as any).expenseId;
         }
 
-        const totalAmount = toNumber(parent.totalAmount);
+        // SSOT: ใช้ netAmount เป็นหลัก (ยอดรวม tax ที่ต้องจ่ายจริง)
+        // fallback เป็น totalAmount สำหรับ document ที่ไม่มี netAmount (e.g. Purchase)
+        const totalAmount = toNumber(parent.netAmount ?? parent.totalAmount);
         const residualAmount = Math.max(0, totalAmount - totalPaid);
 
         // Determine Status

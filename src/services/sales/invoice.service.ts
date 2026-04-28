@@ -335,10 +335,13 @@ export const InvoiceService = {
             await PostingService.postInvoice(ctx, invoice, tx);
 
             // 2. Create SalesTaxEntry for tax report
+            // SSOT: taxMonth/taxYear ต้องอิงจาก invoice.date (วันที่ใบกำกับ) ไม่ใช่วันที่ POST
+            const invoiceDate = invoice.date ? new Date(invoice.date) : now;
             if (invoice.taxAmount > 0 || invoice.taxableBaseAmount > 0) {
                 await TaxSettingsService.postSalesTaxEntry({
                     sourceType: 'INVOICE',
                     sourceId: invoice.id,
+                    docDate: invoiceDate,
                     partnerId: invoice.customerId || undefined,
                     partnerName: invoice.customerNameSnapshot,
                     taxCode: invoice.taxCodeSnapshot || undefined,
@@ -355,8 +358,8 @@ export const InvoiceService = {
                 data: {
                     status: 'POSTED',
                     taxPostingStatus: 'POSTED',
-                    taxReportMonth: now.getMonth() + 1,
-                    taxReportYear: now.getFullYear(),
+                    taxReportMonth: invoiceDate.getMonth() + 1,
+                    taxReportYear: invoiceDate.getFullYear(),
                     postedAt: now,
                 },
             });
