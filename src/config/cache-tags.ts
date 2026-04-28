@@ -36,6 +36,7 @@ export const ACCOUNTING_TAGS = {
   INCOME: 'accounting:income',
   EXPENSE: 'accounting:expense',
   JOURNAL: 'accounting:journal',
+  PERIODS: 'accounting:periods',
 } as const;
 
 export const INVOICE_TAGS = {

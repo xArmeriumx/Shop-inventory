@@ -1,8 +1,10 @@
+'use server';
+
 import { AccountingService } from '@/services/accounting/accounting.service';
 import { AccountingReportService } from '@/services/accounting/accounting-report.service';
 import { ExportService } from '@/services/core/intelligence/export.service';
-import { requireShop } from '@/lib/auth-guard';
-import { revalidatePath } from 'next/cache';
+import { requireShop, requirePermission } from '@/lib/auth-guard';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import { ActionResponse } from '@/types/common';
 import { handleAction } from '@/lib/action-handler';
 import { PerformanceCollector } from '@/lib/debug/measurement';
@@ -11,6 +13,7 @@ import { accountSchema } from '@/schemas/accounting/account.schema';
 import { AuditService } from '@/services/core/system/audit.service';
 import { logger } from '@/lib/logger';
 import { Permission } from '@prisma/client';
+import { ACCOUNTING_TAGS } from '@/config/cache-tags';
 
 /**
  * ดึงรายการผังบัญชี (Chart of Accounts)
@@ -31,7 +34,7 @@ export async function createAccountAction(data: any): Promise<ActionResponse<any
     return handleAction(async () => {
         const ctx = await requireShop();
         const validated = accountSchema.parse(data);
-        
+
         const result = await AccountingService.createAccount(ctx, validated);
 
         // Audit (Non-blocking)
@@ -56,10 +59,10 @@ export async function createAccountAction(data: any): Promise<ActionResponse<any
 export async function updateAccountAction(id: string, data: any): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         const ctx = await requireShop();
-        
+
         const before = await AccountingService.getAccountById(id, ctx);
         const validated = accountSchema.partial().parse(data);
-        
+
         const result = await AccountingService.updateAccount(ctx, id, validated);
 
         // Audit (Non-blocking)
@@ -123,9 +126,10 @@ export async function getAccountingPeriodsAction(): Promise<ActionResponse<any>>
 export async function initializePeriodsAction(): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
-            const ctx = await requireShop();
+            // Requires FINANCE_CONFIG to initialize periods
+            const ctx = await requirePermission('FINANCE_CONFIG');
             const data = await AccountingService.initializePeriods(ctx);
-            revalidatePath('/accounting/periods');
+            revalidateTag(ACCOUNTING_TAGS.PERIODS);
             return data;
         }, 'accounting:initializePeriods');
     });
@@ -133,10 +137,10 @@ export async function initializePeriodsAction(): Promise<ActionResponse<any>> {
 
 export async function closePeriodAction(periodId: string): Promise<ActionResponse<null>> {
     return handleAction(async () => {
-        const ctx = await requireShop();
+        // requirePermission provides both auth guard AND permission check at action layer
+        const ctx = await requirePermission('FINANCE_CONFIG');
         const result = await AccountingService.closePeriod(ctx, periodId);
 
-        // Audit
         AuditService.record({
             action: 'CLOSE_ACCOUNTING_PERIOD',
             targetType: 'AccountingPeriod',
@@ -147,17 +151,16 @@ export async function closePeriodAction(periodId: string): Promise<ActionRespons
             shopId: ctx.shopId
         }).catch(err => logger.error('[Audit] CLOSE_ACCOUNTING_PERIOD log failed', err));
 
-        revalidatePath('/accounting/periods');
+        revalidateTag(ACCOUNTING_TAGS.PERIODS);
         return null;
     }, { context: { action: 'closePeriod', periodId } });
 }
 
 export async function reopenPeriodAction(params: { periodId: string, reason: string }): Promise<ActionResponse<null>> {
     return handleAction(async () => {
-        const ctx = await requireShop();
+        const ctx = await requirePermission('FINANCE_CONFIG');
         const result = await AccountingService.reopenPeriod(ctx, params.periodId, params.reason);
 
-        // Audit
         AuditService.record({
             action: 'REOPEN_ACCOUNTING_PERIOD',
             targetType: 'AccountingPeriod',
@@ -168,7 +171,7 @@ export async function reopenPeriodAction(params: { periodId: string, reason: str
             shopId: ctx.shopId
         }).catch(err => logger.error('[Audit] REOPEN_ACCOUNTING_PERIOD log failed', err));
 
-        revalidatePath('/accounting/periods');
+        revalidateTag(ACCOUNTING_TAGS.PERIODS);
         return null;
     }, { context: { action: 'reopenPeriod', ...params } });
 }

@@ -262,18 +262,19 @@ export const AccountingService = {
     async closePeriod(ctx: RequestContext, periodId: string) {
         Security.requirePermission(ctx, Permission.FINANCE_CONFIG);
 
+        const memberId = ctx.memberId ?? null;
+
         return await (db as any).accountingPeriod.update({
             where: { id: periodId, shopId: ctx.shopId },
             data: {
                 status: 'CLOSED',
                 closedAt: new Date(),
-                closedByMemberId: ctx.memberId,
-                // Append history Log
-                history: {
+                closedByMemberId: memberId,
+                history: JSON.parse(JSON.stringify({
                     event: 'CLOSE',
                     at: new Date().toISOString(),
-                    by: ctx.memberId
-                }
+                    by: memberId
+                }))
             }
         });
     },
@@ -286,20 +287,21 @@ export const AccountingService = {
 
         if (!reason) throw new ServiceError('กรุณาระบุเหตุผลในการเปิดงวดบัญชีใหม่');
 
+        const memberId = ctx.memberId ?? null;
+
         return await (db as any).accountingPeriod.update({
             where: { id: periodId, shopId: ctx.shopId },
             data: {
                 status: 'OPEN',
                 reopenedAt: new Date(),
-                reopenedByMemberId: ctx.memberId,
+                reopenedByMemberId: memberId,
                 reopenReason: reason,
-                // Append history log
-                history: {
+                history: JSON.parse(JSON.stringify({
                     event: 'REOPEN',
                     at: new Date().toISOString(),
-                    by: ctx.memberId,
+                    by: memberId,
                     reason
-                }
+                }))
             }
         });
     },
