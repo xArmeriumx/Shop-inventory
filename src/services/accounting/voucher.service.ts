@@ -241,14 +241,12 @@ export const VoucherService = {
         }
 
         const lines = [
-            // Debit: AP
             {
                 accountId: apAcc.id,
                 description: `จ่ายเงินเจ้าหนี้ - ${payment.paymentNo}`,
                 debitAmount: toNumber(payment.amount),
                 creditAmount: 0,
             },
-            // Credit: Bank/Cash
             {
                 accountId: cashAcc.id,
                 description: `จ่ายเงินธนาคาร - ${payment.paymentNo}`,
@@ -267,5 +265,34 @@ export const VoucherService = {
             status: 'POSTED',
             lines,
         }, tx);
-    }
+    },
+
+    /**
+     * ดึงรายการเอกสารที่ยังค้างชำระ (Unpaid/Partial) สำหรับการทำ Voucher
+     * ใช้ใน Voucher Form เพื่อเลือกรายการที่ต้องการตัดชำระ
+     */
+    async getUnpaidDocuments(ctx: RequestContext, params: { type: 'RECEIPT' | 'PAYMENT'; partnerId: string }) {
+        const { type, partnerId } = params;
+        if (!partnerId) return [];
+
+        const where: any = {
+            shopId: ctx.shopId,
+            status: type === 'RECEIPT' ? 'POSTED' : 'RECEIVED',
+            paymentStatus: { in: ['UNPAID', 'PARTIAL'] },
+            ...(type === 'RECEIPT' ? { customerId: partnerId } : { supplierId: partnerId }),
+        };
+
+        const docs = type === 'RECEIPT'
+            ? await db.invoice.findMany({ where, orderBy: { date: 'asc' } })
+            : await db.purchase.findMany({ where, orderBy: { date: 'asc' } });
+
+        return docs.map((d: any) => ({
+            id: d.id,
+            docNo: d.invoiceNo || d.purchaseNumber,
+            date: d.date,
+            totalAmount: Number(d.totalAmount),
+            residualAmount: Number(d.residualAmount),
+            paidAmount: Number(d.paidAmount),
+        }));
+    },
 };

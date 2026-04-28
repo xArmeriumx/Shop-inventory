@@ -159,10 +159,8 @@ export const BankService: IBankService = {
             const bankLine = await tx.bankLine.findUnique({ where: { id: bankLineId } });
             if (!bankLine) throw new Error('Bank line not found');
 
-            // 0. Check Period Lock
             await AccountingService.checkPeriodLock(bankLine.shopId, bankLine.bookingDate);
 
-            // 1. Update JournalLines
             await tx.journalLine.updateMany({
                 where: { id: { in: journalLineIds } },
                 data: {
@@ -172,7 +170,6 @@ export const BankService: IBankService = {
                 }
             });
 
-            // 2. Update BankLine
             return await tx.bankLine.update({
                 where: { id: bankLineId },
                 data: {
@@ -187,7 +184,41 @@ export const BankService: IBankService = {
             data: result,
             affectedTags: [ACCOUNTING_TAGS.JOURNAL]
         };
-    }
+    },
+
+    /**
+     * ดึงรายการ BankLine ที่ยังไม่ได้ Match สำหรับ Bank Account
+     */
+    async getUnmatchedLines(bankAccountId: string, shopId: string) {
+        return await (db as any).bankLine.findMany({
+            where: {
+                statement: { bankAccountId },
+                matchStatus: 'UNMATCHED',
+                shopId,
+            },
+            orderBy: { bookingDate: 'desc' },
+        });
+    },
+
+    /**
+     * ดึงรายการ JournalLine ที่ยังไม่ได้ Reconcile สำหรับ Bank Account
+     */
+    async getUnreconciledLedger(bankAccountId: string, shopId: string) {
+        const bankAccount = await (db as any).bankAccount.findUnique({
+            where: { id: bankAccountId },
+        });
+        if (!bankAccount) throw new Error('Bank account not found');
+
+        return await (db as any).journalLine.findMany({
+            where: {
+                accountId: bankAccount.glAccountId,
+                reconcileStatus: 'UNRECONCILED',
+                journalEntry: { shopId, status: 'POSTED' },
+            },
+            include: { journalEntry: true },
+            orderBy: { journalEntry: { journalDate: 'desc' } },
+        });
+    },
 };
 
 /**

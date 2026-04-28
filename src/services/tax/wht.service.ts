@@ -222,5 +222,45 @@ export const WhtService: IWhtService = {
             data: voided,
             affectedTags: [TAX_TAGS.WHT.LIST]
         };
-    }
+    },
+
+    /** ดึงรหัสภาษีทั้งหมด (ทั้ง Active และ Inactive) เพื่อใช้บน Settings UI */
+    async getCodesAll(ctx: RequestContext) {
+        return await (db as any).whtCode.findMany({
+            where: { shopId: ctx.shopId },
+            orderBy: { rate: 'asc' },
+        });
+    },
+
+    /** สร้าง หรือ อัปเดตรหัสภาษีหัก ณ ที่จ่าย */
+    async upsertCode(ctx: RequestContext, data: any, id?: string) {
+        if (id) {
+            await (db as any).whtCode.update({
+                where: { id, shopId: ctx.shopId },
+                data,
+            });
+        } else {
+            await (db as any).whtCode.upsert({
+                where: { shopId_code: { shopId: ctx.shopId, code: data.code } },
+                update: data,
+                create: { shopId: ctx.shopId, ...data },
+            });
+        }
+    },
+
+    /** เปิด/ปิดรหัสภาษี */
+    async toggleCode(ctx: RequestContext, id: string, isActive: boolean) {
+        await (db as any).whtCode.update({
+            where: { id, shopId: ctx.shopId },
+            data: { isActive },
+        });
+    },
+
+    /** ลบรหัสภาษี */
+    async deleteCode(ctx: RequestContext, id: string) {
+        await (db as any).whtCode.delete({
+            where: { id, shopId: ctx.shopId },
+        });
+    },
 };
+

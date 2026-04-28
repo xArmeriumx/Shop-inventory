@@ -1,7 +1,6 @@
 'use server';
 
 import { signOut } from '@/lib/auth';
-import { db } from '@/lib/db';
 import { requireAuth, requirePermission } from '@/lib/auth-guard';
 import { IamService } from '@/services/core/iam/iam.service';
 import { handleAction, type ActionResponse } from '@/lib/action-handler';

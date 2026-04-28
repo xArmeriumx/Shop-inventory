@@ -945,6 +945,10 @@ export interface IBankService {
     journalLineIds: string[],
     memberId: string
   ): Promise<MutationResult<any>>;
+
+  getUnmatchedLines(bankAccountId: string, shopId: string): Promise<any[]>;
+
+  getUnreconciledLedger(bankAccountId: string, shopId: string): Promise<any[]>;
 }
 
 // ============================================================================
@@ -998,6 +1002,14 @@ export interface IWhtService {
   issueCertificate(ctx: RequestContext, entryId: string): Promise<MutationResult<any>>;
 
   voidCertificate(ctx: RequestContext, certId: string): Promise<MutationResult<any>>;
+
+  getCodesAll(ctx: RequestContext): Promise<any[]>;
+
+  upsertCode(ctx: RequestContext, data: any, id?: string): Promise<void>;
+
+  toggleCode(ctx: RequestContext, id: string, isActive: boolean): Promise<void>;
+
+  deleteCode(ctx: RequestContext, id: string): Promise<void>;
 }
 
 // ============================================================================
