@@ -42,25 +42,40 @@ export const PurchaseTaxService: IPurchaseTaxService = {
 
         // 2. Generate Internal Document Number (PTX-YYYYMM-XXXX)
         // 3. Create Document with Snapshot Data
+        // Validate required member context
+        const memberId = ctx.memberId;
+        if (!memberId) throw new ServiceError('ไม่พบข้อมูลสมาชิก กรุณเข้าสู่ระบบใหม่อีกครั้ง');
+
         return await db.$transaction(async (tx) => {
             const internalDocNo = await SequenceService.generate(ctx, 'PURCHASE_TAX' as any, tx);
+
+            // ใช้ข้อมูลจาก PO เป็น placeholder (vendor ต้องกรอก vendorDocNo จริงตอน Post)
+            const purchaseDate = purchase.purchaseDate || purchase.createdAt || new Date();
 
             const doc = await (tx as any).purchaseTaxDocument.create({
                 data: {
                     shopId: ctx.shopId,
                     internalDocNo,
                     status: 'DRAFT',
+                    memberId,
                     supplierId: purchase.supplierId,
+                    // Vendor snapshots
                     vendorNameSnapshot: purchase.supplier?.name || 'Unknown',
-                    vendorTaxIdSnapshot: purchase.supplier?.taxId,
-                    vendorAddressSnapshot: purchase.supplier?.address,
-                    taxRateSnapshot: 7, // Default Thai VAT
+                    vendorTaxIdSnapshot: purchase.supplier?.taxId || null,
+                    vendorAddressSnapshot: purchase.supplier?.address || null,
+                    vendorBranchSnapshot: purchase.supplier?.branchCode || null,
+                    // Required fields — placeholder until POST step
+                    vendorDocNo: `DRAFT-${internalDocNo}`,
+                    vendorDocDate: purchaseDate,
+                    // Tax fields (ใช้จาก PO data ไม่ hardcode)
+                    taxRateSnapshot: purchase.taxRate || 7,
+                    taxCodeSnapshot: purchase.taxCode || null,
+                    subtotalAmount: purchase.subtotalAmount || purchase.taxableAmount || 0,
+                    discountAmount: purchase.discountAmount || 0,
                     taxableBaseAmount: purchase.taxableAmount || 0,
                     taxAmount: purchase.taxAmount || 0,
                     netAmount: purchase.totalAmount || 0,
                     claimStatus: 'CLAIMABLE',
-                    memberId: ctx.memberId,
-                    // Link to source PO
                     links: {
                         create: {
                             purchaseOrderId: purchase.id,
@@ -68,19 +83,19 @@ export const PurchaseTaxService: IPurchaseTaxService = {
                             shopId: ctx.shopId
                         }
                     },
-                    // Snap all items
                     items: {
                         create: (purchase.items || []).map((item: any) => ({
                             shopId: ctx.shopId,
                             productId: item.productId,
                             productNameSnapshot: item.product?.name || 'Unknown',
-                            skuSnapshot: item.product?.sku,
+                            skuSnapshot: item.product?.sku || null,
                             quantity: item.quantity,
                             unitPrice: item.unitPrice || 0,
-                            discountAmount: 0,
+                            discountAmount: item.discountAmount || 0,
                             taxableBaseAmount: item.taxableAmount || 0,
                             taxAmount: item.taxAmount || 0,
-                            lineNetAmount: item.totalAmount || 0
+                            lineNetAmount: item.totalAmount || 0,
+                            taxRateSnapshot: item.taxRate || purchase.taxRate || 7,
                         }))
                     }
                 }
@@ -107,6 +122,9 @@ export const PurchaseTaxService: IPurchaseTaxService = {
         if (!doc) throw new ServiceError('ไม่พบเอกสาร');
         if (doc.status !== 'DRAFT') throw new ServiceError('เอกสารไม่ได้อยู่ในสถานะร่าง');
 
+        // vendorDocDate ต้องใช้เป็น taxMonth/taxYear SSOT (ไม่ใช่ now)
+        const taxDate = input.vendorDocDate;
+
         return await db.$transaction(async (tx) => {
             // 1. Update Document
             const postedDoc = await (tx as any).purchaseTaxDocument.update({
@@ -114,7 +132,7 @@ export const PurchaseTaxService: IPurchaseTaxService = {
                 data: {
                     status: 'POSTED',
                     postedAt: now,
-                    postedByMemberId: ctx.memberId,
+                    postedByMemberId: ctx.memberId ?? null,
                     vendorDocNo: input.vendorDocNo,
                     vendorDocDate: input.vendorDocDate,
                     claimStatus: input.claimStatus,
@@ -128,8 +146,9 @@ export const PurchaseTaxService: IPurchaseTaxService = {
                         shopId: ctx.shopId,
                         sourceType: 'PURCHASE_TAX_DOC',
                         sourceId: id,
-                        taxMonth: input.vendorDocDate.getMonth() + 1,
-                        taxYear: input.vendorDocDate.getFullYear(),
+                        // taxMonth/taxYear ต้องอิงจาก vendorDocDate ไม่ใช่วันนี้
+                        taxMonth: taxDate.getMonth() + 1,
+                        taxYear: taxDate.getFullYear(),
                         vendorDocNo: input.vendorDocNo,
                         vendorDocDate: input.vendorDocDate,
                         partnerId: postedDoc.supplierId,
@@ -141,7 +160,7 @@ export const PurchaseTaxService: IPurchaseTaxService = {
                         claimStatus: 'CLAIMABLE',
                         postingStatus: 'POSTED',
                         postedAt: now,
-                        postedBy: ctx.memberId,
+                        postedBy: ctx.memberId ?? null,
                     },
                 });
             }
@@ -213,7 +232,8 @@ export const PurchaseTaxService: IPurchaseTaxService = {
             (db as any).purchaseTaxDocument.findMany({
                 where,
                 include: {
-                    postedBy: { select: { firstName: true, lastName: true } },
+                    // ShopMember.user.name คือ pattern ที่ถูกต้อง (ไม่ใช่ firstName/lastName)
+                    postedBy: { select: { user: { select: { name: true } } } },
                     supplier: { select: { name: true } }
                 },
                 orderBy: { createdAt: 'desc' },

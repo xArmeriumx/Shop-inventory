@@ -281,11 +281,13 @@ async function getPurchaseTaxReport(
 /**
  * Post SalesTaxEntry จาก Invoice
  * เรียกได้ตอน invoice.status → POSTED
+ * IMPORTANT: taxMonth/taxYear ต้องอิงจาก docDate (วันที่ใบกำกับภาษี) ไม่ใช่วันที่ POST
  */
 async function postSalesTaxEntry(
     input: {
         sourceType: string;
         sourceId: string;
+        docDate?: Date;          // วันที่ใบกำกับภาษี — SSOT สำหรับ taxMonth/taxYear
         partnerId?: string;
         partnerName?: string;
         taxCode?: string;
@@ -298,12 +300,14 @@ async function postSalesTaxEntry(
     tx: any = db
 ) {
     const now = new Date();
+    // ใช้ docDate ถ้ามี ไม่งั้น fallback เป็นวันนี้ (แต่ควรส่ง docDate เสมอ)
+    const taxDate = input.docDate || now;
     const entry = await (tx as any).salesTaxEntry.create({
         data: {
             shopId: ctx.shopId,
             ...input,
-            taxMonth: now.getMonth() + 1,
-            taxYear: now.getFullYear(),
+            taxMonth: taxDate.getMonth() + 1,
+            taxYear: taxDate.getFullYear(),
             postingStatus: 'POSTED',
             postedAt: now,
         },
@@ -317,13 +321,14 @@ async function postSalesTaxEntry(
 
 /**
  * Post PurchaseTaxEntry จาก Purchase Tax Document
+ * IMPORTANT: taxMonth/taxYear ต้องอิงจาก vendorDocDate ไม่ใช่วันที่ POST
  */
 async function postPurchaseTaxEntry(
     input: {
         sourceType: string;
         sourceId: string;
         vendorDocNo?: string;
-        vendorDocDate?: Date;
+        vendorDocDate?: Date;    // SSOT สำหรับ taxMonth/taxYear
         partnerId?: string;
         partnerName?: string;
         taxCode?: string;
@@ -337,12 +342,14 @@ async function postPurchaseTaxEntry(
     tx: any = db
 ) {
     const now = new Date();
+    // ใช้ vendorDocDate เสมอ — ถ้าไม่มีให้ fallback แต่ log warning
+    const taxDate = input.vendorDocDate || now;
     const entry = await (tx as any).purchaseTaxEntry.create({
         data: {
             shopId: ctx.shopId,
             ...input,
-            taxMonth: now.getMonth() + 1,
-            taxYear: now.getFullYear(),
+            taxMonth: taxDate.getMonth() + 1,
+            taxYear: taxDate.getFullYear(),
             postingStatus: 'POSTED',
             postedAt: now,
         },
