@@ -18,8 +18,9 @@ export const partnerAddressSchema = z.object({
     clientKey: z.string().optional(), // Rule 5: Stable key for useFieldArray
     label: z.string().min(1, 'กรุณากรอกชื่อเรียกที่อยู่ (เช่น สำนักงานใหญ่)').max(100),
     addressLine: z.string().min(1, 'กรุณากรอกที่อยู่').max(500),
-    district: z.string().max(100).optional().nullable(),
-    province: z.string().max(100).optional().nullable(),
+    subDistrict: z.string().max(100).optional().nullable(), // ตำบล/แขวง
+    district: z.string().max(100).optional().nullable(),     // อำเภอ/เขต
+    province: z.string().max(100).optional().nullable(),     // จังหวัด
     postalCode: z.string().max(5, 'รหัสไปรษณีย์ต้องมี 5 หลัก').optional().nullable(),
     country: z.string().default('Thailand'),
     isDefaultBilling: z.boolean().default(false),

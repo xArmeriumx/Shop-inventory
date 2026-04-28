@@ -58,9 +58,18 @@ export function SupplierForm({ supplier }: SupplierFormProps) {
   const { handleSubmit, setError } = methods;
 
   function onSubmit(data: SupplierFormValues) {
+    // Bridge: form uses `addressLine`, DB uses `address` — normalize before sending
+    const payload = {
+      ...data,
+      addresses: data.addresses?.map((addr: any) => ({
+        ...addr,
+        address: addr.addressLine, // map to DB field
+      })),
+    };
+
     const actionCall = isEdit
-      ? updateSupplier(supplier.id, data as any)
-      : createSupplier(data as any);
+      ? updateSupplier(supplier.id, payload as any)
+      : createSupplier(payload as any);
 
     startTransition(async () => {
       await runActionWithToast(actionCall, {

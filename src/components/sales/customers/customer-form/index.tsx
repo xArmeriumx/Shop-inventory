@@ -37,9 +37,18 @@ export function CustomerForm({ customer }: CustomerFormProps) {
     const { handleSubmit, setError } = methods;
 
     async function onSubmit(data: CustomerFormValues) {
+        // Bridge: form uses `addressLine`, DB uses `address` — normalize before sending
+        const payload = {
+            ...data,
+            addresses: data.addresses?.map((addr: any) => ({
+                ...addr,
+                address: addr.addressLine, // map to DB field
+            })),
+        };
+
         const actionCall = isEdit
-            ? updateCustomer(customer.id, data as any)
-            : createCustomer(data as any);
+            ? updateCustomer(customer.id, payload as any)
+            : createCustomer(payload as any);
 
         startTransition(async () => {
             await runActionWithToast(actionCall, {

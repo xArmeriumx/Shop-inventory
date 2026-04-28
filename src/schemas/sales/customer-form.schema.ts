@@ -39,9 +39,13 @@ export function getCustomerFormDefaults(data?: any): CustomerFormValues {
         addresses: data?.addresses?.map((addr: any) => ({
             id: addr.id,
             label: addr.label || '',
-            addressLine: addr.addressLine || '',
-            district: addr.district || '',
-            province: addr.province || '',
+            // DB field is `address`, form field is `addressLine` — bridge here (SSOT)
+            addressLine: addr.addressLine || addr.address || '',
+            subDistrict: addr.subDistrict || null,
+            district: addr.district || null,
+            province: addr.province || null,
+            postalCode: addr.postalCode || null,
+            country: addr.country || 'Thailand',
             type: addr.type || 'BOTH',
             isDefaultBilling: !!addr.isDefaultBilling,
             isDefaultShipping: !!addr.isDefaultShipping,
