@@ -2,6 +2,7 @@ import { db } from '@/lib/db';
 import { RequestContext, ServiceError, DocumentType } from '@/types/domain';
 import { Security } from '@/services/core/iam/security.service';
 import { SequenceService } from '@/services/core/system/sequence.service';
+import { AuditService, AUDIT_ACTIONS } from '@/services/core/system/audit.service';
 import { Prisma, Permission } from '@prisma/client';
 
 import { money, toNumber } from '@/lib/money';
@@ -246,6 +247,11 @@ export const WhtService: IWhtService = {
                 create: { shopId: ctx.shopId, ...data },
             });
         }
+        AuditService.log(ctx, {
+            action: AUDIT_ACTIONS.WHT_CODE_UPSERT,
+            targetType: 'WhtCode',
+            note: `${id ? 'อัปเดต' : 'สร้าง'}รหัสภาษี ${data.code} (${data.rate}%)`,
+        }).catch(() => { });
     },
 
     /** เปิด/ปิดรหัสภาษี */
@@ -254,6 +260,12 @@ export const WhtService: IWhtService = {
             where: { id, shopId: ctx.shopId },
             data: { isActive },
         });
+        AuditService.log(ctx, {
+            action: AUDIT_ACTIONS.WHT_CODE_TOGGLE,
+            targetType: 'WhtCode',
+            targetId: id,
+            note: `${isActive ? 'เปิด' : 'ปิด'}ใช้งานรหัสภาษี`,
+        }).catch(() => { });
     },
 
     /** ลบรหัสภาษี */
@@ -261,6 +273,12 @@ export const WhtService: IWhtService = {
         await (db as any).whtCode.delete({
             where: { id, shopId: ctx.shopId },
         });
+        AuditService.log(ctx, {
+            action: AUDIT_ACTIONS.WHT_CODE_DELETE,
+            targetType: 'WhtCode',
+            targetId: id,
+            note: `ลบรหัสภาษี`,
+        }).catch(() => { });
     },
 };
 

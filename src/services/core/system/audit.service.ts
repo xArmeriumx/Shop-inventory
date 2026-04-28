@@ -25,9 +25,15 @@ export const AUDIT_ACTIONS = {
   SALE_CANCEL: 'SALE_CANCEL',
   SALE_PAYMENT: 'SALE_PAYMENT',
 
+  // Invoice
+  INVOICE_POST: 'INVOICE_POST',
+  INVOICE_CANCEL: 'INVOICE_CANCEL',
+
   // Inventory
   STOCK_ADJUST: 'STOCK_ADJUST',
   STOCK_TRANSFER: 'STOCK_TRANSFER',
+  STOCK_TRANSFER_CREATE: 'STOCK_TRANSFER_CREATE',
+  STOCK_TRANSFER_COMPLETE: 'STOCK_TRANSFER_COMPLETE',
   PRODUCT_UPDATE: 'PRODUCT_UPDATE',
 
   // Logistics
@@ -35,6 +41,25 @@ export const AUDIT_ACTIONS = {
   SHIPMENT_UPDATE: 'SHIPMENT_UPDATE',
   SHIPMENT_STATUS: 'SHIPMENT_STATUS',
   ROUTE_PROCESS: 'ROUTE_PROCESS',
+
+  // Finance / Accounting
+  JOURNAL_CREATE: 'JOURNAL_CREATE',
+  JOURNAL_POST: 'JOURNAL_POST',
+  JOURNAL_VOID: 'JOURNAL_VOID',
+  BANK_RECONCILE: 'BANK_RECONCILE',
+
+  // Tax
+  TAX_POST: 'TAX_POST',
+  TAX_VOID: 'TAX_VOID',
+  WHT_CERTIFICATE_ISSUE: 'WHT_CERTIFICATE_ISSUE',
+  WHT_CERTIFICATE_VOID: 'WHT_CERTIFICATE_VOID',
+  WHT_CODE_UPSERT: 'WHT_CODE_UPSERT',
+  WHT_CODE_TOGGLE: 'WHT_CODE_TOGGLE',
+  WHT_CODE_DELETE: 'WHT_CODE_DELETE',
+
+  // Procurement
+  ORDER_REQUEST_CREATE: 'ORDER_REQUEST_CREATE',
+  ORDER_REQUEST_SUBMIT: 'ORDER_REQUEST_SUBMIT',
 
   // Shop & Settings
   SHOP_UPDATE: 'SHOP_UPDATE',
@@ -288,16 +313,16 @@ export const AuditService = {
     note?: string;
     reason?: string;
   }, tx?: any): Promise<void> {
-    const { 
-      shopId, userId, actorId, action, status, 
-      targetType, targetId, before, after, note, reason 
+    const {
+      shopId, userId, actorId, action, status,
+      targetType, targetId, before, after, note, reason
     } = params;
 
     return AuditService.log(
-      { 
-        userId: (userId || actorId) as string, 
-        shopId 
-      }, 
+      {
+        userId: (userId || actorId) as string,
+        shopId
+      },
       {
         action,
         status,
@@ -369,7 +394,7 @@ export const AuditService = {
       // 5. Success Log (Non-blocking for performance)
       // ERP Phase 7 Solution: Fire-and-forget business side-effects
       const ctxMetadata = (ctx as any).auditMetadata || {};
-      
+
       AuditService.log(ctx, {
         action,
         status: AUDIT_STATUS.SUCCESS,
@@ -582,11 +607,11 @@ export const AuditService = {
    */
   calculateChangedFields(before?: any, after?: any): string[] {
     if (!before || !after || typeof before !== 'object' || typeof after !== 'object') return [];
-    
+
     try {
       const changes: string[] = [];
       const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
-      
+
       for (const key of Array.from(keys)) {
         // ข้ามฟิลด์ที่เป็น metadata หรือความสัมพันธ์ที่ซับซ้อน
         if (['updatedAt', 'createdAt', 'version', 'id', 'shopId', 'userId'].includes(key)) continue;

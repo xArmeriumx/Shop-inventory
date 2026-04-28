@@ -4,6 +4,7 @@ import { SequenceService } from '@/services/core/system/sequence.service';
 import { Prisma } from '@prisma/client';
 import { money } from '@/lib/money';
 import { AccountingService } from './accounting.service';
+import { AuditService, AUDIT_ACTIONS } from '@/services/core/system/audit.service';
 
 import { IJournalService } from '@/types/service-contracts';
 import { ACCOUNTING_TAGS } from '@/config/cache-tags';
@@ -129,18 +130,21 @@ export const JournalService: IJournalService = {
             if (!entry) throw new ServiceError('ไม่พบรายการสมุดรายวัน');
             if (entry.status !== 'DRAFT') throw new ServiceError('รายการนี้ถูก Post หรือ Void ไปแล้ว');
 
-            const updated = await (tx as any).journalEntry.update({
-                where: { id },
-                data: {
-                    status: 'POSTED',
-                    postedAt: new Date() // Rule 5
-                }
-            });
-
-            return {
-                data: updated,
-                affectedTags: [ACCOUNTING_TAGS.JOURNAL]
-            };
+            return await AuditService.runWithAudit(ctx, {
+                action: AUDIT_ACTIONS.JOURNAL_POST,
+                targetType: 'JournalEntry',
+                targetId: id,
+                note: `ยืนยันสมุดรายวันเลขที่ ${entry.entryNo}`,
+            }, async () => {
+                const updated = await (tx as any).journalEntry.update({
+                    where: { id },
+                    data: { status: 'POSTED', postedAt: new Date() }
+                });
+                return {
+                    data: updated,
+                    affectedTags: [ACCOUNTING_TAGS.JOURNAL]
+                };
+            }, tx);
         });
     },
 
@@ -157,20 +161,23 @@ export const JournalService: IJournalService = {
             if (!entry) throw new ServiceError('ไม่พบรายการสมุดรายวัน');
             if (entry.status === 'VOIDED') throw new ServiceError('รายการนี้ถูกยกเลิกไปแล้ว');
 
-            // Note: In Phase A1.2, we just mark as VOIDED. 
-            // In full ERP, we might need to create a reversal entry.
-            const voided = await (tx as any).journalEntry.update({
-                where: { id },
-                data: {
-                    status: 'VOIDED',
-                    updatedAt: new Date()
-                }
-            });
-
-            return {
-                data: voided,
-                affectedTags: [ACCOUNTING_TAGS.JOURNAL]
-            };
+            return await AuditService.runWithAudit(ctx, {
+                action: AUDIT_ACTIONS.JOURNAL_VOID,
+                targetType: 'JournalEntry',
+                targetId: id,
+                beforeSnapshot: () => entry,
+                allowlist: ['entryNo', 'status', 'description', 'journalDate'],
+                note: `ยกเลิกสมุดรายวันเลขที่ ${entry.entryNo}`,
+            }, async () => {
+                const voided = await (tx as any).journalEntry.update({
+                    where: { id },
+                    data: { status: 'VOIDED', updatedAt: new Date() }
+                });
+                return {
+                    data: voided,
+                    affectedTags: [ACCOUNTING_TAGS.JOURNAL]
+                };
+            }, tx);
         });
     },
 
@@ -179,7 +186,7 @@ export const JournalService: IJournalService = {
      */
     async getEntries(ctx: RequestContext, params: { status?: string, startDate?: Date, endDate?: Date, limit?: number, offset?: number }) {
         const { limit = 50, offset = 0, status, startDate, endDate } = params;
-        
+
         const where: any = {
             shopId: ctx.shopId,
             ...(status ? { status } : {}),
