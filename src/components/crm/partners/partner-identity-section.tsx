@@ -36,36 +36,13 @@ export function PartnerIdentitySection({ type }: PartnerIdentitySectionProps) {
                     <Input id="taxId" {...register('taxId')} placeholder="เลข 13 หลัก" maxLength={13} inputMode="numeric" />
                 </FormField>
 
-                <div className="grid grid-cols-2 gap-4 sm:col-span-2">
-                    <FormField
-                        name="phone"
-                        label="เบอร์โทรศัพท์ (Legacy)"
-                        hint="อ่านอย่างเดียว (โปรดใช้ส่วนจัดการที่อยู่สำหรับเบอร์ติดต่อใหม่)"
-                    >
-                        <Input
-                            id="phone"
-                            {...register('phone')}
-                            readOnly
-                            className="bg-muted text-muted-foreground cursor-not-allowed"
-                            placeholder="ข้อมูลเดิม"
-                        />
-                    </FormField>
+                <FormField name="email" label="อีเมล" className="sm:col-span-2">
+                    <Input id="email" type="email" {...register('email')} placeholder="email@example.com" maxLength={254} />
+                </FormField>
 
-                    <FormField name="email" label="อีเมล">
-                        <Input id="email" type="email" {...register('email')} placeholder="email@example.com" maxLength={254} />
-                    </FormField>
-                </div>
-
-                {type === 'CUSTOMER' && (
-                    <>
-                        <FormField name="region" label="พื้นที่ / ภูมิภาค">
-                            <Input id="region" {...register('region')} placeholder="เช่น กรุงเทพฯ, ภาคเหนือ" />
-                        </FormField>
-                        <FormField name="groupCode" label="รหัสกลุ่มลูกค้า">
+                        <FormField name="groupCode" label="รหัสกลุ่มลูกค้า" className="sm:col-span-2">
                             <Input id="groupCode" {...register('groupCode')} placeholder="เช่น G01" />
                         </FormField>
-                    </>
-                )}
 
                 <FormField name="notes" label="หมายเหตุ" className="sm:col-span-2">
                     <textarea

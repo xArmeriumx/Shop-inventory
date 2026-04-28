@@ -15,6 +15,7 @@ import { SafeBoundary } from '@/components/ui/safe-boundary';
 import { createCustomer, updateCustomer } from '@/actions/sales/customers.actions';
 import { customerFormSchema, getCustomerFormDefaults } from '@/schemas/sales/customer-form.schema';
 import type { CustomerFormValues } from '@/schemas/sales/customer-form.schema';
+import { getRegion } from '@/lib/thai-address';
 
 import { PartnerIdentitySection } from '@/components/crm/partners/partner-identity-section';
 import { PartnerFinancialSection } from '@/components/crm/partners/partner-financial-section';
@@ -37,9 +38,14 @@ export function CustomerForm({ customer }: CustomerFormProps) {
     const { handleSubmit, setError } = methods;
 
     async function onSubmit(data: CustomerFormValues) {
-        // Bridge: form uses `addressLine`, DB uses `address` — normalize before sending
+        // Bridge: form uses `addressLine`, DB uses `address`
+        // Auto-Region: Derive region from the first address's province
+        const firstAddress = data.addresses?.[0];
+        const derivedRegion = firstAddress?.province ? getRegion(firstAddress.province) : data.region;
+
         const payload = {
             ...data,
+            region: derivedRegion,
             addresses: data.addresses?.map((addr: any) => ({
                 ...addr,
                 address: addr.addressLine, // map to DB field
@@ -87,6 +93,10 @@ export function CustomerForm({ customer }: CustomerFormProps) {
                         </CardContent>
                     </Card>
 
+                    <SafeBoundary variant="compact" componentName="CustomerAddress">
+                        <PartnerAddressSection />
+                    </SafeBoundary>
+
                     <Card>
                         <CardContent className="pt-6">
                             <SafeBoundary variant="compact" componentName="CustomerFinancial">
@@ -94,10 +104,6 @@ export function CustomerForm({ customer }: CustomerFormProps) {
                             </SafeBoundary>
                         </CardContent>
                     </Card>
-
-                    <SafeBoundary variant="compact" componentName="CustomerAddress">
-                        <PartnerAddressSection />
-                    </SafeBoundary>
                 </div>
 
                 {/* Rule 7: Sticky Action Bar */}

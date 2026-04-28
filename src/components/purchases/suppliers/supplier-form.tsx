@@ -108,6 +108,10 @@ export function SupplierForm({ supplier }: SupplierFormProps) {
             </CardContent>
           </Card>
 
+          <SafeBoundary variant="compact" componentName="SupplierAddress">
+            <PartnerAddressSection />
+          </SafeBoundary>
+
           <Card>
             <CardContent className="pt-6">
               <SafeBoundary variant="compact" componentName="SupplierFinancial">
@@ -115,10 +119,6 @@ export function SupplierForm({ supplier }: SupplierFormProps) {
               </SafeBoundary>
             </CardContent>
           </Card>
-
-          <SafeBoundary variant="compact" componentName="SupplierAddress">
-            <PartnerAddressSection />
-          </SafeBoundary>
         </div>
 
         {/* Rule 7: Sticky Action Bar */}
