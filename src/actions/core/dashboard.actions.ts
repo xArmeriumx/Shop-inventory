@@ -19,7 +19,7 @@ export async function getDashboardStats(warehouseId?: string) {
 
       const [stats, operational] = await Promise.all([
         DashboardService.getDashboardStats(ctx, warehouseId),
-        DashboardService.getOperationalMetrics(ctx),
+        DashboardService.getOperationalMetrics(ctx, warehouseId),
       ]);
       return { ...stats, operational };
     }, 'core:getDashboardStats');

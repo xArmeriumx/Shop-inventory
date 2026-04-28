@@ -57,7 +57,7 @@ export const DashboardService = {
     const [
       todaySales,
       todayIncomes,
-      totalProducts,
+      totalProductsCount,
       lowStockCount,
       recentSales,
       lowStockProducts,
@@ -77,7 +77,7 @@ export const DashboardService = {
         _sum: { netAmount: true, profit: true },
         _count: true,
       }),
-      // 2. Today's income (not warehouse-scoped — income isn't tied to warehouses)
+      // 2. Today's income
       (db as any).income.aggregate({
         where: {
           shopId: ctx.shopId,
@@ -87,12 +87,12 @@ export const DashboardService = {
         _sum: { amount: true },
         _count: true,
       }),
-      // 3. Total active products (warehouse-scoped via WarehouseStock relation)
+      // 3. Total active products
       db.product.count({
         where: {
           shopId: ctx.shopId,
           isActive: true,
-          ...(warehouseId && { warehouseStocks: { some: { warehouseId } } })
+          ...(warehouseId ? { warehouseStocks: { some: { warehouseId: warehouseId } } } : {})
         },
       }),
       // 4. Low stock products
@@ -101,7 +101,7 @@ export const DashboardService = {
           shopId: ctx.shopId,
           isActive: true,
           isLowStock: true,
-          ...(warehouseId && { warehouseStocks: { some: { warehouseId } } })
+          ...(warehouseId ? { warehouseStocks: { some: { warehouseId: warehouseId } } } : {})
         },
       }),
       // 5. Recent sales (uses pre-resolved IDs for all-time scope)
@@ -124,7 +124,7 @@ export const DashboardService = {
           shopId: ctx.shopId,
           isActive: true,
           isLowStock: true,
-          ...(warehouseId && { warehouseStocks: { some: { warehouseId } } })
+          ...(warehouseId ? { warehouseStocks: { some: { warehouseId: warehouseId } } } : {})
         },
         select: { id: true, name: true, sku: true, stock: true, minStock: true },
         orderBy: { stock: "asc" },
@@ -137,10 +137,10 @@ export const DashboardService = {
         where: {
           shopId: ctx.shopId,
           status: "PENDING",
-          ...(warehouseId && { warehouseId })
+          ...(warehouseId ? { warehouseId: warehouseId } : {})
         },
       }),
-      // 9. Today's expenses (not warehouse-scoped)
+      // 9. Today's expenses
       db.expense.aggregate({
         where: {
           shopId: ctx.shopId, date: { gte: today, lt: tomorrow }, deletedAt: null,
@@ -153,11 +153,13 @@ export const DashboardService = {
         where: {
           shopId: ctx.shopId,
           quantity: { gt: 0 },
-          ...(warehouseId && { warehouseId })
+          ...(warehouseId ? { warehouseId: warehouseId } : {})
         },
         select: { quantity: true, product: { select: { costPrice: true } } }
       }),
     ] as any);
+
+
 
     const salesRevenue = toNumber(todaySales._sum?.netAmount);
     const incomeRevenue = toNumber(todayIncomes._sum?.amount);
@@ -178,7 +180,7 @@ export const DashboardService = {
         count: todaySales._count,
         incomeCount: todayIncomes._count,
       },
-      totalProducts,
+      totalProducts: totalProductsCount,
       lowStockCount,
       recentSales: recentSales.map((sale: any) => ({
         id: sale.id,
@@ -211,10 +213,17 @@ export const DashboardService = {
 
   /**
    * getOperationalMetrics - Aggregate actionable tasks for the Two-Tier Dashboard (Rule: SME-First)
+   * Now warehouse-aware: filters Shipments directly, Sales via SaleItem relation
    */
-  async getOperationalMetrics(ctx: RequestContext) {
+  async getOperationalMetrics(ctx: RequestContext, warehouseId?: string) {
     const limitDate = new Date();
     limitDate.setDate(limitDate.getDate() - 3); // For Stuck Documents detection
+
+    // Warehouse-aware filter helpers
+    const whShipmentFilter = warehouseId ? { warehouseId } : {};
+    const whSaleFilter = warehouseId
+      ? { items: { some: { warehouseId } } } as any
+      : {};
 
     const [
       pendingSalesCount,
@@ -227,17 +236,17 @@ export const DashboardService = {
       stuckPurchasesCount,
       governanceIncidentsToday
     ] = await Promise.all([
-      // SME 1: งานขายค้าง (DRAFT or CONFIRMED)
+      // SME 1: งานขายค้าง (DRAFT or CONFIRMED) — warehouse-aware via SaleItem
       db.sale.count({
-        where: { shopId: ctx.shopId, status: { in: ['DRAFT', 'CONFIRMED'] } }
+        where: { shopId: ctx.shopId, status: { in: ['DRAFT', 'CONFIRMED'] }, ...whSaleFilter }
       }),
-      // SME 2: งานซื้อค้าง (Active PR/PO that is not RECEIVED)
+      // SME 2: งานซื้อค้าง (Active PR/PO that is not RECEIVED) — shop-wide (Purchase has no warehouseId)
       db.purchase.count({
         where: { shopId: ctx.shopId, status: { in: ['DRAFT', 'PENDING', 'APPROVED', 'ORDERED'] } }
       }),
-      // SME 3: งานส่งของค้าง (PENDING or PROCESSING)
+      // SME 3: งานส่งของค้าง (PENDING or PROCESSING) — warehouse-aware
       db.shipment.count({
-        where: { shopId: ctx.shopId, status: { in: ['PENDING', 'PROCESSING'] } }
+        where: { shopId: ctx.shopId, status: { in: ['PENDING', 'PROCESSING'] }, ...whShipmentFilter }
       }),
       // SME 4: ปรับสต็อกมือล่าสุด (Audit)
       db.auditLog.findMany({
@@ -250,20 +259,22 @@ export const DashboardService = {
       db.purchase.count({
         where: { shopId: ctx.shopId, docType: 'REQUEST', status: 'APPROVED' }
       }),
-      // ADV 2: Shipment พิกัดไม่ครบ
+      // ADV 2: Shipment พิกัดไม่ครบ — warehouse-aware
       db.shipment.count({
         where: {
           shopId: ctx.shopId,
           status: { notIn: ['CANCELLED', 'DELIVERED'] },
+          ...whShipmentFilter,
           OR: [{ latitude: null }, { longitude: null }]
         }
       }),
-      // ADV 3: Stuck Sales (> 3 days)
+      // ADV 3: Stuck Sales (> 3 days) — warehouse-aware via SaleItem
       db.sale.count({
         where: {
           shopId: ctx.shopId,
           status: { in: ['DRAFT', 'CONFIRMED'] },
-          createdAt: { lt: limitDate }
+          createdAt: { lt: limitDate },
+          ...whSaleFilter
         }
       }),
       // ADV 4: Stuck Purchases (> 3 days)
