@@ -447,6 +447,19 @@ export const InvoiceService = {
                 await JournalService.reverseEntry(ctx, journal.id, tx);
             }
 
+            // Unlock the linked Sale so user can regenerate Invoice
+            if (invoice.saleId) {
+                await tx.sale.update({
+                    where: { id: invoice.saleId },
+                    data: {
+                        billingStatus: 'UNBILLED',
+                        editLockStatus: null,
+                        lockReason: null,
+                        isLocked: false,
+                    },
+                });
+            }
+
             return (tx as any).invoice.update({
                 where: { id },
                 data: {

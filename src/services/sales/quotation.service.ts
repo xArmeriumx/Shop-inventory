@@ -9,7 +9,7 @@ import {
     type GetQuotationsParams,
     SaleStatus,
 } from '@/types/domain';
-import { AuditService } from '@/services/core/system/audit.service';
+import { AuditService, AUDIT_ACTIONS } from '@/services/core/system/audit.service';
 import { ComputationEngine, CalculationItemInput } from '@/services/core/finance/computation.service';
 import { toNumber } from '@/lib/money';
 import { Prisma } from '@prisma/client';
@@ -24,7 +24,7 @@ import { paginatedQuery } from '@/lib/pagination';
  * Audit Allowlist for Quotation (ERP Rule 12.1)
  */
 const QUOTATION_AUDIT_FIELDS = [
-    'quotationNo', 'status', 'customerId', 'totalAmount', 
+    'quotationNo', 'status', 'customerId', 'totalAmount',
     'taxMode', 'taxRate', 'taxAmount', 'taxableAmount', 'netAmount'
 ];
 
@@ -89,89 +89,89 @@ export const QuotationService: IQuotationService = {
      */
     async create(ctx: RequestContext, input: CreateQuotationInput & { taxMode?: any; taxRate?: any }): Promise<MutationResult<any>> {
         const result = await AuditService.runWithAudit(ctx, {
-            action: 'QUOTATION_CREATE',
+            action: AUDIT_ACTIONS.QUOTATION_CREATE,
             targetType: 'Quotation',
             allowlist: QUOTATION_AUDIT_FIELDS,
             note: `สร้างใบเสนอราคาใหม่: ${input.items.length} รายการ`,
             afterSnapshot: (res) => res
         }, async () => {
             return await db.$transaction(async (tx) => {
-            if (!ctx.memberId) {
-                throw new ServiceError('ไม่พบข้อมูลพนักงานในระบบ (Member Identity Missing)');
-            }
+                if (!ctx.memberId) {
+                    throw new ServiceError('ไม่พบข้อมูลพนักงานในระบบ (Member Identity Missing)');
+                }
 
-            // 1. Load Customer to get address snapshot
-            const customer = await tx.customer.findUnique({
-                where: { id: input.customerId, shopId: ctx.shopId }
-            });
+                // 1. Load Customer to get address snapshot
+                const customer = await tx.customer.findUnique({
+                    where: { id: input.customerId, shopId: ctx.shopId }
+                });
 
-            // 2. Calculate Totals (SSOT)
-            const products = await tx.product.findMany({
-                where: { id: { in: input.items.map(i => i.productId).filter(Boolean) } }
-            });
+                // 2. Calculate Totals (SSOT)
+                const products = await tx.product.findMany({
+                    where: { id: { in: input.items.map(i => i.productId).filter(Boolean) } }
+                });
 
-            const computationItems: CalculationItemInput[] = input.items.map(item => {
-                const product = products.find(p => p.id === item.productId);
-                return {
-                    qty: item.quantity,
-                    unitPrice: item.unitPrice,
-                    costPrice: product ? Number(product.costPrice) : 0,
-                    lineDiscount: item.discount || 0
+                const computationItems: CalculationItemInput[] = input.items.map(item => {
+                    const product = products.find(p => p.id === item.productId);
+                    return {
+                        qty: item.quantity,
+                        unitPrice: item.unitPrice,
+                        costPrice: product ? Number(product.costPrice) : 0,
+                        lineDiscount: item.discount || 0
+                    };
+                });
+
+                const taxConfig = {
+                    rate: Number(input.taxRate) || 0,
+                    mode: input.taxMode === 'NO_VAT' ? 'EXCLUSIVE' : (input.taxMode as any || 'INCLUSIVE'),
+                    kind: input.taxMode === 'NO_VAT' ? 'NO_VAT' : 'VAT' as any
                 };
-            });
 
-            const taxConfig = {
-                rate: Number(input.taxRate) || 0,
-                mode: input.taxMode === 'NO_VAT' ? 'EXCLUSIVE' : (input.taxMode as any || 'INCLUSIVE'),
-                kind: input.taxMode === 'NO_VAT' ? 'NO_VAT' : 'VAT' as any
-            };
+                const calculation = ComputationEngine.calculateTotals(computationItems, { type: 'FIXED', value: 0 }, taxConfig);
 
-            const calculation = ComputationEngine.calculateTotals(computationItems, { type: 'FIXED', value: 0 }, taxConfig);
+                // 2. Generate Sequence
+                const quotationNo = await SequenceService.generate(ctx, DocumentType.QUOTATION, tx);
 
-            // 2. Generate Sequence
-            const quotationNo = await SequenceService.generate(ctx, DocumentType.QUOTATION, tx);
-
-            // 3. Create Quotation - Full Principle Snapshot
-            const { totals } = calculation;
-            const quotation = await tx.quotation.create({
-                data: {
-                    shopId: ctx.shopId,
-                    quotationNo,
-                    customerId: input.customerId,
-                    customerAddressSnapshot: customer?.address || null,
-                    customerPhoneSnapshot: customer?.phone || null,
-                    salespersonId: input.salespersonId || ctx.memberId,
-                    memberId: ctx.memberId,
-                    date: input.date || new Date(),
-                    validUntil: input.validUntil,
-                    currencyCode: input.currencyCode || 'THB',
-                    totalAmount: totals.subtotalAmount,
-                    taxAmount: totals.taxAmount,
-                    taxableAmount: totals.taxableBaseAmount,
-                    taxMode: input.taxMode || 'INCLUSIVE',
-                    taxRate: input.taxRate || 7,
-                    notes: input.notes,
-                    items: {
-                        create: input.items.map((item, index) => {
-                            const lineRes = calculation.lines[index];
-                            return {
-                                productId: item.productId,
-                                description: item.description,
-                                quantity: item.quantity,
-                                unitPrice: item.unitPrice,
-                                discount: item.discount || 0,
-                                subtotal: lineRes.lineNet,
-                                taxAmount: lineRes.taxAmount,
-                                taxableAmount: lineRes.taxableBase,
-                                sortOrder: index,
-                            };
-                        }),
+                // 3. Create Quotation - Full Principle Snapshot
+                const { totals } = calculation;
+                const quotation = await tx.quotation.create({
+                    data: {
+                        shopId: ctx.shopId,
+                        quotationNo,
+                        customerId: input.customerId,
+                        customerAddressSnapshot: customer?.address || null,
+                        customerPhoneSnapshot: customer?.phone || null,
+                        salespersonId: input.salespersonId || ctx.memberId,
+                        memberId: ctx.memberId,
+                        date: input.date || new Date(),
+                        validUntil: input.validUntil,
+                        currencyCode: input.currencyCode || 'THB',
+                        totalAmount: totals.subtotalAmount,
+                        taxAmount: totals.taxAmount,
+                        taxableAmount: totals.taxableBaseAmount,
+                        taxMode: input.taxMode || 'INCLUSIVE',
+                        taxRate: input.taxRate || 7,
+                        notes: input.notes,
+                        items: {
+                            create: input.items.map((item, index) => {
+                                const lineRes = calculation.lines[index];
+                                return {
+                                    productId: item.productId,
+                                    description: item.description,
+                                    quantity: item.quantity,
+                                    unitPrice: item.unitPrice,
+                                    discount: item.discount || 0,
+                                    subtotal: lineRes.lineNet,
+                                    taxAmount: lineRes.taxAmount,
+                                    taxableAmount: lineRes.taxableBase,
+                                    sortOrder: index,
+                                };
+                            }),
+                        },
                     },
-                },
-                include: { items: true },
-            });
+                    include: { items: true },
+                });
 
-            return quotation;
+                return quotation;
             });
         });
 
@@ -186,7 +186,7 @@ export const QuotationService: IQuotationService = {
      */
     async confirm(ctx: RequestContext, id: string): Promise<MutationResult<any>> {
         const result = await AuditService.runWithAudit(ctx, {
-            action: 'QUOTATION_CONFIRM',
+            action: AUDIT_ACTIONS.QUOTATION_CONFIRM,
             targetType: 'Quotation',
             targetId: id,
             allowlist: QUOTATION_AUDIT_FIELDS,
@@ -195,94 +195,94 @@ export const QuotationService: IQuotationService = {
             getAfter: async () => db.quotation.findUnique({ where: { id } })
         }, async () => {
             return await db.$transaction(async (tx) => {
-            // 1. Load Quotation with details
-            const quotation = await tx.quotation.findUnique({
-                where: { id },
-                include: { 
-                    items: { include: { product: true } }
-                },
-            });
-
-            if (!quotation || quotation.shopId !== ctx.shopId) {
-                throw new ServiceError('ไม่พบใบเสนอราคา');
-            }
-
-            if (quotation.status !== QuotationStatus.DRAFT && quotation.status !== QuotationStatus.SENT) {
-                throw new ServiceError('ใบเสนอราคานี้ไม่สามารถยืนยันได้ (สถานะปัจจุบัน: ' + quotation.status + ')');
-            }
-
-            // 2. Update Quotation Status
-            await tx.quotation.update({
-                where: { id },
-                data: { status: QuotationStatus.CONFIRMED },
-            });
-
-            // 3. Create Sale (Sales Order) - Map accurate costs and totals
-            const orderNumber = await SequenceService.generate(ctx, DocumentType.SALE_ORDER, tx);
-            
-            // Recalculate totals professionally to ensure all fields (taxAmount, netAmount) are synced
-            const products = await tx.product.findMany({
-                where: { id: { in: quotation.items.map(i => i.productId) } }
-            });
-
-            const computationItems: CalculationItemInput[] = quotation.items.map(item => {
-                const product = products.find(p => p.id === item.productId);
-                return {
-                    qty: item.quantity,
-                    unitPrice: toNumber(item.unitPrice),
-                    costPrice: product ? toNumber(product.costPrice) : 0,
-                    lineDiscount: toNumber(item.discount || 0)
-                };
-            });
-
-            // Note: Currently QT doesn't store taxMode, we infer from Inclusive (Default)
-            const calculation = ComputationEngine.calculateTotals(computationItems, { type: 'FIXED', value: 0 }, {
-                rate: toNumber(quotation.taxRate),
-                mode: (quotation.taxMode as any) || 'INCLUSIVE',
-                kind: quotation.taxMode === 'NO_VAT' ? 'NO_VAT' : 'VAT' as any
-            });
-
-            const { totals } = calculation;
-
-            const sale = await tx.sale.create({
-                data: {
-                    shopId: ctx.shopId,
-                    userId: ctx.userId,
-                    memberId: ctx.memberId,
-                    invoiceNumber: orderNumber,
-                    customerId: quotation.customerId,
-                    customerAddress: quotation.customerAddressSnapshot || (quotation as any).customer?.address || null,
-                    customerPhone: quotation.customerPhoneSnapshot || (quotation as any).customer?.phone || null,
-                    quotationId: quotation.id,
-                    date: new Date(),
-                    status: SaleStatus.CONFIRMED,
-                    totalAmount: totals.subtotalAmount,
-                    totalCost: totals.totalCost,
-                    netAmount: totals.netAmount,
-                    profit: totals.totalProfit,
-                    taxMode: quotation.taxMode,
-                    taxRate: quotation.taxRate,
-                    taxAmount: totals.taxAmount,
-                    taxableAmount: totals.taxableBaseAmount,
-                    paymentMethod: 'TRANSFER', 
-                    bookingStatus: 'RESERVED',   
-                    items: {
-                        create: calculation.lines.map((line, index) => ({
-                            product: { connect: { id: quotation.items[index].productId } },
-                            quantity: line.qty,
-                            salePrice: line.unitPrice,
-                            costPrice: line.costPrice,
-                            discountAmount: line.lineDiscount,
-                            subtotal: line.lineNet,
-                            profit: line.lineProfit,
-                            taxAmount: line.taxAmount,
-                            taxableAmount: line.taxableBase,
-                        })),
+                // 1. Load Quotation with details
+                const quotation = await tx.quotation.findUnique({
+                    where: { id },
+                    include: {
+                        items: { include: { product: true } }
                     },
-                },
-            });
+                });
 
-            return sale;
+                if (!quotation || quotation.shopId !== ctx.shopId) {
+                    throw new ServiceError('ไม่พบใบเสนอราคา');
+                }
+
+                if (quotation.status !== QuotationStatus.DRAFT && quotation.status !== QuotationStatus.SENT) {
+                    throw new ServiceError('ใบเสนอราคานี้ไม่สามารถยืนยันได้ (สถานะปัจจุบัน: ' + quotation.status + ')');
+                }
+
+                // 2. Update Quotation Status
+                await tx.quotation.update({
+                    where: { id },
+                    data: { status: QuotationStatus.CONFIRMED },
+                });
+
+                // 3. Create Sale (Sales Order) - Map accurate costs and totals
+                const orderNumber = await SequenceService.generate(ctx, DocumentType.SALE_ORDER, tx);
+
+                // Recalculate totals professionally to ensure all fields (taxAmount, netAmount) are synced
+                const products = await tx.product.findMany({
+                    where: { id: { in: quotation.items.map(i => i.productId) } }
+                });
+
+                const computationItems: CalculationItemInput[] = quotation.items.map(item => {
+                    const product = products.find(p => p.id === item.productId);
+                    return {
+                        qty: item.quantity,
+                        unitPrice: toNumber(item.unitPrice),
+                        costPrice: product ? toNumber(product.costPrice) : 0,
+                        lineDiscount: toNumber(item.discount || 0)
+                    };
+                });
+
+                // Note: Currently QT doesn't store taxMode, we infer from Inclusive (Default)
+                const calculation = ComputationEngine.calculateTotals(computationItems, { type: 'FIXED', value: 0 }, {
+                    rate: toNumber(quotation.taxRate),
+                    mode: (quotation.taxMode as any) || 'INCLUSIVE',
+                    kind: quotation.taxMode === 'NO_VAT' ? 'NO_VAT' : 'VAT' as any
+                });
+
+                const { totals } = calculation;
+
+                const sale = await tx.sale.create({
+                    data: {
+                        shopId: ctx.shopId,
+                        userId: ctx.userId,
+                        memberId: ctx.memberId || null,
+                        invoiceNumber: orderNumber,
+                        customerId: quotation.customerId,
+                        customerAddress: quotation.customerAddressSnapshot || (quotation as any).customer?.address || null,
+                        customerPhone: quotation.customerPhoneSnapshot || (quotation as any).customer?.phone || null,
+                        quotationId: quotation.id,
+                        date: new Date(),
+                        status: SaleStatus.CONFIRMED,
+                        totalAmount: totals.subtotalAmount,
+                        totalCost: totals.totalCost,
+                        netAmount: totals.netAmount,
+                        profit: totals.totalProfit,
+                        taxMode: quotation.taxMode,
+                        taxRate: quotation.taxRate,
+                        taxAmount: totals.taxAmount,
+                        taxableAmount: totals.taxableBaseAmount,
+                        paymentMethod: 'TRANSFER',
+                        bookingStatus: 'RESERVED',
+                        items: {
+                            create: calculation.lines.map((line, index) => ({
+                                product: { connect: { id: quotation.items[index].productId } },
+                                quantity: line.qty,
+                                salePrice: line.unitPrice,
+                                costPrice: line.costPrice,
+                                discountAmount: line.lineDiscount,
+                                subtotal: line.lineNet,
+                                profit: line.lineProfit,
+                                taxAmount: line.taxAmount,
+                                taxableAmount: line.taxableBase,
+                            })),
+                        },
+                    },
+                });
+
+                return sale;
             });
         });
 
@@ -297,7 +297,7 @@ export const QuotationService: IQuotationService = {
      */
     async cancel(ctx: RequestContext, id: string): Promise<MutationResult<any>> {
         const result = await AuditService.runWithAudit(ctx, {
-            action: 'QUOTATION_CANCEL',
+            action: AUDIT_ACTIONS.QUOTATION_CANCEL,
             targetType: 'Quotation',
             targetId: id,
             allowlist: QUOTATION_AUDIT_FIELDS,
@@ -306,18 +306,18 @@ export const QuotationService: IQuotationService = {
             getAfter: async () => db.quotation.findUnique({ where: { id } })
         }, async () => {
             return await db.$transaction(async (tx) => {
-            const quotation = await tx.quotation.findUnique({
-                where: { id },
-            });
+                const quotation = await tx.quotation.findUnique({
+                    where: { id },
+                });
 
-            if (!quotation || quotation.shopId !== ctx.shopId) {
-                throw new ServiceError('ไม่พบใบเสนอราคา');
-            }
+                if (!quotation || quotation.shopId !== ctx.shopId) {
+                    throw new ServiceError('ไม่พบใบเสนอราคา');
+                }
 
-            return await tx.quotation.update({
-                where: { id },
-                data: { status: QuotationStatus.CANCELLED },
-            });
+                return await tx.quotation.update({
+                    where: { id },
+                    data: { status: QuotationStatus.CANCELLED },
+                });
             });
         });
 

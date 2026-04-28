@@ -7,7 +7,7 @@ import { StockService } from '@/services/inventory/stock.service';
 import { StockEngine } from '@/services/inventory/stock-engine.service';
 import { SequenceService } from '@/services/core/system/sequence.service';
 import { ComputationEngine, CalculationItemInput } from '@/services/core/finance/computation.service';
-import { AuditService } from '@/services/core/system/audit.service';
+import { AuditService, AUDIT_ACTIONS } from '@/services/core/system/audit.service';
 import { Security } from '@/services/core/iam/security.service';
 import { NotificationService } from '@/services/core/intelligence/notification.service';
 import { money, toNumber } from '@/lib/money';
@@ -86,7 +86,7 @@ const SALE_RESULT_SELECT = {
 export const POSSaleService: IPOSSaleService = {
     async checkout(ctx: RequestContext, cart: POSCartInput): Promise<MutationResult<any>> {
         const result = await AuditService.runWithAudit(ctx, {
-            action: 'POS_CHECKOUT',
+            action: AUDIT_ACTIONS.POS_CHECKOUT,
             targetType: 'Sale',
             allowlist: ['invoiceNumber', 'totalAmount', 'netAmount', 'paymentMethod', 'status'],
             resolveTargetId: (res: any) => res?.sale?.id,

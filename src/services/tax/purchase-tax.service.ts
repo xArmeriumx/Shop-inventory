@@ -187,7 +187,11 @@ export const PurchaseTaxService: IPurchaseTaxService = {
         return await db.$transaction(async (tx) => {
             const voidedDoc = await (tx as any).purchaseTaxDocument.update({
                 where: { id },
-                data: { status: 'VOIDED' }
+                data: {
+                    status: 'VOIDED',
+                    voidedByMemberId: ctx.memberId ?? null,
+                    voidedAt: now,
+                }
             });
 
             // Reverse Tax Entry

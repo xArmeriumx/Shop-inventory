@@ -1,6 +1,6 @@
 import { db } from '@/lib/db';
 import { RequestContext, ServiceError } from '@/types/domain';
-import { AuditService } from '@/services/core/system/audit.service';
+import { AuditService, AUDIT_ACTIONS } from '@/services/core/system/audit.service';
 import { toNumber, money } from '@/lib/money';
 import { Security } from '@/services/core/iam/security.service';
 import { Permission } from '@prisma/client';
@@ -156,10 +156,10 @@ export const PaymentService = {
 
             // 7. Audit Log
             await AuditService.runWithAudit(ctx, {
-                action: 'PAYMENT_RECORD',
+                action: AUDIT_ACTIONS.PAYMENT_RECORD,
                 targetType: 'Payment',
                 targetId: payment.id,
-                note: `ชำระเงินจำนวน ${data.amount} THB สำหรับ ${data.invoiceId ? 'Invoice' : 'Sale'}${data.whtCodeId ? ' (รวมหัก ณ ที่จ่าย)' : ''}`,
+                note: `ชำระเงินจำนวน ${data.amount} THB สำหรับ ${data.invoiceId ? 'Invoice' : data.saleId ? 'Sale' : data.purchaseId ? 'Purchase' : 'Expense'}${data.whtCodeId ? ' (รวมหัก ณ ที่จ่าย)' : ''}`,
             }, async () => payment, tx);
 
             return payment;
@@ -224,19 +224,20 @@ export const PaymentService = {
                 }
             }
 
-            // Sync Snapshots
-            await this.recalculateDocumentBalance(
-                existing.invoiceId ? { invoiceId: existing.invoiceId } : { saleId: existing.saleId! },
-                tx
-            );
+            // Sync Snapshots (handle all parent types)
+            const voidBalanceTarget = existing.invoiceId ? { invoiceId: existing.invoiceId }
+                : existing.saleId ? { saleId: existing.saleId }
+                    : existing.purchaseId ? { purchaseId: existing.purchaseId }
+                        : { expenseId: existing.expenseId! };
+            await this.recalculateDocumentBalance(voidBalanceTarget as any, tx);
 
             // Audit Log
             await AuditService.runWithAudit(ctx, {
-                action: 'PAYMENT_VOID',
+                action: AUDIT_ACTIONS.PAYMENT_VOID,
                 targetType: 'Payment',
                 targetId: paymentId,
                 beforeSnapshot: () => existing,
-                note: 'User voided payment',
+                note: `ยกเลิกการชำระเงิน ${existing.paymentNo || paymentId}`,
             }, async () => updated, tx);
 
             return updated;
@@ -247,7 +248,7 @@ export const PaymentService = {
      * Re-synchronizes snapshots from the payment ledger.
      * This is the SSOT for residual totals.
      */
-    async recalculateDocumentBalance(target: { invoiceId?: string; saleId?: string; purchaseId?: string }, tx: any = db) {
+    async recalculateDocumentBalance(target: { invoiceId?: string; saleId?: string; purchaseId?: string; expenseId?: string }, tx: any = db) {
         const where = target.invoiceId ? { invoiceId: target.invoiceId } :
             target.purchaseId ? { purchaseId: target.purchaseId } :
                 { saleId: target.saleId };
