@@ -33,6 +33,7 @@ import { Security } from '@/services/core/iam/security.service';
 import { WorkflowService } from '@/services/core/workflow/workflow.service';
 import { SaleMapper } from '@/lib/mappers/sales.mapper';
 import { SALE_CANCEL_REASONS, resolveReasonLabel, validateReason } from '@/config/reason-codes';
+import { resolveLocked, buildLockData } from '@/lib/lock-helpers';
 
 import { ComputationEngine, CalculationItemInput } from '@/services/core/finance/computation.service';
 import { InvoiceService } from './invoice.service';
@@ -325,9 +326,9 @@ export const SaleService: ISaleService = {
       ctx,
       SALE_AUDIT_POLICIES.UPDATE(sale.invoiceNumber, payload),
       async () => {
-        const isLocked = ((sale as any).editLockStatus === EditLockStatus.LOCKED) || sale.isLocked;
+        const locked = resolveLocked(sale as any);
 
-        if (isLocked) {
+        if (locked) {
           try {
             Security.require(ctx, Permission.SALE_EDIT_LOCKED);
           } catch (e) {
@@ -729,7 +730,7 @@ export const SaleService: ISaleService = {
         return runInTransaction(undefined, async (prisma) => {
           await prisma.sale.update({
             where: { id: saleId, shopId: ctx.shopId },
-            data: { status: SaleStatus.INVOICED, isLocked: true },
+            data: { status: SaleStatus.INVOICED, ...buildLockData('LOCKED', 'ออกใบกำกับภาษีแล้ว') },
           });
 
           // Mirror invoice state to SaleStatus child table (if exists)
@@ -813,7 +814,7 @@ export const SaleService: ISaleService = {
             data: {
               status: SaleStatus.COMPLETED,
               bookingStatus: BookingStatus.DEDUCTED,
-              isLocked: true,
+              ...buildLockData('LOCKED', 'ปิดการขายแล้ว'),
             },
           });
 
@@ -863,13 +864,13 @@ export const SaleService: ISaleService = {
   async getLockedFields(saleId: string, ctx: RequestContext): Promise<string[]> {
     const sale = await db.sale.findFirst({
       where: { id: saleId, shopId: ctx.shopId },
-      select: { status: true, isLocked: true },
+      select: { status: true, editLockStatus: true, isLocked: true }, // isLocked: fallback only
     });
 
     if (!sale) return [];
 
     const locked = [];
-    if (sale.isLocked || sale.status === SaleStatus.INVOICED || sale.status === SaleStatus.COMPLETED) {
+    if (resolveLocked(sale) || sale.status === SaleStatus.INVOICED || sale.status === SaleStatus.COMPLETED) {
       locked.push('items', 'customerId', 'discountType', 'discountValue');
     }
     if (sale.status === SaleStatus.COMPLETED) {

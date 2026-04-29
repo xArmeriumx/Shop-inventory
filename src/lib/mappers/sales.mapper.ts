@@ -2,6 +2,7 @@ import { toNumber } from '@/lib/money';
 import { RequestContext } from '@/types/common';
 import { Permission } from '@prisma/client';
 import { SaleListDTO, SaleDetailDTO, SaleItemDTO } from '@/types/dtos/sales.dto';
+import { resolveLocked } from '@/lib/lock-helpers';
 
 /**
  * SaleMapper — Central logic for Sale DTO shaping & security
@@ -18,15 +19,16 @@ export const SaleMapper = {
     /** อ่านสถานะจาก SaleStatus ก่อน Fallback ไป Sale เดิม */
     _resolveStatus(sale: any) {
         const s = sale.statusDetail;
+        const resolvedLockStatus = s?.editLockStatus ?? sale.editLockStatus ?? 'NONE';
         return {
             status:         s?.status         ?? sale.status,
             paymentStatus:  s?.paymentStatus  ?? sale.paymentStatus,
             billingStatus:  s?.billingStatus  ?? sale.billingStatus,
             deliveryStatus: s?.deliveryStatus ?? sale.deliveryStatus,
             bookingStatus:  s?.bookingStatus  ?? sale.bookingStatus,
-            editLockStatus: s?.editLockStatus ?? sale.editLockStatus ?? 'NONE',
-            isLocked:       (s?.editLockStatus ?? sale.editLockStatus ?? 'NONE') !== 'NONE'
-                            || !!sale.isLocked,
+            editLockStatus: resolvedLockStatus,
+            // SSOT: resolveLocked() อ่านจาก editLockStatus เป็นหลัก พร้อม Fallback ไป isLocked สำหรับ Record เก่า
+            isLocked:       resolveLocked({ editLockStatus: resolvedLockStatus, isLocked: sale.isLocked }),
             lockReason:     s?.lockReason     ?? sale.lockReason,
             cancelReason:   s?.cancelReason   ?? sale.cancelReason,
             cancelledAt:    s?.cancelledAt    ?? sale.cancelledAt,
