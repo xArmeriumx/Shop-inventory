@@ -471,7 +471,8 @@ export const ProductService: IProductService = {
           const skusToCheck = validInputs.filter(i => i.sku).map(i => i.sku as string);
           let existingSkuMap = new Map();
           if (skusToCheck.length > 0) {
-            const existing = await db.product.findMany({
+            // FIX: ใช้ prisma (tx) แทน db — ป้องกัน connection pool deadlock (connection_limit=1)
+            const existing = await prisma.product.findMany({
               where: { shopId: ctx.shopId, sku: { in: skusToCheck, mode: 'insensitive' } },
               select: { id: true, sku: true, isActive: true },
             });
