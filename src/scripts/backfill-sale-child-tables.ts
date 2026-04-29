@@ -37,7 +37,6 @@ async function run() {
         deliveryStatus: true,
         bookingStatus: true,
         editLockStatus: true,
-        isLocked: true,
         lockReason: true,
         cancelReason: true,
         cancelledAt: true,
@@ -68,11 +67,9 @@ async function run() {
 
     for (const sale of sales) {
       try {
-        // ตรวจสอบ editLockStatus — รวม isLocked เข้าด้วย
+        // editLockStatus: 'LOCKED' หมายถึงล็อกอยู่, อื่นๆ = 'NONE'
         const rawLockStatus = (sale as any).editLockStatus ?? 'NONE';
-        const resolvedLockStatus = (rawLockStatus !== 'NONE' || (sale as any).isLocked)
-          ? 'LOCKED'
-          : 'NONE';
+        const resolvedLockStatus = rawLockStatus !== 'NONE' ? rawLockStatus : 'NONE';
 
         await db.$transaction([
           // 1. SaleStatus

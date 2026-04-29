@@ -27,8 +27,7 @@ export const SaleMapper = {
             deliveryStatus: s?.deliveryStatus ?? sale.deliveryStatus,
             bookingStatus:  s?.bookingStatus  ?? sale.bookingStatus,
             editLockStatus: resolvedLockStatus,
-            // SSOT: resolveLocked() อ่านจาก editLockStatus เป็นหลัก พร้อม Fallback ไป isLocked สำหรับ Record เก่า
-            isLocked:       resolveLocked({ editLockStatus: resolvedLockStatus, isLocked: sale.isLocked }),
+            isLocked:       resolveLocked({ editLockStatus: resolvedLockStatus }),
             lockReason:     s?.lockReason     ?? sale.lockReason,
             cancelReason:   s?.cancelReason   ?? sale.cancelReason,
             cancelledAt:    s?.cancelledAt    ?? sale.cancelledAt,

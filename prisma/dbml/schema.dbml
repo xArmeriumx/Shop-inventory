@@ -245,26 +245,29 @@ Table Product {
   category String [not null]
   costPrice Decimal [not null]
   salePrice Decimal [not null]
-  stock Int [not null, default: 0]
+  stock Int [not null, default: 0, note: '⚠️  READ CACHE ONLY — ห้าม Business Logic อ่านโดยตรงสำหรับการตัดสินใจ
+ค่านี้ถูก Sync อัตโนมัติจาก SUM(WarehouseStock.quantity) ผ่าน syncGlobalProductStock()
+ใช้ได้สำหรับ: Filter, Sort, Display บนหน้า List เท่านั้น
+ถ้าต้องการความแม่นยำ 100% → ใช้ StockService.getAvailability() หรือ Query WarehouseStock โดยตรง']
+  reservedStock Int [not null, default: 0, note: '⚠️  READ CACHE ONLY — Sync จาก SUM(WarehouseStock.reservedStock)']
   minStock Int [not null, default: 5]
   images String[] [not null]
   isActive Boolean [not null, default: true]
+  isSaleable Boolean [not null, default: true]
+  isLowStock Boolean [not null, default: false]
   userId String [not null]
+  shopId String [not null]
+  supplierId String
+  categoryId String
+  memberId String
+  version Int [not null, default: 1]
+  avgLeadTime Int
+  moq Int
+  packagingQty Int [not null, default: 1]
+  metadata Json
   createdAt DateTime [default: `now()`, not null]
   updatedAt DateTime [not null]
   deletedAt DateTime
-  categoryId String
-  shopId String [not null]
-  isLowStock Boolean [not null, default: false]
-  supplierId String
-  version Int [not null, default: 1]
-  avgLeadTime Int
-  isSaleable Boolean [not null, default: true]
-  metadata Json
-  moq Int
-  reservedStock Int [not null, default: 0]
-  packagingQty Int [not null, default: 1]
-  memberId String
   deliveryOrderLines DeliveryOrderLine [not null]
   invoiceLines InvoiceLine [not null]
   orderRequestLines OrderRequestLine [not null]
@@ -531,7 +534,6 @@ Table Sale {
   bookingStatus String [not null, default: 'NONE']
   deliveryStatus String [not null, default: 'PENDING']
   departmentCode String
-  isLocked Boolean [not null, default: false]
   memberId String
   paidAmount Decimal [not null, default: 0]
   paymentStatusProof String [not null, default: 'VERIFIED']
@@ -555,6 +557,7 @@ Table Sale {
   items SaleItem [not null]
   shipments Shipment [not null]
   stockLogs StockLog [not null]
+  paymentAllocations PaymentAllocation [not null, note: '← Phase 2 Junction']
   statusDetail SaleStatus
   taxSummary SaleTaxSummary
   paymentDetail SalePaymentDetail
@@ -1213,8 +1216,6 @@ Table Payment {
   id String [pk]
   shopId String [not null]
   memberId String [not null]
-  invoiceId String
-  saleId String
   type PaymentType [not null, default: 'IN']
   amount Decimal [not null]
   currency String [not null, default: 'THB']
@@ -1225,9 +1226,13 @@ Table Payment {
   status PaymentStatus [not null, default: 'POSTED']
   createdAt DateTime [default: `now()`, not null]
   updatedAt DateTime [not null]
-  expenseId String
-  purchaseId String
   paymentNo String
+  invoiceId String [note: '⚠️  LEGACY FK — Transition Period Only
+ใช้ PaymentAllocation.documentType + documentId แทน
+จะลบออกใน Phase 4 หลัง Backfill ครบ 100%']
+  saleId String
+  purchaseId String
+  expenseId String
   expense Expense
   invoice Invoice
   member ShopMember [not null]
@@ -1246,18 +1251,29 @@ Table PaymentAllocation {
   id String [pk]
   shopId String [not null]
   paymentId String [not null]
-  invoiceId String
-  purchaseId String
-  expenseId String
-  amount Decimal [not null]
+  documentType String [note: '── SSOT: Polymorphic Reference ──────────────────────────────────────
+documentType: "INVOICE" | "SALE" | "PURCHASE" | "EXPENSE"
+documentId:   FK ไปยัง Document ตาม documentType']
+  documentId String
+  amount Decimal [not null, note: '────────────────────────────────────────────────────────────────────']
   notes String
   createdAt DateTime [default: `now()`, not null]
   updatedAt DateTime [not null]
+  invoiceId String [note: '⚠️  LEGACY FKs — Transition Period Only
+จะลบออกใน Phase 4 หลัง Backfill + Monitor ครบ']
+  purchaseId String
+  expenseId String
+  saleId String [note: '← เพิ่มกลับ (หายไปใน Schema เดิม)']
   expense Expense
   invoice Invoice
   payment Payment [not null]
   purchase Purchase
+  sale Sale
   shop Shop [not null]
+
+  Note: 'PaymentAllocation — Polymorphic Junction Table
+Payment 1 ใบ สามารถ Allocate ไปยัง Document หลายใบได้
+ใช้ documentType + documentId แทน nullable FK ทั้ง 4 ตัว'
 }
 
 Table StockTakeSession {
@@ -2333,6 +2349,8 @@ Ref: PaymentAllocation.invoiceId > Invoice.id
 Ref: PaymentAllocation.paymentId > Payment.id [delete: Cascade]
 
 Ref: PaymentAllocation.purchaseId > Purchase.id
+
+Ref: PaymentAllocation.saleId > Sale.id
 
 Ref: PaymentAllocation.shopId > Shop.id
 

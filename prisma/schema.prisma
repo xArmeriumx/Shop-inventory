@@ -592,7 +592,6 @@ model Sale {
   bookingStatus      String             @default("NONE")
   deliveryStatus     String             @default("PENDING")
   departmentCode     String?
-  isLocked           Boolean            @default(false)
   memberId           String?
   paidAmount         Decimal            @default(0) @db.Decimal(10, 2)
   paymentStatusProof String             @default("VERIFIED")

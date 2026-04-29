@@ -864,7 +864,7 @@ export const SaleService: ISaleService = {
   async getLockedFields(saleId: string, ctx: RequestContext): Promise<string[]> {
     const sale = await db.sale.findFirst({
       where: { id: saleId, shopId: ctx.shopId },
-      select: { status: true, editLockStatus: true, isLocked: true }, // isLocked: fallback only
+      select: { status: true, editLockStatus: true },
     });
 
     if (!sale) return [];

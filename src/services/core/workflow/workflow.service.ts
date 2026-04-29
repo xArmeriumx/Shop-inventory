@@ -32,7 +32,7 @@ export const WorkflowService = {
      * Standard check for Sale state machine
      */
     canSaleAction(
-        sale: { status: string; billingStatus: string; editLockStatus: string; isLocked?: boolean },
+        sale: { status: string; billingStatus: string; editLockStatus: string },
         action: WorkflowAction
     ) {
         if (action === 'UPDATE' || action === 'CANCEL') {
