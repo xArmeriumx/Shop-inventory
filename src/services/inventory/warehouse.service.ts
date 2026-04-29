@@ -140,30 +140,44 @@ export const WarehouseService: IWarehouseService = {
     },
 
     /**
-     * Sync Product.stock with SUM(WarehouseStock.quantity)
-     * MAINTAINS SSOT
+     * Sync Product.stock (READ CACHE) ← SUM(WarehouseStock.quantity)
+     *
+     * ⚠️  CACHE SYNC ONLY — ห้ามเรียกตรงๆ จาก Business Logic
+     *     เรียกผ่าน StockEngine.executeMovement() เท่านั้น
+     *     เพื่อรับประกันว่าทุก Write Path จะ Sync ตามมาเสมอ
      */
     async syncGlobalProductStock(ctx: RequestContext, productId: string, tx: any = db): Promise<number> {
         const [product, stocks] = await Promise.all([
-            tx.product.findUnique({ where: { id: productId, shopId: ctx.shopId }, select: { minStock: true } }),
+            tx.product.findUnique({ where: { id: productId, shopId: ctx.shopId }, select: { minStock: true, stock: true } }),
             tx.warehouseStock.findMany({ where: { productId, shopId: ctx.shopId } })
         ]);
 
-        const totalStock = stocks.reduce((sum: number, s: any) => sum + s.quantity, 0);
-        const totalReserved = stocks.reduce((sum: number, s: any) => sum + (s.reservedStock || 0), 0);
-        const isLow = totalStock < (product?.minStock || 0);
+        const totalStock    = stocks.reduce((sum: number, s: any) => sum + s.quantity,                    0);
+        const totalReserved = stocks.reduce((sum: number, s: any) => sum + (s.reservedStock || 0),        0);
+        const isLow         = totalStock < (product?.minStock || 0);
+
+        // 🛡️ Invariant Guard (Dev only): alert ถ้า Cache เคย drift จาก SSOT
+        if (process.env.NODE_ENV === 'development' && product) {
+            const prev = Number(product.stock);
+            if (prev !== totalStock) {
+                console.warn(
+                    `[SSOT DRIFT] Product ${productId}: cache=${prev} → actual=${totalStock} (drift=${totalStock - prev})`
+                );
+            }
+        }
 
         await tx.product.update({
             where: { id: productId },
             data: {
-                stock: totalStock,
+                stock:        totalStock,
                 reservedStock: totalReserved,
-                isLowStock: isLow
+                isLowStock:   isLow,
             }
         });
 
         return totalStock;
     },
+
 
     /**
      * Find default warehouse for the shop

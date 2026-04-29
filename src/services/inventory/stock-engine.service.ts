@@ -129,8 +129,18 @@ export const StockEngine = {
         warehouseStock.reservedStock = 0;
       }
 
-      // 3. Sync Global Product Stock
-      const newGlobalQty = await WarehouseService.syncGlobalProductStock(ctx, productId, prisma);
+      // 3. Sync READ CACHE: Product.stock ← SUM(WarehouseStock)
+      //    ห่อด้วย try/catch — ถ้า Sync ล้มเหลว ไม่ให้ Transaction หลักพัง
+      //    เพราะ WarehouseStock คือ SSOT จริงๆ แล้ว อยู่ที่บรรทัดบน
+      let newGlobalQty: number;
+      try {
+        newGlobalQty = await WarehouseService.syncGlobalProductStock(ctx, productId, prisma);
+      } catch (syncErr) {
+        console.error(`[StockEngine] Cache sync failed for product ${productId}:`, syncErr);
+        // Fallback: ใช้ค่า warehouseStock ปัจจุบันแทนการ SUM ทุกคลัง
+        newGlobalQty = Number(warehouseStock.quantity);
+      }
+
 
       // 3. Create StockLog (with warehouseId and balance)
       // Note: In Phase 1, we don't have warehouseId in StockLog yet. 

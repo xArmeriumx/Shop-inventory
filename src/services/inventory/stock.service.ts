@@ -133,25 +133,44 @@ export const StockService: IStockService = {
   },
 
   /**
-   * ดึงสถานะสต็อกแบบ Business-Ready
+   * ดึงสถานะสต็อกแบบ Real-time (Business-Ready)
+   *
+   * 🛡️  SSOT: Query จาก WarehouseStock โดยตรง ไม่ใช้ Product.stock (Cache)
+   *     ใช้ฟังก์ชันนี้ก่อนตัดสินใจทุก Business Action เช่น ตรวจก่อนขาย
    */
   async getAvailability(productId: string, ctx: RequestContext): Promise<StockAvailability> {
-    const product = await db.product.findUnique({
-      where: { id: productId },
-      select: { stock: true, reservedStock: true, minStock: true, isLowStock: true, shopId: true },
-    });
+    const [product, stocks] = await Promise.all([
+      db.product.findUnique({
+        where: { id: productId },
+        select: { shopId: true, minStock: true, isLowStock: true },
+      }),
+      db.warehouseStock.findMany({
+        where: { productId, shopId: ctx.shopId },
+        select: { quantity: true, reservedStock: true },
+      }),
+    ]);
 
     if (!product || product.shopId !== ctx.shopId) throw new ServiceError('ไม่พบสินค้า');
 
+    // Aggregate จาก WarehouseStock ทุกคลัง (SSOT)
+    const onHand   = stocks.reduce((sum, w) => sum + Number(w.quantity),                    0);
+    const reserved = stocks.reduce((sum, w) => sum + Number(w.reservedStock || 0),          0);
+
     return {
-      onHand: Number(product.stock),
-      reserved: Number(product.reservedStock),
-      available: Number(product.stock) - Number(product.reservedStock),
-      isLowStock: !!product.isLowStock,
-      minStock: product.minStock || 0,
+      onHand,
+      reserved,
+      available:  onHand - reserved,
+      isLowStock: onHand < (product.minStock || 0),
+      minStock:   product.minStock || 0,
     };
   },
 
+  /**
+   * ตรวจสอบสต็อกหลายรายการพร้อมกัน (ก่อนสร้างบิลขาย)
+   *
+   * 🛡️  SSOT: Aggregate จาก WarehouseStock โดยตรง ไม่ใช้ Product.stock (Cache)
+   *     เพื่อความแม่นยำสูงสุดก่อน Deduct สต็อกจริง
+   */
   async checkBulkAvailability(
     items: Array<{ productId: string; quantity: number }>,
     shopId: string,
@@ -160,21 +179,27 @@ export const StockService: IStockService = {
     const executor = tx || db;
     const productIds = Array.from(new Set(items.map(i => i.productId)));
 
-    const products = await executor.product.findMany({
-      where: { id: { in: productIds }, shopId },
-      select: { id: true, stock: true, reservedStock: true },
+    // Query WarehouseStock ทุก Row ของทุก productId (SSOT)
+    const warehouseStocks = await (executor as any).warehouseStock.findMany({
+      where: { productId: { in: productIds }, shopId },
+      select: { productId: true, quantity: true, reservedStock: true },
     });
 
-    const productMap = new Map(products.map(p => [p.id, p]));
+    // Aggregate ต่อ productId: SUM(quantity) และ SUM(reservedStock)
+    const stockMap = new Map<string, { onHand: number; reserved: number }>();
+    for (const ws of warehouseStocks) {
+      const prev = stockMap.get(ws.productId) ?? { onHand: 0, reserved: 0 };
+      stockMap.set(ws.productId, {
+        onHand:   prev.onHand   + Number(ws.quantity),
+        reserved: prev.reserved + Number(ws.reservedStock || 0),
+      });
+    }
+
     const shortages: Array<{ productId: string; required: number; available: number }> = [];
 
     for (const item of items) {
-      const product = productMap.get(item.productId);
-      if (!product) {
-        shortages.push({ productId: item.productId, required: item.quantity, available: 0 });
-        continue;
-      }
-      const available = Number(product.stock) - Number(product.reservedStock || 0);
+      const agg       = stockMap.get(item.productId);
+      const available = agg ? agg.onHand - agg.reserved : 0;
       if (available < item.quantity) {
         shortages.push({ productId: item.productId, required: item.quantity, available });
       }

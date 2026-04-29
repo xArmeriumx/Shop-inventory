@@ -258,24 +258,14 @@ model Product {
   category             String
   costPrice            Decimal               @db.Decimal(10, 2)
   salePrice            Decimal               @db.Decimal(10, 2)
+  /// ⚠️  READ CACHE ONLY — ห้าม Business Logic อ่านโดยตรงสำหรับการตัดสินใจ
+  /// ค่านี้ถูก Sync อัตโนมัติจาก SUM(WarehouseStock.quantity) ผ่าน syncGlobalProductStock()
+  /// ใช้ได้สำหรับ: Filter, Sort, Display บนหน้า List เท่านั้น
+  /// ถ้าต้องการความแม่นยำ 100% → ใช้ StockService.getAvailability() หรือ Query WarehouseStock โดยตรง
   stock                Int                   @default(0)
-  minStock             Int                   @default(5)
-  images               String[]
-  isActive             Boolean               @default(true)
-  userId               String
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
-  deletedAt            DateTime?
-  categoryId           String?
-  shopId               String
-  isLowStock           Boolean               @default(false)
-  supplierId           String?
-  version              Int                   @default(1)
-  avgLeadTime          Int?
-  isSaleable           Boolean               @default(true)
-  metadata             Json?
-  moq                  Int?
+  /// ⚠️  READ CACHE ONLY — Sync จาก SUM(WarehouseStock.reservedStock)
   reservedStock        Int                   @default(0)
+
   packagingQty         Int                   @default(1)
   memberId             String?
   deliveryOrderLines   DeliveryOrderLine[]
