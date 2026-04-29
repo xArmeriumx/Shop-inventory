@@ -24,7 +24,7 @@ import { logger } from '@/lib/logger';
  * Implements a 4-layer strategy:
  * 1. Business Logic (ServiceError) -> Propagate as safe message
  * 2. Validation (ZodError) -> Map to field-specific error keys
- * 3. System (Database/Network/Crash) -> Log as critical, return generic message
+ * 3. System (Database/Network/Crash) -> Log as critical, return classifiable message + trace ID
  * 4. Serialization (Safe DTO) -> Automatically serialize to plain objects (Phase 7.1)
  */
 export type { ActionResponse, ErrorAction, ActionSuccess, ActionFailure } from '@/types/common';
@@ -32,6 +32,109 @@ export type { ActionResponse, ErrorAction, ActionSuccess, ActionFailure } from '
 export interface HandleActionOptions {
     skipSerialize?: boolean;
     context?: Record<string, any>;
+}
+
+/**
+ * Classify unknown errors into user-readable categories.
+ * 
+ * ⚠️ Security: ห้ามส่ง stack trace หรือ SQL กลับไปยัง client
+ * แต่ต้องให้ข้อมูลพอให้ user/admin เข้าใจว่าเกิดอะไร
+ */
+function classifyError(error: Error): { code: string; userMessage: string; severity: 'warn' | 'error' | 'critical' } {
+    const msg = error.message || '';
+    const name = error.name || '';
+
+    // ── Prisma: Connection Pool ──────────────────────────────────────
+    if (msg.includes('Timed out fetching a new connection from the connection pool')) {
+        return {
+            code: 'DB_POOL_TIMEOUT',
+            userMessage: 'ระบบฐานข้อมูลมีภาระงานสูง กรุณารอสักครู่แล้วลองใหม่',
+            severity: 'critical',
+        };
+    }
+
+    // ── Prisma: Transaction timeout ─────────────────────────────────
+    if (msg.includes('Transaction already closed') || msg.includes('Transaction API error')) {
+        return {
+            code: 'DB_TX_CLOSED',
+            userMessage: 'การดำเนินการใช้เวลานานเกินไป ระบบยกเลิกอัตโนมัติ กรุณาลองใหม่',
+            severity: 'error',
+        };
+    }
+
+    // ── Prisma: Unique constraint ───────────────────────────────────
+    if (msg.includes('Unique constraint failed') || (name === 'PrismaClientKnownRequestError' && msg.includes('P2002'))) {
+        return {
+            code: 'DB_DUPLICATE',
+            userMessage: 'ข้อมูลนี้มีอยู่แล้วในระบบ กรุณาตรวจสอบรหัสหรือเลขที่เอกสาร',
+            severity: 'warn',
+        };
+    }
+
+    // ── Prisma: Record not found ────────────────────────────────────
+    if (msg.includes('Record to update not found') || (name === 'PrismaClientKnownRequestError' && msg.includes('P2025'))) {
+        return {
+            code: 'DB_NOT_FOUND',
+            userMessage: 'ไม่พบข้อมูลที่ต้องการ อาจถูกลบหรือแก้ไขโดยผู้ใช้อื่น กรุณารีเฟรช',
+            severity: 'warn',
+        };
+    }
+
+    // ── Prisma: Foreign key / relation ───────────────────────────────
+    if (msg.includes('Foreign key constraint failed') || (name === 'PrismaClientKnownRequestError' && msg.includes('P2003'))) {
+        return {
+            code: 'DB_RELATION_ERROR',
+            userMessage: 'ไม่สามารถดำเนินการได้ เนื่องจากข้อมูลนี้มีความเชื่อมโยงกับรายการอื่น',
+            severity: 'warn',
+        };
+    }
+
+    // ── Prisma: Invalid input / missing field ───────────────────────
+    if (msg.includes('Argument') && msg.includes('is missing') || name === 'PrismaClientValidationError') {
+        return {
+            code: 'DB_INVALID_INPUT',
+            userMessage: 'ข้อมูลที่ส่งไม่ครบถ้วน กรุณาตรวจสอบฟอร์มแล้วลองใหม่',
+            severity: 'error',
+        };
+    }
+
+    // ── Network / Fetch errors ──────────────────────────────────────
+    if (msg.includes('fetch failed') || msg.includes('ECONNREFUSED') || msg.includes('ENOTFOUND')) {
+        return {
+            code: 'NETWORK_ERROR',
+            userMessage: 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต',
+            severity: 'critical',
+        };
+    }
+
+    // ── Permission / Auth ───────────────────────────────────────────
+    if (msg.includes('permission') || msg.includes('unauthorized') || msg.includes('ไม่มีสิทธิ์')) {
+        return {
+            code: 'AUTH_DENIED',
+            userMessage: 'คุณไม่มีสิทธิ์ในการดำเนินการนี้',
+            severity: 'warn',
+        };
+    }
+
+    // ── Default: Unknown system error ───────────────────────────────
+    return {
+        code: 'SYSTEM_ERROR',
+        userMessage: 'เกิดข้อผิดพลาดภายในระบบ',
+        severity: 'critical',
+    };
+}
+
+/**
+ * Generate a short trace ID for error tracking.
+ * Format: ERR-XXXXXX (6 chars, alphanumeric uppercase)
+ */
+function generateTraceId(): string {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no I, O, 0, 1 (ambiguous)
+    let result = 'ERR-';
+    for (let i = 0; i < 6; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
 }
 
 export async function handleAction<T>(
@@ -81,13 +184,22 @@ export async function handleAction<T>(
             };
         }
 
-        // Unexpected system error
+        // ── Enhanced System Error Handling ───────────────────────────
         const typedError = error as Error;
-        await logger.error('Unhandled Action Exception', typedError, context);
+        const traceId = generateTraceId();
+        const classified = classifyError(typedError);
+
+        // Log with full context for debugging (server-side only)
+        await logger.error(`[${classified.code}] ${traceId}: ${typedError.message}`, typedError, {
+            ...context,
+            traceId,
+            errorCode: classified.code,
+            severity: classified.severity,
+        });
 
         return {
             success: false,
-            message: 'เกิดข้อผิดพลาดภายในระบบ กรุณาลองใหม่อีกครั้งหรือติดต่อเจ้าหน้าที่',
+            message: `${classified.userMessage} (รหัส: ${traceId})`,
         };
     }
 }
