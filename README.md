@@ -100,7 +100,7 @@ async reserveStock(productId, quantity, ctx, tx) {
 
 ---
 
-## โครงสร้างสถาปัตยกรรม (Architectural Deep-Dive)
+## โครงสร้างสถาปัตยกรรม (Architectural)
 
 โปรเจกต์นี้ใช้โครงสร้างแบบ **Layered Architecture** เพื่อแยกความรับผิดชอบ (Separation of Concerns) ออกเป็นชั้นๆ ดังนี้:
 
@@ -135,7 +135,7 @@ graph TD
 
 ---
 
-## โครงสร้างหน่วยงานในโค้ด (Module Structure)
+## โครงสร้างในโค้ด (Module Structure)
 ```bash
 src/
 ├── actions/      # รวม Server Actions (UI to Data)

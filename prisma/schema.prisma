@@ -10,6 +10,13 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+generator dbml {
+  provider = "prisma-dbml-generator"
+  output   = "../prisma/dbml"
+  projectName = "Shop Inventory ERP"
+  projectDatabaseType = "PostgreSQL"
+}
+
 model User {
   id               String            @id @default(cuid())
   email            String            @unique
@@ -602,6 +609,11 @@ model Sale {
   shipments          Shipment[]
   stockLogs          StockLog[]
 
+  // ── Child Tables (1-to-1 Normalization) ──
+  statusDetail       SaleStatus?
+  taxSummary         SaleTaxSummary?
+  paymentDetail      SalePaymentDetail?
+
   @@unique([shopId, invoiceNumber])
   @@index([userId])
   @@index([userId, date])
@@ -613,6 +625,84 @@ model Sale {
   @@index([shopId, status])
   @@index([shopId, paymentStatus])
   @@index([shopId, channel])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sale Child Tables (1-to-1 Normalization)
+// เหตุผล: แยก Sale God Object (45 fields) เพื่อลด Row Size และ Lock Contention
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// สถานะเอกสารทั้งหมดของบิลขาย
+/// รวม isLocked + editLockStatus เป็น editLockStatus เดียว (Impossible State Fix)
+model SaleStatus {
+  id             String           @id @default(cuid())
+  saleId         String           @unique
+  sale           Sale             @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  // Document Lifecycle Status
+  status         String           @default("ACTIVE")    // DRAFT, CONFIRMED, COMPLETED, CANCELLED, INVOICED
+  paymentStatus  DocPaymentStatus @default(UNPAID)       // UNPAID, PARTIAL, PAID, VOIDED
+  billingStatus  String           @default("UNBILLED")   // UNBILLED, BILLED
+  deliveryStatus String           @default("PENDING")    // PENDING, SHIPPED, DELIVERED
+  bookingStatus  String           @default("NONE")       // NONE, RESERVED, DEDUCTED
+
+  // Lock System — ยุบ isLocked (Boolean) + editLockStatus (String) รวมเป็น 1 ฟิลด์
+  editLockStatus String           @default("NONE")       // NONE, LOCKED, CLOSED_PERIOD
+  lockReason     String?
+
+  // Cancellation Tracking
+  cancelReason   String?
+  cancelledAt    DateTime?
+  cancelledBy    String?
+
+  shopId    String
+  updatedAt DateTime @updatedAt
+
+  @@index([saleId])
+  @@index([shopId, status])
+  @@index([shopId, paymentStatus])
+  @@index([shopId, deliveryStatus])
+}
+
+/// ข้อมูลภาษีของบิลขาย (อ่านเฉพาะตอนออกใบกำกับภาษีและรายงาน)
+model SaleTaxSummary {
+  id            String   @id @default(cuid())
+  saleId        String   @unique
+  sale          Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  taxMode       String   @default("INCLUSIVE")  // INCLUSIVE, EXCLUSIVE, NO_VAT
+  taxRate       Decimal  @default(7)  @db.Decimal(5, 2)
+  taxAmount     Decimal  @default(0)  @db.Decimal(14, 2)
+  taxableAmount Decimal  @default(0)  @db.Decimal(14, 2)
+
+  shopId    String
+  updatedAt DateTime @updatedAt
+
+  @@index([saleId])
+  @@index([shopId])
+}
+
+/// รายละเอียดการรับชำระและหลักฐานสลิป (Row ใหญ่ แยกออกเพื่อลด Payload หน้า List)
+model SalePaymentDetail {
+  id                 String    @id @default(cuid())
+  saleId             String    @unique
+  sale               Sale      @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  paymentMethod      String    @default("CASH")
+  paymentProof       String?   // URL ไฟล์สลิป
+  paymentNote        String?
+  paymentVerifiedAt  DateTime?
+  paymentVerifiedBy  String?
+  paymentStatusProof String    @default("VERIFIED")  // PENDING, VERIFIED, REJECTED
+
+  paidAmount     Decimal @default(0) @db.Decimal(10, 2)
+  residualAmount Decimal @default(0) @db.Decimal(10, 2)
+
+  shopId    String
+  updatedAt DateTime @updatedAt
+
+  @@index([saleId])
+  @@index([shopId])
 }
 
 model SaleItem {

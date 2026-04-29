@@ -1,0 +1,2451 @@
+//// ------------------------------------------------------
+//// THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+//// ------------------------------------------------------
+
+Project "Shop Inventory ERP" {
+  database_type: 'PostgreSQL'
+  Note: ''
+}
+
+Table User {
+  id String [pk]
+  email String [unique, not null]
+  name String
+  password String
+  image String
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  lastActiveAt DateTime [default: `now()`, not null]
+  sessionVersion Int [not null, default: 1]
+  bankAccounts BankAccount [not null]
+  customers Customer [not null]
+  deliveryOrders DeliveryOrder [not null]
+  expenses Expense [not null]
+  incomes Income [not null]
+  lookupValues LookupValue [not null]
+  products Product [not null]
+  purchases Purchase [not null]
+  purchaseReturns PurchaseReturn [not null]
+  returns Return [not null]
+  sales Sale [not null]
+  shipments Shipment [not null]
+  shop Shop
+  memberships ShopMember [not null]
+  stockLogs StockLog [not null]
+  suppliers Supplier [not null]
+  purchaseReceipts PurchaseReceipt [not null]
+}
+
+Table LookupType {
+  id String [pk]
+  code LookupTypeCode [unique, not null]
+  name String [not null]
+  description String
+  isSystem Boolean [not null, default: false]
+  createdAt DateTime [default: `now()`, not null]
+  values LookupValue [not null]
+}
+
+Table LookupValue {
+  id String [pk]
+  lookupTypeId String [not null]
+  userId String
+  code String [not null]
+  name String [not null]
+  color String
+  icon String
+  order Int [not null, default: 0]
+  isActive Boolean [not null, default: true]
+  isDefault Boolean [not null, default: false]
+  isSystem Boolean [not null, default: false]
+  metadata Json
+  deletedAt DateTime
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  shopId String
+  expenses Expense [not null]
+  incomes Income [not null]
+  lookupType LookupType [not null]
+  shop Shop
+  user User
+  products Product [not null]
+
+  indexes {
+    (lookupTypeId, shopId, code) [unique]
+  }
+}
+
+Table Shop {
+  id String [pk]
+  name String [not null]
+  address String
+  phone String
+  logo String
+  taxId String
+  userId String [unique, not null]
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  invoicePrefix String [default: 'INV']
+  promptPayId String
+  latitude Float
+  longitude Float
+  defaultCurrency String [not null, default: 'THB']
+  fiscalYearStart Int [not null, default: 1]
+  genesisStep Int [not null, default: 1]
+  industryType String
+  legalEntityName String
+  onboardingCompletedAt DateTime
+  onboardingMode String
+  setupCompletedAt DateTime
+  signatoryName String
+  signatoryTitle String
+  accounts Account [not null]
+  accountingPeriods AccountingPeriod [not null]
+  approvalInstances ApprovalInstance [not null]
+  shippingConfig Json
+  salesFlowMode SalesFlowMode [not null, default: 'RETAIL']
+  inventoryMode InventoryMode [not null, default: 'SIMPLE']
+  bankAccounts BankAccount [not null]
+  bankLines BankLine [not null]
+  bankStatements BankStatement [not null]
+  companyTaxProfile CompanyTaxProfile
+  customers Customer [not null]
+  deliveryOrders DeliveryOrder [not null]
+  expenses Expense [not null]
+  incomes Income [not null]
+  invoices Invoice [not null]
+  journalEntries JournalEntry [not null]
+  lookupValues LookupValue [not null]
+  notifications Notification [not null]
+  onboardingProgress OnboardingProgress
+  orderRequests OrderRequest [not null]
+  partnerAddresses PartnerAddress [not null]
+  partnerContacts PartnerContact [not null]
+  partnerTaxProfiles PartnerTaxProfile [not null]
+  payments Payment [not null]
+  paymentAllocations PaymentAllocation [not null]
+  products Product [not null]
+  productTaxProfiles ProductTaxProfile [not null]
+  purchases Purchase [not null]
+  purchaseReturns PurchaseReturn [not null]
+  purchaseTaxDocuments PurchaseTaxDocument [not null]
+  purchaseTaxEntries PurchaseTaxEntry [not null]
+  quotations Quotation [not null]
+  returns Return [not null]
+  roles Role [not null]
+  sales Sale [not null]
+  salesTaxEntries SalesTaxEntry [not null]
+  shipments Shipment [not null]
+  user User [not null]
+  members ShopMember [not null]
+  stockLogs StockLog [not null]
+  stockTakeSessions StockTakeSession [not null]
+  stockTransfers StockTransfer [not null]
+  suppliers Supplier [not null]
+  taxCodes TaxCode [not null]
+  warehouses Warehouse [not null]
+  warehouseStocks WarehouseStock [not null]
+  whtCertificates WhtCertificate [not null]
+  whtCodes WhtCode [not null]
+  whtEntries WhtEntry [not null]
+  purchaseReceipts PurchaseReceipt [not null]
+  purchaseReceiptLines PurchaseReceiptLine [not null]
+}
+
+Table OnboardingProgress {
+  id String [pk]
+  shopId String [unique, not null]
+  wizardDraft Json
+  wizardVersion Int [not null, default: 1]
+  tutorialTrack Int [not null, default: 0]
+  tutorialStep Int [not null, default: 0]
+  tutorialDismissed Boolean [not null, default: false]
+  dismissedSetupItems String[] [not null]
+  lastSetupViewedAt DateTime
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  shop Shop [not null]
+}
+
+Table Role {
+  id String [pk]
+  name String [not null]
+  description String
+  isDefault Boolean [not null, default: false]
+  isSystem Boolean [not null, default: false]
+  shopId String [not null]
+  permissions Permission[] [not null]
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  shop Shop [not null]
+  members ShopMember [not null]
+
+  indexes {
+    (shopId, name) [unique]
+  }
+}
+
+Table ShopMember {
+  id String [pk]
+  userId String [not null]
+  shopId String [not null]
+  roleId String [not null]
+  isOwner Boolean [not null, default: false]
+  joinedAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  permissionVersion Int [not null, default: 1]
+  departmentCode String
+  regionIds String[] [not null]
+  closedPeriods AccountingPeriod [not null]
+  reopenedPeriods AccountingPeriod [not null]
+  bankLines BankLine [not null]
+  bankStatements BankStatement [not null]
+  createdDOs DeliveryOrder [not null]
+  createdExpenses Expense [not null]
+  createdIncomes Income [not null]
+  createdInvoices Invoice [not null]
+  journalEntries JournalEntry [not null]
+  createdOrderRequests OrderRequest [not null]
+  orderRequests OrderRequest [not null]
+  payments Payment [not null]
+  createdProducts Product [not null]
+  createdPurchases Purchase [not null]
+  createdPurchaseReturns PurchaseReturn [not null]
+  purchaseTaxDocsCreated PurchaseTaxDocument [not null]
+  purchaseTaxDocsPosted PurchaseTaxDocument [not null]
+  purchaseTaxDocsVoided PurchaseTaxDocument [not null]
+  createdQuotations Quotation [not null]
+  quotations Quotation [not null]
+  createdReturns Return [not null]
+  createdSales Sale [not null]
+  createdShipments Shipment [not null]
+  role Role [not null]
+  shop Shop [not null]
+  user User [not null]
+  createdStockLogs StockLog [not null]
+  cancelledStockTakes StockTakeSession [not null]
+  completedStockTakes StockTakeSession [not null]
+  createdStockTakes StockTakeSession [not null]
+  submittedStockTakes StockTakeSession [not null]
+  stockTransfers StockTransfer [not null]
+  whtEntries WhtEntry [not null]
+  customers Customer [not null]
+  purchaseReceipts PurchaseReceipt [not null]
+
+  indexes {
+    (userId, shopId) [unique]
+  }
+}
+
+Table Product {
+  id String [pk]
+  name String [not null]
+  description String
+  sku String
+  category String [not null]
+  costPrice Decimal [not null]
+  salePrice Decimal [not null]
+  stock Int [not null, default: 0]
+  minStock Int [not null, default: 5]
+  images String[] [not null]
+  isActive Boolean [not null, default: true]
+  userId String [not null]
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  deletedAt DateTime
+  categoryId String
+  shopId String [not null]
+  isLowStock Boolean [not null, default: false]
+  supplierId String
+  version Int [not null, default: 1]
+  avgLeadTime Int
+  isSaleable Boolean [not null, default: true]
+  metadata Json
+  moq Int
+  reservedStock Int [not null, default: 0]
+  packagingQty Int [not null, default: 1]
+  memberId String
+  deliveryOrderLines DeliveryOrderLine [not null]
+  invoiceLines InvoiceLine [not null]
+  orderRequestLines OrderRequestLine [not null]
+  categoryRef LookupValue
+  member ShopMember
+  shop Shop [not null]
+  supplier Supplier
+  user User [not null]
+  purchaseItems PurchaseItem [not null]
+  purchaseReturnItems PurchaseReturnItem [not null]
+  purchaseReceiptLines PurchaseReceiptLine [not null]
+  quotationLines QuotationLine [not null]
+  returnItems ReturnItem [not null]
+  saleItems SaleItem [not null]
+  stockLogs StockLog [not null]
+  stockTakeItems StockTakeItem [not null]
+  transferLines StockTransferLine [not null]
+  supplierProducts SupplierProduct [not null]
+  warehouseStocks WarehouseStock [not null]
+
+  indexes {
+    (shopId, sku) [unique]
+  }
+}
+
+Table Warehouse {
+  id String [pk]
+  name String [not null]
+  code String [not null]
+  address String
+  isDefault Boolean [not null, default: false]
+  isActive Boolean [not null, default: true]
+  shopId String [not null]
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  outgoingTransfers StockTransfer [not null]
+  incomingTransfers StockTransfer [not null]
+  shop Shop [not null]
+  stocks WarehouseStock [not null]
+  purchaseReceiptLines PurchaseReceiptLine [not null]
+  stockLogs StockLog [not null]
+  saleItems SaleItem [not null]
+  returnItems ReturnItem [not null]
+
+  indexes {
+    (shopId, code) [unique]
+  }
+}
+
+Table WarehouseStock {
+  id String [pk]
+  productId String [not null]
+  warehouseId String [not null]
+  shopId String [not null]
+  quantity Int [not null, default: 0]
+  reservedStock Int [not null, default: 0]
+  minStock Int
+  binLocation String
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  product Product [not null]
+  shop Shop [not null]
+  warehouse Warehouse [not null]
+
+  indexes {
+    (productId, warehouseId) [unique]
+  }
+}
+
+Table StockTransfer {
+  id String [pk]
+  transferNo String [not null]
+  status TransferStatus [not null, default: 'DRAFT']
+  transferDate DateTime [default: `now()`, not null]
+  fromWarehouseId String [not null]
+  toWarehouseId String [not null]
+  notes String
+  shopId String [not null]
+  memberId String [not null]
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  fromWarehouse Warehouse [not null]
+  member ShopMember [not null]
+  shop Shop [not null]
+  toWarehouse Warehouse [not null]
+  lines StockTransferLine [not null]
+
+  indexes {
+    (shopId, transferNo) [unique]
+  }
+}
+
+Table StockTransferLine {
+  id String [pk]
+  transferId String [not null]
+  productId String [not null]
+  quantity Int [not null]
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  product Product [not null]
+  transfer StockTransfer [not null]
+}
+
+Table Supplier {
+  id String [pk]
+  name String [not null]
+  phone String
+  address String
+  notes String
+  userId String [not null]
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  deletedAt DateTime
+  shopId String [not null]
+  code String
+  contactName String
+  email String
+  taxId String
+  groupCode String
+  moq Decimal
+  purchaseNote String
+  latitude Float
+  longitude Float
+  creditLimit Decimal
+  creditTerm Int
+  paymentTerms String
+  partnerAddresses PartnerAddress [not null]
+  products Product [not null]
+  purchases Purchase [not null]
+  purchaseTaxDocuments PurchaseTaxDocument [not null]
+  shop Shop [not null]
+  user User [not null]
+  supplierProducts SupplierProduct [not null]
+}
+
+Table Customer {
+  id String [pk]
+  name String [not null]
+  phone String
+  address String
+  notes String
+  userId String [not null]
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  deletedAt DateTime
+  taxId String
+  shopId String [not null]
+  email String
+  creditLimit Decimal
+  creditTerm Int
+  groupCode String
+  region String
+  latitude Float
+  longitude Float
+  billingAddress String
+  shippingAddress String
+  shop Shop [not null]
+  user User [not null]
+  invoices Invoice [not null]
+  partnerAddresses PartnerAddress [not null]
+  quotations Quotation [not null]
+  sales Sale [not null]
+  salesPersons ShopMember [not null]
+}
+
+Table Purchase {
+  id String [pk]
+  date DateTime [default: `now()`, not null]
+  supplierId String
+  totalCost Decimal [not null]
+  receiptUrl String
+  notes String
+  userId String [not null]
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  supplierName String
+  cancelReason String
+  cancelledAt DateTime
+  cancelledBy String
+  status String [not null, default: 'ACTIVE']
+  shopId String [not null]
+  purchaseNumber String
+  paymentMethod String [not null, default: 'CASH']
+  docType String [not null, default: 'ORDER']
+  linkedPRId String
+  purchaseType String [not null, default: 'LOCAL']
+  requestNumber String
+  receivedAt DateTime
+  receivedBy String
+  memberId String
+  paidAmount Decimal [not null, default: 0]
+  paymentStatus String [not null, default: 'UNPAID']
+  residualAmount Decimal [not null, default: 0]
+  approvals ApprovalInstance [not null]
+  payments Payment [not null]
+  allocations PaymentAllocation [not null]
+  member ShopMember
+  shop Shop [not null]
+  supplier Supplier
+  user User [not null]
+  items PurchaseItem [not null]
+  purchaseReturns PurchaseReturn [not null]
+  purchaseTaxLinks PurchaseTaxDocumentLink [not null]
+  stockLogs StockLog [not null]
+  whtEntries WhtEntry [not null]
+  purchaseReceipts PurchaseReceipt [not null]
+
+  indexes {
+    (shopId, purchaseNumber) [unique]
+  }
+}
+
+Table PurchaseItem {
+  id String [pk]
+  purchaseId String [not null]
+  productId String [not null]
+  quantity Int [not null]
+  receivedQuantity Int [not null, default: 0]
+  costPrice Decimal [not null]
+  subtotal Decimal [not null]
+  packagingQty Int [not null, default: 1]
+  product Product [not null]
+  purchase Purchase [not null]
+  purchaseReturnItems PurchaseReturnItem [not null]
+  receiptLines PurchaseReceiptLine [not null]
+}
+
+Table Sale {
+  id String [pk]
+  invoiceNumber String [not null]
+  date DateTime [default: `now()`, not null]
+  customerId String
+  customerName String
+  customerAddress String
+  customerPhone String
+  totalAmount Decimal [not null]
+  totalCost Decimal [not null]
+  profit Decimal [not null]
+  paymentMethod String [not null]
+  notes String
+  userId String [not null]
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  receiptUrl String
+  cancelReason String
+  cancelledAt DateTime
+  cancelledBy String
+  status String [not null, default: 'ACTIVE']
+  shopId String [not null]
+  discountAmount Decimal [not null, default: 0]
+  discountType String
+  discountValue Decimal
+  netAmount Decimal [not null, default: 0]
+  paymentNote String
+  paymentProof String
+  paymentVerifiedAt DateTime
+  paymentVerifiedBy String
+  channel String [not null, default: 'WALK_IN']
+  taxMode String [not null, default: 'INCLUSIVE']
+  taxRate Decimal [not null, default: 7]
+  taxAmount Decimal [not null, default: 0]
+  taxableAmount Decimal [not null, default: 0]
+  billingStatus String [not null, default: 'UNBILLED']
+  bookingStatus String [not null, default: 'NONE']
+  deliveryStatus String [not null, default: 'PENDING']
+  departmentCode String
+  isLocked Boolean [not null, default: false]
+  memberId String
+  paidAmount Decimal [not null, default: 0]
+  paymentStatusProof String [not null, default: 'VERIFIED']
+  residualAmount Decimal [not null, default: 0]
+  paymentStatus DocPaymentStatus [not null, default: 'UNPAID']
+  editLockStatus String [not null, default: 'NONE']
+  lockReason String
+  orderRequestId String
+  quotationId String
+  approvals ApprovalInstance [not null]
+  deliveryOrders DeliveryOrder [not null]
+  invoices Invoice
+  payments Payment [not null]
+  returns Return [not null]
+  customer Customer
+  member ShopMember
+  orderRequest OrderRequest
+  quotation Quotation
+  shop Shop [not null]
+  user User [not null]
+  items SaleItem [not null]
+  shipments Shipment [not null]
+  stockLogs StockLog [not null]
+  statusDetail SaleStatus
+  taxSummary SaleTaxSummary
+  paymentDetail SalePaymentDetail
+
+  indexes {
+    (shopId, invoiceNumber) [unique]
+  }
+}
+
+Table SaleStatus {
+  id String [pk]
+  saleId String [unique, not null]
+  sale Sale [not null]
+  status String [not null, default: 'ACTIVE']
+  paymentStatus DocPaymentStatus [not null, default: 'UNPAID']
+  billingStatus String [not null, default: 'UNBILLED']
+  deliveryStatus String [not null, default: 'PENDING']
+  bookingStatus String [not null, default: 'NONE']
+  editLockStatus String [not null, default: 'NONE']
+  lockReason String
+  cancelReason String
+  cancelledAt DateTime
+  cancelledBy String
+  shopId String [not null]
+  updatedAt DateTime [not null]
+
+  Note: 'สถานะเอกสารทั้งหมดของบิลขาย
+รวม isLocked + editLockStatus เป็น editLockStatus เดียว (Impossible State Fix)'
+}
+
+Table SaleTaxSummary {
+  id String [pk]
+  saleId String [unique, not null]
+  sale Sale [not null]
+  taxMode String [not null, default: 'INCLUSIVE']
+  taxRate Decimal [not null, default: 7]
+  taxAmount Decimal [not null, default: 0]
+  taxableAmount Decimal [not null, default: 0]
+  shopId String [not null]
+  updatedAt DateTime [not null]
+
+  Note: 'ข้อมูลภาษีของบิลขาย (อ่านเฉพาะตอนออกใบกำกับภาษีและรายงาน)'
+}
+
+Table SalePaymentDetail {
+  id String [pk]
+  saleId String [unique, not null]
+  sale Sale [not null]
+  paymentMethod String [not null, default: 'CASH']
+  paymentProof String
+  paymentNote String
+  paymentVerifiedAt DateTime
+  paymentVerifiedBy String
+  paymentStatusProof String [not null, default: 'VERIFIED']
+  paidAmount Decimal [not null, default: 0]
+  residualAmount Decimal [not null, default: 0]
+  shopId String [not null]
+  updatedAt DateTime [not null]
+
+  Note: 'รายละเอียดการรับชำระและหลักฐานสลิป (Row ใหญ่ แยกออกเพื่อลด Payload หน้า List)'
+}
+
+Table SaleItem {
+  id String [pk]
+  saleId String [not null]
+  productId String [not null]
+  quantity Int [not null]
+  salePrice Decimal [not null]
+  costPrice Decimal [not null]
+  subtotal Decimal [not null]
+  profit Decimal [not null]
+  discountAmount Decimal [not null, default: 0]
+  taxAmount Decimal [not null, default: 0]
+  taxableAmount Decimal [not null, default: 0]
+  packagingQty Int [not null, default: 1]
+  warehouseId String
+  returnItems ReturnItem [not null]
+  product Product [not null]
+  sale Sale [not null]
+  warehouse Warehouse
+}
+
+Table Expense {
+  id String [pk]
+  category String [not null]
+  amount Decimal [not null]
+  description String
+  date DateTime [default: `now()`, not null]
+  receiptUrl String
+  userId String [not null]
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  deletedAt DateTime
+  categoryId String
+  shopId String [not null]
+  memberId String
+  paidAmount Decimal [not null, default: 0]
+  paymentStatus String [not null, default: 'UNPAID']
+  residualAmount Decimal [not null, default: 0]
+  categoryRef LookupValue
+  member ShopMember
+  shop Shop [not null]
+  user User [not null]
+  payments Payment [not null]
+  allocations PaymentAllocation [not null]
+}
+
+Table Income {
+  id String [pk]
+  category String [not null]
+  categoryId String
+  amount Decimal [not null]
+  description String
+  date DateTime [default: `now()`, not null]
+  notes String
+  receiptUrl String
+  userId String [not null]
+  shopId String [not null]
+  deletedAt DateTime
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  memberId String
+  categoryRef LookupValue
+  member ShopMember
+  shop Shop [not null]
+  user User [not null]
+}
+
+Table StockLog {
+  id String [pk]
+  type StockMovementType [not null]
+  productId String [not null]
+  quantity Int [not null]
+  balance Int [not null]
+  referenceId String
+  referenceType String
+  note String
+  warehouseId String
+  warehouseBalance Int
+  date DateTime [default: `now()`, not null]
+  userId String [not null]
+  createdAt DateTime [default: `now()`, not null]
+  shopId String [not null]
+  purchaseId String
+  purchaseReceiptId String
+  saleId String
+  returnId String
+  memberId String
+  stockTakeItemId String
+  stockTakeSessionId String
+  deliveryOrderId String
+  purchaseReturnId String
+  deliveryOrder DeliveryOrder
+  member ShopMember
+  product Product [not null]
+  purchase Purchase
+  purchaseReceipt PurchaseReceipt
+  purchaseReturn PurchaseReturn
+  return Return
+  sale Sale
+  shop Shop [not null]
+  stockTakeItem StockTakeItem
+  stockTakeSession StockTakeSession
+  user User [not null]
+  warehouse Warehouse
+}
+
+Table Return {
+  id String [pk]
+  returnNumber String [not null]
+  saleId String [not null]
+  reason String [not null]
+  refundAmount Decimal [not null]
+  refundMethod String [not null]
+  status String [not null, default: 'COMPLETED']
+  userId String [not null]
+  shopId String [not null]
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  memberId String
+  member ShopMember
+  sale Sale [not null]
+  shop Shop [not null]
+  user User [not null]
+  items ReturnItem [not null]
+  stockLogs StockLog [not null]
+
+  indexes {
+    (shopId, returnNumber) [unique]
+  }
+}
+
+Table ReturnItem {
+  id String [pk]
+  returnId String [not null]
+  saleItemId String [not null]
+  productId String [not null]
+  quantity Int [not null]
+  warehouseId String
+  refundPerUnit Decimal [not null]
+  refundAmount Decimal [not null]
+  product Product [not null]
+  return Return [not null]
+  saleItem SaleItem [not null]
+  warehouse Warehouse
+}
+
+Table PurchaseReturn {
+  id String [pk]
+  returnNumber String [not null]
+  purchaseId String [not null]
+  reason String [not null]
+  recoveryAmount Decimal [not null]
+  recoveryMethod String [not null]
+  status String [not null, default: 'COMPLETED']
+  userId String [not null]
+  shopId String [not null]
+  memberId String
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  member ShopMember
+  purchase Purchase [not null]
+  shop Shop [not null]
+  user User [not null]
+  items PurchaseReturnItem [not null]
+  stockLogs StockLog [not null]
+
+  indexes {
+    (shopId, returnNumber) [unique]
+  }
+}
+
+Table PurchaseReturnItem {
+  id String [pk]
+  purchaseReturnId String [not null]
+  purchaseItemId String [not null]
+  productId String [not null]
+  quantity Int [not null]
+  recoveryPerUnit Decimal [not null]
+  recoveryAmount Decimal [not null]
+  product Product [not null]
+  purchaseItem PurchaseItem [not null]
+  purchaseReturn PurchaseReturn [not null]
+}
+
+Table Shipment {
+  id String [pk]
+  shipmentNumber String [not null]
+  saleId String [not null]
+  recipientName String [not null]
+  recipientPhone String
+  shippingAddress String [not null]
+  trackingNumber String
+  shippingProvider String
+  shippingCost Decimal
+  status ShipmentStatus [not null, default: 'PENDING']
+  shippedAt DateTime
+  deliveredAt DateTime
+  notes String
+  userId String [not null]
+  shopId String [not null]
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  dispatchSeq Int
+  latitude Float
+  longitude Float
+  memberId String
+  partnerAddressId String
+  member ShopMember
+  partnerAddress PartnerAddress
+  sale Sale [not null]
+  shop Shop [not null]
+  user User [not null]
+
+  indexes {
+    (shopId, shipmentNumber) [unique]
+  }
+}
+
+Table PartnerAddress {
+  id String [pk]
+  customerId String
+  supplierId String
+  label String
+  recipientName String
+  phone String
+  email String
+  address String [not null]
+  district String
+  subDistrict String
+  province String
+  postalCode String
+  taxId String
+  isDefaultBilling Boolean [not null, default: false]
+  isDefaultShipping Boolean [not null, default: false]
+  latitude Float
+  longitude Float
+  shopId String [not null]
+  deletedAt DateTime
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  customer Customer
+  shop Shop [not null]
+  supplier Supplier
+  contacts PartnerContact [not null]
+  shipments Shipment [not null]
+}
+
+Table PartnerContact {
+  id String [pk]
+  partnerAddressId String [not null]
+  name String [not null]
+  position String
+  phone String
+  email String
+  lineId String
+  isPrimary Boolean [not null, default: false]
+  notes String
+  shopId String [not null]
+  deletedAt DateTime
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  partnerAddress PartnerAddress [not null]
+  shop Shop [not null]
+}
+
+Table SystemLog {
+  id String [pk]
+  level LogLevel [not null]
+  message String [not null]
+  stack String
+  path String
+  method String
+  body String
+  userId String
+  userName String
+  shopId String
+  createdAt DateTime [default: `now()`, not null]
+}
+
+Table Notification {
+  id String [pk]
+  shopId String [not null]
+  userId String
+  type String [not null]
+  severity String [not null, default: 'INFO']
+  title String [not null]
+  message String [not null]
+  link String
+  metadata Json
+  isRead Boolean [not null, default: false]
+  readAt DateTime
+  groupKey String
+  createdAt DateTime [default: `now()`, not null]
+  expiresAt DateTime
+  shop Shop [not null]
+
+  indexes {
+    (shopId, groupKey) [unique]
+  }
+}
+
+Table DocSequence {
+  id String [pk]
+  shopId String [not null]
+  prefix String [not null]
+  year Int [not null]
+  month Int [not null]
+  counter Int [not null, default: 0]
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+
+  indexes {
+    (shopId, prefix, year, month) [unique]
+  }
+}
+
+Table AuditLog {
+  id String [pk]
+  shopId String
+  action String [not null]
+  note String
+  createdAt DateTime [default: `now()`, not null]
+  actorUserId String
+  afterSnapshot Json
+  beforeSnapshot Json
+  changedFields String[] [not null]
+  reason String
+  status String [not null, default: 'SUCCESS']
+  targetId String
+  targetType String
+  actorEmail String
+  actorName String
+}
+
+Table SupplierProduct {
+  id String [pk]
+  shopId String [not null]
+  supplierId String [not null]
+  productId String [not null]
+  moq Int [default: 0]
+  vendorPrice Decimal
+  vendorSku String
+  notes String
+  deletedAt DateTime
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  leadTime Int [default: 0]
+  product Product [not null]
+  supplier Supplier [not null]
+
+  indexes {
+    (supplierId, productId) [unique]
+  }
+}
+
+Table ApprovalInstance {
+  id String [pk]
+  shopId String [not null]
+  documentType String [not null]
+  documentId String [not null]
+  status ApprovalStatus [not null, default: 'PENDING']
+  currentLevel Int [not null, default: 1]
+  saleId String
+  purchaseId String
+  orderRequestId String
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  orderRequest OrderRequest
+  purchase Purchase
+  sale Sale
+  shop Shop [not null]
+  steps ApprovalStep [not null]
+}
+
+Table ApprovalStep {
+  id String [pk]
+  approvalInstanceId String [not null]
+  level Int [not null, default: 1]
+  approverUserId String [not null]
+  status ApprovalStatus [not null, default: 'PENDING']
+  actionAt DateTime
+  reason String
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  approvalInstance ApprovalInstance [not null]
+}
+
+Table DeliveryOrder {
+  id String [pk]
+  deliveryNo String [not null]
+  saleId String [not null]
+  status DeliveryStatus [not null, default: 'WAITING']
+  scheduledDate DateTime
+  deliveredAt DateTime
+  notes String
+  userId String [not null]
+  shopId String [not null]
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  memberId String
+  member ShopMember
+  sale Sale [not null]
+  shop Shop [not null]
+  user User [not null]
+  items DeliveryOrderLine [not null]
+  stockLogs StockLog [not null]
+
+  indexes {
+    (shopId, deliveryNo) [unique]
+  }
+}
+
+Table DeliveryOrderLine {
+  id String [pk]
+  deliveryOrderId String [not null]
+  productId String [not null]
+  quantity Int [not null]
+  pickedQty Int [not null, default: 0]
+  createdAt DateTime [default: `now()`, not null]
+  deliveryOrder DeliveryOrder [not null]
+  product Product [not null]
+}
+
+Table Quotation {
+  id String [pk]
+  quotationNo String [not null]
+  customerId String [not null]
+  customerAddressSnapshot String
+  customerPhoneSnapshot String
+  salespersonId String
+  status QuotationStatus [not null, default: 'DRAFT']
+  date DateTime [default: `now()`, not null]
+  validUntil DateTime
+  currencyCode String [not null, default: 'THB']
+  totalAmount Decimal [not null]
+  notes String
+  shopId String [not null]
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  memberId String
+  orderRequests OrderRequest [not null]
+  customer Customer [not null]
+  member ShopMember
+  salesperson ShopMember
+  shop Shop [not null]
+  items QuotationLine [not null]
+  sales Sale [not null]
+  taxMode String [not null, default: 'INCLUSIVE']
+  taxRate Decimal [not null, default: 7]
+  taxAmount Decimal [not null, default: 0]
+  taxableAmount Decimal [not null, default: 0]
+
+  indexes {
+    (shopId, quotationNo) [unique]
+  }
+}
+
+Table QuotationLine {
+  id String [pk]
+  quotationId String [not null]
+  productId String [not null]
+  description String
+  quantity Int [not null]
+  unitPrice Decimal [not null]
+  discount Decimal [not null, default: 0]
+  subtotal Decimal [not null]
+  taxAmount Decimal [not null, default: 0]
+  taxableAmount Decimal [not null, default: 0]
+  sortOrder Int [not null, default: 0]
+  createdAt DateTime [default: `now()`, not null]
+  product Product [not null]
+  quotation Quotation [not null]
+}
+
+Table OrderRequest {
+  id String [pk]
+  requestNo String [not null]
+  requesterId String [not null]
+  status OrderRequestStatus [not null, default: 'DRAFT']
+  date DateTime [default: `now()`, not null]
+  notes String
+  shopId String [not null]
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  memberId String
+  quotationId String
+  approvals ApprovalInstance [not null]
+  member ShopMember
+  quotation Quotation
+  requester ShopMember [not null]
+  shop Shop [not null]
+  items OrderRequestLine [not null]
+  sales Sale [not null]
+
+  indexes {
+    (shopId, requestNo) [unique]
+  }
+}
+
+Table OrderRequestLine {
+  id String [pk]
+  orderRequestId String [not null]
+  productId String
+  description String
+  quantity Int [not null]
+  uom String
+  sortOrder Int [not null, default: 0]
+  createdAt DateTime [default: `now()`, not null]
+  orderRequest OrderRequest [not null]
+  product Product
+}
+
+Table Invoice {
+  id String [pk]
+  invoiceNo String [not null]
+  saleId String [unique, not null]
+  customerId String
+  status InvoiceStatus [not null, default: 'DRAFT']
+  date DateTime [default: `now()`, not null]
+  dueDate DateTime
+  currencyCode String [not null, default: 'THB']
+  totalAmount Decimal [not null]
+  residualAmount Decimal [not null, default: 0]
+  notes String
+  shopId String [not null]
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  memberId String
+  paidAmount Decimal [not null, default: 0]
+  paymentStatus DocPaymentStatus [not null, default: 'UNPAID']
+  billingAddressSnapshot String [not null]
+  customerNameSnapshot String [not null]
+  discountAmount Decimal [not null, default: 0]
+  netAmount Decimal [not null, default: 0]
+  paymentTermSnapshot String
+  shippingAddressSnapshot String
+  subtotalAmount Decimal [not null, default: 0]
+  taxAmount Decimal [not null, default: 0]
+  taxIdSnapshot String
+  editLockStatus String [not null, default: 'NONE']
+  lockReason String
+  customerBranchSnapshot String
+  isTaxInvoice Boolean [not null, default: false]
+  postedAt DateTime
+  sellerAddressSnapshot String [not null, default: '']
+  sellerBranchSnapshot String
+  sellerNameSnapshot String [not null, default: '']
+  sellerTaxIdSnapshot String
+  taxCalculationModeSnapshot String [not null, default: 'EXCLUSIVE']
+  taxCodeSnapshot String
+  taxPostingStatus String
+  taxRateSnapshot Decimal [not null, default: 0]
+  taxReportMonth Int
+  taxReportYear Int
+  taxableBaseAmount Decimal [not null, default: 0]
+  customer Customer
+  member ShopMember
+  sale Sale [not null]
+  shop Shop [not null]
+  items InvoiceLine [not null]
+  payments Payment [not null]
+  allocations PaymentAllocation [not null]
+
+  indexes {
+    (shopId, invoiceNo) [unique]
+  }
+}
+
+Table InvoiceLine {
+  id String [pk]
+  invoiceId String [not null]
+  productId String [not null]
+  description String
+  quantity Int [not null]
+  unitPrice Decimal [not null]
+  subtotal Decimal [not null]
+  sortOrder Int [not null, default: 0]
+  createdAt DateTime [default: `now()`, not null]
+  descriptionSnapshot String
+  discountAmount Decimal [not null, default: 0]
+  lineNetAmount Decimal [not null, default: 0]
+  lineSubtotalAmount Decimal [not null, default: 0]
+  productNameSnapshot String [not null]
+  skuSnapshot String
+  taxAmount Decimal [not null, default: 0]
+  taxCodeSnapshot String
+  taxRateSnapshot Decimal [not null, default: 0]
+  uomSnapshot String
+  taxableBaseAmount Decimal [not null, default: 0]
+  invoice Invoice [not null]
+  product Product [not null]
+}
+
+Table Payment {
+  id String [pk]
+  shopId String [not null]
+  memberId String [not null]
+  invoiceId String
+  saleId String
+  type PaymentType [not null, default: 'IN']
+  amount Decimal [not null]
+  currency String [not null, default: 'THB']
+  paymentDate DateTime [default: `now()`, not null]
+  paymentMethodCode String [not null]
+  referenceId String
+  note String
+  status PaymentStatus [not null, default: 'POSTED']
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  expenseId String
+  purchaseId String
+  paymentNo String
+  expense Expense
+  invoice Invoice
+  member ShopMember [not null]
+  purchase Purchase
+  sale Sale
+  shop Shop [not null]
+  allocations PaymentAllocation [not null]
+  whtEntry WhtEntry
+
+  indexes {
+    (shopId, paymentNo) [unique]
+  }
+}
+
+Table PaymentAllocation {
+  id String [pk]
+  shopId String [not null]
+  paymentId String [not null]
+  invoiceId String
+  purchaseId String
+  expenseId String
+  amount Decimal [not null]
+  notes String
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  expense Expense
+  invoice Invoice
+  payment Payment [not null]
+  purchase Purchase
+  shop Shop [not null]
+}
+
+Table StockTakeSession {
+  id String [pk]
+  shopId String [not null]
+  status StockTakeStatus [not null, default: 'DRAFT']
+  notes String
+  createdByMemberId String [not null]
+  submittedByMemberId String
+  submittedAt DateTime
+  completedByMemberId String
+  completedAt DateTime
+  cancelledByMemberId String
+  cancelledAt DateTime
+  cancelReason String
+  warehouseId String
+  locationId String
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  stockLogs StockLog [not null]
+  items StockTakeItem [not null]
+  canceller ShopMember
+  completer ShopMember
+  creator ShopMember [not null]
+  shop Shop [not null]
+  submitter ShopMember
+}
+
+Table StockTakeItem {
+  id String [pk]
+  sessionId String [not null]
+  productId String [not null]
+  systemOnHandQty Int [not null]
+  countedQty Int
+  differenceQty Int [not null, default: 0]
+  isCounted Boolean [not null, default: false]
+  countedAt DateTime
+  note String
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  stockLogs StockLog [not null]
+  product Product [not null]
+  session StockTakeSession [not null]
+}
+
+Table TaxCode {
+  id String [pk]
+  shopId String [not null]
+  code String [not null]
+  name String [not null]
+  description String
+  direction TaxDirection [not null]
+  kind TaxKind [not null]
+  rate Decimal [not null]
+  calculationMode TaxCalculationMode [not null, default: 'EXCLUSIVE']
+  isActive Boolean [not null, default: true]
+  effectiveFrom DateTime [not null]
+  effectiveTo DateTime
+  reportBucket String
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  shop Shop [not null]
+
+  indexes {
+    (shopId, code) [unique]
+  }
+}
+
+Table CompanyTaxProfile {
+  id String [pk]
+  shopId String [unique, not null]
+  isVatRegistered Boolean [not null, default: false]
+  vatRegistrationDate DateTime
+  vatThreshold Decimal
+  legalName String [not null]
+  taxPayerId String
+  branchCode String
+  registeredAddress String
+  defaultSalesTaxCode String
+  defaultPurchaseTaxCode String
+  taxInvoicePrefix String
+  creditNotePrefix String
+  debitNotePrefix String
+  isTaxInvoiceFull Boolean [not null, default: true]
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  authorizedPerson String
+  authorizedPosition String
+  shop Shop [not null]
+}
+
+Table PartnerTaxProfile {
+  id String [pk]
+  shopId String [not null]
+  customerId String [unique]
+  supplierId String [unique]
+  taxId String
+  branchCode String
+  branchName String
+  isVatRegistrant Boolean [not null, default: false]
+  defaultSalesTaxCode String
+  defaultPurchaseTaxCode String
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  defaultWhtCodeId String
+  isSubjectToWht Boolean [not null, default: false]
+  payeeType WhtPayeeType [not null, default: 'UNKNOWN']
+  shop Shop [not null]
+}
+
+Table ProductTaxProfile {
+  id String [pk]
+  shopId String [not null]
+  productId String [unique, not null]
+  taxClass ProductTaxClass [not null, default: 'TAXABLE']
+  salesTaxCode String
+  purchaseTaxCode String
+  isAlwaysExempt Boolean [not null, default: false]
+  exemptReason String
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  shop Shop [not null]
+}
+
+Table SalesTaxEntry {
+  id String [pk]
+  shopId String [not null]
+  sourceType String [not null]
+  sourceId String [unique, not null]
+  taxMonth Int [not null]
+  taxYear Int [not null]
+  partnerId String
+  partnerName String
+  taxCode String
+  taxRate Decimal [not null]
+  taxableBaseAmount Decimal [not null]
+  taxAmount Decimal [not null]
+  postingStatus TaxPostingStatus [not null, default: 'DRAFT']
+  postedAt DateTime
+  voidedAt DateTime
+  postedBy String
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  shop Shop [not null]
+}
+
+Table PurchaseTaxEntry {
+  id String [pk]
+  shopId String [not null]
+  sourceType String [not null]
+  sourceId String [unique, not null]
+  taxMonth Int [not null]
+  taxYear Int [not null]
+  vendorDocNo String
+  vendorDocDate DateTime
+  partnerId String
+  partnerName String
+  taxCode String
+  taxRate Decimal [not null]
+  taxableBaseAmount Decimal [not null]
+  taxAmount Decimal [not null]
+  postingStatus TaxPostingStatus [not null, default: 'DRAFT']
+  postedAt DateTime
+  voidedAt DateTime
+  postedBy String
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  claimStatus ClaimStatus [not null, default: 'CLAIMABLE']
+  shop Shop [not null]
+  source PurchaseTaxDocument [not null]
+}
+
+Table PurchaseTaxDocument {
+  id String [pk]
+  shopId String [not null]
+  memberId String [not null]
+  postedByMemberId String
+  voidedByMemberId String
+  postedAt DateTime
+  voidedAt DateTime
+  sourceType PurchaseTaxSourceType [not null, default: 'PURCHASE_ORDER']
+  supplierId String
+  vendorNameSnapshot String [not null]
+  vendorAddressSnapshot String
+  vendorTaxIdSnapshot String
+  vendorBranchSnapshot String
+  vendorDocNo String [not null]
+  vendorDocDate DateTime [not null]
+  internalDocNo String [not null]
+  isVatDocument Boolean [not null, default: true]
+  taxCodeSnapshot String
+  taxRateSnapshot Decimal [not null, default: 0]
+  taxCalculationMode TaxCalculationMode [not null, default: 'EXCLUSIVE']
+  subtotalAmount Decimal [not null]
+  discountAmount Decimal [not null, default: 0]
+  taxableBaseAmount Decimal [not null]
+  taxAmount Decimal [not null]
+  netAmount Decimal [not null]
+  status PurchaseTaxStatus [not null, default: 'DRAFT']
+  claimStatus ClaimStatus [not null, default: 'CLAIMABLE']
+  claimReason String
+  notes String
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  member ShopMember [not null]
+  postedBy ShopMember
+  shop Shop [not null]
+  supplier Supplier
+  voidedBy ShopMember
+  links PurchaseTaxDocumentLink [not null]
+  taxEntry PurchaseTaxEntry
+  items PurchaseTaxLine [not null]
+
+  indexes {
+    (shopId, internalDocNo) [unique]
+  }
+}
+
+Table PurchaseTaxDocumentLink {
+  id String [pk]
+  purchaseTaxDocumentId String [not null]
+  purchaseOrderId String [not null]
+  allocatedAmount Decimal
+  createdAt DateTime [default: `now()`, not null]
+  purchase Purchase [not null]
+  document PurchaseTaxDocument [not null]
+
+  indexes {
+    (purchaseTaxDocumentId, purchaseOrderId) [unique]
+  }
+}
+
+Table PurchaseTaxLine {
+  id String [pk]
+  documentId String [not null]
+  productNameSnapshot String [not null]
+  skuSnapshot String
+  uomSnapshot String
+  taxCodeSnapshot String
+  taxRateSnapshot Decimal [not null]
+  description String
+  quantity Decimal [not null]
+  unitPrice Decimal [not null]
+  discountAmount Decimal [not null, default: 0]
+  taxableBaseAmount Decimal [not null]
+  taxAmount Decimal [not null]
+  lineNetAmount Decimal [not null]
+  document PurchaseTaxDocument [not null]
+}
+
+Table WhtCode {
+  id String [pk]
+  shopId String [not null]
+  code String [not null]
+  name String [not null]
+  rate Decimal [not null]
+  formType WhtFormType [not null]
+  payeeType WhtPayeeType [not null, default: 'ANY']
+  incomeCategory String
+  isActive Boolean [not null, default: true]
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  shop Shop [not null]
+
+  indexes {
+    (shopId, code) [unique]
+  }
+}
+
+Table WhtEntry {
+  id String [pk]
+  shopId String [not null]
+  memberId String
+  paymentId String [unique]
+  partnerId String
+  payeeNameSnapshot String [not null]
+  payeeTaxIdSnapshot String
+  payeeBranchSnapshot String
+  payeeTypeSnapshot WhtPayeeType [not null]
+  whtCodeId String
+  formTypeSnapshot WhtFormType [not null]
+  incomeCategorySnapshot String
+  rateSnapshot Decimal [not null]
+  grossPayableAmount Decimal [not null]
+  whtBaseAmount Decimal [not null]
+  whtAmount Decimal [not null]
+  netPaidAmount Decimal [not null]
+  paymentDate DateTime [not null]
+  taxMonth Int [not null]
+  taxYear Int [not null]
+  status TaxPostingStatus [not null, default: 'DRAFT']
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  purchaseId String
+  certificate WhtCertificate
+  member ShopMember
+  payment Payment
+  purchase Purchase
+  shop Shop [not null]
+}
+
+Table WhtCertificate {
+  id String [pk]
+  shopId String [not null]
+  whtEntryId String [unique, not null]
+  certificateNo String [not null]
+  issueDate DateTime [not null]
+  payerNameSnapshot String [not null]
+  payerTaxIdSnapshot String
+  payerBranchSnapshot String
+  payerAddressSnapshot String
+  payeeNameSnapshot String [not null]
+  payeeTaxIdSnapshot String
+  payeeBranchSnapshot String
+  payeeAddressSnapshot String
+  status TaxPostingStatus [not null, default: 'DRAFT']
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  shop Shop [not null]
+  whtEntry WhtEntry [not null]
+
+  indexes {
+    (shopId, certificateNo) [unique]
+  }
+}
+
+Table Account {
+  id String [pk]
+  shopId String [not null]
+  code String [not null]
+  name String [not null]
+  category AccountCategory [not null]
+  normalBalance NormalBalance [not null]
+  parentId String
+  isPostable Boolean [not null, default: true]
+  isActive Boolean [not null, default: true]
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  parent Account
+  children Account [not null]
+  shop Shop [not null]
+  bankAccounts BankAccount [not null]
+  journalLines JournalLine [not null]
+
+  indexes {
+    (shopId, code) [unique]
+  }
+}
+
+Table JournalEntry {
+  id String [pk]
+  shopId String [not null]
+  entryNo String [not null]
+  journalDate DateTime [not null]
+  description String
+  status JournalStatus [not null, default: 'DRAFT']
+  postedAt DateTime
+  sourceType String
+  sourceId String
+  sourceNo String
+  memberId String [not null]
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  postingPurpose String [not null, default: 'GENERAL']
+  member ShopMember [not null]
+  shop Shop [not null]
+  lines JournalLine [not null]
+
+  indexes {
+    (shopId, entryNo) [unique]
+    (shopId, sourceType, sourceId, postingPurpose) [unique]
+  }
+}
+
+Table JournalLine {
+  id String [pk]
+  journalEntryId String [not null]
+  accountId String [not null]
+  description String
+  debitAmount Decimal [not null, default: 0]
+  creditAmount Decimal [not null, default: 0]
+  partnerId String
+  partnerType String
+  referenceType String
+  referenceId String
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  bankLineId String
+  reconcileStatus String [not null, default: 'UNRECONCILED']
+  reconciledAt DateTime
+  referenceNo String
+  account Account [not null]
+  bankLine BankLine
+  journalEntry JournalEntry [not null]
+}
+
+Table AccountingPeriod {
+  id String [pk]
+  shopId String [not null]
+  periodName String [not null]
+  startDate DateTime [not null]
+  endDate DateTime [not null]
+  status PeriodStatus [not null, default: 'OPEN']
+  closedAt DateTime
+  closedByMemberId String
+  reopenedAt DateTime
+  reopenedByMemberId String
+  reopenReason String
+  history Json
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  closedBy ShopMember
+  reopenedBy ShopMember
+  shop Shop [not null]
+
+  indexes {
+    (shopId, startDate, endDate) [unique]
+  }
+}
+
+Table BankAccount {
+  id String [pk]
+  name String [not null]
+  bankName String [not null]
+  accountNo String [not null]
+  currency String [not null, default: 'THB']
+  isActive Boolean [not null, default: true]
+  glAccountId String [not null]
+  shopId String [not null]
+  userId String [not null]
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  glAccount Account [not null]
+  shop Shop [not null]
+  user User [not null]
+  statements BankStatement [not null]
+
+  indexes {
+    (shopId, accountNo) [unique]
+  }
+}
+
+Table BankStatement {
+  id String [pk]
+  bankAccountId String [not null]
+  statementDate DateTime [default: `now()`, not null]
+  periodStart DateTime
+  periodEnd DateTime
+  openingBalance Decimal [not null, default: 0]
+  closingBalance Decimal [not null, default: 0]
+  importSource String [not null, default: 'MANUAL']
+  status String [not null, default: 'DRAFT']
+  shopId String [not null]
+  memberId String
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  lines BankLine [not null]
+  bankAccount BankAccount [not null]
+  member ShopMember
+  shop Shop [not null]
+}
+
+Table BankLine {
+  id String [pk]
+  statementId String [not null]
+  bookingDate DateTime [not null]
+  valueDate DateTime
+  description String
+  referenceNo String
+  debitAmount Decimal [not null, default: 0]
+  creditAmount Decimal [not null, default: 0]
+  netAmount Decimal [not null]
+  balanceAfter Decimal
+  matchStatus BankLineMatchStatus [not null, default: 'UNMATCHED']
+  matchedAt DateTime
+  matchedByMemberId String
+  dedupeHash String
+  shopId String [not null]
+  createdAt DateTime [default: `now()`, not null]
+  matchedByMember ShopMember
+  shop Shop [not null]
+  statement BankStatement [not null]
+  journalLines JournalLine [not null]
+}
+
+Table PurchaseReceipt {
+  id String [pk]
+  shopId String [not null]
+  purchaseId String [not null]
+  receiptNumber String [not null]
+  receivedDate DateTime [default: `now()`, not null]
+  notes String
+  status String [not null, default: 'COMPLETED']
+  userId String [not null]
+  memberId String
+  createdAt DateTime [default: `now()`, not null]
+  updatedAt DateTime [not null]
+  purchase Purchase [not null]
+  shop Shop [not null]
+  user User [not null]
+  member ShopMember
+  lines PurchaseReceiptLine [not null]
+  stockLogs StockLog [not null]
+}
+
+Table PurchaseReceiptLine {
+  id String [pk]
+  receiptId String [not null]
+  purchaseItemId String [not null]
+  productId String [not null]
+  quantity Int [not null]
+  warehouseId String [not null]
+  shopId String [not null]
+  receipt PurchaseReceipt [not null]
+  purchaseItem PurchaseItem [not null]
+  product Product [not null]
+  warehouse Warehouse [not null]
+  shop Shop [not null]
+}
+
+Table CustomerToShopMember {
+  customersId String [ref: > Customer.id]
+  salespersonsId String [ref: > ShopMember.id]
+}
+
+Enum InventoryMode {
+  SIMPLE
+  SINGLE
+  MULTI
+}
+
+Enum LookupTypeCode {
+  PRODUCT_CATEGORY
+  EXPENSE_CATEGORY
+  PAYMENT_METHOD
+  UNIT
+  INCOME_CATEGORY
+}
+
+Enum Permission {
+  PRODUCT_VIEW
+  PRODUCT_CREATE
+  PRODUCT_UPDATE
+  PRODUCT_DELETE
+  PRODUCT_VIEW_COST
+  SALE_VIEW
+  SALE_CREATE
+  SALE_UPDATE
+  SALE_CANCEL
+  SALE_VOID
+  SALE_VIEW_PROFIT
+  SALE_EDIT_LOCKED
+  INVOICE_VIEW
+  INVOICE_CREATE
+  INVOICE_POST
+  INVOICE_CANCEL
+  INVOICE_MANAGE
+  FINANCE_VIEW_LEDGER
+  FINANCE_PAYMENT_VOID
+  FINANCE_MANAGE_CREDIT
+  STOCK_VIEW_HISTORY
+  STOCK_ADJUST
+  STOCK_TAKE_APPROVE
+  WAREHOUSE_MANAGE
+  PURCHASE_VIEW
+  PURCHASE_CREATE
+  PURCHASE_UPDATE
+  PURCHASE_VOID
+  CUSTOMER_VIEW
+  CUSTOMER_CREATE
+  CUSTOMER_UPDATE
+  CUSTOMER_DELETE
+  EXPENSE_VIEW
+  EXPENSE_CREATE
+  EXPENSE_UPDATE
+  EXPENSE_DELETE
+  RETURN_VIEW
+  RETURN_CREATE
+  SETTINGS_SHOP
+  SETTINGS_ROLES
+  AUDIT_VIEW
+  REPORT_VIEW_SALES
+  REPORT_EXPORT
+  POS_ACCESS
+  SHIPMENT_VIEW
+  SHIPMENT_CREATE
+  SHIPMENT_EDIT
+  SHIPMENT_CANCEL
+  QUOTATION_VIEW
+  QUOTATION_CREATE
+  QUOTATION_EDIT
+  QUOTATION_CONFIRM
+  ORDER_REQUEST_VIEW
+  ORDER_REQUEST_CREATE
+  ORDER_REQUEST_SUBMIT
+  APPROVAL_VIEW
+  APPROVAL_ACTION
+  DELIVERY_VIEW
+  DELIVERY_VALIDATE
+  TAX_SETTINGS_VIEW
+  TAX_SETTINGS_MANAGE
+  TAX_REPORT_VIEW
+  TAX_REPORT_POST
+  SALE_UPDATE_LOCKED
+  FINANCE_CONFIG
+  STOCK_VIEW
+  SUPPLIER_VIEW
+  SUPPLIER_CREATE
+  SUPPLIER_UPDATE
+  SUPPLIER_DELETE
+  INCOME_VIEW
+}
+
+Enum TransferStatus {
+  DRAFT
+  IN_TRANSIT
+  COMPLETED
+  CANCELLED
+}
+
+Enum StockMovementType {
+  SALE
+  PURCHASE
+  ADJUSTMENT
+  RETURN
+  WASTE
+  CANCEL
+  SALE_CANCEL
+  PURCHASE_CANCEL
+  RESERVATION
+  RELEASE
+  STOCK_TAKE_RECONCILIATION
+}
+
+Enum ShipmentStatus {
+  PENDING
+  SHIPPED
+  DELIVERED
+  RETURNED
+  CANCELLED
+  PROCESSING
+}
+
+Enum LogLevel {
+  INFO
+  WARN
+  ERROR
+}
+
+Enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+Enum DeliveryStatus {
+  DRAFT
+  WAITING
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+Enum SalesFlowMode {
+  RETAIL
+  ERP
+}
+
+Enum QuotationStatus {
+  DRAFT
+  SENT
+  CONFIRMED
+  CANCELLED
+}
+
+Enum OrderRequestStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+Enum InvoiceStatus {
+  DRAFT
+  POSTED
+  PAID
+  CANCELLED
+}
+
+Enum PaymentType {
+  IN
+  OUT
+}
+
+Enum PaymentStatus {
+  POSTED
+  VOIDED
+}
+
+Enum DocPaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+  VOIDED
+}
+
+Enum StockTakeStatus {
+  DRAFT
+  SUBMITTED
+  COMPLETED
+  CANCELLED
+}
+
+Enum TaxDirection {
+  OUTPUT
+  INPUT
+}
+
+Enum TaxKind {
+  VAT
+  ZERO_RATED
+  EXEMPT
+  NO_VAT
+}
+
+Enum TaxCalculationMode {
+  EXCLUSIVE
+  INCLUSIVE
+}
+
+Enum ProductTaxClass {
+  TAXABLE
+  ZERO_RATED
+  EXEMPT
+  NO_VAT
+}
+
+Enum TaxPostingStatus {
+  DRAFT
+  POSTED
+  VOIDED
+}
+
+Enum ClaimStatus {
+  CLAIMABLE
+  WAITING_DOC
+  NON_CLAIMABLE
+}
+
+Enum PurchaseTaxSourceType {
+  PURCHASE_ORDER
+  MANUAL_EXPENSE
+}
+
+Enum PurchaseTaxStatus {
+  DRAFT
+  POSTED
+  VOIDED
+}
+
+Enum WhtPayeeType {
+  INDIVIDUAL
+  CORPORATE
+  UNKNOWN
+  ANY
+}
+
+Enum WhtFormType {
+  PND3
+  PND53
+}
+
+Enum AccountCategory {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+Enum NormalBalance {
+  DEBIT
+  CREDIT
+}
+
+Enum JournalStatus {
+  DRAFT
+  POSTED
+  VOIDED
+}
+
+Enum PeriodStatus {
+  OPEN
+  CLOSED
+}
+
+Enum BankLineMatchStatus {
+  UNMATCHED
+  SUGGESTED
+  MATCHED
+  IGNORED
+  ADJUSTED
+}
+
+Ref: LookupValue.lookupTypeId > LookupType.id [delete: Cascade]
+
+Ref: LookupValue.shopId > Shop.id [delete: Cascade]
+
+Ref: LookupValue.userId > User.id [delete: Cascade]
+
+Ref: Shop.userId - User.id
+
+Ref: OnboardingProgress.shopId - Shop.id [delete: Cascade]
+
+Ref: Role.shopId > Shop.id [delete: Cascade]
+
+Ref: ShopMember.roleId > Role.id
+
+Ref: ShopMember.shopId > Shop.id [delete: Cascade]
+
+Ref: ShopMember.userId > User.id [delete: Cascade]
+
+Ref: Product.categoryId > LookupValue.id
+
+Ref: Product.memberId > ShopMember.id
+
+Ref: Product.shopId > Shop.id [delete: Cascade]
+
+Ref: Product.supplierId > Supplier.id
+
+Ref: Product.userId > User.id [delete: Cascade]
+
+Ref: Warehouse.shopId > Shop.id [delete: Cascade]
+
+Ref: WarehouseStock.productId > Product.id [delete: Cascade]
+
+Ref: WarehouseStock.shopId > Shop.id [delete: Cascade]
+
+Ref: WarehouseStock.warehouseId > Warehouse.id [delete: Cascade]
+
+Ref: StockTransfer.fromWarehouseId > Warehouse.id
+
+Ref: StockTransfer.memberId > ShopMember.id
+
+Ref: StockTransfer.shopId > Shop.id [delete: Cascade]
+
+Ref: StockTransfer.toWarehouseId > Warehouse.id
+
+Ref: StockTransferLine.productId > Product.id
+
+Ref: StockTransferLine.transferId > StockTransfer.id [delete: Cascade]
+
+Ref: Supplier.shopId > Shop.id [delete: Cascade]
+
+Ref: Supplier.userId > User.id [delete: Cascade]
+
+Ref: Customer.shopId > Shop.id [delete: Cascade]
+
+Ref: Customer.userId > User.id [delete: Cascade]
+
+Ref: Purchase.memberId > ShopMember.id
+
+Ref: Purchase.shopId > Shop.id [delete: Cascade]
+
+Ref: Purchase.supplierId > Supplier.id
+
+Ref: Purchase.userId > User.id [delete: Cascade]
+
+Ref: PurchaseItem.productId > Product.id
+
+Ref: PurchaseItem.purchaseId > Purchase.id [delete: Cascade]
+
+Ref: Sale.customerId > Customer.id
+
+Ref: Sale.memberId > ShopMember.id
+
+Ref: Sale.orderRequestId > OrderRequest.id
+
+Ref: Sale.quotationId > Quotation.id
+
+Ref: Sale.shopId > Shop.id [delete: Cascade]
+
+Ref: Sale.userId > User.id [delete: Cascade]
+
+Ref: SaleStatus.saleId - Sale.id [delete: Cascade]
+
+Ref: SaleTaxSummary.saleId - Sale.id [delete: Cascade]
+
+Ref: SalePaymentDetail.saleId - Sale.id [delete: Cascade]
+
+Ref: SaleItem.productId > Product.id
+
+Ref: SaleItem.saleId > Sale.id [delete: Cascade]
+
+Ref: SaleItem.warehouseId > Warehouse.id
+
+Ref: Expense.categoryId > LookupValue.id
+
+Ref: Expense.memberId > ShopMember.id
+
+Ref: Expense.shopId > Shop.id [delete: Cascade]
+
+Ref: Expense.userId > User.id [delete: Cascade]
+
+Ref: Income.categoryId > LookupValue.id
+
+Ref: Income.memberId > ShopMember.id
+
+Ref: Income.shopId > Shop.id [delete: Cascade]
+
+Ref: Income.userId > User.id [delete: Cascade]
+
+Ref: StockLog.deliveryOrderId > DeliveryOrder.id
+
+Ref: StockLog.memberId > ShopMember.id
+
+Ref: StockLog.productId > Product.id
+
+Ref: StockLog.purchaseId > Purchase.id
+
+Ref: StockLog.purchaseReceiptId > PurchaseReceipt.id
+
+Ref: StockLog.purchaseReturnId > PurchaseReturn.id
+
+Ref: StockLog.returnId > Return.id
+
+Ref: StockLog.saleId > Sale.id
+
+Ref: StockLog.shopId > Shop.id [delete: Cascade]
+
+Ref: StockLog.stockTakeItemId > StockTakeItem.id
+
+Ref: StockLog.stockTakeSessionId > StockTakeSession.id
+
+Ref: StockLog.userId > User.id [delete: Cascade]
+
+Ref: StockLog.warehouseId > Warehouse.id
+
+Ref: Return.memberId > ShopMember.id
+
+Ref: Return.saleId > Sale.id
+
+Ref: Return.shopId > Shop.id [delete: Cascade]
+
+Ref: Return.userId > User.id [delete: Cascade]
+
+Ref: ReturnItem.productId > Product.id
+
+Ref: ReturnItem.returnId > Return.id [delete: Cascade]
+
+Ref: ReturnItem.saleItemId > SaleItem.id
+
+Ref: ReturnItem.warehouseId > Warehouse.id
+
+Ref: PurchaseReturn.memberId > ShopMember.id
+
+Ref: PurchaseReturn.purchaseId > Purchase.id [delete: Cascade]
+
+Ref: PurchaseReturn.shopId > Shop.id [delete: Cascade]
+
+Ref: PurchaseReturn.userId > User.id [delete: Cascade]
+
+Ref: PurchaseReturnItem.productId > Product.id
+
+Ref: PurchaseReturnItem.purchaseItemId > PurchaseItem.id
+
+Ref: PurchaseReturnItem.purchaseReturnId > PurchaseReturn.id [delete: Cascade]
+
+Ref: Shipment.memberId > ShopMember.id
+
+Ref: Shipment.partnerAddressId > PartnerAddress.id
+
+Ref: Shipment.saleId > Sale.id
+
+Ref: Shipment.shopId > Shop.id [delete: Cascade]
+
+Ref: Shipment.userId > User.id [delete: Cascade]
+
+Ref: PartnerAddress.customerId > Customer.id [delete: Cascade]
+
+Ref: PartnerAddress.shopId > Shop.id [delete: Cascade]
+
+Ref: PartnerAddress.supplierId > Supplier.id [delete: Cascade]
+
+Ref: PartnerContact.partnerAddressId > PartnerAddress.id [delete: Cascade]
+
+Ref: PartnerContact.shopId > Shop.id [delete: Cascade]
+
+Ref: Notification.shopId > Shop.id [delete: Cascade]
+
+Ref: SupplierProduct.productId > Product.id [delete: Cascade]
+
+Ref: SupplierProduct.supplierId > Supplier.id [delete: Cascade]
+
+Ref: ApprovalInstance.orderRequestId > OrderRequest.id
+
+Ref: ApprovalInstance.purchaseId > Purchase.id
+
+Ref: ApprovalInstance.saleId > Sale.id
+
+Ref: ApprovalInstance.shopId > Shop.id [delete: Cascade]
+
+Ref: ApprovalStep.approvalInstanceId > ApprovalInstance.id [delete: Cascade]
+
+Ref: DeliveryOrder.memberId > ShopMember.id
+
+Ref: DeliveryOrder.saleId > Sale.id [delete: Cascade]
+
+Ref: DeliveryOrder.shopId > Shop.id [delete: Cascade]
+
+Ref: DeliveryOrder.userId > User.id [delete: Cascade]
+
+Ref: DeliveryOrderLine.deliveryOrderId > DeliveryOrder.id [delete: Cascade]
+
+Ref: DeliveryOrderLine.productId > Product.id
+
+Ref: Quotation.customerId > Customer.id [delete: Cascade]
+
+Ref: Quotation.memberId > ShopMember.id
+
+Ref: Quotation.salespersonId > ShopMember.id
+
+Ref: Quotation.shopId > Shop.id [delete: Cascade]
+
+Ref: QuotationLine.productId > Product.id
+
+Ref: QuotationLine.quotationId > Quotation.id [delete: Cascade]
+
+Ref: OrderRequest.memberId > ShopMember.id
+
+Ref: OrderRequest.quotationId > Quotation.id
+
+Ref: OrderRequest.requesterId > ShopMember.id
+
+Ref: OrderRequest.shopId > Shop.id [delete: Cascade]
+
+Ref: OrderRequestLine.orderRequestId > OrderRequest.id [delete: Cascade]
+
+Ref: OrderRequestLine.productId > Product.id
+
+Ref: Invoice.customerId > Customer.id
+
+Ref: Invoice.memberId > ShopMember.id
+
+Ref: Invoice.saleId - Sale.id
+
+Ref: Invoice.shopId > Shop.id [delete: Cascade]
+
+Ref: InvoiceLine.invoiceId > Invoice.id [delete: Cascade]
+
+Ref: InvoiceLine.productId > Product.id
+
+Ref: Payment.expenseId > Expense.id
+
+Ref: Payment.invoiceId > Invoice.id
+
+Ref: Payment.memberId > ShopMember.id
+
+Ref: Payment.purchaseId > Purchase.id
+
+Ref: Payment.saleId > Sale.id
+
+Ref: Payment.shopId > Shop.id
+
+Ref: PaymentAllocation.expenseId > Expense.id
+
+Ref: PaymentAllocation.invoiceId > Invoice.id
+
+Ref: PaymentAllocation.paymentId > Payment.id [delete: Cascade]
+
+Ref: PaymentAllocation.purchaseId > Purchase.id
+
+Ref: PaymentAllocation.shopId > Shop.id
+
+Ref: StockTakeSession.cancelledByMemberId > ShopMember.id
+
+Ref: StockTakeSession.completedByMemberId > ShopMember.id
+
+Ref: StockTakeSession.createdByMemberId > ShopMember.id
+
+Ref: StockTakeSession.shopId > Shop.id
+
+Ref: StockTakeSession.submittedByMemberId > ShopMember.id
+
+Ref: StockTakeItem.productId > Product.id
+
+Ref: StockTakeItem.sessionId > StockTakeSession.id [delete: Cascade]
+
+Ref: TaxCode.shopId > Shop.id [delete: Cascade]
+
+Ref: CompanyTaxProfile.shopId - Shop.id [delete: Cascade]
+
+Ref: PartnerTaxProfile.shopId > Shop.id [delete: Cascade]
+
+Ref: ProductTaxProfile.shopId > Shop.id [delete: Cascade]
+
+Ref: SalesTaxEntry.shopId > Shop.id [delete: Cascade]
+
+Ref: PurchaseTaxEntry.shopId > Shop.id [delete: Cascade]
+
+Ref: PurchaseTaxEntry.sourceId - PurchaseTaxDocument.id
+
+Ref: PurchaseTaxDocument.memberId > ShopMember.id
+
+Ref: PurchaseTaxDocument.postedByMemberId > ShopMember.id
+
+Ref: PurchaseTaxDocument.shopId > Shop.id [delete: Cascade]
+
+Ref: PurchaseTaxDocument.supplierId > Supplier.id
+
+Ref: PurchaseTaxDocument.voidedByMemberId > ShopMember.id
+
+Ref: PurchaseTaxDocumentLink.purchaseOrderId > Purchase.id
+
+Ref: PurchaseTaxDocumentLink.purchaseTaxDocumentId > PurchaseTaxDocument.id [delete: Cascade]
+
+Ref: PurchaseTaxLine.documentId > PurchaseTaxDocument.id [delete: Cascade]
+
+Ref: WhtCode.shopId > Shop.id [delete: Cascade]
+
+Ref: WhtEntry.memberId > ShopMember.id
+
+Ref: WhtEntry.paymentId - Payment.id
+
+Ref: WhtEntry.purchaseId > Purchase.id
+
+Ref: WhtEntry.shopId > Shop.id [delete: Cascade]
+
+Ref: WhtCertificate.shopId > Shop.id [delete: Cascade]
+
+Ref: WhtCertificate.whtEntryId - WhtEntry.id [delete: Cascade]
+
+Ref: Account.parentId - Account.id
+
+Ref: Account.shopId > Shop.id [delete: Cascade]
+
+Ref: JournalEntry.memberId > ShopMember.id
+
+Ref: JournalEntry.shopId > Shop.id [delete: Cascade]
+
+Ref: JournalLine.accountId > Account.id
+
+Ref: JournalLine.bankLineId > BankLine.id
+
+Ref: JournalLine.journalEntryId > JournalEntry.id [delete: Cascade]
+
+Ref: AccountingPeriod.closedByMemberId > ShopMember.id
+
+Ref: AccountingPeriod.reopenedByMemberId > ShopMember.id
+
+Ref: AccountingPeriod.shopId > Shop.id [delete: Cascade]
+
+Ref: BankAccount.glAccountId > Account.id
+
+Ref: BankAccount.shopId > Shop.id [delete: Cascade]
+
+Ref: BankAccount.userId > User.id
+
+Ref: BankStatement.bankAccountId > BankAccount.id [delete: Cascade]
+
+Ref: BankStatement.memberId > ShopMember.id
+
+Ref: BankStatement.shopId > Shop.id [delete: Cascade]
+
+Ref: BankLine.matchedByMemberId > ShopMember.id
+
+Ref: BankLine.shopId > Shop.id [delete: Cascade]
+
+Ref: BankLine.statementId > BankStatement.id [delete: Cascade]
+
+Ref: PurchaseReceipt.purchaseId > Purchase.id
+
+Ref: PurchaseReceipt.shopId > Shop.id [delete: Cascade]
+
+Ref: PurchaseReceipt.userId > User.id
+
+Ref: PurchaseReceipt.memberId > ShopMember.id
+
+Ref: PurchaseReceiptLine.receiptId > PurchaseReceipt.id [delete: Cascade]
+
+Ref: PurchaseReceiptLine.purchaseItemId > PurchaseItem.id
+
+Ref: PurchaseReceiptLine.productId > Product.id
+
+Ref: PurchaseReceiptLine.warehouseId > Warehouse.id
+
+Ref: PurchaseReceiptLine.shopId > Shop.id [delete: Cascade]
