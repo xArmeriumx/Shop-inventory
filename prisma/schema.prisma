@@ -10,6 +10,13 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+generator dbml {
+  provider = "prisma-dbml-generator"
+  output   = "../prisma/dbml"
+  projectName = "Shop Inventory ERP"
+  projectDatabaseType = "PostgreSQL"
+}
+
 model User {
   id               String            @id @default(cuid())
   email            String            @unique
@@ -251,26 +258,33 @@ model Product {
   category             String
   costPrice            Decimal               @db.Decimal(10, 2)
   salePrice            Decimal               @db.Decimal(10, 2)
+  /// ⚠️  READ CACHE ONLY — ห้าม Business Logic อ่านโดยตรงสำหรับการตัดสินใจ
+  /// ค่านี้ถูก Sync อัตโนมัติจาก SUM(WarehouseStock.quantity) ผ่าน syncGlobalProductStock()
+  /// ใช้ได้สำหรับ: Filter, Sort, Display บนหน้า List เท่านั้น
+  /// ถ้าต้องการความแม่นยำ 100% → ใช้ StockService.getAvailability() หรือ Query WarehouseStock โดยตรง
   stock                Int                   @default(0)
+  /// ⚠️  READ CACHE ONLY — Sync จาก SUM(WarehouseStock.reservedStock)
+  reservedStock        Int                   @default(0)
+
   minStock             Int                   @default(5)
   images               String[]
   isActive             Boolean               @default(true)
+  isSaleable           Boolean               @default(true)
+  isLowStock           Boolean               @default(false)
   userId               String
+  shopId               String
+  supplierId           String?
+  categoryId           String?
+  memberId             String?
+  version              Int                   @default(1)
+  avgLeadTime          Int?
+  moq                  Int?
+  packagingQty         Int                   @default(1)
+  metadata             Json?
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
   deletedAt            DateTime?
-  categoryId           String?
-  shopId               String
-  isLowStock           Boolean               @default(false)
-  supplierId           String?
-  version              Int                   @default(1)
-  avgLeadTime          Int?
-  isSaleable           Boolean               @default(true)
-  metadata             Json?
-  moq                  Int?
-  reservedStock        Int                   @default(0)
-  packagingQty         Int                   @default(1)
-  memberId             String?
+
   deliveryOrderLines   DeliveryOrderLine[]
   invoiceLines         InvoiceLine[]
   orderRequestLines    OrderRequestLine[]
@@ -303,6 +317,7 @@ model Product {
   @@index([shopId, deletedAt])
   @@index([shopId, isActive, stock])
 }
+
 
 model Warehouse {
   id                   String                @id @default(cuid())
@@ -577,7 +592,6 @@ model Sale {
   bookingStatus      String             @default("NONE")
   deliveryStatus     String             @default("PENDING")
   departmentCode     String?
-  isLocked           Boolean            @default(false)
   memberId           String?
   paidAmount         Decimal            @default(0) @db.Decimal(10, 2)
   paymentStatusProof String             @default("VERIFIED")
@@ -601,6 +615,12 @@ model Sale {
   items              SaleItem[]
   shipments          Shipment[]
   stockLogs          StockLog[]
+  paymentAllocations PaymentAllocation[]  /// ← Phase 2 Junction
+
+  // ── Child Tables (1-to-1 Normalization) ──
+  statusDetail       SaleStatus?
+  taxSummary         SaleTaxSummary?
+  paymentDetail      SalePaymentDetail?
 
   @@unique([shopId, invoiceNumber])
   @@index([userId])
@@ -613,6 +633,84 @@ model Sale {
   @@index([shopId, status])
   @@index([shopId, paymentStatus])
   @@index([shopId, channel])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sale Child Tables (1-to-1 Normalization)
+// เหตุผล: แยก Sale God Object (45 fields) เพื่อลด Row Size และ Lock Contention
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// สถานะเอกสารทั้งหมดของบิลขาย
+/// รวม isLocked + editLockStatus เป็น editLockStatus เดียว (Impossible State Fix)
+model SaleStatus {
+  id             String           @id @default(cuid())
+  saleId         String           @unique
+  sale           Sale             @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  // Document Lifecycle Status
+  status         String           @default("ACTIVE")    // DRAFT, CONFIRMED, COMPLETED, CANCELLED, INVOICED
+  paymentStatus  DocPaymentStatus @default(UNPAID)       // UNPAID, PARTIAL, PAID, VOIDED
+  billingStatus  String           @default("UNBILLED")   // UNBILLED, BILLED
+  deliveryStatus String           @default("PENDING")    // PENDING, SHIPPED, DELIVERED
+  bookingStatus  String           @default("NONE")       // NONE, RESERVED, DEDUCTED
+
+  // Lock System — ยุบ isLocked (Boolean) + editLockStatus (String) รวมเป็น 1 ฟิลด์
+  editLockStatus String           @default("NONE")       // NONE, LOCKED, CLOSED_PERIOD
+  lockReason     String?
+
+  // Cancellation Tracking
+  cancelReason   String?
+  cancelledAt    DateTime?
+  cancelledBy    String?
+
+  shopId    String
+  updatedAt DateTime @updatedAt
+
+  @@index([saleId])
+  @@index([shopId, status])
+  @@index([shopId, paymentStatus])
+  @@index([shopId, deliveryStatus])
+}
+
+/// ข้อมูลภาษีของบิลขาย (อ่านเฉพาะตอนออกใบกำกับภาษีและรายงาน)
+model SaleTaxSummary {
+  id            String   @id @default(cuid())
+  saleId        String   @unique
+  sale          Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  taxMode       String   @default("INCLUSIVE")  // INCLUSIVE, EXCLUSIVE, NO_VAT
+  taxRate       Decimal  @default(7)  @db.Decimal(5, 2)
+  taxAmount     Decimal  @default(0)  @db.Decimal(14, 2)
+  taxableAmount Decimal  @default(0)  @db.Decimal(14, 2)
+
+  shopId    String
+  updatedAt DateTime @updatedAt
+
+  @@index([saleId])
+  @@index([shopId])
+}
+
+/// รายละเอียดการรับชำระและหลักฐานสลิป (Row ใหญ่ แยกออกเพื่อลด Payload หน้า List)
+model SalePaymentDetail {
+  id                 String    @id @default(cuid())
+  saleId             String    @unique
+  sale               Sale      @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  paymentMethod      String    @default("CASH")
+  paymentProof       String?   // URL ไฟล์สลิป
+  paymentNote        String?
+  paymentVerifiedAt  DateTime?
+  paymentVerifiedBy  String?
+  paymentStatusProof String    @default("VERIFIED")  // PENDING, VERIFIED, REJECTED
+
+  paidAmount     Decimal @default(0) @db.Decimal(10, 2)
+  residualAmount Decimal @default(0) @db.Decimal(10, 2)
+
+  shopId    String
+  updatedAt DateTime @updatedAt
+
+  @@index([saleId])
+  @@index([shopId])
 }
 
 model SaleItem {
@@ -1305,8 +1403,6 @@ model Payment {
   id                String              @id @default(cuid())
   shopId            String
   memberId          String
-  invoiceId         String?
-  saleId            String?
   type              PaymentType         @default(IN)
   amount            Decimal             @db.Decimal(10, 2)
   currency          String              @default("THB")
@@ -1317,9 +1413,16 @@ model Payment {
   status            PaymentStatus       @default(POSTED)
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
-  expenseId         String?
-  purchaseId        String?
   paymentNo         String?
+
+  /// ⚠️  LEGACY FK — Transition Period Only
+  /// ใช้ PaymentAllocation.documentType + documentId แทน
+  /// จะลบออกใน Phase 4 หลัง Backfill ครบ 100%
+  invoiceId         String?
+  saleId            String?
+  purchaseId        String?
+  expenseId         String?
+
   expense           Expense?            @relation(fields: [expenseId], references: [id])
   invoice           Invoice?            @relation(fields: [invoiceId], references: [id])
   member            ShopMember          @relation(fields: [memberId], references: [id])
@@ -1338,28 +1441,47 @@ model Payment {
   @@index([expenseId])
 }
 
+/// PaymentAllocation — Polymorphic Junction Table
+/// Payment 1 ใบ สามารถ Allocate ไปยัง Document หลายใบได้
+/// ใช้ documentType + documentId แทน nullable FK ทั้ง 4 ตัว
 model PaymentAllocation {
-  id         String    @id @default(cuid())
-  shopId     String
-  paymentId  String
+  id           String   @id @default(cuid())
+  shopId       String
+  paymentId    String
+
+  /// ── SSOT: Polymorphic Reference ──────────────────────────────────────
+  /// documentType: "INVOICE" | "SALE" | "PURCHASE" | "EXPENSE"
+  /// documentId:   FK ไปยัง Document ตาม documentType
+  documentType String?
+  documentId   String?
+  /// ────────────────────────────────────────────────────────────────────
+
+  amount     Decimal  @db.Decimal(14, 2)
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  /// ⚠️  LEGACY FKs — Transition Period Only
+  /// จะลบออกใน Phase 4 หลัง Backfill + Monitor ครบ
   invoiceId  String?
   purchaseId String?
   expenseId  String?
-  amount     Decimal   @db.Decimal(14, 2)
-  notes      String?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  saleId     String?  /// ← เพิ่มกลับ (หายไปใน Schema เดิม)
+
   expense    Expense?  @relation(fields: [expenseId], references: [id])
   invoice    Invoice?  @relation(fields: [invoiceId], references: [id])
   payment    Payment   @relation(fields: [paymentId], references: [id], onDelete: Cascade)
   purchase   Purchase? @relation(fields: [purchaseId], references: [id])
+  sale       Sale?     @relation(fields: [saleId], references: [id])
   shop       Shop      @relation(fields: [shopId], references: [id])
 
   @@index([shopId])
   @@index([paymentId])
+  @@index([documentType, documentId])  /// Polymorphic Query Index
   @@index([invoiceId])
   @@index([purchaseId])
   @@index([expenseId])
+  @@index([saleId])
 }
 
 model StockTakeSession {

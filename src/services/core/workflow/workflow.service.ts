@@ -1,4 +1,5 @@
 import { ServiceError } from '@/types/domain';
+import { resolveLocked } from '@/lib/lock-helpers';
 
 export type WorkflowAction = 'UPDATE' | 'CANCEL' | 'VOID' | 'POST' | 'APPROVE' | 'DELETE';
 
@@ -30,15 +31,17 @@ export const WorkflowService = {
     /**
      * Standard check for Sale state machine
      */
-    canSaleAction(sale: { status: string; billingStatus: string; isLocked: boolean; editLockStatus: string }, action: WorkflowAction) {
+    canSaleAction(
+        sale: { status: string; billingStatus: string; editLockStatus: string },
+        action: WorkflowAction
+    ) {
         if (action === 'UPDATE' || action === 'CANCEL') {
             if (sale.status === 'CANCELLED') throw new ServiceError('รายการนี้ถูกยกเลิกไปแล้ว');
 
-            // If billed or locked by system, generally shouldn't be editable unless with special permission
-            // (Note: SALE_UPDATE_LOCKED permission logic belongs in SecurityService, here we just check raw state)
-            if (sale.isLocked || sale.editLockStatus === 'LOCKED') {
+            // SSOT: resolveLocked() อ่านจาก editLockStatus เป็นหลัก (Fallback: isLocked)
+            if (resolveLocked(sale)) {
                 if (action === 'CANCEL') throw new ServiceError('ไม่สามารถยกเลิกรายการที่ถูกล็อกหรือประมวลผลไปแล้วได้');
-                // UPDATE might still be allowed but it will be gated by Security.require('SALE_UPDATE_LOCKED')
+                // UPDATE ยังอนุญาต แต่ต้องผ่าน Security.require('SALE_EDIT_LOCKED')
             }
         }
 

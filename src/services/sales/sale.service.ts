@@ -33,6 +33,7 @@ import { Security } from '@/services/core/iam/security.service';
 import { WorkflowService } from '@/services/core/workflow/workflow.service';
 import { SaleMapper } from '@/lib/mappers/sales.mapper';
 import { SALE_CANCEL_REASONS, resolveReasonLabel, validateReason } from '@/config/reason-codes';
+import { resolveLocked, buildLockData } from '@/lib/lock-helpers';
 
 import { ComputationEngine, CalculationItemInput } from '@/services/core/finance/computation.service';
 import { InvoiceService } from './invoice.service';
@@ -202,7 +203,8 @@ export const SaleService: ISaleService = {
             await CustomerService.checkCreditLimit(finalCustomerId, netAmount, ctx, prisma);
           }
 
-          // 5. Create Sale
+          // 5. Create Sale + Child Tables (Nested Create)
+          const resolvedPaymentStatus = (saleData.paymentMethod === 'CREDIT' ? 'UNPAID' : 'PAID') as DocPaymentStatus;
           const sale = await prisma.sale.create({
             data: {
               customerId: finalCustomerId || null,
@@ -211,6 +213,7 @@ export const SaleService: ISaleService = {
               shopId: ctx.shopId,
               invoiceNumber: orderNumber,
               date: saleData.date ? new Date(saleData.date) : new Date(),
+              // Legacy fields retained for backward-compat (Backfill Phase will clean up)
               paymentMethod: saleData.paymentMethod,
               notes: saleData.notes || null,
               departmentCode: departmentCode || undefined,
@@ -225,13 +228,42 @@ export const SaleService: ISaleService = {
               discountValue: saleData.discountValue,
               discountAmount: billDiscountAmount,
               netAmount,
-              paymentStatus: (saleData.paymentMethod === 'CREDIT' ? 'UNPAID' : 'PAID') as DocPaymentStatus,
-              items: { create: saleItemsToCreate },
+              paymentStatus: resolvedPaymentStatus,
               status: SaleStatus.CONFIRMED,
               bookingStatus: BookingStatus.RESERVED,
               channel: 'ERP',
+              items: { create: saleItemsToCreate },
+              // ── Child Tables (1-to-1) ──────────────────────────────────────
+              statusDetail: {
+                create: {
+                  shopId:        ctx.shopId,
+                  status:        SaleStatus.CONFIRMED,
+                  paymentStatus: resolvedPaymentStatus,
+                  billingStatus: 'UNBILLED',
+                  deliveryStatus:'PENDING',
+                  bookingStatus: BookingStatus.RESERVED,
+                  editLockStatus:'NONE',
+                },
+              },
+              taxSummary: {
+                create: {
+                  shopId:        ctx.shopId,
+                  taxMode:       saleData.taxMode,
+                  taxRate:       saleData.taxRate,
+                  taxAmount:     totals.taxAmount,
+                  taxableAmount: totals.taxableBaseAmount,
+                },
+              },
+              paymentDetail: {
+                create: {
+                  shopId:       ctx.shopId,
+                  paymentMethod:saleData.paymentMethod,
+                  paidAmount:   resolvedPaymentStatus === 'PAID' ? netAmount : 0,
+                  residualAmount:resolvedPaymentStatus === 'PAID' ? 0 : netAmount,
+                },
+              },
             } as Prisma.SaleUncheckedCreateInput,
-            include: { items: true, customer: true },
+            include: { items: true, customer: true, statusDetail: true, taxSummary: true, paymentDetail: true },
           });
 
           // ⚡ Optimized Bulk Stock Reservation (Single process, single audit)
@@ -294,9 +326,9 @@ export const SaleService: ISaleService = {
       ctx,
       SALE_AUDIT_POLICIES.UPDATE(sale.invoiceNumber, payload),
       async () => {
-        const isLocked = ((sale as any).editLockStatus === EditLockStatus.LOCKED) || sale.isLocked;
+        const locked = resolveLocked(sale as any);
 
-        if (isLocked) {
+        if (locked) {
           try {
             Security.require(ctx, Permission.SALE_EDIT_LOCKED);
           } catch (e) {
@@ -359,6 +391,10 @@ export const SaleService: ISaleService = {
       include: {
         items: { include: { product: { select: { name: true } } } },
         customer: true,
+        // 🛡️ Include child tables so Mapper Shield can read from them
+        statusDetail:  true,
+        taxSummary:    true,
+        paymentDetail: true,
       },
       page,
       limit,
@@ -379,6 +415,10 @@ export const SaleService: ISaleService = {
       include: {
         items: { include: { product: { select: { id: true, name: true, sku: true, stock: true, reservedStock: true, packagingQty: true } } } },
         customer: true,
+        // 🛡️ Include child tables so Mapper Shield can read from them
+        statusDetail:  true,
+        taxSummary:    true,
+        paymentDetail: true,
         shipments: {
           select: {
             id: true, shipmentNumber: true, status: true, trackingNumber: true, shippingProvider: true, shippingCost: true,
@@ -473,6 +513,17 @@ export const SaleService: ISaleService = {
               cancelledAt: new Date(),
               cancelledBy: userNameResult?.name || 'System',
               cancelReason,
+            },
+          });
+
+          // Mirror cancel to SaleStatus child table (if exists)
+          await (prisma as any).saleStatus.updateMany({
+            where: { saleId: id },
+            data: {
+              status:      'CANCELLED',
+              cancelReason,
+              cancelledAt: new Date(),
+              cancelledBy: userNameResult?.name || 'System',
             },
           });
 
@@ -591,6 +642,20 @@ export const SaleService: ISaleService = {
             paymentNote: note || null,
           },
         });
+
+        // Mirror payment status to child tables (if exist)
+        await (db as any).saleStatus.updateMany({
+          where: { saleId },
+          data: { paymentStatus: status as DocPaymentStatus },
+        });
+        await (db as any).salePaymentDetail.updateMany({
+          where: { saleId },
+          data: {
+            paymentVerifiedAt: status === 'PAID' ? new Date() : null,
+            paymentVerifiedBy: ctx.userId,
+            paymentNote: note || null,
+          },
+        });
       }
     );
 
@@ -665,7 +730,18 @@ export const SaleService: ISaleService = {
         return runInTransaction(undefined, async (prisma) => {
           await prisma.sale.update({
             where: { id: saleId, shopId: ctx.shopId },
-            data: { status: SaleStatus.INVOICED, isLocked: true },
+            data: { status: SaleStatus.INVOICED, ...buildLockData('LOCKED', 'ออกใบกำกับภาษีแล้ว') },
+          });
+
+          // Mirror invoice state to SaleStatus child table (if exists)
+          await (prisma as any).saleStatus.updateMany({
+            where: { saleId },
+            data: {
+              status:        SaleStatus.INVOICED,
+              billingStatus: 'BILLED',
+              editLockStatus:'LOCKED',
+              lockReason:    'ออกใบกำกับภาษีแล้ว',
+            },
           });
 
           return { invoiceNumber: sale.invoiceNumber };
@@ -738,7 +814,18 @@ export const SaleService: ISaleService = {
             data: {
               status: SaleStatus.COMPLETED,
               bookingStatus: BookingStatus.DEDUCTED,
-              isLocked: true,
+              ...buildLockData('LOCKED', 'ปิดการขายแล้ว'),
+            },
+          });
+
+          // Mirror complete state to SaleStatus child table (if exists)
+          await (prisma as any).saleStatus.updateMany({
+            where: { saleId },
+            data: {
+              status:        SaleStatus.COMPLETED,
+              bookingStatus: BookingStatus.DEDUCTED,
+              editLockStatus:'LOCKED',
+              lockReason:    'ปิดการขายแล้ว',
             },
           });
 
@@ -777,13 +864,13 @@ export const SaleService: ISaleService = {
   async getLockedFields(saleId: string, ctx: RequestContext): Promise<string[]> {
     const sale = await db.sale.findFirst({
       where: { id: saleId, shopId: ctx.shopId },
-      select: { status: true, isLocked: true },
+      select: { status: true, editLockStatus: true },
     });
 
     if (!sale) return [];
 
     const locked = [];
-    if (sale.isLocked || sale.status === SaleStatus.INVOICED || sale.status === SaleStatus.COMPLETED) {
+    if (resolveLocked(sale) || sale.status === SaleStatus.INVOICED || sale.status === SaleStatus.COMPLETED) {
       locked.push('items', 'customerId', 'discountType', 'discountValue');
     }
     if (sale.status === SaleStatus.COMPLETED) {

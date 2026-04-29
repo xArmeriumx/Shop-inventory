@@ -29,6 +29,25 @@ export interface SaleDetailDTO extends SaleListDTO {
     // Sensitive fields (filtered by permission)
     totalCost?: number;
     profit?: number;
+
+    // ── Fields from SaleStatus child table ──────────────────────────────
+    billingStatus?: string;
+    deliveryStatus?: string;
+    bookingStatus?: string;
+    editLockStatus?: string;
+    isLocked?: boolean;
+    lockReason?: string | null;
+    cancelReason?: string | null;
+
+    // ── Fields from SaleTaxSummary child table ───────────────────────────
+    taxMode?: string;
+    taxRate?: number;
+
+    // ── Fields from SalePaymentDetail child table ────────────────────────
+    paymentProof?: string | null;
+    paymentNote?: string | null;
+    paymentVerifiedAt?: Date | null;
+    paymentStatusProof?: string;
 }
 
 export interface SaleItemDTO {

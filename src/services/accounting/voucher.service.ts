@@ -61,13 +61,15 @@ export const VoucherService = {
 
             // 4. Create Allocations & Update Invoices
             for (const alloc of allocations) {
-                // 4.1 Create Allocation Record
+                // 4.1 Create Allocation Record (Polymorphic)
                 await (tx as any).paymentAllocation.create({
                     data: {
-                        shopId: ctx.shopId,
-                        paymentId: payment.id,
-                        invoiceId: alloc.invoiceId,
-                        amount: alloc.amount,
+                        shopId:       ctx.shopId,
+                        paymentId:    payment.id,
+                        documentType: 'INVOICE',
+                        documentId:   alloc.invoiceId,
+                        invoiceId:    alloc.invoiceId,  // legacy mirror
+                        amount:       alloc.amount,
                     },
                 });
 
@@ -83,9 +85,11 @@ export const VoucherService = {
                     throw new ServiceError(`ยอดตัดชำระเกินยอดค้าง (เลขที่: ${invoice.invoiceNo}, ค้างอยู่: ${currentResidual})`);
                 }
 
-                // 4.3 Update Document Balance (SSOT)
-                // Use existing helper but pass the transaction
-                await PaymentService.recalculateDocumentBalance({ invoiceId: alloc.invoiceId }, tx);
+                // 4.3 Update Document Balance (SSOT — Polymorphic)
+                await PaymentService.recalculateDocumentBalance(
+                    { documentType: 'INVOICE', documentId: alloc.invoiceId },
+                    tx
+                );
             }
 
             // 5. Automated Journal Posting (SSOT)
@@ -148,10 +152,12 @@ export const VoucherService = {
             for (const alloc of allocations) {
                 await (tx as any).paymentAllocation.create({
                     data: {
-                        shopId: ctx.shopId,
-                        paymentId: payment.id,
-                        purchaseId: alloc.purchaseId,
-                        amount: alloc.amount,
+                        shopId:       ctx.shopId,
+                        paymentId:    payment.id,
+                        documentType: 'PURCHASE',
+                        documentId:   alloc.purchaseId,
+                        purchaseId:   alloc.purchaseId,  // legacy mirror
+                        amount:       alloc.amount,
                     },
                 });
 
@@ -166,7 +172,10 @@ export const VoucherService = {
                     throw new ServiceError(`ยอดตัดจ่ายเกินยอดค้าง (เลขที่: ${purchase.purchaseNumber}, ค้างอยู่: ${currentResidual})`);
                 }
 
-                await PaymentService.recalculateDocumentBalance({ purchaseId: alloc.purchaseId } as any, tx);
+                await PaymentService.recalculateDocumentBalance(
+                    { documentType: 'PURCHASE', documentId: alloc.purchaseId },
+                    tx
+                );
             }
 
             await this.postPaymentVoucher(ctx, payment, tx);

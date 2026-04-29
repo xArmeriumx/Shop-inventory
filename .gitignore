@@ -46,3 +46,14 @@ prisma/*.db-journal
 *.md
 !README.md
 !readme.md
+
+# Internal / One-off scripts (not for public)
+scripts/
+debug-*.ts
+verify-*.ts
+*.pdf
+
+# Internal agent context docs
+docs/standards/
+.agent/
+.agents/

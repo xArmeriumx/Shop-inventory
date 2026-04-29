@@ -14,6 +14,7 @@ import { JournalService } from '@/services/accounting/journal.service';
 import { INVOICE_TAGS, SALES_TAGS, ACCOUNTING_TAGS } from '@/config/cache-tags';
 
 import { GetInvoicesParams } from './sales.types';
+import { buildLockData } from '@/lib/lock-helpers';
 
 export const InvoiceService = {
 
@@ -288,14 +289,12 @@ export const InvoiceService = {
                 include: { items: true, customer: true },
             });
 
-            // 10. Lock Sale
+            // 10. Lock Sale — Write-Through (sync both isLocked + editLockStatus)
             await tx.sale.update({
                 where: { id: saleId },
                 data: {
                     billingStatus: 'BILLED',
-                    editLockStatus: 'BILLED' as any,
-                    lockReason: `เอกสารถูกล็อกเนื่องจากมีการออกใบแจ้งหนี้เลขที่ ${invoiceNo} แล้ว`,
-                    isLocked: true,
+                    ...buildLockData('BILLED', `เอกสารถูกล็อกเนื่องจากมีการออกใบแจ้งหนี้เลขที่ ${invoiceNo} แล้ว`),
                 },
             });
 
@@ -453,9 +452,7 @@ export const InvoiceService = {
                     where: { id: invoice.saleId },
                     data: {
                         billingStatus: 'UNBILLED',
-                        editLockStatus: null,
-                        lockReason: null,
-                        isLocked: false,
+                        ...buildLockData('NONE', null),
                     },
                 });
             }
