@@ -83,24 +83,50 @@ export const PaymentService = {
                 throw new ServiceError(`ยอดชำระเกินจำนวนที่ค้างอยู่ (คงค้าง: ${currentResidual.toLocaleString()} THB)`);
             }
 
-            // 5. Generate Payment Number (Professional RCP-XXXX)
+            // 5. Generate Payment Number
             const paymentNo = await SequenceService.generate(ctx, DocumentType.PAYMENT, tx);
 
-            // 6. Create Ledger Entry
+            // 6. Resolve Polymorphic documentType
+            const documentType = data.invoiceId  ? 'INVOICE'
+                               : data.saleId     ? 'SALE'
+                               : data.purchaseId ? 'PURCHASE'
+                               : 'EXPENSE';
+            const documentId = (data.invoiceId ?? data.saleId ?? data.purchaseId ?? data.expenseId)!;
+
+            // 7. Create Ledger Entry (legacy FKs kept for transition)
             const payment = await (tx as any).payment.create({
                 data: {
-                    shopId: ctx.shopId,
-                    memberId: ctx.memberId!,
-                    invoiceId: data.invoiceId,
-                    saleId: data.saleId,
-                    paymentNo, // Added professional sequence
-                    type: 'IN', // Phase 4 focusing on Receipts
-                    amount: data.amount,
+                    shopId:           ctx.shopId,
+                    memberId:         ctx.memberId!,
+                    paymentNo,
+                    type:             'IN',
+                    amount:           data.amount,
                     paymentMethodCode: data.paymentMethodCode,
-                    paymentDate: data.paymentDate || new Date(),
-                    referenceId: data.referenceId,
-                    note: data.note,
-                    status: 'POSTED',
+                    paymentDate:      data.paymentDate || new Date(),
+                    referenceId:      data.referenceId,
+                    note:             data.note,
+                    status:           'POSTED',
+                    // ⚠️ Legacy FKs — Transition Period Only (Phase 4 cleanup)
+                    invoiceId:        data.invoiceId,
+                    saleId:           data.saleId,
+                    purchaseId:       data.purchaseId,
+                    expenseId:        data.expenseId,
+                },
+            });
+
+            // 8. Create Polymorphic Allocation (SSOT for balance calc)
+            await (tx as any).paymentAllocation.create({
+                data: {
+                    shopId:       ctx.shopId,
+                    paymentId:    payment.id,
+                    documentType,
+                    documentId,
+                    amount:       data.amount,
+                    // mirror legacy FKs during transition
+                    invoiceId:    data.invoiceId,
+                    saleId:       data.saleId,
+                    purchaseId:   data.purchaseId,
+                    expenseId:    data.expenseId,
                 },
             });
 
@@ -147,19 +173,15 @@ export const PaymentService = {
                 }, tx);
             }
 
-            // 6. Sync Snapshots (Recalculate from Ledger)
-            const balanceTarget = data.invoiceId ? { invoiceId: data.invoiceId }
-                : data.saleId ? { saleId: data.saleId }
-                    : data.purchaseId ? { purchaseId: data.purchaseId }
-                        : { expenseId: data.expenseId! };
-            await this.recalculateDocumentBalance(balanceTarget as any, tx);
+            // 9. Sync Snapshots via Polymorphic target
+            await this.recalculateDocumentBalance({ documentType, documentId }, tx);
 
-            // 7. Audit Log
+            // 10. Audit Log
             await AuditService.runWithAudit(ctx, {
                 action: AUDIT_ACTIONS.PAYMENT_RECORD,
                 targetType: 'Payment',
                 targetId: payment.id,
-                note: `ชำระเงินจำนวน ${data.amount} THB สำหรับ ${data.invoiceId ? 'Invoice' : data.saleId ? 'Sale' : data.purchaseId ? 'Purchase' : 'Expense'}${data.whtCodeId ? ' (รวมหัก ณ ที่จ่าย)' : ''}`,
+                note: `ชำระเงินจำนวน ${data.amount} THB สำหรับ ${documentType}${data.whtCodeId ? ' (รวมหัก ณ ที่จ่าย)' : ''}`,
             }, async () => payment, tx);
 
             return payment;
@@ -224,12 +246,16 @@ export const PaymentService = {
                 }
             }
 
-            // Sync Snapshots (handle all parent types)
-            const voidBalanceTarget = existing.invoiceId ? { invoiceId: existing.invoiceId }
-                : existing.saleId ? { saleId: existing.saleId }
-                    : existing.purchaseId ? { purchaseId: existing.purchaseId }
-                        : { expenseId: existing.expenseId! };
-            await this.recalculateDocumentBalance(voidBalanceTarget as any, tx);
+            // Sync Snapshots via Polymorphic target (read from first allocation)
+            const firstAlloc = await (tx as any).paymentAllocation.findFirst({
+                where: { paymentId: existing.id },
+            });
+            if (firstAlloc?.documentType && firstAlloc?.documentId) {
+                await this.recalculateDocumentBalance(
+                    { documentType: firstAlloc.documentType, documentId: firstAlloc.documentId },
+                    tx
+                );
+            }
 
             // Audit Log
             await AuditService.runWithAudit(ctx, {
@@ -245,84 +271,62 @@ export const PaymentService = {
     },
 
     /**
-     * Re-synchronizes snapshots from the payment ledger.
-     * This is the SSOT for residual totals.
+     * Re-synchronizes payment snapshots via Polymorphic Junction.
+     * Single SSOT path — no more if/else COALESCE chains.
      */
-    async recalculateDocumentBalance(target: { invoiceId?: string; saleId?: string; purchaseId?: string; expenseId?: string }, tx: any = db) {
-        const where = target.invoiceId ? { invoiceId: target.invoiceId } :
-            target.purchaseId ? { purchaseId: target.purchaseId } :
-                { saleId: target.saleId };
+    async recalculateDocumentBalance(
+        target: { documentType: string; documentId: string },
+        tx: any = db
+    ) {
+        const { documentType, documentId } = target;
 
-        // ERP Rule: Sum all allocations linked to this document via POSTED payments
+        // 1. Sum all POSTED allocations for this document (Polymorphic SSOT)
         const allocations = await (tx as any).paymentAllocation.findMany({
             where: {
-                ...where,
-                payment: { status: 'POSTED' }
+                documentType,
+                documentId,
+                payment: { status: 'POSTED' },
             },
         });
 
-        // 1.1 Support legacy Payment records for backward compatibility (if any)
-        // In the future, we should migrate all to allocations.
-        const legacyPayments = await (tx as any).payment.findMany({
-            where: {
-                ...where,
-                status: 'POSTED',
-                allocations: { none: {} } // Only sum if no allocations exist for this payment
-            },
-        });
-
-        const totalPaid = money.add(
-            allocations.reduce((sum: number, a: any) => money.add(sum, toNumber(a.amount)), 0),
-            legacyPayments.reduce((sum: number, p: any) => money.add(sum, toNumber(p.amount)), 0)
+        const totalPaid = allocations.reduce(
+            (sum: number, a: any) => money.add(sum, toNumber(a.amount)),
+            0
         );
 
-        // Get parent total
-        let parent: any = null;
-        let updateModel: any = null;
-        let parentId: string = '';
+        // 2. Resolve parent model dynamically (no if/else needed for new types)
+        const modelMap: Record<string, any> = {
+            INVOICE:  (tx as any).invoice,
+            SALE:     (tx as any).sale,
+            PURCHASE: (tx as any).purchase,
+            EXPENSE:  (tx as any).expense,
+        };
+        const updateModel = modelMap[documentType];
+        if (!updateModel) throw new Error(`Unknown documentType: ${documentType}`);
 
-        if (target.invoiceId) {
-            parent = await (tx as any).invoice.findUnique({ where: { id: target.invoiceId } });
-            updateModel = (tx as any).invoice;
-            parentId = target.invoiceId;
-        } else if (target.saleId) {
-            parent = await (tx as any).sale.findUnique({ where: { id: target.saleId } });
-            updateModel = (tx as any).sale;
-            parentId = target.saleId;
-        } else if ((target as any).purchaseId) {
-            parent = await (tx as any).purchase.findUnique({ where: { id: (target as any).purchaseId } });
-            updateModel = (tx as any).purchase;
-            parentId = (target as any).purchaseId;
-        } else if ((target as any).expenseId) {
-            parent = await (tx as any).expense.findUnique({ where: { id: (target as any).expenseId } });
-            updateModel = (tx as any).expense;
-            parentId = (target as any).expenseId;
-        }
+        const parent = await updateModel.findUnique({ where: { id: documentId } });
+        if (!parent) return; // Document deleted — skip silently
 
-        // SSOT: ใช้ netAmount เป็นหลัก (ยอดรวม tax ที่ต้องจ่ายจริง)
-        // fallback เป็น totalAmount สำหรับ document ที่ไม่มี netAmount (e.g. Purchase)
+        // 3. Calculate residual
         const totalAmount = toNumber(parent.netAmount ?? parent.totalAmount);
         const residualAmount = Math.max(0, totalAmount - totalPaid);
 
-        // Determine Status
+        // 4. Determine Status
         let status: any = 'UNPAID';
-        if (totalPaid >= totalAmount) {
-            status = 'PAID';
-        } else if (totalPaid > 0) {
-            status = 'PARTIAL';
-        }
+        if (totalPaid >= totalAmount)  status = 'PAID';
+        else if (totalPaid > 0)        status = 'PARTIAL';
 
-        // Update Snapshots
-        await (updateModel as any).update({
-            where: { id: parentId },
+        // 5. Update Snapshots
+        await updateModel.update({
+            where: { id: documentId },
             data: {
-                paidAmount: totalPaid,
-                residualAmount: residualAmount,
-                paymentStatus: status,
-                // Sync legacy billingStatus if Sale
-                ...(target.saleId && {
-                    billingStatus: status === 'PAID' ? 'PAID' : status === 'PARTIAL' ? 'BILLED' : 'UNBILLED'
-                })
+                paidAmount:     totalPaid,
+                residualAmount,
+                paymentStatus:  status,
+                // Sale-specific: sync billingStatus
+                ...(documentType === 'SALE' && {
+                    billingStatus: status === 'PAID' ? 'PAID' : status === 'PARTIAL' ? 'BILLED' : 'UNBILLED',
+                }),
             },
         });
     },
