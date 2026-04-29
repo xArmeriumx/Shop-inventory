@@ -1,0 +1,6 @@
+flowchart LR
+    Session["SessionContext\nuserId shopId memberId"] --> Service["Service Method"]
+    Service --> Guard["Security.assertSameShop"]
+    Service --> Query["Prisma where: { shopId: ctx.shopId }"]
+    Query --> Data[("Tenant Data")]
+    Guard --> Audit["Audit denied if cross-tenant"]

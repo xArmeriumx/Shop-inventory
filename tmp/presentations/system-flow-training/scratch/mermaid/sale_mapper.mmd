@@ -1,0 +1,7 @@
+flowchart LR
+    DB["Sale DB Record"] --> Legacy["Legacy Fields\nstatus tax payment"]
+    DB --> Child["Child Tables\nSaleStatus SaleTaxSummary SalePaymentDetail"]
+    Legacy --> Mapper["SaleMapper\nresolve with fallback"]
+    Child --> Mapper
+    Mapper --> DTO["Flat DTO for UI\nSaleListDTO / SaleDetailDTO"]
+    DTO --> UI["UI Components"]

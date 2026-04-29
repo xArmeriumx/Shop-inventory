@@ -47,31 +47,41 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
   const userId = session.user.id;
   const shopId = session.user.shopId;
   const sessionVersion = session.user.sessionVersion || 1;
-  const permissionVersion = session.user.permissionVersion || 1;
 
-  // 1. FAST PATH: Check Permission Cache if we have shopId and version
+  // 1. FAST PATH: Check Permission Cache if we have shopId
   if (shopId) {
-    const cacheKey = `${userId}:${shopId}:${permissionVersion}`;
-    const cached = permissionCache.get(cacheKey);
+    // Check DB for current sessionVersion AND permissionVersion
+    const user = await db.user.findUnique({
+      where: { id: userId },
+      select: { 
+        sessionVersion: true,
+        memberships: {
+          where: { shopId },
+          take: 1,
+          select: { permissionVersion: true }
+        }
+      }
+    });
 
-    if (cached) {
-      // Still need revocation check for the whole session
-      const user = await db.user.findUnique({
-        where: { id: userId },
-        select: { sessionVersion: true }
-      });
+    if (user && user.sessionVersion <= sessionVersion) {
+      const member = user.memberships[0];
+      if (member) {
+        const dbPermissionVersion = member.permissionVersion;
+        const cacheKey = `${userId}:${shopId}:${dbPermissionVersion}`;
+        const cached = permissionCache.get(cacheKey);
 
-      if (user && user.sessionVersion <= sessionVersion) {
-        return {
-          userId,
-          userName: session.user.name || "Unknown User",
-          userEmail: session.user.email,
-          shopId,
-          memberId: cached.memberId,
-          permissions: cached.permissions,
-          isOwner: cached.isOwner,
-          sessionVersion: user.sessionVersion,
-        };
+        if (cached) {
+          return {
+            userId,
+            userName: session.user.name || "Unknown User",
+            userEmail: session.user.email,
+            shopId,
+            memberId: cached.memberId,
+            permissions: cached.permissions,
+            isOwner: cached.isOwner,
+            sessionVersion: user.sessionVersion,
+          };
+        }
       }
     }
   }

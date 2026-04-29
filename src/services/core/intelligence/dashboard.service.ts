@@ -205,7 +205,7 @@ export const DashboardService = {
       },
       stockValue: {
         total: totalStockValue,
-        itemCount: stockProducts.length,
+        itemCount: (stockProducts as any[]).reduce((sum, ws) => sum + (toNumber(ws.quantity) || 0), 0),
       },
       governanceHealth: AuditService.getGovernanceHealth(),
     };

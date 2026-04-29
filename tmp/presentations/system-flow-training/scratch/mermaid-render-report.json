@@ -1,0 +1,86 @@
+{
+  "architecture": {
+    "mmdPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/mermaid/architecture.mmd",
+    "svgPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/assets/architecture.svg",
+    "pngPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/assets/architecture.png",
+    "renderedBy": "mermaid-cli"
+  },
+  "project_structure": {
+    "mmdPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/mermaid/project_structure.mmd",
+    "svgPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/assets/project_structure.svg",
+    "pngPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/assets/project_structure.png",
+    "renderedBy": "mermaid-cli"
+  },
+  "request_lifecycle": {
+    "mmdPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/mermaid/request_lifecycle.mmd",
+    "svgPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/assets/request_lifecycle.svg",
+    "pngPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/assets/request_lifecycle.png",
+    "renderedBy": "mermaid-cli"
+  },
+  "auth_rbac": {
+    "mmdPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/mermaid/auth_rbac.mmd",
+    "svgPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/assets/auth_rbac.svg",
+    "pngPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/assets/auth_rbac.png",
+    "renderedBy": "mermaid-cli"
+  },
+  "db_domain_map": {
+    "mmdPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/mermaid/db_domain_map.mmd",
+    "svgPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/assets/db_domain_map.svg",
+    "pngPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/assets/db_domain_map.png",
+    "renderedBy": "mermaid-cli"
+  },
+  "tenant_boundary": {
+    "mmdPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/mermaid/tenant_boundary.mmd",
+    "svgPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/assets/tenant_boundary.svg",
+    "pngPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/assets/tenant_boundary.png",
+    "renderedBy": "mermaid-cli"
+  },
+  "inventory_flow": {
+    "mmdPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/mermaid/inventory_flow.mmd",
+    "svgPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/assets/inventory_flow.svg",
+    "pngPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/assets/inventory_flow.png",
+    "renderedBy": "mermaid-cli"
+  },
+  "sales_flow": {
+    "mmdPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/mermaid/sales_flow.mmd",
+    "svgPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/assets/sales_flow.svg",
+    "pngPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/assets/sales_flow.png",
+    "renderedBy": "mermaid-cli"
+  },
+  "sale_mapper": {
+    "mmdPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/mermaid/sale_mapper.mmd",
+    "svgPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/assets/sale_mapper.svg",
+    "pngPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/assets/sale_mapper.png",
+    "renderedBy": "mermaid-cli"
+  },
+  "procurement_flow": {
+    "mmdPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/mermaid/procurement_flow.mmd",
+    "svgPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/assets/procurement_flow.svg",
+    "pngPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/assets/procurement_flow.png",
+    "renderedBy": "mermaid-cli"
+  },
+  "tax_accounting": {
+    "mmdPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/mermaid/tax_accounting.mmd",
+    "svgPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/assets/tax_accounting.svg",
+    "pngPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/assets/tax_accounting.png",
+    "renderedBy": "mermaid-cli"
+  },
+  "ai_ocr": {
+    "mmdPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/mermaid/ai_ocr.mmd",
+    "svgPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/assets/ai_ocr.svg",
+    "pngPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/assets/ai_ocr.png",
+    "renderedBy": "mermaid-cli"
+  },
+  "usage_flow": {
+    "mmdPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/mermaid/usage_flow.mmd",
+    "svgPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/assets/usage_flow.svg",
+    "pngPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/assets/usage_flow.png",
+    "renderedBy": "mermaid-cli"
+  },
+  "debug_path": {
+    "mmdPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/mermaid/debug_path.mmd",
+    "svgPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/assets/debug_path.svg",
+    "pngPath": "/Users/napat.a/Desktop/Live Coding/Shop-inventory/tmp/presentations/system-flow-training/scratch/assets/debug_path.png",
+    "renderedBy": "mermaid-cli"
+  }
+}

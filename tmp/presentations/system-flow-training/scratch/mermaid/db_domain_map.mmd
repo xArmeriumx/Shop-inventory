@@ -1,0 +1,17 @@
+flowchart TB
+    Shop["Shop / Tenant"] --> IAM["IAM\nUser Role Member"]
+    Shop --> Master["Master Data\nProduct Customer Supplier"]
+    Shop --> Inventory["Inventory\nWarehouseStock StockLog"]
+    Shop --> Sales["Sales\nSale Invoice Payment"]
+    Shop --> Procurement["Procurement\nPurchase Receiving"]
+    Shop --> Tax["Tax\nVAT WHT TaxCode"]
+    Shop --> Accounting["Accounting\nAccount Journal Bank"]
+    Shop --> Core["Core\nAudit Sequence Approval"]
+    Master --> Inventory
+    Inventory --> Sales
+    Procurement --> Inventory
+    Sales --> Tax
+    Procurement --> Tax
+    Sales --> Accounting
+    Procurement --> Accounting
+    Core --> Sales

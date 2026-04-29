@@ -1,0 +1,11 @@
+flowchart LR
+    PR["Order Request / PR"] --> Approval["Approval Workflow"]
+    Approval --> PO["Purchase Order"]
+    PO --> Supplier["Supplier + SupplierProduct"]
+    PO --> Receive["Purchase Receiving"]
+    Receive --> Receipt["PurchaseReceipt + Lines"]
+    Receipt --> StockIn["StockEngine PURCHASE"]
+    StockIn --> Cost["Update Cost / Inventory Value"]
+    Receipt --> Tax["Purchase Tax Document"]
+    Receipt --> AP["Accounting AP / Inventory Posting"]
+    PO --> Audit["AuditLog"]

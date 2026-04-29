@@ -148,7 +148,8 @@ export function POSPaymentDialog({
   };
 
   const handleConfirm = async () => {
-    const received = selectedMethod === 'CASH' ? parseFloat(amountReceived) || cart.totalAmount : undefined;
+    const parsedAmount = parseFloat(amountReceived);
+    const received = selectedMethod === 'CASH' ? (!isNaN(parsedAmount) ? parsedAmount : cart.totalAmount) : undefined;
     const changeAmount = selectedMethod === 'CASH' ? change : undefined;
 
     // Upload slip if present (for TRANSFER)
@@ -161,7 +162,7 @@ export function POSPaymentDialog({
     await onConfirm(selectedMethod, received, changeAmount, receiptUrl);
   };
 
-  const isCashValid = selectedMethod !== 'CASH' || (parseFloat(amountReceived) || 0) >= cart.totalAmount;
+  const isCashValid = selectedMethod !== 'CASH' || amountReceived === '' || (parseFloat(amountReceived) || 0) >= cart.totalAmount;
   const hasSlip = !!slipPreview;
 
   return (

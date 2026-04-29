@@ -1,0 +1,12 @@
+flowchart LR
+    Start["POS / ERP Sale\nCustomer + Items"]
+    Start --> Validate["Validate + Calculate\nStock / VAT / Profit"]
+    Validate --> Sale["Create Sale\nSaleItem + Child Tables"]
+    Sale --> Reserve["Reserve Stock"]
+    Sale --> Invoice["Invoice"]
+    Invoice --> Payment["Payment"]
+    Invoice --> Delivery["Delivery / Shipment"]
+    Delivery --> Deduct["Deduct Stock"]
+    Payment --> Journal["JournalEntry"]
+    Deduct --> Journal
+    Sale --> Audit["Audit + Notification"]

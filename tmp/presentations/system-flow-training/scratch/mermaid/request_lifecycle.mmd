@@ -1,0 +1,19 @@
+sequenceDiagram
+    actor User
+    participant UI as Client Component
+    participant Action as Server Action
+    participant Auth as requirePermission
+    participant Zod as Zod Schema
+    participant Service as ProductService
+    participant Stock as StockEngine
+    participant DB as Prisma/PostgreSQL
+    User->>UI: Submit form
+    UI->>Action: createProduct(input)
+    Action->>Auth: session + PRODUCT_CREATE
+    Action->>Zod: validate + sanitize
+    Action->>Service: create(ctx, payload)
+    Service->>DB: create Product transaction
+    Service->>Stock: initial stock movement
+    Stock->>DB: WarehouseStock + StockLog
+    Service-->>Action: data + affectedTags
+    Action-->>UI: ActionResponse

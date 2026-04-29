@@ -1,0 +1,10 @@
+flowchart LR
+    App["src/app\nRoutes + Pages"] --> Components["src/components\nUI ตาม domain"]
+    Components --> Actions["src/actions\nServer Actions"]
+    App --> Actions
+    Actions --> Schemas["src/schemas\nValidation"]
+    Actions --> Services["src/services\nBusiness Logic"]
+    Services --> Policies["src/policies\nAudit Policies"]
+    Services --> Lib["src/lib\nShared Infra"]
+    Services --> Types["src/types\nDTO + Contracts"]
+    Services --> Prisma["prisma/schema.prisma\nDatabase Models"]

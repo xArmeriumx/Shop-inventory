@@ -1,0 +1,10 @@
+flowchart TB
+    User["ผู้ใช้ถาม AI / Upload OCR"] --> API["API Route\n/api/ai/chat / api/ocr"]
+    API --> Auth["withAuth + Rate Limit"]
+    Auth --> Context["Shop Context"]
+    Context --> Groq["Groq LLM"]
+    Groq --> Tools["ERP AI Tools"]
+    Tools --> Services["ERP Services"]
+    Services --> DB[("Database")]
+    Groq --> Response["Stream / JSON Response"]
+    Tools --> Response

@@ -1,0 +1,9 @@
+flowchart TB
+    Login["Login Credentials"] --> JWT["NextAuth JWT Session"]
+    JWT --> Middleware["Middleware route guard"]
+    Middleware --> Context["getSessionContext()"]
+    Context --> Member["ShopMember"]
+    Member --> Role["Role.permissions"]
+    Role --> Context
+    Context --> Action["Server Action"]
+    Action --> Service["Service Security.require"]

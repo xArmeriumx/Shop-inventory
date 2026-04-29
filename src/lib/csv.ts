@@ -1,6 +1,8 @@
+import { toast } from 'sonner';
+
 export function downloadCSV(data: any[], filename: string) {
   if (!data || data.length === 0) {
-    alert('ไม่มีข้อมูลสำหรับ Export');
+    toast.error('ไม่มีข้อมูลสำหรับ Export');
     return;
   }
 

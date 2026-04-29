@@ -1,0 +1,7 @@
+flowchart LR
+    Movement["Movement Request\nSALE PURCHASE ADJUSTMENT TRANSFER"] --> Engine["StockEngine.executeMovement"]
+    Engine --> Resolve["resolveWarehouse"]
+    Resolve --> Validate["Validate Stock\nSTRICT / WARN / ALLOW_NEGATIVE"]
+    Validate --> Upsert["Upsert WarehouseStock\nSource of Truth"]
+    Upsert --> Sync["Sync Product.stock\nRead Cache"]
+    Sync --> Log["Create StockLog\nAudit Trail"]

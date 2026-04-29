@@ -1,0 +1,12 @@
+flowchart TB
+    User["ผู้ใช้งาน\nBrowser / POS / Electron"] --> UI["UI\nsrc/app + components"]
+    UI --> Actions["Server Actions\nsrc/actions"]
+    Actions --> Guard["Auth Guard\nRBAC + Rate Limit"]
+    Actions --> Schemas["Zod Schemas\nvalidate + sanitize"]
+    Guard --> Services["Service Layer\nsrc/services"]
+    Schemas --> Services
+    Services --> Core["Core Services\nAudit / Sequence / Workflow / Security"]
+    Services --> Prisma["Prisma Client\nsrc/lib/db.ts"]
+    Prisma --> DB[("PostgreSQL")]
+    Services --> Storage["Supabase Storage"]
+    Services --> AI["Groq AI / OCR / Tools"]

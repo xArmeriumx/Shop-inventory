@@ -1,0 +1,10 @@
+flowchart LR
+    Setup["ตั้งค่าร้าน\nShop Role Warehouse Tax COA"] --> Master["Master Data\nProduct Customer Supplier"]
+    Master --> Buy["ซื้อเข้า\nPR -> PO -> Receiving"]
+    Buy --> StockIn["Stock In\nWarehouseStock + StockLog"]
+    StockIn --> Sell["ขายออก\nPOS/Sale -> Invoice -> Payment"]
+    Sell --> StockOut["Stock Out\nDelivery / Shipment"]
+    Sell --> Finance["Accounting + Tax\nJournal VAT WHT"]
+    StockOut --> Finance
+    Finance --> Report["Dashboard / Reports / Audit"]
+    Report --> Master

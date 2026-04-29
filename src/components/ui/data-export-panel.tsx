@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { FileDown, Loader2, Calendar } from 'lucide-react';
 import { downloadCSV } from '@/lib/csv';
 
+import { toast } from 'sonner';
+
 // =============================================================================
 // DataExportPanel — Reusable export component for any module
 // Usage: <DataExportPanel exportFn={fn} filename="purchases" requireDateRange />
@@ -49,7 +51,7 @@ export function DataExportPanel({
         const typedResult = result as any;
         if (typedResult && typeof typedResult === 'object' && 'success' in typedResult) {
           if (!typedResult.success) {
-            alert(typedResult.message || 'เกิดข้อผิดพลาดในการ Export');
+            toast.error(typedResult.message || 'เกิดข้อผิดพลาดในการ Export');
             return;
           }
           data = typedResult.data || [];
@@ -59,14 +61,14 @@ export function DataExportPanel({
         }
 
         if (!data || data.length === 0) {
-          alert('ไม่มีข้อมูลในช่วงเวลาที่เลือก');
+          toast.error('ไม่มีข้อมูลในช่วงเวลาที่เลือก');
           return;
         }
 
         const dateRange = requireDateRange ? `-${startDate}-to-${endDate}` : '';
         downloadCSV(data, `${filename}${dateRange}`);
       } catch (error: any) {
-        alert(error.message || 'เกิดข้อผิดพลาดในการ Export');
+        toast.error(error.message || 'เกิดข้อผิดพลาดในการ Export');
       }
     });
   };

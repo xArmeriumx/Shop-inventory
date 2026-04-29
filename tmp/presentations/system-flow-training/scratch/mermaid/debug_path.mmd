@@ -1,0 +1,7 @@
+flowchart LR
+    Route["1 Route/Page"] --> Component["2 Component"]
+    Component --> Action["3 Server Action"]
+    Action --> Schema["4 Zod Schema"]
+    Schema --> Service["5 Service"]
+    Service --> Model["6 Prisma Model"]
+    Model --> Core["7 Core Side Effects\nAudit Stock Accounting Cache"]

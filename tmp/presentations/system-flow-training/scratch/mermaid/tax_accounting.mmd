@@ -1,0 +1,10 @@
+flowchart LR
+    Doc["Business Document\nInvoice Payment Purchase Return"] --> TaxResolution["TaxResolutionService"]
+    TaxResolution --> Compute["ComputationEngine"]
+    Compute --> TaxEntries["SalesTax / PurchaseTax / WHT"]
+    Doc --> Posting["PostingService\npreview / post"]
+    Posting --> Mapping["Account Mapping"]
+    Mapping --> Period["AccountingPeriod Lock"]
+    Period --> Journal["JournalEntry + JournalLine"]
+    Journal --> Reports["Financial Reports"]
+    TaxEntries --> Reports

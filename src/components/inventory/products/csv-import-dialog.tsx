@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import {
   Dialog,
   DialogContent,
@@ -81,7 +82,7 @@ export function CSVImportDialog({ open, onClose }: CSVImportDialogProps) {
   // Handle file selection
   const handleFile = useCallback(async (file: File) => {
     if (!file.name.endsWith('.csv')) {
-      alert('กรุณาเลือกไฟล์ .csv เท่านั้น');
+      toast.error('กรุณาเลือกไฟล์ .csv เท่านั้น');
       return;
     }
 
@@ -89,7 +90,7 @@ export function CSVImportDialog({ open, onClose }: CSVImportDialogProps) {
     const result = await parseCSVFile(file);
 
     if (result.totalRows === 0) {
-      alert('ไฟล์ว่างเปล่าหรือรูปแบบไม่ถูกต้อง');
+      toast.error('ไฟล์ว่างเปล่าหรือรูปแบบไม่ถูกต้อง');
       return;
     }
 
@@ -103,7 +104,7 @@ export function CSVImportDialog({ open, onClose }: CSVImportDialogProps) {
 
     const validProducts = parseResult.products.filter(p => p._isValid);
     if (validProducts.length === 0) {
-      alert('ไม่มีข้อมูลที่ถูกต้องสำหรับนำเข้า');
+      toast.error('ไม่มีข้อมูลที่ถูกต้องสำหรับนำเข้า');
       return;
     }
 

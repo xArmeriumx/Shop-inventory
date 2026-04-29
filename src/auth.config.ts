@@ -36,7 +36,21 @@ export const authConfig = {
                             nextUrl.pathname.startsWith('/suppliers') ||
                             nextUrl.pathname.startsWith('/reports') ||
                             nextUrl.pathname.startsWith('/settings') ||
-                            nextUrl.pathname.startsWith('/pos');
+                            nextUrl.pathname.startsWith('/pos') ||
+                            nextUrl.pathname.startsWith('/shipments') ||
+                            nextUrl.pathname.startsWith('/deliveries') ||
+                            nextUrl.pathname.startsWith('/invoices') ||
+                            nextUrl.pathname.startsWith('/returns') ||
+                            nextUrl.pathname.startsWith('/quotations') ||
+                            nextUrl.pathname.startsWith('/inventory') ||
+                            nextUrl.pathname.startsWith('/warehouse') ||
+                            nextUrl.pathname.startsWith('/order-requests') ||
+                            nextUrl.pathname.startsWith('/incomes') ||
+                            nextUrl.pathname.startsWith('/accounting') ||
+                            nextUrl.pathname.startsWith('/tax') ||
+                            nextUrl.pathname.startsWith('/approvals') ||
+                            nextUrl.pathname.startsWith('/system') ||
+                            nextUrl.pathname.startsWith('/ai');
       const isOnOnboarding = nextUrl.pathname.startsWith('/onboarding');
 
       if (isOnDashboard) {
