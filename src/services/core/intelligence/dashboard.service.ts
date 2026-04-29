@@ -148,11 +148,11 @@ export const DashboardService = {
         _sum: { amount: true },
         _count: true,
       }),
-      // 10. Stock value data: Always fetch from WarehouseStock for SSOT
+      // 10. Stock value data: Aligned with Reports (Active products only, including negative stock)
       db.warehouseStock.findMany({
         where: {
           shopId: ctx.shopId,
-          quantity: { gt: 0 },
+          product: { isActive: true, deletedAt: null },
           ...(warehouseId ? { warehouseId: warehouseId } : {})
         },
         select: { quantity: true, product: { select: { costPrice: true } } }
