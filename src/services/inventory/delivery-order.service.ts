@@ -296,7 +296,8 @@ export const DeliveryOrderService = {
                 }
 
                 // ── 1. Deduct Stock ─────────────────────────────────────────
-                const defaultWh = await WarehouseService.getDefaultWarehouse(ctx);
+                // FIX: ส่ง tx ไปด้วยเสมอ — ป้องกัน nested connection deadlock (connection_limit=1)
+                const defaultWh = await WarehouseService.getDefaultWarehouse(ctx, tx);
                 if (!defaultWh) throw new ServiceError('ไม่พบคลังสินค้าหลัก กรุณาสร้างคลังสินค้าก่อน');
 
                 for (const item of delivery.items) {

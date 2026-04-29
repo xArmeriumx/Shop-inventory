@@ -180,16 +180,21 @@ export const WarehouseService: IWarehouseService = {
 
 
     /**
-     * Find default warehouse for the shop
+     * Find default warehouse for the shop.
+     * 
+     * ⚠️ ERP Rule (Connection Pool Safety):
+     * รับ tx param เสมอเพื่อใช้ connection เดิม
+     * ห้าม call db. โดยตรงภายใน transaction context
+     * (connection_limit=1 → deadlock ถ้าขอ connection ซ้อน)
      */
-    async getDefaultWarehouse(ctx: RequestContext) {
-        const warehouse = await db.warehouse.findFirst({
+    async getDefaultWarehouse(ctx: RequestContext, tx: any = db) {
+        const warehouse = await (tx as any).warehouse.findFirst({
             where: { shopId: ctx.shopId, isDefault: true }
         });
 
         if (!warehouse) {
             // Fallback to first active one if no default set
-            return await db.warehouse.findFirst({
+            return await (tx as any).warehouse.findFirst({
                 where: { shopId: ctx.shopId, isActive: true }
             });
         }

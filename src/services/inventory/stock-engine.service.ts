@@ -50,6 +50,14 @@ export const StockEngine = {
   ): Promise<{ newWarehouseQty: number; newGlobalQty: number }> {
     const { warehouseId, productId, delta } = input;
 
+    // ERP Safety Guard: warehouseId ต้องมีค่าเสมอ (ต้องผ่าน resolveWarehouse ก่อน)
+    if (!warehouseId) {
+      throw new ServiceError(
+        `[StockEngine] warehouseId is missing for product ${productId}. ` +
+        `ต้องเรียก StockEngine.resolveWarehouse() ก่อนเสมอ`
+      );
+    }
+
     return await runInTransaction(tx, async (prisma) => {
       // 1. Calculate Deltas based on Type
       let quantityDelta = 0;
@@ -176,11 +184,16 @@ export const StockEngine = {
   },
 
   /**
-   * Resolve warehouse: Use default if not specified
+   * Resolve warehouse: Use default if not specified.
+   * 
+   * ⚠️ ERP Rule (Connection Pool Safety):
+   * ต้องส่ง tx ผ่านทุก call ที่ต้องการ DB
+   * ห้ามใช้ db. โดยตรงภายใน transaction context (connection_limit=1)
    */
   async resolveWarehouse(ctx: RequestContext, warehouseId?: string, tx: any = db): Promise<string> {
     if (warehouseId) return warehouseId;
-    const defaultWh = await WarehouseService.getDefaultWarehouse(ctx);
+    // FIX: ส่ง tx ไปด้วยเสมอ — ป้องกัน nested connection deadlock
+    const defaultWh = await WarehouseService.getDefaultWarehouse(ctx, tx);
     if (!defaultWh) {
       // Fallback to auto-provisioning if missing
       const provisioned = await WarehouseService.ensureDefaultWarehouse(ctx, tx);

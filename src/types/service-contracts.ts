@@ -772,7 +772,7 @@ export interface IWarehouseService {
   /**
    * ค้นหาคลังสินค้าหลัก
    */
-  getDefaultWarehouse(ctx: RequestContext): Promise<any>;
+  getDefaultWarehouse(ctx: RequestContext, tx?: any): Promise<any>;
 
   /**
    * ตรวจสอบและสร้างคลังสินค้าหลักหากยังไม่มี (Auto-provision)

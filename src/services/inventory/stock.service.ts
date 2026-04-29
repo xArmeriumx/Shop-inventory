@@ -277,21 +277,28 @@ export const StockService: IStockService = {
         note: `ประมวลผลสต็อกจำนวน ${movements.length} รายการ`,
       },
       async () => {
-        // Wrap everything in StockEngine bulk process for warehouse-consistent logic
-        await StockEngine.executeBulkMovements(ctx, movements.map(m => ({
-          productId: m.productId,
-          warehouseId: m.warehouseId as string, // Might be null/undefined, engine will resolve
-          delta: m.quantity,
-          type: m.type,
-          validation: m.validation, // Propagate validation mode
-          note: m.note,
-          saleId: m.saleId,
-          purchaseId: m.purchaseId,
-          deliveryOrderId: m.deliveryOrderId,
-          returnId: m.returnId,
-          referenceId: m.referenceId,
-          referenceType: m.referenceType
-        })), tx);
+        // ERP Fix: Resolve warehouseId ก่อนส่งให้ StockEngine เพื่อป้องกัน undefined
+        // (Bug: warehouseId as string ไม่ปลอดภัย เมื่อค่าเป็น null/undefined)
+        const defaultWh = await StockEngine.resolveWarehouse(ctx, undefined, tx);
+
+        const resolvedMovements = await Promise.all(
+          movements.map(async (m) => ({
+            productId: m.productId,
+            warehouseId: m.warehouseId || defaultWh,
+            delta: m.quantity,
+            type: m.type,
+            validation: m.validation,
+            note: m.note,
+            saleId: m.saleId,
+            purchaseId: m.purchaseId,
+            deliveryOrderId: m.deliveryOrderId,
+            returnId: m.returnId,
+            referenceId: m.referenceId,
+            referenceType: m.referenceType,
+          }))
+        );
+
+        await StockEngine.executeBulkMovements(ctx, resolvedMovements, tx);
       },
       tx
     );
