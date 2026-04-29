@@ -18,6 +18,19 @@ export enum SystemEventType {
 const throttleMap = new Map<string, number>();
 const THROTTLE_MS = 60000;
 
+/**
+ * In-memory fallback buffer for when DB logging fails.
+ * Prevents cascading failures (e.g. pool timeout → logger also timeouts).
+ * Buffer is flushed automatically on next successful write.
+ */
+const LOG_BUFFER_MAX = 50;
+const logBuffer: Array<{
+  level: string;
+  message: string;
+  context: any;
+  timestamp: Date;
+}> = [];
+
 export const logger = {
   info: async (message: string, context?: any) => log(LogLevel.INFO, message, context),
   warn: async (message: string, context?: any) => log(LogLevel.WARN, message, context),
@@ -78,6 +91,29 @@ export const logger = {
   },
 };
 
+/**
+ * Attempt to flush buffered logs that failed to write previously.
+ * Non-blocking, best-effort.
+ */
+async function flushBuffer(client: typeof db) {
+  if (logBuffer.length === 0) return;
+
+  const toFlush = logBuffer.splice(0, 10); // Flush 10 at a time
+
+  try {
+    await client.systemLog.createMany({
+      data: toFlush.map(entry => ({
+        level: entry.level as LogLevel,
+        message: `[BUFFERED] ${entry.message}`,
+        body: JSON.stringify({ ...entry.context, bufferedAt: entry.timestamp.toISOString() }),
+      })),
+    });
+  } catch {
+    // Re-buffer if flush also fails — don't cascade
+    logBuffer.unshift(...toFlush);
+  }
+}
+
 async function log(level: LogLevel, message: string, context?: any) {
   try {
     const { path, method, userId, shopId, pathname, ...otherContext } = context || {};
@@ -97,8 +133,16 @@ async function log(level: LogLevel, message: string, context?: any) {
         body: JSON.stringify(otherContext),
       },
     });
+
+    // If write succeeds, try to flush any buffered logs
+    flushBuffer(db).catch(() => {/* silent */});
   } catch (e) {
-    console.error('Failed to write to system log:', e);
-    console.log(`[${level}] ${message}`, context);
+    // ── Fallback: Buffer + Console (ป้องกัน cascading failure) ──
+    console.error(`[${level}] ${message}`, context);
+    
+    if (logBuffer.length < LOG_BUFFER_MAX) {
+      logBuffer.push({ level, message, context, timestamp: new Date() });
+    }
+    // ห้าม throw — logger ต้องไม่ทำให้ business logic พัง
   }
 }

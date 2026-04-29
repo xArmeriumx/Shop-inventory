@@ -1,9 +1,9 @@
 export const APP_NAME = 'Shop Inventory';
 
 export const DB_TIMEOUTS = {
-  DEFAULT: 5000,
-  EXTENDED: 30000,
-  LONG: 60000,
+  DEFAULT: 10000,   // 10s — standard queries / simple mutations
+  EXTENDED: 15000,  // 15s — multi-step transactions (POS, purchases)
+  LONG: 60000,      // 60s — batch imports, stock reconciliation
 } as const;
 
 export const PAGINATION_CONFIG = {
