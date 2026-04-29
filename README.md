@@ -1,91 +1,97 @@
 # Shop Inventory ERP
 
-ระบบบริหารจัดการธุรกิจ (ERP) สำหรับร้านค้า ครอบคลุมตั้งแต่การขาย การจัดซื้อ การจัดการสต็อก ไปจนถึงการบัญชีและรายงานภาษี พัฒนาด้วย Next.js 14 App Router บนสถาปัตยกรรม Server Actions และ Service Layer แบบ Clean Architecture
+ระบบ ERP สำหรับร้านค้า เขียนด้วย Next.js 14 App Router ใช้ PostgreSQL เป็นฐานข้อมูล และ Prisma เป็น ORM
 
 ---
 
 ## สารบัญ
 
-- [ภาพรวมระบบ](#ภาพรวมระบบ)
-- [โมดูลหลัก](#โมดูลหลัก)
+- [ภาพรวม](#ภาพรวม)
+- [โมดูลที่มีในระบบ](#โมดูลที่มีในระบบ)
 - [สถาปัตยกรรมโค้ด](#สถาปัตยกรรมโค้ด)
 - [โครงสร้างโฟลเดอร์](#โครงสร้างโฟลเดอร์)
 - [ความต้องการของระบบ](#ความต้องการของระบบ)
-- [การติดตั้งและรัน (Development)](#การติดตั้งและรัน-development)
+- [การติดตั้งและรัน](#การติดตั้งและรัน)
 - [การรันด้วย Docker](#การรันด้วย-docker)
 - [ตัวแปรสภาพแวดล้อม](#ตัวแปรสภาพแวดล้อม)
-- [คำสั่ง npm ที่ใช้บ่อย](#คำสั่ง-npm-ที่ใช้บ่อย)
-- [ระบบสิทธิ์ (RBAC)](#ระบบสิทธิ์-rbac)
-- [หลักการออกแบบโค้ด](#หลักการออกแบบโค้ด)
+- [คำสั่ง npm](#คำสั่ง-npm)
+- [ระบบสิทธิ์](#ระบบสิทธิ์)
+- [แนวทางการเขียนโค้ด](#แนวทางการเขียนโค้ด)
 - [การทดสอบ](#การทดสอบ)
+- [Backfill Scripts](#backfill-scripts)
+- [Electron](#electron)
 
 ---
 
-## ภาพรวมระบบ
+## ภาพรวม
 
-ระบบนี้ออกแบบมาสำหรับร้านค้าที่ต้องการ:
+ระบบนี้ทำงานครอบคลุมด้าน:
 
-- ขายสินค้าผ่านหน้าร้าน (POS) หรือออกบิลแบบ ERP
-- ติดตามสต็อกแบบ Real-time ข้ามหลาย Warehouse
-- ออกใบกำกับภาษีมูลค่าเพิ่ม (Tax Invoice) ตามมาตรฐาน ภ.พ.30
+- การขายสินค้า ทั้งแบบ POS และออกเอกสารผ่าน ERP
+- ติดตามสต็อกสินค้าข้ามหลาย Warehouse
+- ออกใบกำกับภาษีและรายงาน ภ.พ.30
 - บันทึกรายรับ-รายจ่าย และดูรายงานกำไรขาดทุน
-- จัดการวงจรเอกสารครบวงจร: ใบเสนอราคา > ใบสั่งขาย > ใบแจ้งหนี้ > รับชำระ
+- วงจรเอกสาร: ใบเสนอราคา > ใบสั่งขาย > ใบแจ้งหนี้ > รับชำระ
 
-**Stack หลัก**
+**Stack ที่ใช้**
 
 | ชั้น | เทคโนโลยี |
 |------|-----------|
 | Frontend | Next.js 14 (App Router), React 18, Tailwind CSS, Radix UI |
 | Backend | Next.js Server Actions, Prisma ORM |
-| Database | PostgreSQL 16 (Supabase หรือ self-hosted) |
+| Database | PostgreSQL 16 |
 | Auth | NextAuth v5 (Credentials + RBAC) |
-| Storage | Supabase Storage (ใบเสร็จ, หลักฐานการชำระ) |
-| AI | Groq (LLaMA) สำหรับ AI Assistant |
-| Cache | Upstash Redis (Rate Limit + Cache Tags) |
+| Storage | Supabase Storage |
+| AI | Groq (LLaMA) |
+| Cache | Upstash Redis |
 
 ---
 
-## โมดูลหลัก
+## โมดูลที่มีในระบบ
 
-### การขาย (Sales)
+### การขาย
+
 - สร้างบิลขาย ออกใบกำกับภาษี รับชำระเงิน
-- รองรับส่วนลด (บิลและรายการ) ทั้งแบบจำนวนเงินและเปอร์เซ็นต์
-- ระบบ Booking สต็อก — จองก่อนตัดจริงเมื่อปิดบิล
-- ประวัติการแก้ไขและ Audit Log ครบทุก Action
+- ส่วนลดได้ทั้งระดับบิลและระดับรายการ แบบจำนวนเงินหรือเปอร์เซ็นต์
+- มีระบบ Booking สต็อก ก่อนตัดจริงตอนปิดบิล
+- บันทึก Audit Log ทุก Action
 
-### การจัดซื้อ (Purchases)
-- สร้างใบสั่งซื้อ (PO) รับสินค้าเข้าสต็อก
+### การจัดซื้อ
+
+- สร้างใบสั่งซื้อ รับสินค้าเข้าสต็อก
 - เชื่อมกับ Supplier และติดตามสถานะการส่งของ
-- บันทึกต้นทุนสินค้าเพื่อคำนวณกำไรต่อชิ้น
+- บันทึกต้นทุนสินค้าเพื่อคำนวณกำไร
 
-### สินค้าคงคลัง (Inventory)
-- ระบบ Multi-Warehouse: แยกสต็อกตาม Warehouse ได้
-- Stock Movement Log: บันทึกทุกความเคลื่อนไหว (รับเข้า/ขายออก/โอนย้าย/คืนสินค้า)
-- แจ้งเตือน Low Stock อัตโนมัติ
-- Reconcile: ปรับสต็อกจริงกับระบบ
+### สินค้าคงคลัง
 
-### บัญชีและการเงิน (Accounting)
-- บันทึกบัญชีคู่ (Double-Entry Journal) อัตโนมัติจาก Transaction
-- Chart of Accounts (COA) กำหนดเองได้
-- รายงานกำไรขาดทุน (P&L), งบทดลอง (Trial Balance)
-- Posting Engine: แปลง Sale/Invoice/Payment เป็น Journal Entry อัตโนมัติ
+- แยกสต็อกตาม Warehouse ได้
+- บันทึก Stock Movement ทุกความเคลื่อนไหว
+- ปรับสต็อกและ Reconcile กับจำนวนจริงได้
 
-### ภาษี (Tax)
-- คำนวณ VAT แบบ Inclusive/Exclusive ต่อ Line Item
-- ออกรายงาน ภ.พ.30 (ภาษีขาย/ภาษีซื้อ)
-- Tax Resolution Priority Chain: สินค้า > ลูกค้า > ค่าเริ่มต้นร้าน
+### บัญชีและการเงิน
+
+- บันทึกบัญชีคู่ (Double-Entry) จาก Transaction อัตโนมัติ
+- Chart of Accounts กำหนดเองได้
+- รายงานกำไรขาดทุนและงบทดลอง
+
+### ภาษี
+
+- คำนวณ VAT แบบ Inclusive และ Exclusive ต่อ Line Item
+- รายงาน ภ.พ.30 (ภาษีขายและภาษีซื้อ)
+- ลำดับความสำคัญ Tax Code: สินค้า > ลูกค้า > ค่าเริ่มต้นร้าน
 
 ### เอกสาร
-- ใบเสนอราคา (Quotation)
-- ใบแจ้งหนี้ (Invoice) พร้อม PDF export
-- ใบส่งของ (Delivery Order)
-- ใบรับคืนสินค้า (Return)
 
-### ระบบสนับสนุน
-- **AI Assistant**: ถามตอบเกี่ยวกับข้อมูลในระบบด้วยภาษาธรรมชาติ
-- **Approvals**: ระบบขออนุมัติก่อนดำเนินการ
-- **Audit Log**: บันทึกทุก Action พร้อม Snapshot ก่อน-หลัง
-- **POS Mode**: หน้าร้านแบบง่าย สำหรับขายหน้าเคาน์เตอร์
+- ใบเสนอราคา
+- ใบแจ้งหนี้ พร้อม PDF export
+- ใบส่งของ
+- ใบรับคืนสินค้า
+
+### อื่น ๆ
+
+- AI Assistant สำหรับถามข้อมูลในระบบด้วยภาษาธรรมชาติ
+- ระบบขออนุมัติก่อนดำเนินการ
+- POS Mode สำหรับขายหน้าเคาน์เตอร์
 
 ---
 
@@ -112,7 +118,8 @@ PostgreSQL
 ### 3 ชั้นหลัก
 
 **1. Server Actions**
-ทำหน้าที่รับ Input จาก UI, validate ด้วย Zod Schema, เรียก Service และส่ง Response กลับ ทุก Action ต้องถูกหุ้มด้วย `handleAction()` เพื่อ standardize Error Handling
+
+รับ Input จาก UI, validate ด้วย Zod Schema และเรียก Service ทุก Action ต้องถูกหุ้มด้วย `handleAction()` เพื่อให้ Error Response มีรูปแบบเดียวกันทั้งระบบ
 
 ```typescript
 // src/actions/sales/create-sale.action.ts
@@ -124,27 +131,29 @@ export const createSaleAction = async (data: CreateSaleInput) => {
 ```
 
 **2. Service Layer**
-Business Logic ทั้งหมดอยู่ที่นี่ ห้ามมี Business Logic ใน UI Component หรือ Server Action โดยตรง
+
+Business Logic ทั้งหมดอยู่ที่นี่ ไม่เขียน Business Logic ใน UI Component หรือ Server Action โดยตรง
 
 - `SaleService` — วงจรชีวิตของบิลขาย
-- `InvoiceService` — ออกใบแจ้งหนี้และ Post บัญชี
+- `InvoiceService` — ใบแจ้งหนี้และการ Post บัญชี
 - `StockService` / `StockEngine` — ตัดสต็อก, จอง, ปล่อย
 - `PostingService` — แปลง Transaction เป็น Journal Entry
-- `TaxResolutionService` — หา Tax Code ที่เหมาะสมต่อ Line
+- `TaxResolutionService` — หา Tax Code ต่อ Line Item
 
-**3. Core Services (Cross-cutting)**
+**3. Core Services**
 
 | Service | หน้าที่ |
 |---------|---------|
-| `Security` | ตรวจสิทธิ์ก่อนทุก Operation |
+| `Security` | ตรวจสิทธิ์ก่อน Operation |
 | `WorkflowService` | ตรวจ State Machine ว่า Action ทำได้ไหม |
 | `AuditLog` | บันทึก Snapshot ก่อน-หลัง ทุก Mutation |
 | `IAMService` | จัดการ User, Role, Permission |
-| `SequenceService` | สร้างเลขเอกสาร (INV-XXXXXX) |
+| `SequenceService` | สร้างเลขเอกสาร |
 
-### Pattern สำคัญ
+### Type สำคัญ
 
-**RequestContext** — ส่งต่อข้อมูล Session ระหว่าง Service โดยไม่ Query ซ้ำ
+**RequestContext** — ข้อมูล Session ที่ส่งต่อระหว่าง Service เพื่อไม่ให้ Query ซ้ำ
+
 ```typescript
 type RequestContext = {
     shopId: string;
@@ -155,15 +164,16 @@ type RequestContext = {
 };
 ```
 
-**MutationResult** — ทุก Service Mutation ส่งกลับ format เดียวกัน
+**MutationResult** — รูปแบบที่ Service Mutation ส่งกลับ
+
 ```typescript
 type MutationResult<T> = {
     data: T;
-    affectedTags: string[];  // สำหรับ revalidatePath
+    affectedTags: string[];
 };
 ```
 
-**SaleMapper** — แปลง Database Row เป็น DTO โดยรวม Child Tables (SaleStatus, SaleTaxSummary, SalePaymentDetail) ให้ UI ได้รับ Flat Object เสมอ ไม่ว่า DB จะ normalize อย่างไร
+**SaleMapper** — แปลง DB Row เป็น DTO โดยรวม Child Tables (SaleStatus, SaleTaxSummary, SalePaymentDetail) ให้ UI ได้รับเป็น Flat Object เสมอ
 
 ---
 
@@ -174,103 +184,103 @@ src/
 ├── app/                        # Next.js App Router
 │   ├── (auth)/                 # Login, Register
 │   ├── (dashboard)/            # หน้าหลักทั้งหมด
-│   │   ├── sales/              # หน้าจัดการการขาย
-│   │   ├── purchases/          # หน้าจัดซื้อ
-│   │   ├── inventory/          # หน้าสินค้าคงคลัง
-│   │   ├── accounting/         # หน้าบัญชี
-│   │   ├── invoices/           # หน้าใบแจ้งหนี้
-│   │   ├── customers/          # หน้าลูกค้า
-│   │   ├── suppliers/          # หน้า Supplier
-│   │   ├── tax/                # หน้ารายงานภาษี
-│   │   ├── reports/            # รายงานทั่วไป
-│   │   ├── warehouse/          # จัดการคลังสินค้า
-│   │   ├── approvals/          # ระบบอนุมัติ
-│   │   ├── returns/            # ใบรับคืน
-│   │   ├── shipments/          # ใบส่งของ
-│   │   ├── quotations/         # ใบเสนอราคา
-│   │   ├── order-requests/     # ใบสั่งซื้อภายใน
-│   │   ├── expenses/           # รายจ่าย
-│   │   ├── incomes/            # รายรับอื่น
-│   │   ├── ai/                 # AI Assistant
-│   │   └── settings/           # ตั้งค่าร้าน
-│   ├── (pos)/                  # POS Mode (หน้าร้าน)
+│   │   ├── sales/
+│   │   ├── purchases/
+│   │   ├── inventory/
+│   │   ├── accounting/
+│   │   ├── invoices/
+│   │   ├── customers/
+│   │   ├── suppliers/
+│   │   ├── tax/
+│   │   ├── reports/
+│   │   ├── warehouse/
+│   │   ├── approvals/
+│   │   ├── returns/
+│   │   ├── shipments/
+│   │   ├── quotations/
+│   │   ├── order-requests/
+│   │   ├── expenses/
+│   │   ├── incomes/
+│   │   ├── ai/
+│   │   └── settings/
+│   ├── (pos)/                  # POS Mode
 │   └── (admin)/                # Admin System
 │
-├── actions/                    # Server Actions (รับ Input จาก UI)
+├── actions/                    # Server Actions
 │   ├── sales/
 │   ├── purchases/
 │   ├── inventory/
 │   ├── accounting/
 │   └── ...
 │
-├── services/                   # Business Logic Layer
+├── services/                   # Business Logic
 │   ├── sales/
-│   │   ├── sale.service.ts     # บิลขาย (create, update, complete, cancel)
-│   │   └── invoice.service.ts  # ใบแจ้งหนี้ (createFromSale, post, cancel)
+│   │   ├── sale.service.ts
+│   │   └── invoice.service.ts
 │   ├── purchases/
 │   ├── inventory/
-│   │   ├── stock.service.ts    # ตัดสต็อก, จอง, ปล่อย
-│   │   └── stock-engine.ts     # Core Movement Engine
+│   │   ├── stock.service.ts
+│   │   └── stock-engine.ts
 │   ├── accounting/
-│   │   ├── posting-engine.service.ts  # แปลง Transaction → Journal
-│   │   ├── journal.service.ts         # บันทึกรายการบัญชี
-│   │   └── payment.service.ts         # รับชำระเงิน
+│   │   ├── posting-engine.service.ts
+│   │   ├── journal.service.ts
+│   │   └── payment.service.ts
 │   ├── tax/
-│   │   ├── tax-resolution.service.ts  # หา Tax Code
-│   │   └── tax-calculation.service.ts # คำนวณภาษี
+│   │   ├── tax-resolution.service.ts
+│   │   └── tax-calculation.service.ts
 │   └── core/
 │       ├── iam/
-│       │   ├── security.service.ts    # ตรวจสิทธิ์
-│       │   └── iam.service.ts         # จัดการ User/Role
+│       │   ├── security.service.ts
+│       │   └── iam.service.ts
 │       ├── workflow/
-│       │   └── workflow.service.ts    # State Machine Guard
+│       │   └── workflow.service.ts
 │       └── system/
-│           └── sequence.service.ts    # สร้างเลขเอกสาร
+│           └── sequence.service.ts
 │
-├── schemas/                    # Zod Validation Schemas (SSOT)
+├── schemas/                    # Zod Validation Schemas
 │   ├── sale-form.ts
 │   ├── purchase-form.ts
 │   └── ...
 │
 ├── lib/
-│   ├── db.ts                   # Prisma Client Instance
-│   ├── lock-helpers.ts         # Sale Lock Status SSOT
-│   ├── money.ts                # Helper แปลง Decimal
-│   ├── audit-log.ts            # AuditLog Writer
+│   ├── db.ts                   # Prisma Client
+│   ├── lock-helpers.ts         # Sale Lock Status
+│   ├── money.ts                # Decimal helpers
+│   ├── audit-log.ts            # AuditLog writer
 │   └── mappers/
-│       └── sales.mapper.ts     # Sale → DTO (Mapper Shield Pattern)
+│       └── sales.mapper.ts
 │
 ├── types/
-│   ├── domain.ts               # Type หลัก (RequestContext, ServiceError, ...)
-│   └── dtos/                   # Data Transfer Objects
+│   ├── domain.ts
+│   └── dtos/
 │
 ├── config/
-│   ├── cache-tags.ts           # Cache Tag Constants
-│   └── reason-codes.ts         # เหตุผลสำหรับ Cancel/Void
+│   ├── cache-tags.ts
+│   └── reason-codes.ts
 │
-└── scripts/                    # Utility Scripts (Backfill, Migrate, ...)
+└── scripts/                    # Backfill, Migration
 
 prisma/
-├── schema.prisma               # Database Schema (source of truth)
-├── seed.ts                     # Seed ข้อมูลตั้งต้น
-└── dbml/                       # Auto-generated DBML Diagram
+├── schema.prisma               # Database Schema
+├── seed.ts
+└── dbml/                       # Auto-generated DBML
 ```
 
 ---
 
 ## ความต้องการของระบบ
 
-| ซอฟต์แวร์ | เวอร์ชันที่รองรับ |
-|-----------|------------------|
+| ซอฟต์แวร์ | เวอร์ชัน |
+|-----------|---------|
 | Node.js | >= 18.x |
 | npm | >= 9.x |
-| PostgreSQL | >= 14 (แนะนำ 16) |
+| PostgreSQL | >= 14 |
 
 ---
 
-## การติดตั้งและรัน (Development)
+## การติดตั้งและรัน
 
-### ขั้นที่ 1 — Clone และติดตั้ง Dependencies
+### 1. Clone และติดตั้ง
 
 ```bash
 git clone <repository-url>
@@ -278,249 +288,189 @@ cd shop-inventory
 npm install
 ```
 
-### ขั้นที่ 2 — ตั้งค่า Environment Variables
+### 2. ตั้งค่า Environment Variables
 
 ```bash
 cp .env.example .env
 ```
 
-แก้ไขไฟล์ `.env` ให้ครบตามส่วน [ตัวแปรสภาพแวดล้อม](#ตัวแปรสภาพแวดล้อม) ด้านล่าง
+แก้ไขไฟล์ `.env` ตามส่วน [ตัวแปรสภาพแวดล้อม](#ตัวแปรสภาพแวดล้อม)
 
-### ขั้นที่ 3 — เตรียมฐานข้อมูล
+### 3. เตรียมฐานข้อมูล
 
 ```bash
-# Push schema ไปยัง Database (สร้าง Table ทั้งหมด)
 npm run db:push
-
-# Seed ข้อมูลเริ่มต้น (ตั้งค่าระบบ, lookup values)
 npm run db:seed
 ```
 
-### ขั้นที่ 4 — รัน Development Server
+### 4. รัน Development Server
 
 ```bash
 npm run dev
 ```
 
-เปิด [http://localhost:3000](http://localhost:3000) ในเบราว์เซอร์
+เปิด [http://localhost:3000](http://localhost:3000)
 
-### ขั้นที่ 5 — สร้าง Shop แรก
-
-ระบบจะพาไปหน้า Onboarding สำหรับตั้งค่าร้านค้าและบัญชีผู้ใช้แรกโดยอัตโนมัติ
+ครั้งแรกระบบจะพาไปหน้า Onboarding เพื่อตั้งค่าร้านและบัญชีผู้ใช้
 
 ---
 
 ## การรันด้วย Docker
 
-เหมาะสำหรับการรันบน Server หรือทดสอบ Production Environment บน Local
-
-### ขั้นที่ 1 — เตรียมไฟล์ Environment
-
 ```bash
 cp .env.example .env
-# แก้ไข .env ให้ครบ (ดูส่วน ตัวแปรสภาพแวดล้อม)
-```
+# แก้ไข .env ให้ครบ
 
-### ขั้นที่ 2 — Build และรัน
-
-```bash
-# รัน Application + Database พร้อมกัน
-docker compose up
-
-# รันใน Background
 docker compose up -d
-
-# หยุดและลบ Container (ข้อมูลใน Volume ยังอยู่)
-docker compose down
-
-# หยุดและลบทุกอย่างรวม Volume (ข้อมูลจะหายทั้งหมด)
-docker compose down -v
-```
-
-### ขั้นที่ 3 — Push Schema และ Seed (ครั้งแรก)
-
-```bash
 docker compose exec app npx prisma db push
 docker compose exec app npm run db:seed
 ```
 
-Application จะอยู่ที่ [http://localhost:3000](http://localhost:3000)
+คำสั่งอื่นที่ใช้บ่อย:
+
+```bash
+# หยุด Container
+docker compose down
+
+# หยุดและลบ Volume (ข้อมูลในฐานข้อมูลจะหาย)
+docker compose down -v
+
+# Build ใหม่
+docker compose up --build -d
+```
 
 ---
 
 ## ตัวแปรสภาพแวดล้อม
 
-สร้างไฟล์ `.env` จาก `.env.example` และกรอกค่าดังนี้:
-
 ```env
-# ---- Database ----
-# สำหรับ Development (self-hosted PostgreSQL)
+# Database
 DATABASE_URL="postgresql://username:password@localhost:5432/shop_inventory?schema=public"
 
-# สำหรับ Production (Supabase)
-DATABASE_URL="postgresql://postgres.[project-ref]:[password]@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres?schema=public"
-
-# ---- NextAuth ----
-AUTH_SECRET="สร้างด้วย: openssl rand -base64 32"
+# NextAuth
+AUTH_SECRET="..."
 AUTH_URL="http://localhost:3000"
 
-# ---- Supabase (สำหรับ File Storage) ----
+# Supabase (File Storage)
 NEXT_PUBLIC_SUPABASE_URL="https://[project-ref].supabase.co"
 NEXT_PUBLIC_SUPABASE_ANON_KEY="..."
 SUPABASE_SERVICE_ROLE_KEY="..."
 
-# ---- AI (Groq) ----
+# AI (Groq)
 GROQ_API_KEY="..."
 
-# ---- Upstash Redis (Rate Limit + Cache) ----
+# Upstash Redis
 UPSTASH_REDIS_REST_URL="https://..."
 UPSTASH_REDIS_REST_TOKEN="..."
 ```
 
-**หมายเหตุ:**
-- `SUPABASE_SERVICE_ROLE_KEY` ใช้สำหรับ Upload File ฝั่ง Server เท่านั้น ห้าม Expose ทาง Client
-- ถ้าไม่มี Groq API Key ระบบ AI จะไม่ทำงาน แต่ฟีเจอร์อื่นทำงานได้ตามปกติ
-- ถ้าไม่มี Upstash Redis ระบบจะ Bypass Rate Limit และใช้ Revalidation แบบ On-demand แทน
-
 ---
 
-## คำสั่ง npm ที่ใช้บ่อย
+## คำสั่ง npm
 
 ```bash
-# รัน Development Server
-npm run dev
+npm run dev           # รัน Development Server
+npm run build         # Build Production
+npm start             # รัน Production Server
 
-# Build Production
-npm run build
+npx tsc --noEmit      # ตรวจ TypeScript errors
 
-# รัน Production Server (หลัง build แล้ว)
-npm start
+# Database
+npm run db:push       # Sync schema ไป DB
+npm run db:studio     # เปิด Prisma Studio
+npm run db:seed       # Seed ข้อมูลตั้งต้น
+npm run db:generate   # Re-generate Prisma Client
 
-# ตรวจ TypeScript Errors
-npx tsc --noEmit
+# Testing
+npm test              # Watch mode
+npm run test:run      # รันครั้งเดียว
+npm run test:coverage # พร้อม Coverage
 
-# ---- Prisma (Database) ----
-
-# Sync Schema ไปยัง DB (ใช้ระหว่าง Dev)
-npm run db:push
-
-# เปิด Prisma Studio (GUI จัดการ DB)
-npm run db:studio
-
-# Seed ข้อมูลตั้งต้น
-npm run db:seed
-
-# Re-generate Prisma Client หลังแก้ Schema
-npm run db:generate
-
-# ---- Testing ----
-
-# รัน Unit Tests (Watch mode)
-npm test
-
-# รัน Tests ครั้งเดียว
-npm run test:run
-
-# รัน Tests พร้อม Coverage Report
-npm run test:coverage
-
-# ---- Electron (Desktop App) ----
-
-# รัน Electron Dev Mode
+# Electron
 npm run electron:dev
-
-# Build Windows Installer
 npm run electron:build
+npm run electron:pack
 ```
 
 ---
 
-## ระบบสิทธิ์ (RBAC)
-
-ระบบใช้ Role-Based Access Control แบบ Fine-grained
+## ระบบสิทธิ์
 
 ### โครงสร้าง
 
 ```
 Shop
- └── ShopMember (User ที่อยู่ใน Shop)
-      └── Role (เช่น Owner, Manager, Cashier)
-           └── Permission[] (เช่น SALE_VIEW, SALE_CREATE, SALE_VIEW_PROFIT)
+ └── ShopMember
+      └── Role
+           └── Permission[]
 ```
 
 ### ตัวอย่าง Permission
 
-| Permission | ความหมาย |
-|-----------|----------|
+| Permission | หมายความว่า |
+|-----------|------------|
 | `SALE_VIEW` | ดูรายการขาย |
 | `SALE_CREATE` | สร้างบิลขาย |
-| `SALE_VIEW_PROFIT` | ดูกำไรในรายการขาย (Sensitive) |
-| `SALE_EDIT_LOCKED` | แก้บิลที่ถูก Lock แล้ว |
+| `SALE_VIEW_PROFIT` | ดูกำไรในรายการขาย |
+| `SALE_EDIT_LOCKED` | แก้บิลที่ถูก Lock |
 | `INVOICE_POST` | Post ใบแจ้งหนี้ลงบัญชี |
-| `STOCK_ADJUST` | ปรับสต็อก Manual |
+| `STOCK_ADJUST` | ปรับสต็อก |
 | `REPORT_VIEW_PROFIT` | ดูรายงานกำไร |
 
-### การตรวจสิทธิ์ในโค้ด
+### การตรวจสิทธิ์
 
 ```typescript
 // ใน Service Layer
 Security.require(ctx, Permission.SALE_VIEW_PROFIT);
 
-// ใน UI (Server Component)
+// ใน Server Component
 const canViewProfit = ctx.permissions.includes(Permission.SALE_VIEW_PROFIT) || ctx.isOwner;
 ```
 
 ---
 
-## หลักการออกแบบโค้ด
+## แนวทางการเขียนโค้ด
 
-โปรเจคนี้ยึดถือหลักการต่อไปนี้อย่างเคร่งครัด:
+### Single Source of Truth
 
-### 1. Single Source of Truth (SSOT)
+- Zod Schema และ Default Values อยู่ที่ `src/schemas/[feature]-form.ts`
+- Business Logic ซับซ้อนอยู่ใน Service Layer เสมอ
+- Lock Status ของ Sale อ่านผ่าน `resolveLocked()` เขียนผ่าน `buildLockData()`
 
-- Schema validation และ Default Values อยู่ที่ `src/schemas/[feature]-form.ts` เท่านั้น
-- Business Logic ซับซ้อนต้องอยู่ใน Service Layer เสมอ ห้ามอยู่ใน UI Component
-- Lock Status ของ Sale อ่านผ่าน `resolveLocked()` และเขียนผ่าน `buildLockData()` เสมอ
+### Service Layer
 
-### 2. Safe Service Layer
+- ทุก Query ใช้ Optional Chaining เพื่อป้องกัน runtime crash
+- ทุก Server Action ต้องหุ้มด้วย `handleAction()`
 
-- ทุก Service Query ใช้ Optional Chaining เพื่อป้องกันหน้าเว็บขาว
-- ทุก Server Action ต้องถูกหุ้มด้วย `handleAction()` สำหรับ standardized Error Response
+### Audit
 
-### 3. Deep Audit
+- ทุก Mutation บันทึก `beforeSnapshot` และ `afterSnapshot`
+- ดู Audit Log ได้ที่ `/system/audit`
 
-- ทุก Mutation (Create, Update, Delete) บันทึก `beforeSnapshot` และ `afterSnapshot`
-- ตรวจสอบ Audit Log ได้จาก `/system/audit` ใน Admin Panel
+### Snapshot
 
-### 4. Immutable Snapshots
-
-- ข้อมูลที่ Snapshot ณ เวลาออกเอกสาร (ชื่อลูกค้า, Tax Rate, ราคา) ห้ามแก้หลัง Post
-- ใบแจ้งหนี้ที่ Post แล้วต้องทำ Credit Note แทนการแก้ตรง
+- ข้อมูลที่ Snapshot ตอนออกเอกสาร (ชื่อลูกค้า, Tax Rate, ราคา) ไม่แก้หลัง Post
+- ใบแจ้งหนี้ที่ Post แล้วต้องออก Credit Note แทนการแก้ตรง
 
 ---
 
 ## การทดสอบ
 
-Unit Tests อยู่ใน `src/__tests__/` และ `src/services/**/__tests__/`
+Tests อยู่ใน `src/__tests__/` และ `src/services/**/__tests__/` ใช้ Vitest + Testing Library
 
 ```bash
-# รัน Tests ทั้งหมด
 npm run test:run
-
-# ดู Coverage
 npm run test:coverage
 ```
-
-ใช้ Vitest + Testing Library และ jsdom สำหรับ Component Tests
 
 ---
 
 ## Backfill Scripts
 
-Script สำหรับ Migration ข้อมูลอยู่ใน `src/scripts/`
+Scripts สำหรับ Data Migration อยู่ใน `src/scripts/`
 
 ```bash
-# Backfill Sale Child Tables (SaleStatus, SaleTaxSummary, SalePaymentDetail)
+# Backfill Sale Child Tables
 npx ts-node -r tsconfig-paths/register src/scripts/backfill-sale-child-tables.ts
 
 # Reconcile Stock Cache
@@ -529,19 +479,14 @@ npx ts-node -r tsconfig-paths/register src/scripts/reconcile-stock-cache.ts
 
 ---
 
-## Electron (Desktop Application)
+## Electron
 
-ระบบรองรับการ Package เป็น Desktop Application สำหรับ Windows ด้วย Electron
+รองรับการ build เป็น Desktop App สำหรับ Windows ผ่าน Electron
 
 ```bash
-# รัน Dev Mode
 npm run electron:dev
-
-# Build Windows Installer (.exe)
-npm run electron:build
-
-# Build โดยไม่ Package (สำหรับทดสอบ)
-npm run electron:pack
+npm run electron:build   # สร้าง .exe installer
+npm run electron:pack    # build โดยไม่ package
 ```
 
-ไฟล์ config ของ Electron อยู่ที่ `electron/` และ `electron-builder.yml`
+Config อยู่ที่ `electron/` และ `electron-builder.yml`
