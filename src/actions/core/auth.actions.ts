@@ -4,6 +4,7 @@ import { getSessionContext } from '@/lib/auth-guard';
 import { IamService } from '@/services';
 import { handleAction, type ActionResponse } from '@/lib/action-handler';
 import { PerformanceCollector } from '@/lib/debug/measurement';
+import { registerSchema } from '@/schemas/core/auth.schema';
 import bcrypt from 'bcryptjs';
 
 /**
@@ -30,7 +31,8 @@ export async function revokeAllUserSessions(): Promise<ActionResponse<null>> {
 export async function registerUser(input: any): Promise<ActionResponse<any>> {
   return handleAction(async () => {
     return PerformanceCollector.run(async () => {
-      const { name, email, password } = input;
+      const parsed = registerSchema.parse(input);
+      const { name, email, password } = parsed;
       const passwordHash = await bcrypt.hash(password, 10);
       const user = await IamService.registerUser({
         name,

@@ -3,6 +3,7 @@ import { groq } from '@/lib/ai/client';
 import { getShopContextForAI } from '@/actions/core/ai.actions';
 import { getToolDefinitions, executeTool } from '@/lib/ai/tools';
 import { withAuth } from '@/lib/auth/api-guard';
+import { getSessionContext } from '@/lib/auth-guard';
 import { AiStreamUtils } from '@/lib/ai/ai-stream-utils';
 import { SHOP_AI_SYSTEM_PROMPT, detectToolFromMessage } from '@/lib/ai';
 import { AI_CONFIG } from '@/lib/ai/config';
@@ -12,13 +13,18 @@ export const POST = withAuth(async (request: NextRequest, session: any) => {
     const shopId = session.user.shopId;
     const userId = session.user.id;
 
-    const { messages, confirmTool, confirmParams } = await request.json();
+    const { messages, confirmTool, confirmParams, token } = await request.json();
 
-    const context = { userId, shopId };
+    const serverCtx = await getSessionContext();
+    if (!serverCtx || !serverCtx.shopId) {
+      return Response.json({ error: 'Shop context required' }, { status: 403 });
+    }
+    const context = serverCtx as any;
 
     // Handle tool confirmation (Early return)
     if (confirmTool) {
-      const result = await executeTool(confirmTool, confirmParams, context, true);
+      // Pass token if provided, otherwise true (for backward compatibility if token is optional during rollout, but index.ts will fail if token is missing and it's a write tool)
+      const result = await executeTool(confirmTool, confirmParams, context, token || true);
       return Response.json({
         message: result.message,
         toolResult: result,

@@ -4,7 +4,14 @@ import { toNumber } from '@/lib/money';
 import { calculateCtn, getPurchaseStatusLabel, getSaleStatusLabel } from '@/lib/erp-utils';
 import { toCSV } from '@/lib/csv/renderer';
 import { CSVAdapters } from '@/lib/csv/adapters';
-import { ProfitAndLossDTO, BalanceSheetDTO } from '@/services/accounting/accounting-report.service';
+import { ProfitAndLossDTO, BalanceSheetDTO } from '@/services/accounting/statement.service';
+import { Security } from '@/services/core/iam/security.service';
+import { Permission } from '@prisma/client';
+
+function requireExportPermission(ctx: RequestContext, basePerm: Permission) {
+  Security.requirePermission(ctx, basePerm);
+  Security.requirePermission(ctx, 'REPORT_EXPORT');
+}
 
 export const ExportService = {
   /**
@@ -51,6 +58,7 @@ export const ExportService = {
   },
 
   async exportProductsData(ctx: RequestContext) {
+    requireExportPermission(ctx, 'PRODUCT_VIEW');
     const products = await db.product.findMany({
       where: { shopId: ctx.shopId, isActive: true },
       select: {
@@ -73,6 +81,7 @@ export const ExportService = {
   },
 
   async exportPurchasesData(startDate: string, endDate: string, ctx: RequestContext) {
+    requireExportPermission(ctx, 'PURCHASE_VIEW');
     const start = new Date(startDate);
     const end = new Date(endDate);
     start.setHours(0, 0, 0, 0); end.setHours(23, 59, 59, 999);
@@ -117,6 +126,7 @@ export const ExportService = {
   },
 
   async exportReturnsData(startDate: string, endDate: string, ctx: RequestContext) {
+    requireExportPermission(ctx, 'SALE_VIEW');
     const start = new Date(startDate);
     const end = new Date(endDate);
     start.setHours(0, 0, 0, 0); end.setHours(23, 59, 59, 999);
@@ -158,6 +168,7 @@ export const ExportService = {
   },
 
   async exportCustomersData(ctx: RequestContext) {
+    requireExportPermission(ctx, 'CUSTOMER_VIEW');
     const customers = await db.customer.findMany({
       where: { shopId: ctx.shopId, deletedAt: null },
       select: {
@@ -175,6 +186,7 @@ export const ExportService = {
   },
 
   async exportIncomesData(startDate: string, endDate: string, ctx: RequestContext) {
+    requireExportPermission(ctx, 'FINANCE_VIEW_LEDGER');
     const start = new Date(startDate);
     const end = new Date(endDate);
     start.setHours(0, 0, 0, 0); end.setHours(23, 59, 59, 999);
@@ -192,6 +204,7 @@ export const ExportService = {
   },
 
   async exportSalesData(startDate: string, endDate: string, ctx: RequestContext) {
+    requireExportPermission(ctx, 'SALE_VIEW');
     const start = new Date(startDate);
     const end = new Date(endDate);
     start.setHours(0, 0, 0, 0); end.setHours(23, 59, 59, 999);
@@ -241,6 +254,7 @@ export const ExportService = {
   },
 
   async exportExpensesData(startDate: string, endDate: string, ctx: RequestContext) {
+    requireExportPermission(ctx, 'FINANCE_VIEW_LEDGER');
     const start = new Date(startDate);
     const end = new Date(endDate);
     start.setHours(0, 0, 0, 0); end.setHours(23, 59, 59, 999);
@@ -258,6 +272,7 @@ export const ExportService = {
   },
 
   async exportAuditLogsData(startDate: string, endDate: string, ctx: RequestContext, format: 'CSV' | 'JSON' = 'CSV') {
+    requireExportPermission(ctx, 'AUDIT_VIEW');
     const start = new Date(startDate);
     const end = new Date(endDate);
     start.setHours(0, 0, 0, 0); end.setHours(23, 59, 59, 999);

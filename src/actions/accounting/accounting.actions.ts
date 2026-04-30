@@ -1,9 +1,9 @@
 'use server';
 
 import { AccountingService } from '@/services/accounting/accounting.service';
-import { AccountingReportService } from '@/services/accounting/accounting-report.service';
+import { StatementService } from '@/services/accounting/statement.service';
 import { ExportService } from '@/services/core/intelligence/export.service';
-import { requireShop, requirePermission } from '@/lib/auth-guard';
+import { requireShop, requirePermission, hasPermission } from '@/lib/auth-guard';
 import { revalidatePath, revalidateTag } from 'next/cache';
 import { ActionResponse } from '@/types/common';
 import { handleAction } from '@/lib/action-handler';
@@ -14,6 +14,15 @@ import { AuditService } from '@/services/core/system/audit.service';
 import { logger } from '@/lib/logger';
 import { Permission } from '@prisma/client';
 import { ACCOUNTING_TAGS } from '@/config/cache-tags';
+import { ServiceError } from '@/types/domain';
+
+async function requireFinanceExport() {
+    const ctx = await requirePermission('FINANCE_VIEW_LEDGER', { rateLimitPolicy: 'export' });
+    if (!hasPermission(ctx, 'REPORT_EXPORT')) {
+        throw new ServiceError('คุณไม่มีสิทธิ์ export รายงาน');
+    }
+    return ctx;
+}
 
 /**
  * ดึงรายการผังบัญชี (Chart of Accounts)
@@ -21,7 +30,7 @@ import { ACCOUNTING_TAGS } from '@/config/cache-tags';
 export async function getAccountsAction(): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
-            const ctx = await requireShop();
+            const ctx = await requirePermission('FINANCE_VIEW_LEDGER');
             return AccountingService.getAccounts(ctx);
         }, 'accounting:getAccounts');
     });
@@ -32,7 +41,7 @@ export async function getAccountsAction(): Promise<ActionResponse<any>> {
  */
 export async function createAccountAction(data: any): Promise<ActionResponse<any>> {
     return handleAction(async () => {
-        const ctx = await requireShop();
+        const ctx = await requirePermission('FINANCE_CONFIG');
         const validated = accountSchema.parse(data);
 
         const result = await AccountingService.createAccount(ctx, validated);
@@ -58,7 +67,7 @@ export async function createAccountAction(data: any): Promise<ActionResponse<any
  */
 export async function updateAccountAction(id: string, data: any): Promise<ActionResponse<any>> {
     return handleAction(async () => {
-        const ctx = await requireShop();
+        const ctx = await requirePermission('FINANCE_CONFIG');
 
         const before = await AccountingService.getAccountById(id, ctx);
         const validated = accountSchema.partial().parse(data);
@@ -85,7 +94,7 @@ export async function updateAccountAction(id: string, data: any): Promise<Action
 export async function getTrialBalanceAction(params: { date?: string } = {}): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
-            const ctx = await requireShop();
+            const ctx = await requirePermission('FINANCE_VIEW_LEDGER');
             return AccountingService.getTrialBalance(ctx, {
                 date: params.date ? new Date(params.date) : undefined
             });
@@ -99,7 +108,7 @@ export async function getTrialBalanceAction(params: { date?: string } = {}): Pro
 export async function getAccountDetailAction(id: string): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
-            const ctx = await requireShop();
+            const ctx = await requirePermission('FINANCE_VIEW_LEDGER');
             return AccountingService.getAccountById(id, ctx);
         }, 'accounting:getAccountDetail');
     });
@@ -117,7 +126,7 @@ export async function getAccountDetailAction(id: string): Promise<ActionResponse
 export async function getAccountingPeriodsAction(): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
-            const ctx = await requireShop();
+            const ctx = await requirePermission('FINANCE_VIEW_LEDGER');
             return AccountingService.getAccountingPeriods(ctx);
         }, 'accounting:getAccountingPeriods');
     });
@@ -182,8 +191,8 @@ export async function reopenPeriodAction(params: { periodId: string, reason: str
 export async function getProfitAndLossAction(params: { startDate: string, endDate: string }): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
-            const ctx = await requireShop();
-            return AccountingReportService.getProfitAndLoss(
+            const ctx = await requirePermission('FINANCE_VIEW_LEDGER');
+            return StatementService.getProfitAndLoss(
                 ctx,
                 new Date(params.startDate),
                 new Date(params.endDate)
@@ -195,8 +204,8 @@ export async function getProfitAndLossAction(params: { startDate: string, endDat
 export async function getBalanceSheetAction(params: { asOfDate: string }): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
-            const ctx = await requireShop();
-            return AccountingReportService.getBalanceSheet(
+            const ctx = await requirePermission('FINANCE_VIEW_LEDGER');
+            return StatementService.getBalanceSheet(
                 ctx,
                 new Date(params.asOfDate)
             );
@@ -210,8 +219,8 @@ export async function getBalanceSheetAction(params: { asOfDate: string }): Promi
 export async function getAccountLedgerAction(params: { accountId: string, startDate: string, endDate: string }): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
-            const ctx = await requireShop();
-            return AccountingReportService.getAccountLedger(
+            const ctx = await requirePermission('FINANCE_VIEW_LEDGER');
+            return StatementService.getAccountLedger(
                 ctx,
                 params.accountId,
                 new Date(params.startDate),
@@ -233,8 +242,8 @@ export async function getAccountLedgerAction(params: { accountId: string, startD
 export async function getAgingReportAction(params: { type: 'AR' | 'AP', asOfDate?: string }): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
-            const ctx = await requireShop();
-            return AccountingReportService.getAgingReport(
+            const ctx = await requirePermission('FINANCE_VIEW_LEDGER');
+            return StatementService.getAgingReport(
                 ctx,
                 params.type,
                 params.asOfDate ? new Date(params.asOfDate) : new Date()
@@ -254,8 +263,8 @@ export async function getPartnerStatementAction(params: {
 }): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
-            const ctx = await requireShop();
-            return AccountingReportService.getPartnerStatement(
+            const ctx = await requirePermission('FINANCE_VIEW_LEDGER');
+            return StatementService.getPartnerStatement(
                 ctx,
                 params.partnerId,
                 params.type,
@@ -272,8 +281,8 @@ export async function getPartnerStatementAction(params: {
 export async function exportProfitAndLossAction(params: { startDate: string, endDate: string }): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
-            const ctx = await requireShop();
-            const dto = await AccountingReportService.getProfitAndLoss(ctx, new Date(params.startDate), new Date(params.endDate));
+            const ctx = await requireFinanceExport();
+            const dto = await StatementService.getProfitAndLoss(ctx, new Date(params.startDate), new Date(params.endDate));
             const rows = ExportService.adaptProfitAndLossToRows(dto);
             return ExportService.toCSV(rows);
         }, 'accounting:exportProfitAndLoss');
@@ -286,8 +295,8 @@ export async function exportProfitAndLossAction(params: { startDate: string, end
 export async function exportBalanceSheetAction(params: { asOfDate: string }): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
-            const ctx = await requireShop();
-            const dto = await AccountingReportService.getBalanceSheet(ctx, new Date(params.asOfDate));
+            const ctx = await requireFinanceExport();
+            const dto = await StatementService.getBalanceSheet(ctx, new Date(params.asOfDate));
             const rows = ExportService.adaptBalanceSheetToRows(dto);
             return ExportService.toCSV(rows);
         }, 'accounting:exportBalanceSheet');
@@ -300,7 +309,7 @@ export async function exportBalanceSheetAction(params: { asOfDate: string }): Pr
 export async function exportTrialBalanceAction(params: { date: string }): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
-            const ctx = await requireShop();
+            const ctx = await requireFinanceExport();
             const data = await AccountingService.getTrialBalance(ctx, { date: new Date(params.date) });
             const rows = ExportService.adaptTrialBalanceToRows(data);
             return ExportService.toCSV(rows);
@@ -314,8 +323,8 @@ export async function exportTrialBalanceAction(params: { date: string }): Promis
 export async function exportAccountLedgerAction(params: { accountId: string, startDate: string, endDate: string }): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
-            const ctx = await requireShop();
-            const dto = await AccountingReportService.getAccountLedger(ctx, params.accountId, new Date(params.startDate), new Date(params.endDate));
+            const ctx = await requireFinanceExport();
+            const dto = await StatementService.getAccountLedger(ctx, params.accountId, new Date(params.startDate), new Date(params.endDate));
             const rows = ExportService.adaptAccountLedgerToRows(dto);
             return ExportService.toCSV(rows);
         }, 'accounting:exportAccountLedger');
@@ -328,8 +337,8 @@ export async function exportAccountLedgerAction(params: { accountId: string, sta
 export async function exportAgingReportAction(params: { type: 'AR' | 'AP', asOfDate: string }): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
-            const ctx = await requireShop();
-            const dto = await AccountingReportService.getAgingReport(ctx, params.type, new Date(params.asOfDate));
+            const ctx = await requireFinanceExport();
+            const dto = await StatementService.getAgingReport(ctx, params.type, new Date(params.asOfDate));
             const rows = ExportService.adaptAgingReportToRows(dto);
             return ExportService.toCSV(rows);
         }, 'accounting:exportAgingReport');
@@ -342,8 +351,8 @@ export async function exportAgingReportAction(params: { type: 'AR' | 'AP', asOfD
 export async function exportGeneralLedgerAction(params: { startDate: string, endDate: string }): Promise<ActionResponse<any>> {
     return handleAction(async () => {
         return PerformanceCollector.run(async () => {
-            const ctx = await requireShop();
-            const data = await AccountingReportService.getGeneralLedger(ctx, new Date(params.startDate), new Date(params.endDate));
+            const ctx = await requireFinanceExport();
+            const data = await StatementService.getGeneralLedger(ctx, new Date(params.startDate), new Date(params.endDate));
             const rows = ExportService.adaptGeneralLedgerToRows(data);
             return ExportService.toCSV(rows);
         }, 'accounting:exportGeneralLedger');

@@ -1,9 +1,18 @@
 // Tool: Create Expense - บันทึกค่าใช้จ่าย
 
 import { FinanceService } from '@/services';
-import { AITool, ToolResult, ToolContext } from './types';
+import { AITool, ToolResult } from './types';
+import { z } from 'zod';
 
-export const createExpenseTool: AITool = {
+const schema = z.object({
+  description: z.string(),
+  amount: z.number(),
+  category: z.string().optional(),
+});
+
+export const createExpenseTool: AITool<z.infer<typeof schema>> = {
+  requiredPermission: 'EXPENSE_CREATE',
+  schema,
   definition: {
     name: 'create_expense',
     description: 'บันทึกค่าใช้จ่าย/รายจ่าย เช่น ค่าไฟ ค่าน้ำ ค่าเช่า ค่าจ้าง ค่าขนส่ง | Keywords: บันทึกค่า, จ่ายค่า, รายจ่าย, ค่าใช้จ่าย | ตัวอย่าง: "บันทึกค่าไฟ 2500", "จ่ายค่าเช่า 5000"',
@@ -58,7 +67,7 @@ export const createExpenseTool: AITool = {
         amount,
         category: category || 'อื่นๆ',
         date: new Date(),
-      }, context as any);
+      }, context);
 
       return {
         success: true,

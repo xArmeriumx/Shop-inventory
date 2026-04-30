@@ -1,4 +1,6 @@
-// AI Tool Types - Modular tool definition for easy maintenance
+import type { Permission } from '@prisma/client';
+import type { z } from 'zod';
+import type { ShopSessionContext } from '@/lib/auth-guard';
 
 export interface ToolParameter {
   type: 'string' | 'number' | 'boolean';
@@ -17,10 +19,7 @@ export interface ToolDefinition {
   };
 }
 
-export interface ToolContext {
-  userId: string;
-  shopId: string;
-}
+export type ToolContext = ShopSessionContext;
 
 export interface ToolResult {
   success: boolean;
@@ -32,12 +31,15 @@ export interface ToolResult {
     items: { label: string; value: string; icon?: string }[];
     toolName: string;
     params: Record<string, any>;
+    token?: string;
   };
 }
 
-export interface AITool {
+export interface AITool<TParams = any> {
+  requiredPermission?: Permission;
+  schema?: z.ZodType<TParams>;
   definition: ToolDefinition;
-  execute: (params: Record<string, any>, context: ToolContext, confirmed?: boolean) => Promise<ToolResult>;
+  execute: (params: TParams, context: ToolContext, confirmed?: boolean) => Promise<ToolResult>;
 }
 
 // Tool registry type

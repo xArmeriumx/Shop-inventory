@@ -37,7 +37,7 @@ export * from './tax/tax-settings.service';
 export * from './tax/wht.service';
 
 // --- ACCOUNTING (Ledger, Cash, Bank) ---
-export * from './accounting/accounting-report.service';
+export * from './accounting/statement.service';
 export * from './accounting/accounting.service';
 export * from './accounting/bank.service';
 export * from './accounting/finance.service';

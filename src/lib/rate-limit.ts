@@ -11,7 +11,7 @@ const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST
 const isUpstashConfigured = !!upstashUrl && !!upstashToken;
 const isProd = process.env.NODE_ENV === 'production';
 
-const redis = isUpstashConfigured
+export const redis = isUpstashConfigured
   ? new Redis({
     url: upstashUrl!,
     token: upstashToken!,
@@ -28,11 +28,11 @@ const redis = isUpstashConfigured
 export const rateLimiters = {
   /**
    * For heavy API operations like OCR. 
-   * Enterprise Scale: 100 requests per minute (per shop).
+   * Enterprise Scale: 20 requests per minute (per shop).
    */
   ocr: new Ratelimit({
     redis,
-    limiter: Ratelimit.slidingWindow(100, '1 m'),
+    limiter: Ratelimit.slidingWindow(20, '1 m'),
     analytics: true,
     prefix: 'erp:ratelimit:ocr',
   }),

@@ -12,6 +12,7 @@ export interface ConfirmationData {
     items: { label: string; value: string; icon?: string }[];
     toolName: string;
     params: Record<string, any>;
+    token?: string;
 }
 
 export interface TokenUsage {
@@ -55,6 +56,7 @@ export function useAIChat() {
                 body: JSON.stringify({
                     confirmTool: confirmation.toolName,
                     confirmParams: confirmation.params,
+                    token: confirmation.token,
                 }),
             });
 

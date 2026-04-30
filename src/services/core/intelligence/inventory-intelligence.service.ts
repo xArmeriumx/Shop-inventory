@@ -71,10 +71,20 @@ export const ProductIntelligenceService = {
         ]);
 
         const data: StockMovementDTO[] = (logs as any[]).map(log => {
+            let effectiveQty = Number(log.quantity);
+            const OUTFLOW_TYPES = ['SALE', 'WASTE', 'PURCHASE_CANCEL', 'RESERVATION', 'TRANSFER_OUT'];
+            const INFLOW_TYPES = ['SALE_CANCEL', 'RETURN', 'PURCHASE', 'RELEASE', 'TRANSFER_IN'];
+
+            if (OUTFLOW_TYPES.includes(log.type)) {
+                effectiveQty = -Math.abs(effectiveQty);
+            } else if (INFLOW_TYPES.includes(log.type)) {
+                effectiveQty = Math.abs(effectiveQty);
+            }
+
             return {
                 id: log.id,
                 type: log.type,
-                quantity: Number(log.quantity),
+                quantity: effectiveQty,
                 balance: Number(log.balance),
                 date: log.createdAt,
                 note: log.note,

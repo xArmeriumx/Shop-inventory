@@ -7,14 +7,7 @@ import { Prisma } from '@prisma/client';
 import { AuditService } from '@/services/core/system/audit.service';
 import { Security } from '@/services/core/iam/security.service';
 import { SUPPLIER_AUDIT_POLICIES } from '@/policies/purchases/supplier.policy';
-import type { SerializedSupplier, RequestContext, ActionResponse } from '@/types/domain';
-
-export class ServiceError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ServiceError';
-  }
-}
+import { SerializedSupplier, RequestContext, ActionResponse, ServiceError } from '@/types/domain';
 
 export const SupplierService = {
   async getAll(ctx: RequestContext, params: { page?: number; limit?: number; search?: string; groupCode?: string }) {

@@ -1,4 +1,13 @@
 /** @type {import('next').NextConfig} */
+const cspHeader = `
+    default-src 'self';
+    script-src 'self' 'unsafe-inline' ${process.env.NODE_ENV === 'development' ? "'unsafe-eval'" : ""};
+    style-src 'self' 'unsafe-inline';
+    img-src 'self' blob: data: https://*.supabase.co;
+    font-src 'self' data:;
+    connect-src 'self' wss: https://*.supabase.co;
+`.replace(/\n/g, '').replace(/\s+/g, ' ').trim();
+
 const nextConfig = {
   output: "standalone", // Required for Docker deployment
   poweredByHeader: false,
@@ -39,7 +48,7 @@ const nextConfig = {
           },
           {
             key: "Content-Security-Policy",
-            value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; font-src 'self' data:; connect-src 'self' https: wss:;"
+            value: cspHeader
           },
           {
             key: "Permissions-Policy",

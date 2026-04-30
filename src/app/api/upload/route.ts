@@ -9,68 +9,128 @@ import {
 } from '@/lib/supabase';
 
 import { withAuth } from '@/lib/auth/api-guard';
+import { detectMimeTypeFromBuffer } from '@/lib/upload/magic-bytes';
+import { Security } from '@/services/core/iam/security.service';
+import { getSessionContext } from '@/lib/auth-guard';
+import crypto from 'crypto';
+
+const UPLOAD_PROFILES = {
+  'product-image': {
+    bucket: PRODUCTS_BUCKET,
+    folder: 'product-images',
+    permission: ['PRODUCT_CREATE', 'PRODUCT_UPDATE'],
+    maxSize: 10 * 1024 * 1024,
+    allowedMime: ['image/jpeg', 'image/png', 'image/webp'],
+  },
+  'expense-receipt': {
+    bucket: RECEIPTS_BUCKET,
+    folder: 'expense-receipts',
+    permission: ['EXPENSE_CREATE', 'FINANCE_CONFIG'],
+    maxSize: 5 * 1024 * 1024,
+    allowedMime: ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
+  },
+  'purchase-receipt': {
+    bucket: RECEIPTS_BUCKET,
+    folder: 'purchase-receipts',
+    permission: ['PURCHASE_CREATE', 'FINANCE_CONFIG'],
+    maxSize: 5 * 1024 * 1024,
+    allowedMime: ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
+  },
+  'sale-receipt': {
+    bucket: RECEIPTS_BUCKET,
+    folder: 'sale-receipts',
+    permission: ['SALE_CREATE', 'POS_ACCESS', 'FINANCE_CONFIG'],
+    maxSize: 5 * 1024 * 1024,
+    allowedMime: ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
+  },
+  'payment-slip': {
+    bucket: RECEIPTS_BUCKET,
+    folder: 'slips',
+    permission: ['POS_ACCESS', 'SALE_CREATE', 'FINANCE_CONFIG'],
+    maxSize: 5 * 1024 * 1024,
+    allowedMime: ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'],
+  },
+} as const;
+
+export type UploadProfileKey = keyof typeof UPLOAD_PROFILES;
 
 export const POST = withAuth(
   async (request: NextRequest, session: any) => {
     try {
-      const userId = session.user.id;
+      const ctx = await getSessionContext();
+      if (!ctx || !ctx.shopId) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
 
-    const formData = await request.formData();
-    const file = formData.get('file') as File | null;
-    const folder = formData.get('folder') as string || 'misc';
-    const bucket = formData.get('bucket') as string || 'receipts';
+      const formData = await request.formData();
+      const file = formData.get('file') as File | null;
+      const profileKey = formData.get('profile') as string;
 
-    if (!file) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 });
-    }
+      if (!file) {
+        return NextResponse.json({ error: 'No file provided' }, { status: 400 });
+      }
 
-    // Determine target bucket and allowed types
-    const isProductUpload = bucket === 'products';
-    const targetBucket = isProductUpload ? PRODUCTS_BUCKET : RECEIPTS_BUCKET;
-    
-    // Validate file type based on bucket
-    // For products: Accept all image types (client compresses to JPEG before upload)
-    // For receipts: images + PDF
-    const isImage = file.type.startsWith('image/');
-    const isPdf = file.type === 'application/pdf';
-    
-    if (isProductUpload) {
-      if (!isImage) {
-        return NextResponse.json({ 
-          error: 'ไฟล์ไม่ใช่รูปภาพ กรุณาอัพโหลดเฉพาะไฟล์รูปภาพ'
+      if (!profileKey || !(profileKey in UPLOAD_PROFILES)) {
+        return NextResponse.json({ error: 'Invalid or missing upload profile' }, { status: 400 });
+      }
+
+      const profile = UPLOAD_PROFILES[profileKey as UploadProfileKey];
+
+      // Check permission (oneOf)
+      const hasPermission = ctx.isOwner || profile.permission.some(perm => ctx.permissions.includes(perm as any));
+      if (!hasPermission) {
+        return NextResponse.json({ error: 'Permission denied for this upload profile' }, { status: 403 });
+      }
+
+      const isProductUpload = profile.bucket === PRODUCTS_BUCKET;
+      const targetBucket = profile.bucket;
+
+      if (file.size <= 0) {
+        return NextResponse.json({ error: 'Empty file is not allowed' }, { status: 400 });
+      }
+
+      if (file.size > profile.maxSize) {
+        return NextResponse.json({
+          error: `File too large. Max ${profile.maxSize / (1024 * 1024)}MB`
         }, { status: 400 });
       }
-    } else {
-      if (!isImage && !isPdf) {
-        return NextResponse.json({ 
-          error: 'ไฟล์ไม่ถูกต้อง กรุณาอัพโหลดรูปภาพหรือ PDF'
+
+      // Read to ArrayBuffer only after size check
+      const arrayBuffer = await file.arrayBuffer();
+      const buffer = new Uint8Array(arrayBuffer);
+
+      // Validate file type based on magic bytes (NOT client MIME type)
+      const detectedMime = detectMimeTypeFromBuffer(buffer);
+
+      if (!detectedMime) {
+        return NextResponse.json({
+          error: 'รูปแบบไฟล์ไม่ถูกต้อง หรือไม่ได้รับการรองรับ'
         }, { status: 400 });
       }
-    }
+      if (!profile.allowedMime.includes(detectedMime as any)) {
+        return NextResponse.json({ 
+          error: `ไฟล์ประเภทนี้ไม่ได้รับอนุญาตสำหรับโปรไฟล์ ${profileKey}`
+        }, { status: 400 });
+      }
 
-    // Validate file size (10MB for products, 5MB for receipts)
-    const maxSize = isProductUpload ? 10 * 1024 * 1024 : 5 * 1024 * 1024;
-    if (file.size > maxSize) {
-      return NextResponse.json({ 
-        error: `File too large. Max ${isProductUpload ? '10' : '5'}MB` 
-      }, { status: 400 });
-    }
+    // Canonical extension mapping
+    const EXT_BY_MIME: Record<string, string> = {
+      'image/jpeg': 'jpg',
+      'image/png': 'png',
+      'image/webp': 'webp',
+      'application/pdf': 'pdf',
+    };
 
-    // Generate unique filename with random suffix for uniqueness
-    const timestamp = Date.now();
-    const random = Math.random().toString(36).substring(2, 8);
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-    const fileName = `${folder}/${userId}/${timestamp}-${random}.${ext}`;
-
-    // Convert File to ArrayBuffer
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = new Uint8Array(arrayBuffer);
+    // Generate secure unique filename with tenant isolation
+    const ext = EXT_BY_MIME[detectedMime] || 'bin';
+    const uniqueId = crypto.randomUUID();
+    const fileName = `shops/${ctx.shopId}/${profile.folder}/${ctx.userId}/${uniqueId}.${ext}`;
 
     // Upload to Supabase Storage
     const { data, error } = await supabase.storage
       .from(targetBucket)
       .upload(fileName, buffer, {
-        contentType: file.type,
+        contentType: detectedMime,
         upsert: false,
       });
 

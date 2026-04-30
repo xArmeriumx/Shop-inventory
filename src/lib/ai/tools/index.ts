@@ -1,6 +1,10 @@
 // AI Tools Registry - Central export for all tools
 
 import { ToolRegistry } from './types';
+import { z } from 'zod';
+import { Security } from '@/services/core/iam/security.service';
+import { createConfirmationToken, verifyAndConsumeConfirmation } from '../tool-confirmation';
+import type { ShopSessionContext } from '@/lib/auth-guard';
 import { createExpenseTool } from './create-expense';
 import { createIncomeTool } from './create-income';
 import { createProductTool } from './create-product';
@@ -36,8 +40,8 @@ export function getToolDefinitions() {
 export async function executeTool(
   toolName: string,
   params: Record<string, any>,
-  context: { userId: string; shopId: string },
-  confirmed: boolean = false
+  context: ShopSessionContext,
+  confirmed: boolean | string = false
 ) {
   const tool = toolRegistry[toolName];
   if (!tool) {
@@ -46,5 +50,54 @@ export async function executeTool(
       message: `❌ ไม่พบ tool: ${toolName}`,
     };
   }
-  return tool.execute(params, context, confirmed);
+
+  // Parse schema
+  let parsedParams = params;
+  if (tool.schema) {
+    try {
+      parsedParams = tool.schema.parse(params);
+    } catch (e: any) {
+      return {
+        success: false,
+        message: `❌ ข้อมูลไม่ถูกต้อง: ${e.errors?.[0]?.message || e.message}`,
+      };
+    }
+  }
+
+  // Check required permission
+  if (tool.requiredPermission) {
+    try {
+      Security.requirePermission(context, tool.requiredPermission);
+    } catch (e: any) {
+      return {
+        success: false,
+        message: `❌ คุณไม่มีสิทธิ์ใช้งานคำสั่งนี้ (${tool.requiredPermission})`,
+      };
+    }
+  }
+
+  // Wrap execution to intercept confirmation requests and inject tokens
+  // If confirmed is a string, it's a token.
+  const isConfirmed = typeof confirmed === 'string';
+
+  if (isConfirmed) {
+    const isValid = await verifyAndConsumeConfirmation(confirmed as string, toolName, parsedParams, context);
+    if (!isValid) {
+      return {
+        success: false,
+        message: `❌ การยืนยันตัวตนไม่ถูกต้อง หรือหมดอายุแล้ว โปรดลองอีกครั้ง`,
+      };
+    }
+  }
+
+  const result = await tool.execute(parsedParams, context, isConfirmed);
+
+  // If tool requests confirmation, generate a token and attach to confirmationData
+  if (result.requireConfirmation && result.confirmationData) {
+    const canonicalParams = result.confirmationData.params;
+    const token = await createConfirmationToken(toolName, canonicalParams, context);
+    result.confirmationData.token = token;
+  }
+
+  return result;
 }

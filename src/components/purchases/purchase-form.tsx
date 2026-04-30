@@ -354,7 +354,7 @@ export function PurchaseForm() {
 
         <Card>
           <CardHeader><CardTitle className="text-base">หลักฐานการซื้อ</CardTitle></CardHeader>
-          <CardContent><FileUpload value={watch('receiptUrl') || undefined} onChange={(url) => setValue('receiptUrl', url)} folder="purchases" /></CardContent>
+          <CardContent><FileUpload value={watch('receiptUrl') || undefined} onChange={(url) => setValue('receiptUrl', url)} profile="purchase-receipt" /></CardContent>
         </Card>
 
         <Card><CardContent className="pt-6 flex justify-between text-lg font-bold"><span>ยอดรวมทั้งหมด</span><span>{formatCurrency(total.toString())}</span></CardContent></Card>

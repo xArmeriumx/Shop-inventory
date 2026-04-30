@@ -559,7 +559,7 @@ export function SaleForm() {
         <Card>
           <CardHeader><CardTitle className="text-base">หลักฐานการชำระเงิน</CardTitle></CardHeader>
           <CardContent>
-            <FileUpload value={watch('receiptUrl') || undefined} onChange={(url) => setValue('receiptUrl', url)} folder="receipts" />
+            <FileUpload value={watch('receiptUrl') || undefined} onChange={(url) => setValue('receiptUrl', url)} profile="sale-receipt" />
           </CardContent>
         </Card>
 

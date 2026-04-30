@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { withAuth } from '@/lib/auth/api-guard';
 import { groq } from '@/lib/ai/client';
 import type { ReceiptData } from '@/lib/ocr/types';
+import { validateOcrImageBase64 } from '@/lib/ocr/input-validation';
 
 // Vision models with fallback order
 const VISION_MODELS = [
@@ -169,16 +170,16 @@ async function callVisionAPI(model: string, imageUrl: string) {
 
 export const POST = withAuth(async (request) => {
   try {
-    const { imageBase64, imageUrl, mimeType = 'image/jpeg' } = await request.json();
-
-    if (!imageBase64 && !imageUrl) {
+    const { imageBase64 } = await request.json();
+    const validationResult = validateOcrImageBase64(imageBase64);
+    if (!validationResult.ok) {
       return NextResponse.json(
-        { success: false, error: 'Missing image data' },
+        { success: false, error: validationResult.error },
         { status: 400 }
       );
     }
 
-    const groqImageUrl = imageUrl || `data:${mimeType};base64,${imageBase64}`;
+    const groqImageUrl = `data:${validationResult.mime};base64,${validationResult.base64}`;
     const startTime = Date.now();
 
     let response;

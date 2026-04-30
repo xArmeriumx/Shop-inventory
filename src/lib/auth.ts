@@ -4,8 +4,16 @@ import Credentials from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
 import { db } from '@/lib/db';
 import type { Permission } from '@prisma/client';
-
 import { authConfig } from '@/auth.config';
+import { Ratelimit } from '@upstash/ratelimit';
+import { redis } from '@/lib/rate-limit';
+
+const loginLimiter = new Ratelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(5, '5 m'),
+  analytics: true,
+  prefix: 'erp:ratelimit:login',
+});
 
 // All permissions for auto-created Owner role
 const ALL_PERMISSIONS: Permission[] = [
@@ -28,9 +36,10 @@ const ALL_PERMISSIONS: Permission[] = [
  */
 async function getActiveShopMembership(userId: string) {
   try {
-    // First, try to find existing membership
+    // First, try to find existing membership deterministically (oldest first)
     const membership = await db.shopMember.findFirst({
       where: { userId },
+      orderBy: { joinedAt: 'asc' },
       include: {
         role: {
           select: {
@@ -47,8 +56,8 @@ async function getActiveShopMembership(userId: string) {
     if (membership) {
       return {
         shopId: membership.shop.id,
-        roleId: membership.role.id,
-        permissions: membership.role.permissions,
+        roleId: membership.role?.id,
+        permissions: membership.role?.permissions ?? [],
         isOwner: membership.isOwner,
         permissionVersion: membership.permissionVersion,
       };
@@ -166,9 +175,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
 
+        const email = credentials.email as string;
+
+        // Rate limit by email to prevent brute-force attacks
+        const { success } = await loginLimiter.limit(email.toLowerCase());
+        if (!success) {
+          console.warn('[Auth] Sign-in rate limited', { email });
+          throw new Error('บัญชีนี้ถูกระงับการเข้าสู่ระบบชั่วคราว กรุณาลองใหม่ในอีก 5 นาที');
+        }
+
         try {
           const user = await db.user.findUnique({
-            where: { email: credentials.email as string },
+            where: { email },
           });
 
           if (!user) {

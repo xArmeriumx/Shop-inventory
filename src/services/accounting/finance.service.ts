@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { RequestContext, ServiceError, PaginatedResult, GetFinanceParams, SerializedIncome, SerializedExpense } from '@/types/domain';
 import { AuditService } from '@/services/core/system/audit.service';
+import { Security } from '@/services/core/iam/security.service';
 import { FINANCE_AUDIT_POLICIES } from '@/policies/accounting/finance.policy';
 import { IncomeInput } from '@/schemas/accounting/income.schema';
 import { ExpenseInput } from '@/schemas/accounting/expense.schema';
@@ -52,6 +53,7 @@ export const FinanceService: IFinanceService = {
   },
 
   async createIncome(data: IncomeInput, ctx: RequestContext): Promise<MutationResult<SerializedIncome>> {
+    Security.requirePermission(ctx, 'FINANCE_CONFIG');
     const income = await AuditService.runWithAudit(
       ctx,
       FINANCE_AUDIT_POLICIES.INCOME_CREATE(data.description || ''),
@@ -189,6 +191,7 @@ export const FinanceService: IFinanceService = {
   },
 
   async createExpense(data: ExpenseInput, ctx: RequestContext): Promise<MutationResult<SerializedExpense>> {
+    Security.requirePermission(ctx, 'EXPENSE_CREATE');
     const expense = await AuditService.runWithAudit(
       ctx,
       FINANCE_AUDIT_POLICIES.EXPENSE_CREATE(data.description || ''),

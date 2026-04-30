@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { withAuth } from '@/lib/auth/api-guard';
 import { ocrService } from '@/lib/ocr/service';
 import { DocumentType } from '@/lib/ocr/strategies';
+import { validateOcrImageBase64 } from '@/lib/ocr/input-validation';
 
 export const maxDuration = 30; // Allow up to 30 seconds for Vision OCR
 
@@ -24,6 +25,14 @@ export const POST = withAuth(async (request, session) => {
     if (!imageBase64) {
       return NextResponse.json(
         { success: false, error: 'Missing imageBase64' },
+        { status: 400 }
+      );
+    }
+
+    const validationResult = validateOcrImageBase64(imageBase64);
+    if (!validationResult.ok) {
+      return NextResponse.json(
+        { success: false, error: validationResult.error },
         { status: 400 }
       );
     }
@@ -42,8 +51,8 @@ export const POST = withAuth(async (request, session) => {
     // Call OCR service
     const result = await ocrService.scan({
       documentType,
-      imageBase64,
-      mimeType: mimeType || 'image/jpeg',
+      imageBase64: validationResult.base64,
+      mimeType: validationResult.mime,
     });
 
     if (!result.success) {

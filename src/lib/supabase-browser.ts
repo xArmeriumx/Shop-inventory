@@ -44,44 +44,35 @@ export function getSupabaseBrowser() {
 export const PRODUCTS_BUCKET = 'products';
 export const RECEIPTS_BUCKET = 'receipts';
 
+export type UploadProfileKey = 'product-image' | 'expense-receipt' | 'purchase-receipt' | 'sale-receipt' | 'payment-slip';
+
 /**
- * Direct upload to Supabase Storage
- * Bypasses Vercel's 4.5MB limit by uploading directly from browser
+ * Upload to Supabase Storage via hardened backend API route
+ * This replaces the direct browser upload for better security
  */
 export async function uploadToStorage(
   file: File,
-  bucket: string,
-  folder: string
+  profile: UploadProfileKey
 ): Promise<{ url: string; path: string } | { error: string; message: string }> {
   try {
-    const client = getSupabaseBrowser();
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('profile', profile);
 
-    // Generate unique filename
-    const timestamp = Date.now();
-    const random = Math.random().toString(36).substring(2, 8);
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-    const fileName = `${folder}/${timestamp}-${random}.${ext}`;
+    const response = await fetch('/api/upload', {
+      method: 'POST',
+      body: formData,
+    });
 
-    // Upload directly to Supabase
-    const { data, error } = await client.storage
-      .from(bucket)
-      .upload(fileName, file, {
-        contentType: file.type,
-        upsert: false,
-      });
+    const data = await response.json();
 
-    if (error) {
-      console.error('Supabase upload error:', error);
-      return { error: error.message, message: error.message };
+    if (!response.ok || data.error) {
+      console.error('Upload error:', data.error);
+      return { error: data.error || 'Upload failed', message: data.error || 'Upload failed' };
     }
 
-    // Get public URL
-    const { data: urlData } = client.storage
-      .from(bucket)
-      .getPublicUrl(data.path);
-
     return {
-      url: urlData.publicUrl,
+      url: data.url,
       path: data.path,
     };
   } catch (err) {

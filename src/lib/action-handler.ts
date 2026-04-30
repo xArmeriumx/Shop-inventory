@@ -2,6 +2,7 @@ import { ActionResponse, ServiceError } from '@/types/domain';
 import { ZodError } from 'zod';
 import { serialize } from '@/lib/utils';
 import { logger } from '@/lib/logger';
+import { isDynamicServerError } from '@/lib/next-utils';
 
 /**
  * Standardized Action Wrapper for Server Actions (Phase OB5.2)
@@ -157,6 +158,11 @@ export async function handleAction<T>(
     } catch (error: unknown) {
         // Handle next.js redirect - should be re-thrown
         if (error instanceof Error && error.message === 'NEXT_REDIRECT') {
+            throw error;
+        }
+
+        // Handle next.js dynamic server usage errors (prevents build noise)
+        if (isDynamicServerError(error)) {
             throw error;
         }
 

@@ -1,9 +1,18 @@
 // Tool: Create Income - บันทึกรายรับอื่นๆ
 
 import { FinanceService } from '@/services';
-import { AITool, ToolResult, ToolContext } from './types';
+import { AITool, ToolResult } from './types';
+import { z } from 'zod';
 
-export const createIncomeTool: AITool = {
+const schema = z.object({
+  description: z.string(),
+  amount: z.number(),
+  category: z.string().optional(),
+});
+
+export const createIncomeTool: AITool<z.infer<typeof schema>> = {
+  requiredPermission: 'FINANCE_CONFIG',
+  schema,
   definition: {
     name: 'create_income',
     description: 'บันทึกรายรับอื่นๆ (ไม่ใช่การขายสินค้า) เช่น ค่าบริการ ค่าซ่อม ค่าติดตั้ง ค่าแรง ค่าคอมมิชชั่น | Keywords: บันทึกรายรับ, ค่าซ่อม, ค่าบริการ, รับเงิน | ตัวอย่าง: "บันทึกค่าซ่อม 500", "ค่าบริการ 200"',
@@ -57,7 +66,7 @@ export const createIncomeTool: AITool = {
         amount,
         category: category || 'อื่นๆ',
         date: new Date(),
-      }, context as any);
+      }, context);
 
       return {
         success: true,

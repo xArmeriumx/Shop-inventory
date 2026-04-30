@@ -1,9 +1,17 @@
 // Tool: Generate Report - สรุปรายงาน (Read-only, no confirmation needed)
 
 import { db } from '@/lib/db';
-import { AITool, ToolResult, ToolContext } from './types';
+import { AITool, ToolResult } from './types';
+import { z } from 'zod';
 
-export const generateReportTool: AITool = {
+const schema = z.object({
+  reportType: z.string().optional(),
+  period: z.string(),
+});
+
+export const generateReportTool: AITool<z.infer<typeof schema>> = {
+  requiredPermission: 'REPORT_VIEW_SALES',
+  schema,
   definition: {
     name: 'generate_report',
     description: 'สร้างรายงานสรุปยอดขาย กำไร ค่าใช้จ่าย | Keywords: สรุป, รายงาน, ยอดขาย, กำไร, ผลประกอบการ | Periods: วันนี้(today), สัปดาห์นี้(week), เดือนนี้(month) | ตัวอย่าง: "สรุปยอดขายวันนี้", "รายงานเดือนนี้"',

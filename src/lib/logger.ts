@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { LogLevel } from '@prisma/client';
+import { redact, redactString } from '@/lib/redact';
 
 /**
  * Event Taxonomy for ERP Hardening (Phase 2.5)
@@ -121,16 +122,22 @@ async function log(level: LogLevel, message: string, context?: any) {
     // Normalize path from context or specific pathname field
     const finalPath = (path || pathname) as string;
 
+    const redactedContext = redact(otherContext);
+
+    const redactedStack = typeof redactedContext.stack === 'string'
+      ? redactString(redactedContext.stack).slice(0, 5000)
+      : undefined;
+
     await db.systemLog.create({
       data: {
         level,
-        message,
+        message: redactString(message),
         path: finalPath,
         method: method as string,
         userId: userId as string,
         shopId: shopId as string,
-        stack: otherContext.stack,
-        body: JSON.stringify(otherContext),
+        stack: redactedStack,
+        body: JSON.stringify(redactedContext),
       },
     });
 
@@ -138,10 +145,11 @@ async function log(level: LogLevel, message: string, context?: any) {
     flushBuffer(db).catch(() => {/* silent */});
   } catch (e) {
     // ── Fallback: Buffer + Console (ป้องกัน cascading failure) ──
-    console.error(`[${level}] ${message}`, context);
+    const redactedContext = redact(context);
+    console.error(`[${level}] ${message}`, redactedContext);
     
     if (logBuffer.length < LOG_BUFFER_MAX) {
-      logBuffer.push({ level, message, context, timestamp: new Date() });
+      logBuffer.push({ level, message, context: redactedContext, timestamp: new Date() });
     }
     // ห้าม throw — logger ต้องไม่ทำให้ business logic พัง
   }

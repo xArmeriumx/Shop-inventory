@@ -1,9 +1,16 @@
 // Tool: Check Stock - เช็คสต็อกสินค้า (Read-only, no confirmation needed)
 
 import { db } from '@/lib/db';
-import { AITool, ToolResult, ToolContext } from './types';
+import { AITool, ToolResult } from './types';
+import { z } from 'zod';
 
-export const checkStockTool: AITool = {
+const schema = z.object({
+  productName: z.string(),
+});
+
+export const checkStockTool: AITool<z.infer<typeof schema>> = {
+  requiredPermission: 'PRODUCT_VIEW',
+  schema,
   definition: {
     name: 'check_stock',
     description: 'เช็คสต็อก/จำนวนคงเหลือของสินค้า | Keywords: เช็คสต็อก, ดูสต็อก, เหลือเท่าไหร่, เหลือกี่ชิ้น, มีกี่อัน | ตัวอย่าง: "เช็คสต็อก Labubu", "สินค้า Molly เหลือเท่าไหร่"',

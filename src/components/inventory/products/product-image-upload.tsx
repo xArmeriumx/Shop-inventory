@@ -4,7 +4,7 @@ import { useState, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import { X, Loader2, Star, Plus, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { uploadToStorage, PRODUCTS_BUCKET } from '@/lib/supabase-browser';
+import { uploadToStorage } from '@/lib/supabase-browser';
 
 // ==================== Types ====================
 interface ProductImageUploadProps {
@@ -129,8 +129,7 @@ export function ProductImageUpload({
         // Direct upload to Supabase (no Vercel limit!)
         const result = await uploadToStorage(
           fileToUpload,
-          PRODUCTS_BUCKET,
-          'product-images'
+          'product-image'
         );
 
         if ('error' in result) {

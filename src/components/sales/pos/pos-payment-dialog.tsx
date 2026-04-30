@@ -16,7 +16,7 @@ import type { POSCart, POSPaymentMethod } from '@/lib/pos/types';
 import { formatCurrency } from '@/lib/formatters';
 import { cn } from '@/lib/utils';
 import { PromptPayQR } from './promptpay-qr';
-import { uploadToStorage, RECEIPTS_BUCKET } from '@/lib/supabase-browser';
+import { uploadToStorage } from '@/lib/supabase-browser';
 
 interface POSPaymentDialogProps {
   isOpen: boolean;
@@ -130,7 +130,7 @@ export function POSPaymentDialog({
 
     setIsUploading(true);
     try {
-      const result = await uploadToStorage(slipFile, RECEIPTS_BUCKET, 'slips');
+      const result = await uploadToStorage(slipFile, 'payment-slip');
 
       if ('error' in result) {
         throw new Error(result.error);

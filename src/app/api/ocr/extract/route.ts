@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { withAuth } from '@/lib/auth/api-guard';
 import { extractReceiptData } from '@/lib/ocr/extract-receipt';
+import { validateOcrText } from '@/lib/ocr/input-validation';
 
 
 export const maxDuration = 30;
@@ -22,6 +23,11 @@ export const POST = withAuth(async (request, session) => {
     
     if (!ocrText || typeof ocrText !== 'string') {
       return NextResponse.json({ error: 'No OCR text provided' }, { status: 400 });
+    }
+
+    const validationError = validateOcrText(ocrText);
+    if (validationError) {
+      return NextResponse.json({ error: validationError }, { status: 400 });
     }
 
     if (ocrText.trim().length < 5) {

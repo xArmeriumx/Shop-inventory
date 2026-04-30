@@ -1,9 +1,20 @@
 // Tool: Create Product - เพิ่มสินค้าใหม่
 
 import { ProductService } from '@/services';
-import { AITool, ToolResult, ToolContext } from './types';
+import { AITool, ToolResult } from './types';
+import { z } from 'zod';
 
-export const createProductTool: AITool = {
+const schema = z.object({
+  name: z.string(),
+  price: z.number(),
+  cost: z.number().optional(),
+  stock: z.number().optional(),
+  category: z.string().optional(),
+});
+
+export const createProductTool: AITool<z.infer<typeof schema>> = {
+  requiredPermission: 'PRODUCT_CREATE',
+  schema,
   definition: {
     name: 'create_product',
     description: 'เพิ่มสินค้าใหม่เข้าระบบ | Keywords: เพิ่มสินค้า, สร้างสินค้า, ลงสินค้า, สินค้าใหม่ | ตัวอย่าง: "เพิ่มสินค้า Labubu ราคา 1050", "สินค้าใหม่ Test ราคา 100"',
@@ -36,9 +47,14 @@ export const createProductTool: AITool = {
   },
 
   async execute(params, context, confirmed = false): Promise<ToolResult> {
-    const { name, price, stock = 0, category = 'ทั่วไป' } = params;
-    // Default cost to 80% of price if not specified
-    const cost = params.cost ?? Math.floor(price * 0.8);
+    const canonicalParams = {
+      ...params,
+      cost: params.cost ?? Math.floor(params.price * 0.8),
+      stock: params.stock ?? 0,
+      category: params.category ?? 'ทั่วไป',
+    };
+
+    const { name, price, stock, category, cost } = canonicalParams;
 
     if (!confirmed) {
       return {
@@ -56,7 +72,7 @@ export const createProductTool: AITool = {
             { label: 'หมวดหมู่', value: category, icon: '📁' },
           ],
           toolName: 'create_product',
-          params: { ...params, cost, category },
+          params: canonicalParams,
         },
       };
     }
@@ -66,7 +82,7 @@ export const createProductTool: AITool = {
       const timestamp = Date.now().toString(36).toUpperCase();
       const sku = `PRD-${timestamp}`;
 
-      const result = await ProductService.create(context as any, {
+      const result = await ProductService.create(context, {
         name,
         sku,
         salePrice: price,

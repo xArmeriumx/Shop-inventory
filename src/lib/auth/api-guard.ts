@@ -4,6 +4,7 @@ import type { Permission } from '@prisma/client';
 import { db } from '@/lib/db';
 import { rateLimiters, checkRateLimit, type RateLimitPolicy } from '@/lib/rate-limit';
 import { RequestContext } from '@/types/domain';
+import { getSessionContext, hasPermission } from '@/lib/auth-guard';
 
 // ============================================================================
 // SESSION FRESHNESS CHECK
@@ -117,11 +118,18 @@ export function withAuth(
 
       // 4. Authorization Check (if permission required)
       if (options.permission) {
-        const userPermissions = (session.user as any).permissions || [];
+        // Fetch full server-side context instead of trusting session claims
+        const serverCtx = await getSessionContext();
+        if (!serverCtx) {
+          return NextResponse.json(
+            { success: false, error: 'Unauthorized', code: 'UNAUTHENTICATED' },
+            { status: 401 }
+          );
+        }
         
-        const hasPermission = isOwner || userPermissions.includes(options.permission);
+        const isAuthorized = hasPermission(serverCtx, options.permission);
 
-        if (!hasPermission) {
+        if (!isAuthorized) {
           return NextResponse.json(
             { success: false, error: 'Forbidden: Missing permission', code: 'UNAUTHORIZED' },
             { status: 403 }

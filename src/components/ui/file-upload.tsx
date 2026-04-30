@@ -5,12 +5,12 @@ import Image from 'next/image';
 import { X, FileImage, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { uploadToStorage, RECEIPTS_BUCKET } from '@/lib/supabase-browser';
+import { uploadToStorage, UploadProfileKey } from '@/lib/supabase-browser';
 
 interface FileUploadProps {
   value?: string;
   onChange: (url: string | null) => void;
-  folder?: string;
+  profile: UploadProfileKey;
   className?: string;
   disabled?: boolean;
 }
@@ -18,7 +18,7 @@ interface FileUploadProps {
 export function FileUpload({
   value,
   onChange,
-  folder = 'misc',
+  profile,
   className,
   disabled = false,
 }: FileUploadProps) {
@@ -42,8 +42,8 @@ export function FileUpload({
     }
 
     try {
-      // Direct upload to Supabase (no Vercel limit!)
-      const result = await uploadToStorage(file, RECEIPTS_BUCKET, folder);
+      // Direct upload to Supabase via hardened endpoint
+      const result = await uploadToStorage(file, profile);
 
       if ('error' in result) {
         throw new Error((result as any).message || 'อัพโหลดไฟล์ไม่สำเร็จ');
