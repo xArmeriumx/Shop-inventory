@@ -367,15 +367,16 @@ async function postPurchaseTaxEntry(
 async function voidTaxEntries(
     sourceType: string,
     sourceId: string,
-    ctx: RequestContext
+    ctx: RequestContext,
+    tx: any = db
 ) {
     const now = new Date();
     await Promise.all([
-        (db as any).salesTaxEntry.updateMany({
+        (tx as any).salesTaxEntry.updateMany({
             where: { shopId: ctx.shopId, sourceType, sourceId },
             data: { postingStatus: 'VOIDED', voidedAt: now },
         }),
-        (db as any).purchaseTaxEntry.updateMany({
+        (tx as any).purchaseTaxEntry.updateMany({
             where: { shopId: ctx.shopId, sourceType, sourceId },
             data: { postingStatus: 'VOIDED', voidedAt: now },
         }),

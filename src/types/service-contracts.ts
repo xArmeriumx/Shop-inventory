@@ -1053,5 +1053,5 @@ export interface ITaxSettingsService {
 
   postPurchaseTaxEntry(input: any, ctx: RequestContext, tx?: any): Promise<MutationResult<any>>;
 
-  voidTaxEntries(sourceType: string, sourceId: string, ctx: RequestContext): Promise<MutationResult<void>>;
+  voidTaxEntries(sourceType: string, sourceId: string, ctx: RequestContext, tx?: any): Promise<MutationResult<void>>;
 }

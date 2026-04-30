@@ -235,6 +235,14 @@ export const POSSaleService: IPOSSaleService = {
                 await InvoiceService.tryPost(ctx, invoice.data.id, tx);   // graceful — ไม่ throw ถ้าไม่มี CoA
                 await InvoiceService.markPaid(ctx, invoice.data.id, tx);
 
+                // ── 8. COGS Posting (BUG-4 fix: POS was missing COGS) ──────
+                try {
+                    const PostingModule = await import('@/services/accounting/posting-engine.service');
+                    await PostingModule.PostingService.postCOGS(ctx, sale, tx);
+                } catch {
+                    // Graceful: ถ้า CoA ไม่พร้อม → skip (Accountant post ย้อนหลังได้)
+                }
+
                 return { sale, invoiceId: invoice.data.id };
             }, { timeout: DB_TIMEOUTS.EXTENDED });
         });

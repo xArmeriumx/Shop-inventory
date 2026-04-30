@@ -425,12 +425,12 @@ export const InvoiceService = {
 
         WorkflowService.canInvoiceAction(invoice as any, 'CANCEL');
 
-        // Void tax entries
-        if (invoice.taxPostingStatus === 'POSTED') {
-            await TaxSettingsService.voidTaxEntries('INVOICE', invoice.id, ctx);
-        }
-
         const result = await (db as any).$transaction(async (tx: any) => {
+            // Void tax entries INSIDE transaction (BUG-1 fix: was outside before)
+            if (invoice.taxPostingStatus === 'POSTED') {
+                await TaxSettingsService.voidTaxEntries('INVOICE', invoice.id, ctx, tx);
+            }
+
             // Find and reverse Accounting Journal (Phase A1.5)
             const journal = await (tx as any).journalEntry.findFirst({
                 where: {

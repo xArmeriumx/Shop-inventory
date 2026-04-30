@@ -243,9 +243,18 @@ export const PurchaseService: IPurchaseService = {
           if (!fullPurchase) throw new ServiceError('ไม่พบข้อมูลการซื้อ');
           if (fullPurchase.status === 'CANCELLED') throw new ServiceError('รายการนี้ถูกยกเลิกไปแล้ว');
 
+          // BUG-3 fix: ตรวจ WarehouseStock แทน legacy product.stock
+          const defaultWhId = await StockEngine.resolveWarehouse(ctx, undefined, prisma);
+          const productIds = fullPurchase.items.map(i => i.productId);
+          const warehouseStocks = await (prisma as any).warehouseStock.findMany({
+            where: { productId: { in: productIds }, warehouseId: defaultWhId },
+          });
+          const whStockMap = new Map<string, number>(warehouseStocks.map((ws: any) => [ws.productId, Number(ws.quantity)]));
+
           for (const item of fullPurchase.items) {
-            if (item.product.stock - item.quantity < 0) {
-              throw new ServiceError(`สต็อก ${item.product.name} จะติดลบ (คงเหลือ ${item.product.stock})`);
+            const currentQty: number = whStockMap.get(item.productId) ?? 0;
+            if (currentQty - Number(item.quantity) < 0) {
+              throw new ServiceError(`สต็อก ${item.product.name} ในคลังจะติดลบ (คงเหลือ ${currentQty})`);
             }
           }
 

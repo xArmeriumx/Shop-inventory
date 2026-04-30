@@ -148,7 +148,7 @@ export const ProductService: IProductService = {
             }, prisma);
           }
 
-          const { stock, version, ...otherData } = payload;
+          const { stock, version, initialStocks, ...otherData } = payload;
           const currentStock = payload.stock !== undefined ? payload.stock : existingP.stock;
           const currentMinStock = otherData.minStock !== undefined ? otherData.minStock : existingP.minStock;
 
